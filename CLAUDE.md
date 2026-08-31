@@ -12,10 +12,15 @@ starting work.
 ## Commands
 
 ```
-npm run dev      # vite dev server
-npm run build    # tsc -b && vite build
-npm run preview  # serve dist/
+npm run dev        # react-router dev
+npm run typecheck  # react-router typegen && tsc -b
+npm run check      # the assert-based checks
+npm run build      # typecheck, prerender every route, copy the root 404.html
+npm run preview    # serve build/client/
 ```
+
+Build output is `build/client/` — one directory of static files, which is the
+whole deploy. `dist/` is gone.
 
 **Claude must never run `npm install`, `npm ci` or `npm run build` here.**
 `node_modules` contains native bindings for the host (macOS arm64), and Claude's
@@ -24,14 +29,21 @@ platform binding directory and cannot delete them afterwards, which breaks the
 build for everyone. Recovery is `rm -rf node_modules package-lock.json && npm
 install`, run by Seb on macOS.
 
-Claude verifies with `npx tsc --noEmit` — pure JS, safe from either side.
-Bundling and running are Seb's.
+Claude verifies with `npx react-router typegen && npx tsc --noEmit` and
+`node src/i18n/locales.check.ts` — pure JS, safe from either side. Anything that
+needs a real install or a real build, Claude does on a throwaway copy in its own
+cloud container, never in this folder. Bundling and deploying are Seb's.
 
 ## Stack
 
-Vite 7 · React 19 + TypeScript · `three` (WebGPURenderer + TSL) ·
-`@react-three/fiber` · `@react-three/drei`. Content as MDX, locale in the route.
-Deploy: static build → Cloudflare Pages.
+Vite 8 · React 19 + TypeScript · React Router 8, framework mode, `ssr: false`
+with `prerender` · `three` (WebGPURenderer + TSL) · `@react-three/fiber` ·
+`@react-three/drei`. Content as MDX (`@mdx-js/rollup` + `remark-frontmatter`),
+locale in the route. Deploy: static build → Cloudflare Pages.
+
+The plan says "React Router 7"; v8 is what shipped. Same `react-router.config.ts`,
+same `routes.ts`, same `root.tsx`, and v7 would have meant starting a new project
+one major behind. Noted here rather than done quietly.
 
 ## Projects
 
@@ -94,7 +106,17 @@ Breaking one is allowed. Doing it without saying so is not.
 ## Layout
 
 ```
-src/App.tsx             baseline scene — moves under the router in Phase 2
+src/root.tsx            the HTML document — <html lang>, stylesheet, Scripts
+src/routes.ts           the route table
+src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
+src/routes/home.tsx     /{lang}
+src/routes/work.tsx     /{lang}/work
+src/routes/case-study.tsx  /{lang}/work/{slug}
+src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
+src/routes/world.tsx    /world — the scene, unlinked, client-only, lazy
+src/content.ts          every MDX file, keyed by slug and locale
+src/i18n/               locales.ts (routing) + index.ts (strings) + a check
+src/App.tsx             baseline scene — moves into the root layout in Phase 3
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Islands.tsx         the ground under each landmark — lathed, no assets
 src/Landmarks.tsx       the mine, the easel, the board — primitives + TSL, no assets
@@ -106,7 +128,20 @@ src/index.css           global styles
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
+public/_redirects       `/` → `/en`. Exact matches only — Cloudflare evaluates
+                        redirects before assets, so a `/*` rule would swallow
+                        every prerendered page
 ```
+
+## Content
+
+`src/content/projects/{slug}.{lang}.mdx`, and nothing lists them anywhere else —
+`react-router.config.ts` reads the directory to build its prerender list.
+
+English carries the structural frontmatter (`year`, `stack`, `landmark`,
+`waypoint`, `site`, `repo`); `fr` and `nl` carry only `title` and `summary` beside
+their prose. A URL is never written down three times. A locale with no file for a
+slug falls back to English rather than 404ing.
 
 ## Working together
 

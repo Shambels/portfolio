@@ -1,0 +1,3 @@
+# Cloudflare Pages evaluates these before serving any asset, so keep them exact:
+# a `/*` rule here would swallow every prerendered page.
+/  /en  302

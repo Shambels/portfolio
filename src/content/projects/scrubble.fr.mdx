@@ -1,0 +1,104 @@
+---
+title: Scrubble
+slug: scrubble
+summary: Un plateau d'analyse de Scrabble multiplateforme qui trouve tous les coups légaux d'une position et les classe — fait pour vous montrer ce que vous avez raté, pas pour jouer votre tour à votre place.
+---
+
+## Le problème
+
+Le coup que vous avez joué n'est pas le coup qui était là.
+
+Vous finissez une partie, vous perdez de neuf points, et quelque part vers le
+sixième tour il y avait un scrabble posé sur votre chevalet que personne autour
+de la table n'a vu. Le Scrabble est un des rares jeux où le meilleur coup est un
+fait — un plateau fini, un chevalet fini, une liste de mots fixe — et où un être
+humain est structurellement incapable de le trouver. Vous pouvez revoir une partie
+d'échecs après coup et vous faire dire exactement où vous vous êtes trompé. Il n'y
+a pas d'équivalent pour le plateau que vous venez de ranger.
+
+Scrubble est cette revue. Vous reconstituez la position, vous entrez le chevalet,
+et il vous rend tous les coups légaux classés par score. La distinction autour de
+laquelle il est construit, c'est que c'est un plateau d'analyse et non un
+assistant : il est pour la partie qui est finie, comme un moteur d'échecs est pour
+la partie qui est finie. Un solveur que l'on consulte en plein tour contre
+quelqu'un assis en face est un autre produit avec le même code dedans, et je ne
+voulais pas construire celui-là.
+
+## Ce que j'ai choisi
+
+Flutter, pour viser Android, iOS, macOS, Windows et le web depuis une seule base
+de code, avec Riverpod qui tient l'état du plateau, du chevalet, du dictionnaire
+et du solveur — choisi parce que ses providers sont testables sans arbre de
+widgets, et que l'essentiel de ce projet est de la logique plutôt que des écrans.
+
+Le dictionnaire est un asset embarqué — rien ne quitte l'appareil et rien n'a
+besoin du réseau — chargé dans un trie au démarrage. Le solveur fait de la
+génération de coups par ancres et contrôles croisés, l'approche d'Appel et
+Jacobson : trouver les cases vides adjacentes aux tuiles posées, déterminer pour
+chacune quelles lettres formeraient légalement un mot croisé, construire les
+préfixes vers la gauche à partir du chevalet, puis étendre vers la droite à
+travers l'ancre tant que le trie dit qu'un mot peut encore continuer. Puis la même
+chose à la verticale. Le score n'applique les multiplicateurs qu'aux tuiles
+nouvellement posées, ajoute chaque mot croisé créé par le placement, et ajoute
+cinquante si le chevalet se vide.
+
+## Ce que j'ai écarté
+
+**Les permutations du chevalet.** Le premier solveur évident : générer chaque
+arrangement d'au plus sept tuiles, l'essayer à chaque position, garder ce que le
+dictionnaire accepte. C'est correct, ça fait une quinzaine de lignes, et ça
+accomplit un travail énorme pour découvrir qu'aucun mot français ne commence par
+« qz ». Le trie est ce qui transforme ça en élagage — dès qu'aucun mot ne prolonge
+un préfixe, la branche entière disparaît — et la passe par ancres est ce qui
+l'empêche d'examiner des positions qui ne pouvaient de toute façon pas être des
+placements légaux.
+
+**Un ensemble de hachage de mots.** Un ensemble répond à « est-ce un mot » en
+temps constant et ne répond à rien d'autre, et la génération de coups n'est pas
+une question d'appartenance. Chacune de ses étapes demande si un préfixe peut
+encore mener quelque part, ce qui est la seule question à laquelle un ensemble ne
+peut pas répondre et la seule question pour laquelle un trie existe. Le trie coûte
+plus de mémoire pour la même liste de mots, et c'est tout l'échange.
+
+**Un GADDAG.** La réponse sérieuse, et ce qu'utilise un moteur de compétition :
+stocker chaque rotation de chaque mot pour que l'extension parte dans les deux
+sens depuis une ancre sans passe séparée sur la partie gauche. C'est environ cinq
+fois la mémoire d'un trie simple, en échange de vitesse sur un problème dont
+l'utilisateur est une personne qui attend une liste. Je préfère dépenser une
+seconde que cinq fois l'empreinte sur chaque téléphone où tourne l'application.
+
+**Résoudre sur le thread principal.** La génération de coups tourne dans un
+isolate. Une résolution qui saccade l'interface se lit comme une application
+cassée plutôt que comme une application occupée.
+
+## Ce que ça a coûté
+
+Entrer une position est la partie lente, et la résolution est instantanée. Un
+plateau de milieu de partie, c'est une trentaine de tapes à travers une boîte de
+dialogue par case avant d'obtenir une réponse : tolérable quand vous revoyez une
+position intéressante, pénible dès que vous voulez revoir une partie entière. La
+solution est de photographier le plateau, et c'est un autre projet — lire une
+grille de quinze sur quinze de tuiles depuis l'appareil photo d'un téléphone tenu
+de travers, où une seule case mal lue produit une réponse fausse et sûre d'elle.
+
+Ajouter le français n'était pas un travail de traduction. Les chaînes de
+l'interface sont un fichier ; le *jeu* ne l'est pas. Le Scrabble français a sa
+propre distribution de lettres, ses propres valeurs de points et son propre
+traitement des accents, ce qui voulait dire que le modèle de tuiles lui-même
+devait devenir dépendant de la langue plutôt qu'une table de constantes. C'est le
+genre de chose que l'on découvre en phase dix et qu'il aurait fallu savoir en
+phase un.
+
+Les jokers coûtent plus cher que tout ce qui a leur taille : chacun multiplie la
+recherche par vingt-six et ne rapporte rien.
+
+## Le résultat
+
+Ça marche, sur les dix phases du plan, sur cinq plateformes, en deux langues, avec
+des tests derrière chaque phase. Ce n'est pas non plus publié, et ce sont deux
+choses différentes. Ce qui les sépare n'est pas du code : une fiche de store
+demande une icône, une réponse sur la vie privée, un nom qui n'emprunte pas une
+marque déposée, et une liste de mots dont je peux montrer la licence — les listes
+de tournoi bien connues ne sont pas les fichiers du domaine public que l'on croit.
+Rien de tout cela n'est difficile. Tout cela est inachevé, et le dire est plus
+utile qu'une capture d'écran.

@@ -4,25 +4,33 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "dev": "react-router dev",
+    "typecheck": "react-router typegen && tsc -b",
+    "check": "node src/i18n/locales.check.ts",
+    "build": "npm run typecheck && react-router build && cp build/client/en/404/index.html build/client/404.html",
+    "preview": "vite preview --outDir build/client",
+    "lint": "oxlint"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "isbot": "^5.1.40",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-router": "^8.3.1",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@mdx-js/rollup": "^3.1.1",
+    "@react-router/dev": "^8.3.1",
+    "@types/mdx": "^2.0.14",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/three": "^0.185.4",
-    "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "remark-frontmatter": "^5.0.0",
+    "remark-mdx-frontmatter": "^5.2.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }

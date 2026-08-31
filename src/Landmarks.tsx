@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three/webgpu'
 import {
-  color, floor, fract, max, mix, mx_fractal_noise_float, positionLocal,
+  color, floor, fract, max, mx_fractal_noise_float, positionLocal,
   positionWorld, sin, smoothstep, step, vec3,
 } from 'three/tsl'
 import { LANDMARKS, type Landmark } from './world'

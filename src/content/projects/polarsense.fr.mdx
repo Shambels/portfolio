@@ -1,0 +1,109 @@
+---
+title: PolarSense
+slug: polarsense
+summary: L'autocomplétion des noms de colonnes pour polars, pandas et duckdb, lue dans le fichier de données posé sur le disque — sans jamais exécuter votre code.
+---
+
+## Le problème
+
+L'autocomplétion s'arrête au guillemet.
+
+Vous écrivez une requête polars, vous allez chercher une colonne, et l'éditeur
+n'a rien à dire — parce que les noms de colonnes sont des chaînes de caractères,
+et qu'aucun vérificateur de types ne voit à l'intérieur d'une chaîne. Alors vous
+basculez sur un terminal, vous affichez le schéma, vous y lisez un nom, vous
+revenez, vous le tapez, vous vous trompez d'une lettre, et vous l'apprenez à
+l'exécution, après un scan que vous avez payé. Dix fois par heure, sur un fichier
+dont vous connaissez les colonnes à moitié.
+
+La solution évidente est d'exécuter le code. Démarrer un noyau, importer polars,
+exécuter assez du script pour avoir un vrai DataFrame en mémoire, et
+l'interroger. Toutes les réponses existantes à ce problème fonctionnent ainsi, et
+je l'ai écartée.
+
+## Ce que j'ai choisi
+
+Le schéma est déjà posé sur le disque. Le pied de page d'un fichier parquet
+l'enregistre. La ligne d'en-tête d'un CSV aussi, comme le flatbuffer de schéma
+d'un Arrow IPC, le journal de commits d'un Delta, le pointeur de métadonnées d'un
+Iceberg, la ligne d'en-tête à l'intérieur du zip d'un `.xlsx`. PolarSense ouvre le
+fichier dont votre frame provient réellement, lit ça, et propose les noms.
+
+Il n'importe jamais polars, ne lance jamais d'interpréteur Python, n'exécute
+jamais une ligne de votre code. Pour le parquet, toute la lecture tient en deux
+plages d'octets du pied de page, si bien qu'un fichier de quatre millions de
+lignes coûte exactement ce que coûte un fichier de deux cents. Les schémas sont
+lus à l'ouverture du fichier plutôt qu'à la première demande, et mis en cache sur
+le mtime et la taille : la première complétion est déjà un succès de cache.
+
+L'autre moitié du travail consiste à savoir de quel fichier vient le frame sous
+votre curseur, et quelle forme il a une fois arrivé là. Les affectations sont
+suivies à travers le fichier ; une chaîne de méthodes est suivie ; un `select`
+restreint, un `rename` renomme, un `join` propose les deux côtés avec les
+collisions suffixées, un `group_by().agg()` rend les clés plus les agrégats, un
+`unnest` met les champs d'un struct à sa place. Les chemins n'ont pas besoin
+d'être littéraux — constantes de module, f-strings, `os.path.join`,
+`Path(__file__).parent / "sales.parquet"` se réduisent d'abord à un chemin. Les
+imports sont suivis sur deux sauts dans le workspace, donc une fonction de
+chargement écrite dans un autre fichier se résout quand même.
+
+## Ce que j'ai écarté
+
+**Exécuter le code.** C'est la bonne réponse pour les cas que la lecture statique
+n'atteint pas, et cela veut dire une extension d'éditeur qui exécute le script
+d'un dépôt inconnu à l'instant où vous l'ouvrez. Effets de bord, identifiants, un
+`DROP TABLE` dans un script de migration, et un démarrage à froid que vous sentez
+à chaque frappe. Une autocomplétion ne vaut pas ça, et « lit des octets, n'exécute
+rien » est tout le produit.
+
+**Indexer le workspace en arrière-plan.** Écarté pour la raison qui rend
+désagréable un linter parcourant `site-packages` : seuls les modules que votre
+fichier ouvert importe réellement sont lus, et rien ne tourne tant que vous ne
+demandez rien.
+
+**Deviner.** C'était le point difficile, et il ressort à quatre endroits.
+L'avertissement de colonne inconnue reste totalement muet dès que quelque chose,
+entre le fichier et le curseur, n'a pas pu être modélisé — un sélecteur illisible,
+un remodelage non modélisé, un fichier impossible à ouvrir — parce qu'un
+diagnostic qui crie au loup se fait désactiver et ne se réactive jamais. La
+complétion de valeurs ne propose plus rien du tout au-delà de cinquante valeurs
+distinctes, plutôt qu'une liste tronquée, parce que cent identifiants de commande
+sur quatre millions sont une affirmation sur leur nombre, et une affirmation
+fausse. Une lecture qui n'a pas couvert toutes les lignes le dit sur chaque
+élément. Et pyarrow n'est pas supporté du tout : `read_table` veut dire parquet
+chez pyarrow et CSV chez pandas, et les distinguer suppose de savoir de quel
+module vient l'appel.
+
+## Ce que ça a coûté
+
+Certains remodelages ne peuvent pas être résolus sans lire des lignes. `pivot`,
+`to_dummies` et un `transpose` sans noms explicites tirent leurs colonnes de
+sortie des valeurs du fichier plutôt que de quoi que ce soit d'écrit dans le
+code. L'extension garde les colonnes qu'elle avait, les classe sous les réponses
+certaines, et les marque comme une supposition.
+
+Le SQL est scanné, pas parsé — littéraux et commentaires masqués, puis ce qui suit
+`FROM` et `JOIN` est une table. Du coup chaque table d'une requête est visible
+partout dans celle-ci, une jointure propose les deux côtés marqués incertains, et
+les positions SQL ne sont jamais vérifiées contre les fautes de frappe.
+
+Le compromis qui m'agace encore, ce sont les panneaux d'aperçu. Ils décrivent le
+fichier, pas le frame : les colonnes sont correctement restreintes par tout ce
+qui se trouve sur le chemin de votre curseur, mais le nombre de lignes, la taille
+et le codec appartiennent au fichier derrière, et un `filter` n'y change rien. Ils
+affichent `transforms not applied` plutôt que de montrer quatre millions de lignes
+en les appelant le frame. Combler cet écart suppose d'exécuter votre code — ce que
+le panneau de graphe fait désormais, dans un notebook avec un noyau vivant, sur
+activation explicite, en lecture seule, et en demandant le consentement la
+première fois. C'est le seul endroit où la règle du zéro exécution est enfreinte.
+Elle l'est délibérément, dans une seule fonctionnalité, derrière un réglage, et
+dite à voix haute plutôt que généralisée en silence.
+
+## Le résultat
+
+Publié sur le Marketplace VS Code. Le nombre d'installations ne vaut pas encore
+la peine d'être cité, alors voici ceux qui sont honnêtes : sept formats de
+fichiers lus, une quarantaine de points de complétion à travers polars, pandas et
+duckdb, une extension packagée d'environ 200 kB ne transportant aucun
+`node_modules`, aucune télémétrie, et rien qui quitte la machine hormis des plages
+d'octets des fichiers que vous lui désignez.

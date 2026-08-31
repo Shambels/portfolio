@@ -1,0 +1,106 @@
+---
+title: PolarSense
+slug: polarsense
+summary: Autoaanvulling van kolomnamen voor polars, pandas en duckdb, gelezen uit het databestand op schijf — zonder je code ooit uit te voeren.
+---
+
+## Het probleem
+
+De autoaanvulling stopt bij het aanhalingsteken.
+
+Je schrijft een polars-query, je grijpt naar een kolom, en de editor heeft niets
+te zeggen — want kolomnamen zijn strings, en geen enkele typechecker kijkt in een
+string. Dus schakel je naar een terminal, print je het schema, lees je er een naam
+af, kom je terug, tik je hem in, sla je één letter mis, en kom je er pas tijdens
+het uitvoeren achter, na een scan waarvoor je betaald hebt. Tien keer per uur, op
+een bestand waarvan je de kolommen half onthouden hebt.
+
+De voor de hand liggende oplossing is de code uitvoeren. Een kernel starten,
+polars importeren, genoeg van het script draaien om een echt DataFrame in het
+geheugen te hebben, en het dat vragen. Elk bestaand antwoord op dit probleem werkt
+zo, en ik heb het verworpen.
+
+## Wat ik koos
+
+Het schema ligt al op schijf. De footer van een parquet-bestand legt het vast. De
+headerrij van een CSV net zo goed, en ook de schema-flatbuffer van Arrow IPC, het
+commitlog van Delta, de metadata-pointer van Iceberg, de headerrij binnen de zip
+van een `.xlsx`. PolarSense opent het bestand waar je frame werkelijk vandaan komt,
+leest dat, en biedt de namen aan.
+
+Het importeert nooit polars, start nooit een Python-interpreter, voert nooit een
+regel van je code uit. Voor parquet is de hele lees-operatie twee byte-ranges uit
+de footer, dus een bestand van vier miljoen rijen kost precies wat een bestand van
+tweehonderd rijen kost. Schema's worden gelezen wanneer een bestand opengaat in
+plaats van wanneer je er als eerste om vraagt, en gecachet op mtime en grootte:
+de eerste aanvulling is al een cache hit.
+
+De andere helft van het werk is weten uit welk bestand het frame onder je cursor
+komt, en welke vorm het heeft tegen de tijd dat het daar aankomt. Toewijzingen
+worden door het bestand heen gevolgd; een method chain wordt gevolgd; een `select`
+versmalt, een `rename` hernoemt, een `join` biedt beide kanten aan met
+gesuffixeerde botsingen, een `group_by().agg()` geeft sleutels plus aggregaten
+terug, een `unnest` zet de velden van een struct op zijn plaats. Paden hoeven geen
+letterlijke strings te zijn — moduleconstanten, f-strings, `os.path.join`,
+`Path(__file__).parent / "sales.parquet"` vouwen eerst samen tot een pad. Imports
+worden twee sprongen ver de workspace in gevolgd, dus een laadfunctie in een ander
+bestand lost alsnog op.
+
+## Wat ik verwierp
+
+**De code uitvoeren.** Het is het juiste antwoord voor de gevallen die statisch
+lezen niet bereikt, en het betekent een editor-extensie die het script van een
+onbekende repository uitvoert op het moment dat je hem opent. Neveneffecten,
+credentials, een `DROP TABLE` in een migratiescript, en een koude start die je bij
+elke toetsaanslag voelt. Een autoaanvulling is dat niet waard, en "leest bytes,
+voert niets uit" is het hele product.
+
+**De workspace op de achtergrond indexeren.** Verworpen om dezelfde reden waarom
+een linter die `site-packages` doorloopt onaangenaam is: alleen de modules die je
+geopende bestand echt importeert worden gelezen, en er draait niets zolang je
+niets vraagt.
+
+**Gokken.** Dit was de moeilijke, en hij komt op vier plaatsen terug. De
+waarschuwing voor een onbekende kolom blijft volledig stil zodra iets tussen het
+bestand en de cursor niet gemodelleerd kon worden — een onleesbare selector, een
+niet-gemodelleerde reshape, een bestand dat niet geopend kon worden — want een
+diagnostic die wolf roept wordt uitgezet en nooit meer aangezet.
+Waarde-aanvulling biedt boven vijftig verschillende waarden helemaal niets meer
+aan, in plaats van een afgekapte lijst, want honderd van vier miljoen order-id's
+zijn een bewering over hoeveel er zijn, en een onjuiste. Een lezing die niet elke
+rij dekte zegt dat op elk item. En pyarrow wordt ronduit niet ondersteund:
+`read_table` betekent parquet in pyarrow en CSV in pandas, en die uit elkaar houden
+vereist weten uit welke module de aanroep kwam.
+
+## Wat het kostte
+
+Sommige reshapes zijn niet te beantwoorden zonder rijen te lezen. `pivot`,
+`to_dummies` en een `transpose` zonder expliciete namen halen hun uitvoerkolommen
+uit de waarden in het bestand in plaats van uit iets dat in de code geschreven
+staat. De extensie houdt de kolommen die ze had, sorteert ze onder de zekere
+antwoorden, en markeert ze als gok.
+
+SQL wordt gescand, niet geparseerd — literals en commentaar gemaskeerd, en dan is
+wat op `FROM` en `JOIN` volgt een tabel. Dus elke tabel in een statement is overal
+in dat statement in scope, een join biedt beide kanten aan als onzeker, en
+SQL-posities worden helemaal niet op typefouten gecontroleerd.
+
+De afweging die me nog steeds stoort zijn de preview-panelen. Ze beschrijven het
+bestand, niet het frame: de kolommen zijn correct versmald door alles op weg naar
+je cursor, maar het aantal rijen, de bestandsgrootte en de codec horen bij het
+bestand erachter, en een `filter` verandert daar niets aan. Ze zeggen
+`transforms not applied` in plaats van vier miljoen rijen te tonen en dat het frame
+te noemen. Dat gat dichten betekent je code uitvoeren — wat het graph-paneel nu
+doet, in een notebook met een levende kernel, opt-in en alleen-lezen, en de eerste
+keer om toestemming vragend. Dat is de enige plek waar de regel van niet-uitvoeren
+gebroken wordt. Ze wordt bewust gebroken, in één functie, achter een instelling,
+en hardop gezegd in plaats van stilletjes veralgemeend.
+
+## Het resultaat
+
+Gepubliceerd op de VS Code Marketplace. Het aantal installaties is nog geen getal
+dat het citeren waard is, dus hier zijn de getallen die eerlijk zijn: zeven
+bestandsformaten gelezen, ongeveer veertig aanvulpunten verspreid over polars,
+pandas en duckdb, een gepackagede extensie van ruwweg 200 kB die geen enkele
+`node_modules` meedraagt, geen telemetrie, en niets dat de machine verlaat behalve
+byte-ranges van de bestanden die je aanwijst.
