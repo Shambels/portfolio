@@ -109,53 +109,114 @@ alive. `deploy.sh` builds locally and rsyncs the result.
 
 ### First-time server setup
 
-Once, as root on the server:
+Everything below assumes you log in as `deploy`, a normal user with sudo — not as
+root. That is why the web root gets handed to `deploy` in step 2: deploying is
+then a plain `rsync` with no sudo and no password prompt, and `sudo` appears only
+in this one-time setup.
+
+**1. Key first**, so nothing later asks for a password:
 
 ```sh
-apt update && apt install -y nginx rsync
-mkdir -p /var/www/pinchs.be
+ssh-copy-id deploy@167.233.245.42
 ```
 
-From your Mac, so deploys do not ask for a password:
+**2. On the server** — nginx, and a web root owned by the user that will write to
+it:
 
 ```sh
-ssh-copy-id root@167.233.245.42
-scp deploy/nginx.conf root@167.233.245.42:/etc/nginx/sites-available/pinchs.be
+ssh deploy@167.233.245.42
+sudo apt update && sudo apt install -y nginx rsync
+sudo mkdir -p /var/www/pinchs.be
+sudo chown -R "$USER:$USER" /var/www/pinchs.be
+exit
 ```
 
-Back on the server, enable the site and drop nginx's placeholder:
+**3. Install the server block.** `scp` cannot write to `/etc` as a non-root user
+and cannot sudo, so pipe the file through `ssh` into `sudo tee` instead — from
+your Mac, in the repo:
 
 ```sh
-ln -sf /etc/nginx/sites-available/pinchs.be /etc/nginx/sites-enabled/pinchs.be
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+ssh deploy@167.233.245.42 'sudo tee /etc/nginx/sites-available/pinchs.be >/dev/null' < deploy/nginx.conf
 ```
 
-Firewall:
+**4. Enable it** and drop nginx's placeholder:
 
 ```sh
-ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw enable
+ssh deploy@167.233.245.42
+sudo ln -sf /etc/nginx/sites-available/pinchs.be /etc/nginx/sites-enabled/pinchs.be
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+`nginx -t` naming a file that does not exist means step 3 wrote it under a
+different name — check with `ls /etc/nginx/sites-available/`, and note the
+filename must match the symlink exactly, `.be` included.
+
+**5. Firewall**, still on the server:
+
+```sh
+sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
 ```
 
 That is enough to serve over HTTP. Two things are still open:
 
-**DNS.** Point `pinchs.be` and `www.pinchs.be` at `167.233.245.42` with A records
-at your registrar. Until that resolves the site answers on the bare IP, and the
-`canonical` and `hreflang` tags will still say `https://pinchs.be` — correct for
-production, wrong-looking while you are testing on the IP. That is expected; the
-one place to change it is `SITE_URL` in `src/i18n/index.ts`.
+**DNS.** The domain is at GoDaddy. Two records, and that is the whole zone:
+
+| Type | Name | Value | TTL |
+|---|---|---|---|
+| `A` | `@` | `167.233.245.42` | 600 while testing, 1 hour after |
+| `CNAME` | `www` | `@` | 1 hour |
+
+Delete everything else pointing at the web: GoDaddy parks new domains on
+`76.223.105.230` and `13.248.243.5`, and **those two A records come back if you
+only delete them** — they are put there by *Domain Settings → Forwarding*, which
+has to be turned off first. Leave the two `ns**.domaincontrol.com` NS records and
+the SOA alone; a stray `_domainconnect` CNAME is harmless.
+
+GoDaddy's own leftovers are fine where they are: the `SOA`, the
+`_domainconnect` CNAME (an unused hook that lets third-party services write
+records into the zone — deletable, no effect either way), and the default
+`_dmarc` TXT.
+
+Nothing else is needed. No `AAAA` unless you deliberately want IPv6 (the box has
+one — an AAAA pointing anywhere else makes the site look dead to v6 clients), no
+`MX`, no `CAA` — though if one already exists it must allow `letsencrypt.org` or
+certbot in the next step will be refused.
+
+The domain sends no mail, so the strongest correct mail config is to say so:
+`TXT @` = `v=spf1 -all`, and `p=reject` instead of GoDaddy's `p=quarantine` in
+`_dmarc`. Optional, unrelated to the site, and worth undoing the day you add a
+contact form or an address on the domain.
+
+Check before running certbot — **query a public resolver, not GoDaddy**, because
+the old parked records are cached for up to an hour after you fix the zone. This
+must print the server's address and nothing else:
+
+```sh
+dig +short pinchs.be www.pinchs.be @1.1.1.1
+```
+
+Until DNS resolves the site answers on the bare IP, and `canonical` and
+`hreflang` still say `https://pinchs.be` — correct for production, wrong-looking
+while you test on the IP. Expected; the one place to change it is `SITE_URL` in
+`src/i18n/index.ts`.
 
 **TLS.** After DNS resolves, on the server:
 
 ```sh
-apt install -y certbot python3-certbot-nginx
-certbot --nginx -d pinchs.be -d www.pinchs.be
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d pinchs.be -d www.pinchs.be
 ```
 
 Certbot rewrites the server block in place, adds the port 443 listener and the
-HTTP→HTTPS redirect, and installs its own renewal timer. Re-copying
-`deploy/nginx.conf` afterwards would undo that, so if the config ever needs
-changing, edit it on the server or re-run certbot after copying.
+HTTP→HTTPS redirect, and installs its own renewal timer. **`deploy/nginx.conf` in
+this repo is the pre-TLS version** — re-copying it over the server would strip
+HTTPS off. After certbot has run once, pull the live file back down so the repo
+matches what is serving:
+
+```sh
+ssh deploy@167.233.245.42 'sudo cat /etc/nginx/sites-available/pinchs.be' > deploy/nginx.conf
+```
 
 ### Deploying a new version
 
@@ -164,9 +225,14 @@ changing, edit it on the server or re-run certbot after copying.
 ```
 
 It runs `npm run build` (which type-checks first, so a broken build never
-reaches the server), rsyncs `build/client/` with `--delete` so stale hashed
-assets are removed, then curls five URLs and fails loudly if the routing is
-wrong. Overridable: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_URL`.
+reaches the server), `chmod -R a+rX build/client` (files in `public/` are mode
+600 in the repo and `rsync -a` preserves that, which nginx serves as a 403),
+rsyncs with `--delete` so stale hashed assets are removed, then curls five URLs
+and fails loudly if the routing is wrong. No sudo: step 2 gave `deploy` ownership
+of the web root. Overridable: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_URL`.
+
+No `--chmod` and no `-z` on the rsync: recent macOS ships openrsync, which has
+neither.
 
 Nothing on the server is generated or stateful — `/var/www/pinchs.be` is exactly
 the contents of `build/client/`, and a deploy is idempotent.
