@@ -22,10 +22,11 @@ npm run dev     # http://localhost:5173
 Other scripts:
 
 ```sh
-npm run build    # tsc -b && vite build  →  dist/
-npm run preview  # serve the built dist/ on http://localhost:4173
-npm run lint     # oxlint
-npx tsc --noEmit # types only, no build
+npm run typecheck  # react-router typegen && tsc -b
+npm run check      # the assert-based checks
+npm run build      # typecheck, prerender every route  →  build/client/
+npm run preview    # serve build/client/ on http://localhost:4173
+npm run lint       # oxlint
 ```
 
 ## Test it by hand
@@ -87,11 +88,100 @@ Verify a production build the same way with `npm run build && npm run preview`.
 ## Layout
 
 ```
-src/App.tsx     baseline scene + HUD — moves under the router in Phase 2
+src/root.tsx    the HTML document; src/routes.ts the route table
+src/routes/     one file per route — see CLAUDE.md for the map
+src/content.ts  every MDX file, keyed by slug and locale
+src/i18n/       locales.ts (routing) + index.ts (strings) + a check
+deploy.sh       build + rsync to the server, with a routing smoke test
+deploy/nginx.conf  the server block
+src/App.tsx     baseline scene + HUD — lives at /world until Phase 3
 src/Ship.tsx    the character: procedural hovering saucer + flight controller
 src/Landmarks.tsx the three landmarks — primitives + TSL, no model files
 src/useInput.ts the only place input is read (invariant 8)
 src/world.ts    landmark layout + proximity — moves into MDX frontmatter in Phase 3
 ```
+
+## Deploy
+
+Self-hosted on an Ubuntu box at `167.233.245.42`. The build is static files, so
+the server needs nginx and nothing else — no Node, no runtime, no process to keep
+alive. `deploy.sh` builds locally and rsyncs the result.
+
+### First-time server setup
+
+Once, as root on the server:
+
+```sh
+apt update && apt install -y nginx rsync
+mkdir -p /var/www/pinchs.be
+```
+
+From your Mac, so deploys do not ask for a password:
+
+```sh
+ssh-copy-id root@167.233.245.42
+scp deploy/nginx.conf root@167.233.245.42:/etc/nginx/sites-available/pinchs.be
+```
+
+Back on the server, enable the site and drop nginx's placeholder:
+
+```sh
+ln -sf /etc/nginx/sites-available/pinchs.be /etc/nginx/sites-enabled/pinchs.be
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
+```
+
+Firewall:
+
+```sh
+ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw enable
+```
+
+That is enough to serve over HTTP. Two things are still open:
+
+**DNS.** Point `pinchs.be` and `www.pinchs.be` at `167.233.245.42` with A records
+at your registrar. Until that resolves the site answers on the bare IP, and the
+`canonical` and `hreflang` tags will still say `https://pinchs.be` — correct for
+production, wrong-looking while you are testing on the IP. That is expected; the
+one place to change it is `SITE_URL` in `src/i18n/index.ts`.
+
+**TLS.** After DNS resolves, on the server:
+
+```sh
+apt install -y certbot python3-certbot-nginx
+certbot --nginx -d pinchs.be -d www.pinchs.be
+```
+
+Certbot rewrites the server block in place, adds the port 443 listener and the
+HTTP→HTTPS redirect, and installs its own renewal timer. Re-copying
+`deploy/nginx.conf` afterwards would undo that, so if the config ever needs
+changing, edit it on the server or re-run certbot after copying.
+
+### Deploying a new version
+
+```sh
+./deploy.sh
+```
+
+It runs `npm run build` (which type-checks first, so a broken build never
+reaches the server), rsyncs `build/client/` with `--delete` so stale hashed
+assets are removed, then curls five URLs and fails loudly if the routing is
+wrong. Overridable: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_URL`.
+
+Nothing on the server is generated or stateful — `/var/www/pinchs.be` is exactly
+the contents of `build/client/`, and a deploy is idempotent.
+
+### What nginx is doing
+
+`deploy/nginx.conf` does the two jobs Cloudflare's `_redirects` file did, plus
+caching:
+
+| | |
+|---|---|
+| `location = /` | 302 to `/en`. No `Accept-Language` negotiation — `hreflang` tells crawlers the rest |
+| `try_files $uri $uri/index.html` | `/en/work/scrubble` serves that folder's `index.html`, with no trailing-slash redirect |
+| `error_page 404 /404.html` | the prerendered English 404, served with a real 404 status |
+| `/assets/` | `immutable`, one year — filenames are content-hashed |
+| everything else | `no-cache`, so a deploy is visible on the next reload |
 
 Conventions, invariants and budgets: [`CLAUDE.md`](CLAUDE.md).

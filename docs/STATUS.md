@@ -11,7 +11,7 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 - [x] `WebGPURenderer` with automatic WebGL2 fallback
 - [x] TSL node materials
 - [x] Backend readout in the HUD
-- [ ] `.gitignore` reviewed, repo initialised, first push
+- [x] `.gitignore` reviewed, repo initialised, first push
 
 ## Phase 1 — Gates (both block Phase 3)
 
@@ -20,11 +20,8 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 - [x] Arts by Sandra case study (EN)
 - [x] Scrubble case study (EN)
 - [x] One-line bio + footer links — `src/i18n/index.ts`, three locales
-- [x] FR translations, drafted — `*.fr.mdx`, machine-written, **not reviewed**
-- [x] NL translations, drafted — `*.nl.mdx`, machine-written, **not reviewed**
-- [ ] **FR and NL read by Seb.** The plan says translations are never published
-      unreviewed, and this is the gate in front of the deploy below. Structural
-      frontmatter stayed in the English files, so a fix here is prose only.
+- [x] FR translations — `*.fr.mdx`, reviewed and approved
+- [x] NL translations — `*.nl.mdx`, reviewed and approved
 
 ### Track B — Blockout  · Seb
 - [x] World layout as data — `src/world.ts`
@@ -55,14 +52,17 @@ Needed to run Track B's exit test, so built before Phase 2.
 - [x] React Router **8**, framework mode, `ssr: false` + `prerender`
       *(v8, not the plan's v7 — see CLAUDE.md, Stack)*
 - [x] MDX via `@mdx-js/rollup` + `remark-frontmatter` + `remark-mdx-frontmatter`
-- [x] Locale routing `/en /fr /nl` + `_redirects` + `hreflang` + canonical
+- [x] Locale routing `/en /fr /nl` + `hreflang` + canonical (root redirect in nginx)
 - [x] `src/i18n/` typed strings per locale — English defines the shape, so a
       missing key in `fr` or `nl` is a type error
 - [x] Routes: `/{lang}`, `/{lang}/work`, `/{lang}/work/{slug}`, `/{lang}/404`
 - [x] Typography and layout — system stack, one rhythm unit, dark
 - [x] Footer — name, one line, email, GitHub
-- [ ] Deploy to Cloudflare Pages on pinchs.be *(Seb — blocked on the translation
-      review above)*
+- [x] Deploy tooling — `deploy.sh` (build + rsync + smoke test) and
+      `deploy/nginx.conf`, self-hosted instead of Cloudflare Pages
+- [ ] First deploy run: `./deploy.sh` *(Seb — server setup steps in README)*
+- [ ] DNS A records for `pinchs.be` and `www` → 167.233.245.42
+- [ ] TLS via `certbot --nginx`
 - [ ] Exit: Lighthouse 100, usable with JS off, live in three languages
 
 ### Verified, on a throwaway install in Claude's container
