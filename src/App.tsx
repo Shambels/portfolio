@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import * as THREE from 'three/webgpu'
 import { Canvas, extend } from '@react-three/fiber'
-import { Grid } from '@react-three/drei'
 import { Ship } from './Ship'
+import { Scenery } from './Scenery'
 import { LANDMARKS } from './world'
 
 extend(THREE as never)
@@ -10,6 +10,12 @@ extend(THREE as never)
 export default function App() {
   const [backend, setBackend] = useState('detecting…')
   const [near, setNear] = useState<string | null>(null)
+  // Node materials, not <meshStandardMaterial>: the classic material renders
+  // unlit black under WebGPURenderer, which the old dark scene hid.
+  const [base, highlight] = useMemo(() => [
+    new THREE.MeshStandardNodeMaterial({ color: '#6b7385', roughness: 0.85 }),
+    new THREE.MeshStandardNodeMaterial({ color: '#7dd3fc', roughness: 0.6 }),
+  ], [])
   return (
     <>
       <Canvas
@@ -22,17 +28,16 @@ export default function App() {
           })
         }}
       >
-        <color attach="background" args={['#05070d']} />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[4, 6, 3]} intensity={2.5} />
+        {/* Seen for one frame before the dome draws, and through it if it ever fails. */}
+        <color attach="background" args={['#2a3f5f']} />
+        <Scenery />
         <Ship onNear={setNear} />
         {LANDMARKS.map((l) => (
-          <mesh key={l.slug} position={[l.pos[0], l.size[1] / 2, l.pos[2]]}>
+          <mesh key={l.slug} position={[l.pos[0], l.size[1] / 2, l.pos[2]]}
+                material={near === l.slug ? highlight : base}>
             <boxGeometry args={l.size} />
-            <meshStandardMaterial color={near === l.slug ? '#7dd3fc' : '#3a4557'} />
           </mesh>
         ))}
-        <Grid args={[30, 30]} cellColor="#12203a" sectionColor="#1e3a5f" fadeDistance={22} infiniteGrid />
       </Canvas>
       <p className="hud">
         {LANDMARKS.find((l) => l.slug === near)?.label ?? 'WASD / arrows to fly · space to rise · shift to boost'}

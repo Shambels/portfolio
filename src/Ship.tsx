@@ -32,7 +32,7 @@ const SQUASH = 0.35   // spring travel -> metres of vertical give. ~0.12 m start
 // The altitude target is a step, so its derivative spikes by whatever the frame
 // rate is. Capping the drive keeps the bounce bounded and the same at 30 or 144.
 const JOLT = 60       // units/sec^2
-const CAM_OFFSET = new THREE.Vector3(0, 3.4, 6.5)
+const CAM_OFFSET = new THREE.Vector3(0, 2.4, 7.2) // flat enough to keep the horizon in frame
 const CAM_LAG = 3.5
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches

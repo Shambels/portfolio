@@ -1,4 +1,4 @@
-# Status
+`# Status
 
 Single source of truth for what is built. Update the boxes in the same commit as
 the work — a status file that lags is worse than none.
@@ -26,6 +26,7 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 ### Track B — Blockout  · Seb
 - [x] World layout as data — `src/world.ts`
 - [x] Placeholder landmarks at true scale, in engine
+- [ ] Island geometry under each landmark — they currently sit on open water
 - [ ] Layout judged by flying it: is traversal interesting or a chore?
 - [ ] Blender blockout replacing the code placeholders
 - [ ] Mine
@@ -42,6 +43,7 @@ Needed to run Track B's exit test, so built before Phase 2.
 - [x] Acceleration-driven spring: lean, pitch and suspension bounce on any change
 - [x] Fixed-offset follow camera
 - [x] Proximity detection, landmark in range surfaced in the HUD
+- [x] `src/Scenery.tsx` — sky, sun, ocean and clouds in TSL, golden hour, zero assets
 
 ## Phase 2 — Flat site  *(blocked: needs Track A)*
 
