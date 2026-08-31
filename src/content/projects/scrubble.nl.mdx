@@ -1,0 +1,99 @@
+---
+title: Scrubble
+slug: scrubble
+summary: Een cross-platform Scrabble-analysebord dat elke legale zet op een stelling vindt en rangschikt — gebouwd om je te tonen wat je miste, niet om je beurt voor je te spelen.
+---
+
+## Het probleem
+
+De zet die je speelde is niet de zet die er lag.
+
+Je speelt een partij uit, je verliest met negen punten, en ergens rond beurt zes
+lag er een bingo op je rekje die niemand aan tafel gezien heeft. Scrabble is een
+van de weinige spellen waar de beste zet een feit is — een eindig bord, een eindig
+rekje, een vaste woordenlijst — en waar een mens hem betrouwbaar niet vindt. Je
+kunt een schaakpartij achteraf overlopen en precies te horen krijgen waar het
+misging. Voor het bord dat je net hebt opgeborgen bestaat daar geen equivalent
+van.
+
+Scrubble is die nabespreking. Je zet de stelling op, je voert het rekje in, en het
+geeft je elke legale zet terug, gerangschikt op score. Het onderscheid waar het
+omheen gebouwd is, is dat het een analysebord is en geen assistent: het is voor de
+partij die voorbij is, zoals een schaakengine voor de partij is die voorbij is.
+Een solver die je midden in je beurt raadpleegt tegenover iemand die tegenover je
+zit, is een ander product met dezelfde code erin, en dat product wilde ik niet
+bouwen.
+
+## Wat ik koos
+
+Flutter, gericht op Android, iOS, macOS, Windows en web vanuit één codebase, met
+Riverpod dat de staat van bord, rekje, woordenboek en solver vasthoudt — gekozen
+omdat zijn providers testbaar zijn zonder widgetboom, en het grootste deel van dit
+project logica is in plaats van schermen.
+
+Het woordenboek is een meegeleverde asset — er verlaat niets het toestel en er is
+nergens netwerk voor nodig — bij het opstarten in een trie ingelezen. De solver
+doet ankergebaseerde zetgeneratie met kruiscontroles, de aanpak van Appel en
+Jacobson: zoek de lege vakjes naast gelegde stenen, bepaal voor elk daarvan welke
+letters legaal een kruiswoord zouden vormen, bouw prefixen naar links op uit het
+rekje, en breid dan naar rechts uit over het anker zolang de trie zegt dat een
+woord nog verder kan. Daarna hetzelfde verticaal. De score past
+vermenigvuldigers alleen toe op nieuw gelegde stenen, telt elk kruiswoord op dat
+de plaatsing maakt, en telt er vijftig bij als het rekje leegloopt.
+
+## Wat ik verwierp
+
+**Permutaties van het rekje.** De voor de hand liggende eerste solver: genereer
+elke schikking van hoogstens zeven stenen, probeer die op elke positie, hou over
+wat het woordenboek aanvaardt. Het klopt, het is een regel of vijftien, en het
+verzet een enorme hoeveelheid werk om te ontdekken dat geen enkel Nederlands woord
+met "qz" begint. De trie is wat daar snoeien van maakt — op het moment dat geen
+enkel woord een prefix voortzet, is de hele tak weg — en de ankerpas is wat
+verhindert dat er posities bekeken worden die sowieso geen legale plaatsing konden
+zijn.
+
+**Een hashset van woorden.** Een set beantwoordt "is dit een woord" in constante
+tijd en beantwoordt verder niets, en zetgeneratie is geen
+lidmaatschapsvraag. Elke stap ervan vraagt of een prefix nog ergens heen kan, en
+dat is de ene vraag die een set niet kan beantwoorden en de enige vraag waar een
+trie voor bestaat. De trie kost meer geheugen voor dezelfde woordenlijst, en dat
+is de hele ruil.
+
+**Een GADDAG.** Het serieuze antwoord, en wat een competitie-engine gebruikt: elke
+rotatie van elk woord opslaan zodat uitbreiding vanaf een anker beide richtingen
+op gaat zonder aparte linkerdeel-pas. Het is ruwweg vijf keer het geheugen van een
+gewone trie, in ruil voor snelheid op een probleem waarvan de gebruiker een mens
+is die op een lijst wacht. Ik geef liever een seconde uit dan vijf keer de
+voetafdruk op elke telefoon waarop de app draait.
+
+**Oplossen op de main thread.** De zetgeneratie draait in een isolate. Een solve
+die de UI laat haperen leest als een kapotte app in plaats van een drukke.
+
+## Wat het kostte
+
+Een stelling invoeren is het trage deel, en de solve is ogenblikkelijk. Een bord
+halverwege de partij is dertig-en-nog-wat taps door een dialoog per vakje voor je
+een antwoord krijgt, wat te doen is wanneer je één interessante stelling
+naloopt en vervelend op het moment dat je een hele partij wilt overlopen. De
+oplossing is het bord fotograferen, en dat is een ander project — een raster van
+vijftien bij vijftien stenen lezen vanaf een telefooncamera onder een hoek, waar
+één verkeerd gelezen vakje een zelfverzekerd fout antwoord oplevert.
+
+Frans toevoegen was geen vertaalklus. De strings van de interface zijn een
+bestand; het *spel* niet. Frans Scrabble heeft zijn eigen letterverdeling, zijn
+eigen puntwaarden en zijn eigen omgang met accenten, wat betekende dat het
+stenenmodel zelf taalafhankelijk moest worden in plaats van een vaste tabel. Dat
+is het soort ding dat je in fase tien ontdekt en in fase één had moeten weten.
+
+Blanco stenen kosten meer dan wat dan ook van hun formaat: elke blanco
+vermenigvuldigt de zoekruimte met zesentwintig en levert nul punten op.
+
+## Het resultaat
+
+Het werkt, op de tien fasen van het plan, op vijf platformen, in twee talen, met
+tests achter elke fase. Het is ook niet uitgebracht, en dat zijn twee verschillende
+woorden. Wat daartussen staat is geen code: een storepagina vraagt om een icoon,
+een privacyantwoord, een naam die geen merk leent, en een woordenlijst waarvan ik
+de licentie kan aanwijzen — de bekende toernooilijsten zijn niet de
+publiek-domeinbestanden waarvoor ze worden aangezien. Niets daarvan is moeilijk.
+Het is allemaal onaf, en dat zeggen is nuttiger dan een screenshot.

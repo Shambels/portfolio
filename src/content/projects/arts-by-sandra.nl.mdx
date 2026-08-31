@@ -1,0 +1,95 @@
+---
+title: Arts by Sandra
+slug: arts-by-sandra
+summary: Een drietalige site voor een kunstenares die lesgeeft, werk verkoopt en haar atelier verhuurt — drie verschillende gesprekken, samengebracht in één formulier dat ze ook echt kan beantwoorden.
+---
+
+## Het probleem
+
+Sandra geeft les in tekenen en grafiek, verkoopt haar eigen werk, en verhuurt
+haar atelier. Drie verschillende zaken, en over alle drie dezelfde zin: "mensen
+stellen me dezelfde drie vragen, en ik beantwoord ze één voor één."
+
+De vragen kwamen binnen via de telefoon, via Instagram-berichten en via
+mond-tot-mondreclame, in welke van de drie talen de persoon toevallig sprak — dit
+is Brussel, dus Frans, Nederlands en Engels zijn geen extraatje. Wat ze wilde was
+geen website in het abstracte. Ze wilde dat het uurrooster en de prijs van een
+dinsdagles leesbaar waren zonder dat ze die opnieuw moest intikken, en ze wilde
+ophouden met aanvragen kwijtraken in een map met privéberichten.
+
+## Wat ik koos
+
+Laravel, met server-gerenderde Blade-templates, Tailwind, en Alpine voor het
+beetje interactiviteit dat een brochuresite eerlijk gezegd nodig heeft. De taal is
+een route-prefix en de slugs worden mee vertaald — `/fr/cours-de-dessin`,
+`/en/drawing-classes`, `/nl/tekenlessen` — met `hreflang`-alternates op elke
+pagina, want een Franstalige lezer die op een Engelse URL landt is een bounce.
+
+Het midden van de site is één contactformulier met een aanvraagtype erop:
+algemeen, lessen, atelierverhuur, werk. Elke pagina mondt daarin uit. Een leskaart,
+een ateliertarief en een kunstwerk eindigen allemaal op dezelfde plek, met het
+onderwerp al beslist, zodat Sandra één inbox opent en weet wat ze leest voor ze
+het leest.
+
+## Wat ik verwierp
+
+**Squarespace en Wix.** Ze hadden sneller dan ik een prima brochuresite opgeleverd,
+en ik zou er een aan heel wat mensen aanraden. Twee dingen sloten ze hier uit.
+Sandra moet haar eigen prijzen kunnen aanpassen en haar eigen werk kunnen
+toevoegen, en als die inhoud van haar is, hoort ze in haar database te staan in
+plaats van gehuurd in andermans editor. En drie talen met vertaalde slugs is
+precies waar de gehoste bouwers ofwel duur ofwel slecht worden — het meertalige
+verhaal is meestal een betaald plan en een URL-schema dat je niet zelf kiest.
+
+**Een static site generator.** Inhoud in git is een fijne regeling voor mij en een
+nutteloze voor haar. Elke prijswijziging wordt een commit en een deploy, en dat
+wil zeggen: elke prijswijziging wordt een mail aan mij. Dat is geen site die ze
+bezit; dat is een abonnement op mijn aandacht.
+
+**Een nieuwe stack om de stack.** Laravel is waar ik het snelst in ben. Iets
+modieuzers kiezen had weken gekost en haar niets opgeleverd wat ze op het scherm
+kon zien. De interessante beslissingen in dit project waren nooit
+framework-beslissingen.
+
+**Een webshop en een boekingskalender.** Beide lagen op tafel en beide zijn
+geschrapt. Een winkelmandje betekent betalingen, btw op kunstverkoop, en het
+verschepen van een doek van honderd bij tachtig — echt werk, in ruil voor het
+automatiseren van een verkoop die vandaag een gesprek is en daar beter van wordt.
+Een boekingskalender betekent een atelierslot vastleggen voor er iemand gesproken
+heeft. Dus dragen de werken hun techniek, afmetingen, prijs en een
+_contacteer me over dit werk_-link; de atelierpagina noemt het dag- en
+halvedagtarief en stuurt je naar hetzelfde formulier. Als een van beide de
+flessenhals blijkt, vertelt de funnel ons al welke.
+
+## Wat het kostte
+
+De site staat online en het grootste deel zegt nog steeds _inhoud aan te vullen_.
+De lessen, de werken en de ateliertarieven die erop staan zijn
+demonstratiegegevens. Die volgorde was het plan — bouw de vorm, laat haar hem
+vullen — en het blijft de juiste keuze, want het alternatief is een ontwerper die
+op tekst wacht en een klant aan wie gevraagd wordt zich een pagina voor te
+stellen. Maar het betekent wel dat de eerlijke stand van dit project een afgewerkte
+structuur is in tijdelijke kleren, en ze draagt die langer dan me lief is. In de
+code zit niets vast. Veertig stukken fotograferen en drie talen tekst schrijven is
+haar werk, en het is het traagste deel van de klus.
+
+De tweede kost is dezelfde in een andere vorm. Drie talen, één auteur. Het Frans
+is van haar; het Engels en het Nederlands moeten geschreven of vertaald worden en
+daarna gelezen door iemand die ze echt spreekt, want artefacten van machinale
+vertaling lezen als slordigheid — op een pagina waarvan de hele taak is een
+zorgvuldig iemand zorgvuldig te laten lijken.
+
+De afweging die nog altijd knaagt is het aanvraagmodel. Elk bericht is één rij met
+een typekolom erop, wat klopt voor het volume dat ze heeft en niet klopt op de dag
+dat ze vraagt naar welke werken mensen het vaakst vragen. Dat antwoord wil dat de
+aanvraag vasthangt aan het ding waarover ze ging. Het is een kleine migratie,
+bewust uitgesteld, en ik schrijf ze liever wanneer er een echte vraag achter zit
+dan nu naar de vorm te gissen.
+
+## Het resultaat
+
+Live op artsbysandra.be: zes pagina's over drie talen, achttien routes,
+server-gerenderd, geen client-side framework, en één formulier dat de plaats
+inneemt van de webshop en de boekingsmotor die er nooit gekomen zijn. Nog geen
+cijfers over bezoek of aanvragen — en er nu al citeren, voor de echte inhoud er is,
+zou neerkomen op het meten van de tijdelijke versie.

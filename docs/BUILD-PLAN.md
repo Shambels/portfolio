@@ -272,7 +272,16 @@ tractable.
 compiles one shader source to both WGSL and GLSL.
 
 **React Router 7 over TanStack Start.** Simpler prerender story for a handful of
-static routes across three locales.
+static routes across three locales. **Shipped on React Router 8** — v8 was
+current when Phase 2 was built, the config files are identical, and starting a
+new project one major behind buys nothing. `ssr: false` plus a `prerender` list
+writes every route to disk; there is no server anywhere.
+
+**No webfont, for now.** Against this document's "one variable font, subset per
+locale". A system stack costs zero bytes, zero requests and no swap, and removes
+the per-locale subsetting job entirely. The cost is real and stated: the site
+looks like the platform it is read on rather than like itself. Revisit in Phase 4,
+where a typeface competes against shaders for the same attention budget.
 
 **No physics engine, initially.** See Character controller.
 

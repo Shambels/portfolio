@@ -1,0 +1,102 @@
+---
+title: Arts by Sandra
+slug: arts-by-sandra
+summary: Un site trilingue pour une artiste qui enseigne, vend ses œuvres et loue son atelier — trois conversations différentes, ramenées à un seul formulaire auquel elle peut réellement répondre.
+---
+
+## Le problème
+
+Sandra enseigne le dessin et la gravure, vend ses propres œuvres, et loue son
+atelier. Trois métiers différents, et la même phrase à propos des trois : « les
+gens me posent les mêmes trois questions, et j'y réponds une par une. »
+
+Les questions arrivaient par téléphone, par message Instagram et par le
+bouche-à-oreille, dans celle des trois langues que la personne parlait — on est à
+Bruxelles, donc le français, le néerlandais et l'anglais ne sont pas un
+supplément agréable. Ce qu'elle voulait n'était pas un site web dans l'abstrait.
+Elle voulait que l'horaire et le prix d'un cours du mardi soient lisibles sans
+qu'elle ait à les retaper, et elle voulait cesser de perdre des demandes dans un
+dossier de messages privés.
+
+## Ce que j'ai choisi
+
+Laravel, avec des templates Blade rendus côté serveur, Tailwind, et Alpine pour
+le peu d'interactivité qu'un site vitrine demande honnêtement. La langue est un
+préfixe de route et les slugs sont traduits avec elle — `/fr/cours-de-dessin`,
+`/en/drawing-classes`, `/nl/tekenlessen` — avec des alternates `hreflang` sur
+chaque page, parce qu'un lecteur francophone qui atterrit sur une URL anglaise
+est un rebond.
+
+Le centre du site est un formulaire de contact unique portant un type de demande :
+général, cours, location d'atelier, œuvre. Chaque page y mène. Une fiche de cours,
+un tarif d'atelier et une œuvre finissent tous au même endroit, le sujet déjà
+décidé, si bien que Sandra ouvre une seule boîte et sait ce qu'elle lit avant de
+le lire.
+
+## Ce que j'ai écarté
+
+**Squarespace et Wix.** Ils auraient produit un site vitrine parfaitement correct
+plus vite que moi, et je les recommanderais à beaucoup de gens. Deux choses les
+excluaient ici. Sandra doit pouvoir changer ses propres prix et ajouter ses
+propres œuvres, et quand ce contenu est le sien il devrait vivre dans sa base de
+données plutôt qu'en location dans l'éditeur de quelqu'un d'autre. Et trois
+langues avec des slugs traduits, c'est précisément là où les constructeurs
+hébergés deviennent soit chers soit mauvais — le multilingue est généralement une
+formule payante et un schéma d'URL que vous ne choisissez pas.
+
+**Un générateur de site statique.** Le contenu dans git est un arrangement
+charmant pour moi et inutile pour elle. Chaque changement de prix devient un
+commit et un déploiement, autrement dit chaque changement de prix devient un
+e-mail pour moi. Ce n'est pas un site qu'elle possède ; c'est un abonnement à mon
+attention.
+
+**Une stack neuve pour le plaisir.** Laravel est ce en quoi je suis le plus
+rapide. Choisir quelque chose de plus à la mode aurait coûté des semaines et ne
+lui aurait rien acheté qu'elle puisse voir à l'écran. Les décisions
+intéressantes de ce projet n'ont jamais été des décisions de framework.
+
+**Une boutique et un agenda de réservation.** Les deux étaient sur la table et
+les deux sont coupés. Un panier veut dire des paiements, la TVA sur la vente
+d'art, et l'expédition d'une toile de cent sur quatre-vingts — du vrai travail, en
+échange de l'automatisation d'une vente qui est aujourd'hui une conversation et
+qui s'en trouve mieux. Un agenda de réservation veut dire engager un créneau
+d'atelier avant que quiconque ait parlé. Alors les œuvres portent leur technique,
+leurs dimensions, leur prix et un lien _me contacter à propos de cette pièce_ ; la
+page atelier annonce les tarifs à la journée et à la demi-journée et vous renvoie
+au même formulaire. Si l'un des deux se révèle être le goulot d'étranglement,
+l'entonnoir nous dit déjà lequel.
+
+## Ce que ça a coûté
+
+Le site est déployé et la plupart de ses pages disent encore _contenu à
+compléter_. Les cours, les œuvres et les tarifs d'atelier qui s'y trouvent sont
+des données de démonstration. Cet ordre-là était le plan — construire la forme, la
+laisser la remplir — et c'est toujours le bon choix, parce que l'alternative est
+un designer qui attend le texte et une cliente à qui l'on demande d'imaginer une
+page. Mais cela veut dire que l'état honnête de ce projet est une structure finie
+portant du texte provisoire, et elle le porte depuis plus longtemps que je ne le
+voudrais. Rien n'est bloqué dans le code. Photographier quarante pièces et écrire
+trois langues de texte, c'est son travail, et c'est la partie la plus lente du
+chantier.
+
+Le deuxième coût est le même sous une autre forme. Trois langues, une seule
+autrice. Le français est le sien ; l'anglais et le néerlandais doivent être écrits
+ou traduits puis relus par quelqu'un qui les parle vraiment, parce que les
+artefacts de traduction automatique se lisent comme de la négligence — sur une
+page dont le travail entier est de faire paraître soigneuse une personne
+soigneuse.
+
+Le compromis qui me tracasse encore, c'est le modèle des demandes. Chaque message
+est une ligne avec une colonne de type, ce qui est juste pour le volume qu'elle a
+et faux le jour où elle demande quelles œuvres suscitent le plus de questions.
+Cette réponse-là veut que la demande soit rattachée à la chose dont elle parlait.
+C'est une petite migration, délibérément reportée, et je préfère l'écrire quand
+il y aura une vraie question derrière plutôt que d'en deviner la forme maintenant.
+
+## Le résultat
+
+En ligne sur artsbysandra.be : six pages sur trois langues, dix-huit routes,
+rendues côté serveur, sans framework client, et un unique formulaire tenant lieu
+de la boutique et du moteur de réservation qui n'ont jamais été construits. Pas
+encore de chiffres de trafic ni de demandes — et en citer avant que le vrai
+contenu n'arrive reviendrait à mesurer le provisoire.

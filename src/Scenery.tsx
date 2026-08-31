@@ -34,7 +34,9 @@ const SHALLOW = vec3(0.03, 0.16, 0.19)
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const T = time.mul(REDUCED ? 0 : 1)
 
-type Vec3 = ReturnType<typeof vec3>
+type Vec3 = THREE.Node<'vec3'>
+type Vec2 = THREE.Node<'vec2'>
+type Float = THREE.Node<'float'>
 const sunDir = vec3(SUN.x, SUN.y, SUN.z)
 
 /** Stylised cumulus, drawn on the sky itself — projected to a plane, so no geometry. */
@@ -80,9 +82,9 @@ const SWELL: [number, number, number, number, number][] = [
   [-0.42, 0.91, 0.9, 0.03, 1.5],
   [0.98, -0.19, 1.7, 0.012, 2.3],
 ]
-function waveNormal(p: ReturnType<typeof vec2>) {
-  let dx = float(0)
-  let dz = float(0)
+function waveNormal(p: Vec2) {
+  let dx: Float = float(0)
+  let dz: Float = float(0)
   for (const [dirX, dirZ, freq, amp, speed] of SWELL) {
     const phase = p.x.mul(dirX * freq).add(p.y.mul(dirZ * freq)).add(T.mul(speed))
     const slope = cos(phase).mul(amp * freq)

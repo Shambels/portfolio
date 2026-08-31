@@ -1,6 +1,336 @@
-:root { color-scheme: dark; }
-* { margin: 0; box-sizing: border-box; }
-html, body, #root { height: 100%; background: #05070d; }
-body { font: 400 13px/1.4 ui-monospace, monospace; color: #7dd3fc; }
-.hud { position: fixed; bottom: 1rem; left: 1rem; opacity: .7; }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+/*
+  Phase 2 typography. Dark by default, one system stack, one rhythm unit.
+  No webfont: nothing to preload, nothing to swap, nothing to subset per locale
+  — the craft here is measure, rhythm and colour, not a typeface. If a face ever
+  earns its place, it lands in Phase 4 with the shaders.
+*/
+
+:root {
+  color-scheme: dark;
+
+  --ink: #0b0c0f;
+  --ink-2: #101218;
+  --paper: #e7e4dd;
+  --paper-dim: #a5a29b;
+  --paper-faint: #6f6d68;
+  --gold: #e9a851; /* the scene's low sun, borrowed */
+  --rule: #ffffff17;
+
+  --lh: 1.7rem; /* the rhythm unit — every vertical space is a multiple */
+  --measure: 36rem;
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  font: 400 clamp(1rem, 0.96rem + 0.2vw, 1.0625rem) / 1.7 var(--sans);
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+  padding: 0 clamp(1.25rem, 5vw, 3rem);
+}
+
+/* --- rhythm ------------------------------------------------------------- */
+
+p,
+ul,
+ol,
+h1,
+h2,
+h3,
+figure,
+blockquote {
+  margin-block: 0 var(--lh);
+}
+
+:is(h1, h2, h3) {
+  line-height: 1.22;
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(1.85rem, 1.4rem + 2.1vw, 2.85rem);
+  margin-block-end: calc(var(--lh) * 0.5);
+}
+h2 {
+  font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
+  margin-block-start: calc(var(--lh) * 1.5);
+}
+h3 {
+  font-size: 1.125rem;
+  margin-block-end: calc(var(--lh) * 0.25);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* --- links -------------------------------------------------------------- */
+
+a {
+  color: inherit;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+
+a:hover {
+  color: var(--gold);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+
+.skip:focus {
+  left: clamp(1.25rem, 5vw, 3rem);
+  z-index: 2;
+  padding: 0.5rem 0.9rem;
+  background: var(--gold);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* --- frame -------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 1.5rem;
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding-block: var(--lh);
+  font-size: 0.9375rem;
+}
+
+.wordmark {
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  margin-inline-end: auto;
+}
+
+.bar nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.langs {
+  font: 500 0.8125rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--paper-faint);
+}
+
+.langs a {
+  text-decoration: none;
+}
+
+.langs a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--gold);
+}
+
+.langs [aria-current] {
+  color: var(--paper);
+}
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding-block: calc(var(--lh) * 1.5) calc(var(--lh) * 3);
+}
+
+.foot {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--lh) * 0.25);
+  border-top: 1px solid var(--rule);
+  padding-block: var(--lh) calc(var(--lh) * 2);
+  color: var(--paper-dim);
+}
+
+.foot p {
+  margin: 0;
+}
+
+.contact {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.fine {
+  color: var(--paper-faint);
+  font-size: 0.875rem;
+}
+
+/* --- pages -------------------------------------------------------------- */
+
+.lede {
+  font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.1875rem);
+  color: var(--paper-dim);
+  max-width: var(--measure);
+}
+
+.projects {
+  list-style: none;
+  padding: 0;
+  margin-block-end: 0;
+}
+
+.projects li {
+  border-top: 1px solid var(--rule);
+  padding-block: var(--lh);
+}
+
+.projects li p:last-child {
+  margin-block-end: 0;
+}
+
+.projects h2,
+.projects h3 {
+  margin-block-start: 0;
+}
+
+.projects a {
+  text-decoration: none;
+}
+
+.projects a:hover {
+  text-decoration: underline;
+}
+
+.meta,
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  font: 400 0.8125rem/1.5 var(--mono);
+  color: var(--paper-faint);
+  letter-spacing: 0.01em;
+  margin-block-end: calc(var(--lh) * 0.4);
+}
+
+.links {
+  margin-block: calc(var(--lh) * 0.75) 0;
+  font-family: var(--sans);
+  font-size: 0.9375rem;
+}
+
+.more {
+  font-size: 0.9375rem;
+}
+
+/* --- long form ---------------------------------------------------------- */
+
+.prose header {
+  border-bottom: 1px solid var(--rule);
+  padding-block-end: var(--lh);
+  margin-block-end: calc(var(--lh) * 1.5);
+}
+
+.prose h2 {
+  margin-block: calc(var(--lh) * 1.75) calc(var(--lh) * 0.4);
+  color: var(--paper);
+}
+
+.prose h2::before {
+  content: "";
+  display: block;
+  width: 1.75rem;
+  border-top: 2px solid var(--gold);
+  margin-block-end: calc(var(--lh) * 0.5);
+}
+
+.prose p {
+  hyphens: auto;
+}
+
+.prose strong {
+  font-weight: 620;
+  color: #f3f0e9;
+}
+
+.prose code {
+  font: 400 0.875em/1 var(--mono);
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.15em 0.35em;
+  word-break: break-word;
+}
+
+.prose ul,
+.prose ol {
+  padding-inline-start: 1.25rem;
+}
+
+.prose li {
+  margin-block-end: calc(var(--lh) * 0.4);
+}
+
+.back {
+  border-top: 1px solid var(--rule);
+  padding-block-start: var(--lh);
+  margin-block-start: calc(var(--lh) * 1.5);
+}
+
+/* --- the world (Phase 0/1 scene, /world) -------------------------------- */
+
+body:has(canvas) {
+  padding: 0;
+}
+
+canvas {
+  display: block;
+}
+
+.hud {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  font: 400 13px/1.4 var(--mono);
+  color: #7dd3fc;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
