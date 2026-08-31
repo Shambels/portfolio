@@ -60,16 +60,22 @@ Check, in order:
    there, is the spring mistuned (`SPRING`, `DAMP`, `LEAN`, `SQUASH` in
    `src/Ship.tsx`). Under `prefers-reduced-motion` it responds without
    oscillating.
-4. **Proximity.** Fly into one of the three grey boxes. Inside its radius the
-   box turns light blue and the HUD swaps to that landmark's label
+4. **Proximity.** Fly into one of the three landmarks. Inside its radius it
+   turns light blue and the HUD swaps to that landmark's label
    (`PolarSense — the mine`, etc.). Leave the radius and it reverts. Radii and
    positions live in `src/world.ts`.
-5. **Traversal — the Track B exit test.** Getting from the mine to the easel to
+5. **Landmarks.** Each one should be recognisable on approach, before the HUD
+   label confirms it: a head-frame over a stepped rock face with an adit at its
+   foot; an easel with a blank canvas; a Scrabble board with a played cluster
+   and a tile rack. All three face the middle of the world. With the console
+   open there should be no assertion — a landmark that outgrows its blockout box
+   in `src/world.ts` says so there, since the island radius is sized from it.
+6. **Traversal — the Track B exit test.** Getting from the mine to the easel to
    the board should be interesting, not a chore. This is a judgement call made
    by flying it, and it is the gate on detailing anything.
-6. **Frame rate.** 60fps on a 2022 mid-tier laptop, or the effect gets cut.
+7. **Frame rate.** 60fps on a 2022 mid-tier laptop, or the effect gets cut.
    Browser devtools' FPS meter is enough at this stage.
-7. **No page scroll.** Arrows and Space move the ship, they never scroll the
+8. **No page scroll.** Arrows and Space move the ship, they never scroll the
    document underneath the canvas.
 
 To check the WebGL2 path deliberately, disable WebGPU in the browser
@@ -83,6 +89,7 @@ Verify a production build the same way with `npm run build && npm run preview`.
 ```
 src/App.tsx     baseline scene + HUD — moves under the router in Phase 2
 src/Ship.tsx    the character: procedural hovering saucer + flight controller
+src/Landmarks.tsx the three landmarks — primitives + TSL, no model files
 src/useInput.ts the only place input is read (invariant 8)
 src/world.ts    landmark layout + proximity — moves into MDX frontmatter in Phase 3
 ```
