@@ -3,12 +3,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOST="${DEPLOY_HOST:-root@167.233.245.42}"
+HOST="${DEPLOY_HOST:-deploy@167.233.245.42}"
 DIR="${DEPLOY_DIR:-/var/www/pinchs.be}"
-BASE="${DEPLOY_URL:-http://167.233.245.42}"
+BASE="${DEPLOY_URL:-https://pinchs.be}"
 
 npm run build
-rsync -az --delete --chmod=D755,F644 build/client/ "$HOST:$DIR/"
+
+# macOS ships openrsync, which has neither --chmod nor -z. Fix the modes here
+# instead: files in public/ are mode 600 in the repo, and rsync -a preserves
+# that, which nginx serves as a 403.
+chmod -R a+rX build/client
+rsync -a --delete build/client/ "$HOST:$DIR/"
 
 # Smoke test the routing nginx does that `_redirects` used to — a deploy that
 # serves 404s for every page is the failure worth catching automatically.
