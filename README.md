@@ -38,24 +38,38 @@ Run `npm run dev`, open the page, click the canvas so it has focus, then:
 | | |
 |---|---|
 | `W` `A` `S` `D` or arrows | fly (damped velocity, banks into turns) |
-| `Space`, `E` or `Enter` | interact — wired through `useInput()`, no effect yet |
-| alt-tab away mid-flight | input clears; the ship must not keep flying |
+| `Space` held | rise to the ceiling and hold there; release to sink back to hover |
+| `Shift` held | speed boost; release and it eases back to normal |
+| `E` or `Enter` | interact — wired through `useInput()`, no effect yet |
+| alt-tab away mid-flight | input clears; the ship must not keep flying, climbing or boosting |
 
 Check, in order:
 
 1. **Renderer.** The HUD line at the bottom reads `renderer: WebGPU` on Chrome
    and recent Safari, `renderer: WebGL2` elsewhere. Both are correct; neither
    should read `detecting…` after a second.
-2. **Proximity.** Fly into one of the three grey boxes. Inside its radius the
+2. **Altitude and boost.** Hold `Space`: the ship climbs smoothly, stops at its
+   ceiling, and stays there for as long as the key is held; release and it eases
+   back down to hover height. The camera rises with it. Hold `Shift` while
+   moving: faster, with the same ramp in and out — no snap in either direction.
+   Both survive being combined with a turn.
+3. **Bounce.** Every change of speed or direction rocks the hull and settles:
+   lean into a turn, nose up under acceleration, suspension give on a climb, and
+   a mix of all three on a boosted diagonal that also rises. It must always come
+   to rest — a wobble that never stops, or one that pins at its limit and stays
+   there, is the spring mistuned (`SPRING`, `DAMP`, `LEAN`, `SQUASH` in
+   `src/Ship.tsx`). Under `prefers-reduced-motion` it responds without
+   oscillating.
+4. **Proximity.** Fly into one of the three grey boxes. Inside its radius the
    box turns light blue and the HUD swaps to that landmark's label
    (`PolarSense — the mine`, etc.). Leave the radius and it reverts. Radii and
    positions live in `src/world.ts`.
-3. **Traversal — the Track B exit test.** Getting from the mine to the easel to
+5. **Traversal — the Track B exit test.** Getting from the mine to the easel to
    the board should be interesting, not a chore. This is a judgement call made
    by flying it, and it is the gate on detailing anything.
-4. **Frame rate.** 60fps on a 2022 mid-tier laptop, or the effect gets cut.
+6. **Frame rate.** 60fps on a 2022 mid-tier laptop, or the effect gets cut.
    Browser devtools' FPS meter is enough at this stage.
-5. **No page scroll.** Arrows and Space move the ship, they never scroll the
+7. **No page scroll.** Arrows and Space move the ship, they never scroll the
    document underneath the canvas.
 
 To check the WebGL2 path deliberately, disable WebGPU in the browser

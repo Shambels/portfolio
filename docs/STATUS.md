@@ -38,6 +38,8 @@ Needed to run Track B's exit test, so built before Phase 2.
 
 - [x] `useInput()` — invariant 8, keyboard
 - [x] Flight controller: damped velocity, shortest-arc yaw, bank on turn
+- [x] Held-Space climb to a ceiling and sink back; held-Shift speed boost
+- [x] Acceleration-driven spring: lean, pitch and suspension bounce on any change
 - [x] Fixed-offset follow camera
 - [x] Proximity detection, landmark in range surfaced in the HUD
 

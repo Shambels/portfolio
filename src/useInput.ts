@@ -10,6 +10,8 @@ import { Vector2 } from 'three'
 export type Input = {
   move: Vector2 // x = strafe, y = forward. Length <= 1.
   look: Vector2 // ponytail: unwired. Follow camera is fixed-offset until Phase 3.
+  ascend: boolean // held: climb to the ceiling. Released: sink back to hover.
+  boost: boolean // held: fly faster.
   interact: boolean
 }
 
@@ -19,10 +21,15 @@ const MOVE: Record<string, [number, number]> = {
   KeyA: [-1, 0], ArrowLeft: [-1, 0],
   KeyD: [1, 0], ArrowRight: [1, 0],
 }
-const INTERACT = ['Space', 'KeyE', 'Enter']
+const ASCEND = ['Space']
+const BOOST = ['ShiftLeft', 'ShiftRight']
+const INTERACT = ['KeyE', 'Enter']
+const KEYS = [...ASCEND, ...BOOST, ...INTERACT]
 
 export function useInput(): Input {
-  const input = useRef<Input>({ move: new Vector2(), look: new Vector2(), interact: false })
+  const input = useRef<Input>({
+    move: new Vector2(), look: new Vector2(), ascend: false, boost: false, interact: false,
+  })
 
   useEffect(() => {
     const held = new Set<string>()
@@ -34,11 +41,13 @@ export function useInput(): Input {
         if (d) m.set(m.x + d[0], m.y + d[1])
       }
       if (m.lengthSq() > 1) m.normalize()
+      input.current.ascend = ASCEND.some((c) => held.has(c))
+      input.current.boost = BOOST.some((c) => held.has(c))
       input.current.interact = INTERACT.some((c) => held.has(c))
     }
 
     const down = (e: KeyboardEvent) => {
-      if (!MOVE[e.code] && !INTERACT.includes(e.code)) return
+      if (!MOVE[e.code] && !KEYS.includes(e.code)) return
       e.preventDefault() // stop Space/arrows scrolling the page under the canvas
       held.add(e.code)
       apply()
