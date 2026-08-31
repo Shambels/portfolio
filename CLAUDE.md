@@ -17,6 +17,16 @@ npm run build    # tsc -b && vite build
 npm run preview  # serve dist/
 ```
 
+**Claude must never run `npm install`, `npm ci` or `npm run build` here.**
+`node_modules` contains native bindings for the host (macOS arm64), and Claude's
+shell is a Linux VM sharing the same folder. Installing from it empties every
+platform binding directory and cannot delete them afterwards, which breaks the
+build for everyone. Recovery is `rm -rf node_modules package-lock.json && npm
+install`, run by Seb on macOS.
+
+Claude verifies with `npx tsc --noEmit` — pure JS, safe from either side.
+Bundling and running are Seb's.
+
 ## Stack
 
 Vite 7 · React 19 + TypeScript · `three` (WebGPURenderer + TSL) ·
@@ -58,8 +68,10 @@ Breaking one is allowed. Doing it without saying so is not.
 - Ponytail: fewest files, shortest working diff, platform and stdlib before
   dependencies. No abstraction before its third use — except invariant 8.
 - New dependency needs a one-line justification and its gzipped cost.
-- No physics engine until the world needs slopes or stacking. Movement is XZ
-  translation, one ground raycast, circle-vs-circle landmark collision.
+- No physics engine until the world needs slopes or stacking. The character
+  hovers: XZ translation, sine bob, bank on turn, circle-vs-circle landmark
+  collision. No ground following over flat terrain.
+- The character stays procedural. If it ever needs a model file, say why first.
 - No i18n library. Typed string objects per locale in `src/i18n/`.
 - Canvas and models load via dynamic `import()`, never in the first-route chunk.
 - TypeScript strict, no `any`. A narrow cast at a library boundary is fine — see
@@ -83,6 +95,7 @@ Breaking one is allowed. Doing it without saying so is not.
 
 ```
 src/App.tsx             baseline scene — moves under the router in Phase 2
+src/Ship.tsx            the character: procedural hovering saucer, no model file
 src/index.css           global styles
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
 src/i18n/               UI strings per locale
