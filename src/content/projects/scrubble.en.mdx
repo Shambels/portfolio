@@ -1,0 +1,98 @@
+---
+title: Scrubble
+slug: scrubble
+year: 2026
+stack: [Flutter, Dart, Riverpod, Isolates, flutter_localizations]
+summary: A cross-platform Scrabble analysis board that finds every legal move on a position and ranks them — built to show you what you missed, not to play your turn for you.
+landmark: board
+waypoint: [0, 0, 10]
+---
+
+## The problem
+
+The move you played is not the move that was there.
+
+You finish a game, you lost by nine points, and somewhere around turn six there
+was a bingo sitting on your rack that nobody at the table saw. Scrabble is one of
+the few games where the best move is a fact — a finite board, a finite rack, a
+fixed word list — and where a human being reliably cannot find it. You can review
+a chess game afterwards and be told exactly where you went wrong. There is no
+equivalent for the board you just packed away.
+
+Scrubble is that review. You set up the position, you enter the rack, and it
+returns every legal move ranked by score. The distinction it is built around is
+that it is an analysis board, not an assistant: it is for the game that is over,
+the way a chess engine is for the game that is over. A solver you consult mid-turn against
+someone sitting opposite you is a different product with the same code in it, and
+I did not want to build that one.
+
+## What I chose
+
+Flutter, targeting Android, iOS, macOS, Windows and web from one codebase, with
+Riverpod holding board, rack, dictionary and solver state — chosen because its
+providers are testable without a widget tree, and most of this project is logic
+rather than screens.
+
+The dictionary is a bundled asset — nothing leaves the device and none of it
+needs a network — read into a trie at launch. The solver is
+anchor-based cross-check move generation, the Appel and Jacobson approach: find
+the empty squares adjacent to played tiles, work out for each of them which
+letters could legally form a cross-word, build prefixes leftward out of the rack,
+then extend rightward across the anchor while the trie says a word can still
+continue. Then the same thing again vertically. Scoring applies multipliers only
+to newly placed tiles, adds every cross-word the placement creates, and adds fifty
+if the rack empties.
+
+## What I rejected
+
+**Permutations of the rack.** The obvious first solver: generate every
+arrangement of up to seven tiles, try it at every position, keep what the
+dictionary accepts. It is correct, it is about fifteen lines, and it does an
+enormous amount of work to discover that no English word starts with "qz". The
+trie is what turns that into pruning — the moment no word continues a prefix, the
+whole branch is gone — and the anchor pass is what stops it from considering
+positions that could not be legal placements in the first place.
+
+**A hash set of words.** A set answers "is this a word" in constant time and
+answers nothing else, and move generation is not a membership question. Every
+step of it asks whether a prefix can still go somewhere, which is the one question
+a set cannot answer and the only question a trie is for. The trie costs more
+memory for the same word list and that is the entire trade.
+
+**A GADDAG.** The serious answer, and what a competitive engine uses: storing
+every rotation of every word so extension runs both directions from an anchor
+without the separate left-part pass. It is roughly five times the memory of a
+plain trie, in exchange for speed on a problem where the user is a person waiting
+for a list. I would rather spend a second than five times the footprint on every
+phone the app runs on.
+
+**Solving on the main thread.** The move generation runs in an isolate. A solve
+that janks the UI reads as a broken app rather than a busy one.
+
+## What it cost
+
+Entering a position is the slow part, and the solve is instant. A mid-game board
+is thirty-odd taps through a per-cell dialog before you get an answer, which is
+tolerable when you are reviewing one interesting position and tedious the moment
+you want to review a whole game. The fix is photographing the board, and that is a
+different project — reading a fifteen-by-fifteen grid of tiles from a phone camera
+at an angle, where one misread cell produces a confident wrong answer.
+
+Adding French was not a translation job. The user interface strings are a file;
+the *game* is not. French Scrabble has its own letter distribution, its own point
+values and its own treatment of accents, which meant the tile model itself had to
+become language-dependent rather than a constant map. That is the kind of thing
+you find out in phase ten that you should have known in phase one.
+
+Blank tiles cost more than anything else of their size: each one multiplies the
+search by twenty-six and scores as nothing.
+
+## The outcome
+
+It works, on the plan's ten phases, on five platforms, in two languages, with
+tests behind each phase. It is also not shipped, and those are different words.
+What stands between them is not code: a store listing needs an icon, a privacy
+answer, a name that does not borrow a trademark, and a word list whose licence I
+can point at — the well-known tournament lists are not the public-domain files
+they are assumed to be. None of that is hard. All of it
+is unfinished, and saying so is more useful than a screenshot.

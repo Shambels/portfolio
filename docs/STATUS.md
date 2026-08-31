@@ -16,8 +16,8 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 ## Phase 1 — Gates (both block Phase 3)
 
 ### Track A — Writing  · Seb
-- [ ] PolarSense case study (EN)
-- [ ] Arts by Sandra case study (EN)
+- [x] PolarSense case study (EN)
+- [x] Arts by Sandra case study (EN)
 - [ ] Scrubble case study (EN)
 - [ ] One-line bio + footer links
 - [ ] FR translations, reviewed *(after Phase 2)*

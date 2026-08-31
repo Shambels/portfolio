@@ -1,0 +1,96 @@
+---
+title: Arts by Sandra
+slug: arts-by-sandra
+year: 2026
+stack: [Laravel, Blade, Tailwind CSS, Alpine.js, nginx]
+summary: A trilingual site for an artist who teaches, sells work and rents her studio — three different conversations, funnelled into one form she can actually answer.
+landmark: easel
+waypoint: [9, 0, -3]
+---
+
+## The problem
+
+Sandra teaches drawing and printmaking, sells her own work, and rents out her
+studio. Three different businesses, and the same sentence about all of them:
+"people ask me the same three questions, and I answer them one at a time."
+
+The questions arrived by phone, by Instagram message and by word of mouth, in
+whichever of three languages the person happened to speak — this is Brussels, so
+French, Dutch and English are not a nice-to-have. What she wanted was not a
+website in the abstract. She wanted the schedule and the price of a Tuesday class
+to be readable without her typing them again, and she wanted to stop losing
+enquiries in a DM folder.
+
+## What I chose
+
+Laravel, with server-rendered Blade templates, Tailwind, and Alpine for the small
+amount of interactivity a brochure site honestly needs. Locale is a route prefix
+and the slugs are translated with it — `/fr/cours-de-dessin`, `/en/drawing-classes`,
+`/nl/tekenlessen` — with `hreflang` alternates on every page, because a French
+reader landing on an English URL is a bounce.
+
+The centre of the site is one contact form with an enquiry type on it: general,
+classes, studio rental, artwork. Every page funnels into it. A class card, a
+studio rate and an artwork all end in the same place, with the subject already
+decided, so Sandra opens one inbox and knows what she is reading before she reads
+it.
+
+## What I rejected
+
+**Squarespace and Wix.** They would have produced a perfectly good brochure site
+faster than I did, and I would recommend one to a lot of people. Two things ruled
+them out here. Sandra has to be able to change her own prices and add her own
+work, and when that content is hers it should live in her database rather than
+rented inside someone else's editor. And three locales with translated slugs is
+exactly where the hosted builders get either expensive or bad — the multilingual
+story is usually a paid tier and a URL scheme you do not choose.
+
+**A static site generator.** Content in git is a lovely arrangement for me and a
+useless one for her. Every price change becomes a commit and a deploy, which is
+to say every price change becomes an email to me. That is not a site she owns;
+it is a subscription to my attention.
+
+**A new stack for its own sake.** Laravel is what I am fastest in. Picking
+something more fashionable would have cost weeks and bought her nothing she could
+see on the screen. The interesting decisions on this project were never framework
+decisions.
+
+**A shop and a booking calendar.** Both were on the table and both are cut. A cart
+means payments, VAT on art sales, and shipping a hundred-by-eighty canvas — real
+work, in exchange for automating a sale that is currently a conversation and is
+better for being one. A booking calendar means committing a studio slot before
+anyone has spoken. So artworks carry medium, dimensions, price and a *contact me
+about this piece* link; the studio page names the day and half-day rates and sends
+you to the same form. If either turns out to be the bottleneck, the funnel already
+tells us which one.
+
+## What it cost
+
+The site is deployed and most of it still says *content to complete*. The classes,
+the artworks and the studio rates on it are seeded demonstration data. That
+sequence was the plan — build the shape, let her fill it — and it is still the
+right call, because the alternative is a designer waiting on copy and a client
+being asked to imagine a page. But it means the honest state of this project is a
+finished structure wearing placeholder text, and it has worn it longer than I
+would like. Nothing is blocked in the code. Photographing forty pieces and writing
+three languages of copy is her work, and it is the slowest part of the job.
+
+The second cost is the same one in a different shape. Three locales, one author.
+French is hers; English and Dutch have to be written or translated and then read
+by someone who actually speaks them, because machine-translation artefacts read as
+carelessness — on a page whose entire job is to make a careful person look
+careful.
+
+The tradeoff that still nags is the enquiry model. Every message is one row with a
+type column on it, which is right for the volume she has and wrong the day she
+asks which artworks people ask about most. That answer wants the enquiry attached
+to the thing it was about. It is a small migration, deliberately deferred, and I
+would rather write it when there is a real question behind it than guess at the
+shape now.
+
+## The outcome
+
+Live at artsbysandra.be: six pages across three locales, eighteen routes, server
+rendered, no client-side framework, and a single form standing in for the shop and
+the booking engine that were never built. No traffic or enquiry numbers yet — and
+quoting any before the real content lands would be measuring the placeholder.

@@ -1,0 +1,100 @@
+---
+title: PolarSense
+slug: polarsense
+year: 2026
+stack: [TypeScript, VS Code Extension API, tree-sitter, hyparquet, esbuild]
+summary: Column-name autocompletion for polars, pandas and duckdb, read out of the data file on disk — without ever running your code.
+landmark: mine
+waypoint: [-10, 0, -4]
+---
+
+## The problem
+
+Autocomplete stops at the quote mark.
+
+You write a polars query, you reach for a column, and the editor has nothing to
+say — because column names are strings, and no type checker can see inside a
+string. So you alt-tab to a terminal, print the schema, read a name off it, come
+back, type it, get a letter wrong, and find out at runtime after a scan you paid
+for. Ten times an hour, on a file whose columns you half-remember.
+
+The obvious fix is to run the code. Start a kernel, import polars, execute enough
+of the script to have a real DataFrame in memory, and ask it. Every existing
+answer to this problem works that way, and I rejected it.
+
+## What I chose
+
+The schema is already sitting on disk. A parquet footer records it. So does a CSV
+header row, an Arrow IPC schema flatbuffer, a Delta commit log, an Iceberg
+metadata pointer, the header row inside an `.xlsx` zip. PolarSense opens the file
+your frame actually comes from, reads that, and offers the names.
+
+It never imports polars, never spawns a Python interpreter, never runs a line of
+your code. For parquet the whole read is two ranges out of the footer, so a
+four-million-row file costs exactly what a two-hundred-row one costs. Schemas are
+read when a file opens rather than when you first ask, cached against mtime and
+size, so the first completion is already a cache hit.
+
+The other half of the work is knowing which file the frame under your cursor came
+from, and what shape it has by the time it gets there. Assignments are tracked
+through the file; a method chain is followed; a `select` narrows, a `rename`
+renames, a `join` offers both sides with collisions suffixed, a `group_by().agg()`
+gives back keys plus aggregates, an `unnest` puts a struct's fields in its place.
+Paths do not have to be literals — module constants, f-strings, `os.path.join`,
+`Path(__file__).parent / "sales.parquet"` all fold down to a path first. Imports
+are followed two hops into the workspace, so a loader function in another file
+still resolves.
+
+## What I rejected
+
+**Running the code.** It is the correct answer for the cases static reading
+cannot reach, and it means an editor extension that executes an unfamiliar
+repository's script the moment you open it. Side effects, credentials, a
+`DROP TABLE` in a migration script, and a cold start you feel on every keystroke.
+An autocomplete is not worth that, and "reads bytes, runs nothing" is the whole
+product.
+
+**Indexing the workspace in the background.** Rejected for the same reason a
+linter that scans `site-packages` is unpleasant: only the modules your open file
+actually imports are read, and nothing runs while you are not asking.
+
+**Guessing.** This was the hard one, and it shows up in four places. The
+unknown-column warning stays completely silent whenever anything between the file
+and the cursor could not be modelled — an unreadable selector, an unmodelled
+reshape, a file it could not open — because a diagnostic that cries wolf gets
+switched off and never switched back on. Value completion offers nothing at all
+above fifty distinct values, rather than a truncated list, because a hundred of
+four million order ids is a claim about how many there are and a false one. A read
+that did not cover every row says so on each item. And pyarrow is unsupported
+outright: `read_table` means parquet in pyarrow and CSV in pandas, and telling
+them apart needs to know which module the call came from.
+
+## What it cost
+
+Some reshapes cannot be answered without reading rows. `pivot`, `to_dummies` and
+a `transpose` with no explicit names all take their output columns from the values
+in the file rather than from anything written in the code. The extension keeps the
+columns it had, sorts them below certain answers, and marks them a guess.
+
+SQL is scanned, not parsed — literals and comments masked out, then whatever
+follows `FROM` and `JOIN` is a table. So every table in a statement is in scope
+everywhere in it, a join offers both sides marked uncertain, and SQL positions are
+never typo-checked at all.
+
+The tradeoff that still annoys me is the preview panels. They describe the file,
+not the frame: the columns are narrowed correctly by anything on the way to your
+cursor, but the row count, the file size and the codec belong to the file behind
+it, and a `filter` changes none of them. They say `transforms not applied` rather
+than showing four million rows and calling it the frame. Closing that gap means
+running your code — which the graph panel now does, in a notebook with a live
+kernel, opt-in and read-only and asking consent the first time. That is the one
+place the no-execution rule is broken. It is broken deliberately, in one feature,
+behind a setting, and said out loud rather than quietly generalised.
+
+## The outcome
+
+Published on the VS Code Marketplace. The install count is not a number worth
+quoting yet, so here are the ones that are honest: seven file formats read, around
+forty completion sites across polars, pandas and duckdb, a packaged extension of
+roughly 200 kB carrying no `node_modules` at all, no telemetry, and nothing
+leaving the machine except byte ranges of the files you point it at.
