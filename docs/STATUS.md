@@ -18,7 +18,7 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 ### Track A — Writing  · Seb
 - [x] PolarSense case study (EN)
 - [x] Arts by Sandra case study (EN)
-- [ ] Scrubble case study (EN)
+- [x] Scrubble case study (EN)
 - [ ] One-line bio + footer links
 - [ ] FR translations, reviewed *(after Phase 2)*
 - [ ] NL translations, reviewed *(after Phase 2)*
@@ -26,7 +26,7 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 ### Track B — Blockout  · Seb
 - [x] World layout as data — `src/world.ts`
 - [x] Placeholder landmarks at true scale, in engine
-- [ ] Island geometry under each landmark — they currently sit on open water
+- [x] Island geometry under each landmark — `src/Islands.tsx`, lathe + coastline wobble
 - [ ] Layout judged by flying it: is traversal interesting or a chore?
 - [ ] Blender blockout replacing the code placeholders
 - [ ] Mine

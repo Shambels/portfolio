@@ -3,6 +3,7 @@ import * as THREE from 'three/webgpu'
 import { Canvas, extend } from '@react-three/fiber'
 import { Ship } from './Ship'
 import { Scenery } from './Scenery'
+import { Islands } from './Islands'
 import { LANDMARKS } from './world'
 
 extend(THREE as never)
@@ -31,9 +32,10 @@ export default function App() {
         {/* Seen for one frame before the dome draws, and through it if it ever fails. */}
         <color attach="background" args={['#2a3f5f']} />
         <Scenery />
+        <Islands />
         <Ship onNear={setNear} />
         {LANDMARKS.map((l) => (
-          <mesh key={l.slug} position={[l.pos[0], l.size[1] / 2, l.pos[2]]}
+          <mesh key={l.slug} position={[l.pos[0], l.pos[1] + l.size[1] / 2, l.pos[2]]}
                 material={near === l.slug ? highlight : base}>
             <boxGeometry args={l.size} />
           </mesh>
