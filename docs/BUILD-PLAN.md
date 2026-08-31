@@ -11,7 +11,7 @@ character and walks around. Each project is a physical thing in that world — a
 mine, an easel, a Scrabble board. Approach one and a panel opens with the case
 study.
 
-No backend, no database. Static build, edge-hosted at **pinchs.be**.
+No backend, no database. Static build, self-hosted at **pinchs.be**.
 Trilingual: EN / FR / NL.
 
 ## Non-negotiables
@@ -189,7 +189,8 @@ and stays the permanent fallback and SEO surface.
 - Typography: one variable font, subset per locale, dark by default, real
   vertical rhythm. The craft signal starts here, not in Phase 4
 - Footer: name, one line, email, GitHub, LinkedIn
-- Deploy to Cloudflare Pages on pinchs.be, with `_redirects` for locale root
+- Deploy to nginx on Seb's own Ubuntu server, with a server block for the locale
+  root redirect and the 404
 
 **Exit test:** Lighthouse 100 across the board, fully usable with JS off, live on
 the real domain in all three languages.
@@ -286,6 +287,12 @@ where a typeface competes against shaders for the same attention budget.
 **No physics engine, initially.** See Character controller.
 
 **No i18n library.** See Internationalisation.
+
+**Self-hosted over Cloudflare Pages.** Decided at deploy time. The build is a
+directory of static files, so the server needs nginx and nothing else — no Node,
+no runtime, no process to keep alive. It costs a box that has to be patched, in
+exchange for owning the thing the site is a demonstration of. `_redirects` is
+gone; `deploy/nginx.conf` does the root redirect and the 404.
 
 **Golden hour, committed.** Sun at 15 degrees off to port, warm haze at the
 horizon, deep teal water, cumulus lit from underneath. Chosen because a low sun

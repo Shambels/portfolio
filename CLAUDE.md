@@ -39,7 +39,10 @@ cloud container, never in this folder. Bundling and deploying are Seb's.
 Vite 8 · React 19 + TypeScript · React Router 8, framework mode, `ssr: false`
 with `prerender` · `three` (WebGPURenderer + TSL) · `@react-three/fiber` ·
 `@react-three/drei`. Content as MDX (`@mdx-js/rollup` + `remark-frontmatter`),
-locale in the route. Deploy: static build → Cloudflare Pages.
+locale in the route. Deploy: static build → rsync → nginx on Seb's own Ubuntu
+box at 167.233.245.42. No Node and no runtime on the server; `/var/www/pinchs.be`
+is exactly `build/client/`. Root redirect and 404 live in `deploy/nginx.conf`,
+not in a `_redirects` file.
 
 The plan says "React Router 7"; v8 is what shipped. Same `react-router.config.ts`,
 same `routes.ts`, same `root.tsx`, and v7 would have meant starting a new project
@@ -128,9 +131,8 @@ src/index.css           global styles
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
-public/_redirects       `/` → `/en`. Exact matches only — Cloudflare evaluates
-                        redirects before assets, so a `/*` rule would swallow
-                        every prerendered page
+deploy.sh               build + rsync to the server, then a routing smoke test
+deploy/nginx.conf       the server block — root redirect, 404, caching
 ```
 
 ## Content
