@@ -1,0 +1,6 @@
+:root { color-scheme: dark; }
+* { margin: 0; box-sizing: border-box; }
+html, body, #root { height: 100%; background: #05070d; }
+body { font: 400 13px/1.4 ui-monospace, monospace; color: #7dd3fc; }
+.hud { position: fixed; bottom: 1rem; left: 1rem; opacity: .7; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
