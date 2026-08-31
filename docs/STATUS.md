@@ -28,10 +28,12 @@ Phases and their exit tests are in `BUILD-PLAN.md`. This file only tracks state.
 - [x] Placeholder landmarks at true scale, in engine
 - [x] Island geometry under each landmark — `src/Islands.tsx`, lathe + coastline wobble
 - [ ] Layout judged by flying it: is traversal interesting or a chore?
-- [ ] Blender blockout replacing the code placeholders
-- [ ] Mine
-- [ ] Easel and canvas
-- [ ] Scrabble board
+- [x] Landmark blockout, in code — `src/Landmarks.tsx`, primitives + TSL, no assets
+  - [x] Mine — benches, adit, head-frame with sheave, spoil heap
+  - [x] Easel and canvas — A-frame, ledge, blank canvas
+  - [x] Scrabble board — slab, rim, 15×15 grid in the shader, played tiles, rack
+- [ ] Blender models replacing the code blockout *(moved to Phase 4 — they drop
+      in behind `<Landmarks />` without touching `App`)*
 
 ## Built ahead of schedule
 

@@ -97,6 +97,7 @@ Breaking one is allowed. Doing it without saying so is not.
 src/App.tsx             baseline scene — moves under the router in Phase 2
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Islands.tsx         the ground under each landmark — lathed, no assets
+src/Landmarks.tsx       the mine, the easel, the board — primitives + TSL, no assets
 src/Ship.tsx            the character: procedural hovering saucer + flight controller
 src/useInput.ts         invariant 8 — the only place input is read
 src/world.ts            landmark layout + proximity. Moves into MDX in Phase 3
