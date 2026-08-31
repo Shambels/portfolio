@@ -95,7 +95,10 @@ Breaking one is allowed. Doing it without saying so is not.
 
 ```
 src/App.tsx             baseline scene — moves under the router in Phase 2
-src/Ship.tsx            the character: procedural hovering saucer, no model file
+src/Ship.tsx            the character: procedural hovering saucer + flight controller
+src/useInput.ts         invariant 8 — the only place input is read
+src/world.ts            landmark layout + proximity. Moves into MDX in Phase 3
+docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
 src/i18n/               UI strings per locale
@@ -112,8 +115,8 @@ makes the diff smaller.
 
 ## Current state
 
-Phase 0 complete. **Two Phase 1 gates run in parallel and both block Phase 3:**
-Track A — three English case studies as MDX. Track B — Blender blockout of the
-three landmarks at true scale.
+`docs/STATUS.md` is the source of truth. Update its boxes in the same commit as
+the work.
 
-Neither has started.
+Both Phase 1 gates are Seb's and neither has started: Track A (three English case
+studies) and Track B (Blender blockout). Phase 2 is blocked on Track A.

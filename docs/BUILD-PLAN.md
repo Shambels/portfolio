@@ -35,7 +35,20 @@ Breaking one is allowed. Doing it quietly is not.
 |---|---|---|
 | **PolarSense** | A mine | VS Code extension: column autocompletion for Polars / pandas / DuckDB, read from file schemas without executing code. TypeScript, tree-sitter, hyparquet. Released on the Marketplace. [Repo](https://github.com/Shambels/polarSense) |
 | **Arts by Sandra** | An easel and canvas | Trilingual site for an artist — courses, artwork sales, studio rental. [Live](https://artsbysandra.be/) |
-| **Scrubble** | A Scrabble board | Scrabble game app |
+| **Scrubble** | A Scrabble board | Scrabble game app. **Not deployed** — no live URL, no store listing. The case study carries it on the writing alone |
+
+### The shape of the world — islands
+
+**Decided: islands, not one continuous space.** Each landmark sits on its own
+island; the visitor flies between them over open water or sky. Easier to
+art-direct — one island, one look, one lighting setup at a time — and a fourth
+project is a fourth island rather than a re-pacing of the whole map. It also
+suits a saucer, which already flies.
+
+The cost, stated: there is no walking-distance pacing to design, so the space
+between islands has to earn its charm from atmosphere rather than from
+incident. Keep the crossings short enough that traversal never becomes a
+loading screen you fly through.
 
 The mine is the strongest of the three, because the metaphor is not decorative:
 PolarSense extracts structure from files without running them. Seams, strata,
@@ -265,6 +278,15 @@ static routes across three locales.
 
 **No i18n library.** See Internationalisation.
 
+**Islands over one continuous world.** See The shape of the world.
+
+**Scrubble ships undeployed.** It has no live URL and no store listing, and
+deploying it is not on this project's critical path. So its case study has to do
+the work the other two get from a link: the problem, the rejected alternatives,
+the tradeoff that still annoys you. If that write-up is thin, cut the project to
+two landmarks rather than shipping a filler island — a repo link alone is not a
+substitute, and three landmarks is not a requirement.
+
 **The character is a procedural flying saucer.** `LatheGeometry` plus a few
 primitives in `src/Ship.tsx` — no model file, no rig, no walk cycle, no loader,
 no Draco, roughly zero bytes. Hovering removes ground-following and foot-planting
@@ -276,12 +298,6 @@ animation) neither the plan nor the timeline had room for.
 
 ## Open questions
 
-- Scrubble — is it shipped, and where? PolarSense has a repo and a Marketplace
-  listing, Arts by Sandra is live. Scrubble needs an equivalent, or it reads as
-  the filler project
-- Is the world one continuous space, or islands? Continuous means walking
-  distance between landmarks becomes pacing you have to design. Islands are
-  easier to art-direct and easier to add a fourth project to
 - Time of day, weather, seasons — atmosphere is where worlds like the reference
   earn most of their charm, and it is cheap in shader terms and expensive in
   decision terms. Pick one look and commit
@@ -315,3 +331,7 @@ and Phase 6 stays in this document rather than in a note somewhere.
 **6. Cliché.** A dark scene with a distorted sphere is this stack's default
 output. The character-world concept already avoids most of it — the remaining
 risk is generic assets. Mitigation: the Phase 4 rule.
+
+**7. Scrubble reads as filler.** No live link and no listing, so it rests
+entirely on its case study. Mitigation: write it first, judge it by the Track A
+exit test, and drop to two landmarks if it does not hold.
