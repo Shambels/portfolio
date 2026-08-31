@@ -35,7 +35,7 @@ export default function App() {
         <Grid args={[30, 30]} cellColor="#12203a" sectionColor="#1e3a5f" fadeDistance={22} infiniteGrid />
       </Canvas>
       <p className="hud">
-        {LANDMARKS.find((l) => l.slug === near)?.label ?? 'WASD / arrows to fly'}
+        {LANDMARKS.find((l) => l.slug === near)?.label ?? 'WASD / arrows to fly · space to rise · shift to boost'}
         {' · '}renderer: {backend}
       </p>
     </>

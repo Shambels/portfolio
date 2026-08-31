@@ -12,25 +12,48 @@ const PROFILE: [number, number][] = [
 ]
 const LIGHTS = 8
 
-const SPEED = 4.5     // units/sec
-const ACCEL = 6       // higher = twitchier
+const SPEED = 7.5     // units/sec
+const BOOST = 2.4     // Shift multiplier. Same ACCEL ramps in and out of it.
+const ACCEL = 7       // higher = twitchier
+const LIFT = 2.6      // ceiling above hover altitude, held with Space
+const CLIMB = 4       // altitude catch-up rate, both directions
 const TURN = 9        // yaw catch-up rate
-const BANK = 0.45     // max lean, radians. Flip the sign to lean the other way.
+const BANK = 0.5      // max lean, radians. Flip the sign to lean the other way.
+const PITCH = 0.32    // max nose-up on acceleration, radians
+
+// The bounce. One spring driven by the ship's own acceleration — horizontal,
+// vertical and any mix — read back as lean, pitch and suspension travel. The
+// hull reacts; the flight path stays exactly as damped as it was, so changing
+// how bouncy it looks never makes it harder to steer.
+const SPRING = 55     // stiffness. sqrt(SPRING) is the wobble rate, ~1.2 Hz.
+const DAMP = 8        // below 2*sqrt(SPRING) = overshoot. That overshoot is the bounce.
+const LEAN = 0.55     // spring travel -> radians of roll / pitch. ~20 deg on a full reversal.
+const SQUASH = 0.35   // spring travel -> metres of vertical give. ~0.12 m starting a climb.
+// The altitude target is a step, so its derivative spikes by whatever the frame
+// rate is. Capping the drive keeps the bounce bounded and the same at 30 or 144.
+const JOLT = 60       // units/sec^2
 const CAM_OFFSET = new THREE.Vector3(0, 3.4, 6.5)
 const CAM_LAG = 3.5
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+// Invariant 6: the ship still responds, it just does not oscillate about it.
+const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
 
 const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
+const _accel = new THREE.Vector3()
 
 export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: string | null) => void }) {
   const rig = useRef<THREE.Group>(null!)   // position + yaw
   const body = useRef<THREE.Group>(null!)  // bob + roll
   const vel = useRef(new THREE.Vector3())
   const yaw = useRef(0)
-  const roll = useRef(0)
   const near = useRef<string | null>(null)
+  const alt = useRef(hover)
+  const altVel = useRef(0)
+  const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
+  const spring = useRef(new THREE.Vector3())
+  const springVel = useRef(new THREE.Vector3())
   const input = useInput()
 
   const { hull, dome, glass, lamp, beam } = useMemo(() => {
@@ -55,40 +78,65 @@ export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: 
   }, [])
 
   useFrame((state, delta) => {
-    const dt = Math.min(delta, 0.05) // a backgrounded tab returns with a huge delta
+    // Floored as well as capped: a backgrounded tab returns with a huge delta, and
+    // two frames inside one clock tick give delta 0 — which the acceleration
+    // divides by, and one NaN frame hides the ship for the rest of the session.
+    const dt = THREE.MathUtils.clamp(delta, 1 / 240, 0.05)
     const g = rig.current
 
     // Movement is world-relative because the camera offset is fixed: rotating the
     // offset with yaw while steering relative to the camera is a spin feedback loop.
     // ponytail: camera-relative steering arrives with `look` in Phase 3.
-    _target.set(input.move.x, 0, -input.move.y).multiplyScalar(SPEED)
+    _target.set(input.move.x, 0, -input.move.y).multiplyScalar(input.boost ? SPEED * BOOST : SPEED)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
 
     if (vel.current.lengthSq() > 0.0025) {
       const want = Math.atan2(vel.current.x, vel.current.z)
       const diff = Math.atan2(Math.sin(want - yaw.current), Math.cos(want - yaw.current))
-      const step = diff * (1 - Math.exp(-TURN * dt))
-      yaw.current += step
-      roll.current = THREE.MathUtils.lerp(
-        roll.current,
-        THREE.MathUtils.clamp((-step / dt) * 0.08, -BANK, BANK),
-        0.2,
-      )
-    } else {
-      roll.current = THREE.MathUtils.lerp(roll.current, 0, 0.15)
+      yaw.current += diff * (1 - Math.exp(-TURN * dt))
     }
     g.rotation.y = yaw.current
 
-    body.current.rotation.z = roll.current
-    body.current.position.y = REDUCED ? hover : hover + Math.sin(state.clock.elapsedTime * 1.2) * 0.05
+    // Space climbs to hover + LIFT and holds there; releasing sinks back. One
+    // damped value, so there is no jump arc to time and nothing to land on.
+    const wasAlt = alt.current
+    alt.current += ((input.ascend ? hover + LIFT : hover) - alt.current) * (1 - Math.exp(-CLIMB * dt))
+    const climbVel = (alt.current - wasAlt) / dt
+
+    // Acceleration this frame, all three axes at once — so a diagonal that also
+    // climbs bounces once, in the direction it actually changed.
+    _accel.subVectors(vel.current, lastVel.current).divideScalar(dt)
+    _accel.y = (climbVel - altVel.current) / dt
+    _accel.clampLength(0, JOLT)
+    lastVel.current.copy(vel.current)
+    altVel.current = climbVel
+
+    springVel.current.addScaledVector(_accel, dt)
+      .addScaledVector(spring.current, -SPRING * dt)
+      .addScaledVector(springVel.current, -DAMPING * dt)
+    spring.current.addScaledVector(springVel.current, dt)
+
+    // Read the spring in the ship's own frame: sideways travel leans it, travel
+    // along the heading pitches the nose, vertical travel is suspension give.
+    const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
+    const cy = Math.cos(yaw.current)
+    const lateral = spring.current.x * cy - spring.current.z * sy
+    const along = spring.current.x * sy + spring.current.z * cy
+
+    body.current.rotation.z = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK)
+    body.current.rotation.x = THREE.MathUtils.clamp(-along * LEAN, -PITCH, PITCH)
+    body.current.position.y =
+      alt.current - spring.current.y * SQUASH +
+      (REDUCED ? 0 : Math.sin(state.clock.elapsedTime * 1.2) * 0.05)
 
     const hit = landmarkAt(g.position.x, g.position.z)?.slug ?? null
     if (hit !== near.current) { near.current = hit; onNear?.(hit) }
 
     _cam.copy(g.position).add(CAM_OFFSET)
+    _cam.y += alt.current - hover // rise with the ship, or the ceiling puts it out of frame
     state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
-    state.camera.lookAt(g.position.x, g.position.y + hover, g.position.z)
+    state.camera.lookAt(g.position.x, g.position.y + alt.current, g.position.z)
   })
 
   return (
