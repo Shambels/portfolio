@@ -278,6 +278,15 @@ static routes across three locales.
 
 **No i18n library.** See Internationalisation.
 
+**Golden hour, committed.** Sun at 15 degrees off to port, warm haze at the
+horizon, deep teal water, cumulus lit from underneath. Chosen because a low sun
+does the modelling for you: it rakes across geometry and flatters a blockout,
+where a midday sun flattens it. Everything is generated in TSL — sky, sun disc
+and glow, ocean and clouds — so the whole atmosphere costs zero asset bytes and
+nothing to export. The cost: with the follow camera fixed behind the ship, the
+sun is always in the same part of the frame, and landmarks show the camera their
+shadow side. Fill light carries them until Phase 4 gives them real materials.
+
 **Islands over one continuous world.** See The shape of the world.
 
 **Scrubble ships undeployed.** It has no live URL and no store listing, and
@@ -298,9 +307,7 @@ animation) neither the plan nor the timeline had room for.
 
 ## Open questions
 
-- Time of day, weather, seasons — atmosphere is where worlds like the reference
-  earn most of their charm, and it is cheap in shader terms and expensive in
-  decision terms. Pick one look and commit
+None outstanding. The last one — time of day — is settled below.
 
 ---
 
