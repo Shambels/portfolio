@@ -60,12 +60,14 @@ Google can read". Both are real; neither is a fallback stub.
 
 ### Character controller
 
-Third-person, character plus follow camera.
+The character is a **cartoon flying saucer hovering above the ground**, built
+procedurally in `src/Ship.tsx`. Third-person, ship plus follow camera.
 
-Start **without a physics engine**. The world is walkable ground and a handful
-of props. Movement is XZ translation, ground height from one raycast against a
-single ground mesh, and landmark collision is circle-vs-circle against 3–8
-positions. That is a few dozen lines and no dependency.
+Because it floats, there is no walk cycle, no foot planting and no ground
+following. Movement is XZ translation plus a sine bob, turning is a bank angle,
+and landmark collision is circle-vs-circle against 3–8 positions. Hover height is
+a constant over flat ground; only if the terrain gains hills does it need a
+raycast. That is a few dozen lines and no dependency.
 
 Add `@react-three/rapier` only when the world genuinely needs slopes, stacking,
 or thrown objects — and note the ~200 kB when you do.
@@ -92,6 +94,9 @@ blocks the other and both are gates.
 ```
 Blender  →  glTF export  →  gltf-transform (Draco + KTX2)  →  gltfjsx  →  typed component
 ```
+
+The character is **not** part of this track. It is procedural code, already
+built, and it needs no modelling, no rig and no export.
 
 Budgets per landmark: **≤ 300 kB** compressed, **≤ 25k triangles**, one material
 where possible. The whole world including the character stays under **3 MB**
@@ -260,14 +265,17 @@ static routes across three locales.
 
 **No i18n library.** See Internationalisation.
 
+**The character is a procedural flying saucer.** `LatheGeometry` plus a few
+primitives in `src/Ship.tsx` — no model file, no rig, no walk cycle, no loader,
+no Draco, roughly zero bytes. Hovering removes ground-following and foot-planting
+outright. This is the single biggest de-risking decision in the project: it
+deletes the one asset that would have needed a skill (character rigging and
+animation) neither the plan nor the timeline had room for.
+
 ---
 
 ## Open questions
 
-- Who is the character? An avatar of you, an abstract figure, something from the
-  work? It is the first thing a visitor identifies with and the model with the
-  highest bar — rigging and walk-cycle animation are a different skill from
-  modelling props
 - Scrubble — is it shipped, and where? PolarSense has a repo and a Marketplace
   listing, Arts by Sandra is live. Scrubble needs an equivalent, or it reads as
   the filler project
@@ -286,8 +294,11 @@ static routes across three locales.
 eventually, three before anything else. Mitigation: it is a gate, and FR/NL are
 explicitly deferred until the English is settled.
 
-**2. The models look like a first Blender project.** New risk, and the one that
-most determines whether the site reads as accomplished or as ambitious. A world
+**2. The models look like a first Blender project.** Now the largest remaining
+asset risk, and the one that most determines whether the site reads as
+accomplished or as ambitious. The saucer decision removed the hardest asset;
+these three landmarks are static props, which is the easiest category to model
+well. A world
 of grey blockout with excellent lighting and one beautifully finished landmark
 beats four mediocre models. Mitigation: finish landmarks one at a time in Phase
 4, and keep the blockout shippable at every point.
