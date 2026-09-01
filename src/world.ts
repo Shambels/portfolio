@@ -1,10 +1,23 @@
-/** World layout. One source of truth — Phase 3 moves it into MDX frontmatter. */
+import { PROJECTS } from './content'
+import { SOURCE_LOCALE } from './i18n/locales'
+
+/**
+ * World layout. Read from the content, not written down here: a landmark's
+ * position, size, proximity radius and spawn waypoint are English frontmatter
+ * (`src/content.ts`), so a new project is a new MDX file and nothing else.
+ *
+ * This module is deliberately the only place that turns flat XZ content data
+ * into scene coordinates — the plateau height is one constant, and putting it
+ * in three MDX files would be three chances to disagree about sea level.
+ */
 export type Landmark = {
   slug: string
-  label: string
+  /** Which shape builds it — see `BUILD` in `Landmarks.tsx`. */
+  landmark: string
   pos: [number, number, number] // ground centre — y is the island plateau, not sea level
   size: [number, number, number] // blockout box, true scale
   radius: number // proximity trigger, XZ
+  waypoint: [number, number, number] // where a deep link puts the ship
 }
 
 /**
@@ -15,11 +28,17 @@ export type Landmark = {
  */
 export const GROUND = 0.45
 
-export const LANDMARKS: Landmark[] = [
-  { slug: 'polarsense', label: 'PolarSense — the mine', pos: [-14, GROUND, -8], size: [5, 3.5, 5], radius: 5 },
-  { slug: 'arts-by-sandra', label: 'Arts by Sandra — the easel', pos: [12, GROUND, -5], size: [2, 3, 2], radius: 4 },
-  { slug: 'scrubble', label: 'Scrubble — the board', pos: [0, GROUND, 14], size: [6, 0.4, 6], radius: 5 },
-]
+export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
+  slug: p.slug,
+  landmark: p.landmark,
+  pos: [p.pos[0], GROUND, p.pos[1]],
+  size: p.size,
+  radius: p.radius,
+  waypoint: [p.waypoint[0], GROUND, p.waypoint[1]],
+}))
+
+export const landmarkOf = (slug: string | null): Landmark | undefined =>
+  slug ? LANDMARKS.find((l) => l.slug === slug) : undefined
 
 /** Nearest landmark whose radius contains (x, z), or null. Pure — easy to check. */
 export function landmarkAt(x: number, z: number): Landmark | null {
@@ -32,4 +51,23 @@ export function landmarkAt(x: number, z: number): Landmark | null {
     if (d < l.radius * l.radius && d < bestD) { bestD = d; best = l }
   }
   return best
+}
+
+/**
+ * A waypoint outside its own radius is the Phase 3 bug that looks like a
+ * feature: the deep link lands the ship next to the landmark, the very next
+ * frame reports nothing in range, and the panel the visitor followed a link to
+ * read closes itself. Two islands sharing a radius is the same failure wearing
+ * a different hat. Checked in dev, from the built data, once.
+ */
+if (import.meta.env.DEV) {
+  for (const l of LANDMARKS) {
+    const d = Math.hypot(l.waypoint[0] - l.pos[0], l.waypoint[2] - l.pos[2])
+    console.assert(d < l.radius, `${l.slug}: waypoint is ${d.toFixed(2)} out, radius is ${l.radius}`)
+    for (const o of LANDMARKS) {
+      if (o === l) continue
+      const gap = Math.hypot(o.pos[0] - l.pos[0], o.pos[2] - l.pos[2])
+      console.assert(gap > l.radius + o.radius, `${l.slug} and ${o.slug} overlap: ${gap.toFixed(2)} apart`)
+    }
+  }
 }

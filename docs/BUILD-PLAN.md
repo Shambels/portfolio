@@ -2,7 +2,7 @@
 
 ## What this is
 
-A portfolio for a web-app / SaaS developer. Case studies only, plus a minimal
+A portfolio for a software developer. Case studies only, plus a minimal
 footer. The site is itself the portfolio piece.
 
 **The concept.** A navigable 3D world, in the spirit of

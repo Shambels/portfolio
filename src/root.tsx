@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import { STRINGS, localeOf } from './i18n'
+import { WorldGate } from './WorldGate'
 import stylesheet from './index.css?url'
 
 export const links = () => [
@@ -19,7 +20,9 @@ export function Layout({ children }: { children: ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        {/* Invariant 3: the one <Canvas> in the site lives inside this, above
+            every route, and navigation never unmounts it. */}
+        <WorldGate>{children}</WorldGate>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -31,8 +34,8 @@ export default function Root() {
   return <Outlet />
 }
 
-/** Only reachable for a path the router cannot match at all — Cloudflare serves
- *  the prerendered 404 for real bad URLs. Kept plain on purpose. */
+/** Only reachable for a path the router cannot match at all — nginx serves the
+ *  prerendered 404 for real bad URLs. Kept plain on purpose. */
 export function ErrorBoundary() {
   const t = STRINGS[localeOf(useLocation().pathname) ?? 'en']
   return (

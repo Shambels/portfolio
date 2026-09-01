@@ -1,6 +1,6 @@
 # pinchs.be
 
-Portfolio for a web-app / SaaS developer. Static React site, no backend. The
+Portfolio for a software developer. Static React site, no backend. The
 visitor flies a character around a 3D world; each project is a landmark they
 approach. Trilingual EN / FR / NL.
 
@@ -34,7 +34,10 @@ npm run lint       # oxlint
 There is no test framework — non-trivial logic leaves an assert-based check
 behind instead. What is built is verified by flying it.
 
-Run `npm run dev`, open the page, click the canvas so it has focus, then:
+Run `npm run dev` and open `http://localhost:5173/en` — the world is behind the
+home page and behind each case study, and there is nothing to click for focus:
+the controls are read on `window`, except while a link or button has focus.
+
 
 | | |
 |---|---|
@@ -46,9 +49,11 @@ Run `npm run dev`, open the page, click the canvas so it has focus, then:
 
 Check, in order:
 
-1. **Renderer.** The HUD line at the bottom reads `renderer: WebGPU` on Chrome
-   and recent Safari, `renderer: WebGL2` elsewhere. Both are correct; neither
-   should read `detecting…` after a second.
+1. **Renderer.** Add `?debug` — the HUD then reads `WebGPU` on Chrome and recent
+   Safari, `WebGL2` elsewhere, followed by a frame rate. Both backends are
+   correct; neither should read `detecting…` after a second. `?debug` also draws
+   each proximity radius as a cyan ring, each blockout box as an amber
+   wireframe, and each spawn waypoint as a pink dot.
 2. **Altitude and boost.** Hold `Space`: the ship climbs smoothly, stops at its
    ceiling, and stays there for as long as the key is held; release and it eases
    back down to hover height. The camera rises with it. Hold `Shift` while
@@ -62,26 +67,40 @@ Check, in order:
    `src/Ship.tsx`). Under `prefers-reduced-motion` it responds without
    oscillating.
 4. **Proximity.** Fly into one of the three landmarks. Inside its radius it
-   turns light blue and the HUD swaps to that landmark's label
-   (`PolarSense — the mine`, etc.). Leave the radius and it reverts. Radii and
-   positions live in `src/world.ts`.
-5. **Landmarks.** Each one should be recognisable on approach, before the HUD
-   label confirms it: a head-frame over a stepped rock face with an adit at its
-   foot; an easel with a blank canvas; a Scrabble board with a played cluster
-   and a tile rack. All three face the middle of the world. With the console
-   open there should be no assertion — a landmark that outgrows its blockout box
-   in `src/world.ts` says so there, since the island radius is sized from it.
+   turns light blue, the URL becomes `/en/work/{slug}` and the panel opens with
+   that project's card — no reload, and the scene does not restart. Fly out and
+   both revert, with the history no deeper than it was. Radii and positions come
+   from the English frontmatter; `src/world.ts` maps them.
+5. **Landmarks.** Each one should be recognisable on approach, before the panel
+   names it: a head-frame over a stepped rock face with an adit at its foot; an
+   easel with a blank canvas; a Scrabble board with a played cluster and a tile
+   rack. All three face the middle of the world. With the console open there
+   should be no assertion — a landmark that outgrows the `size` box in its
+   frontmatter says so, and so does a `waypoint` that has fallen outside its own
+   `radius`.
 6. **Traversal — the Track B exit test.** Getting from the mine to the easel to
    the board should be interesting, not a chore. This is a judgement call made
    by flying it, and it is the gate on detailing anything.
 7. **Frame rate.** 60fps on a 2022 mid-tier laptop, or the effect gets cut.
    Browser devtools' FPS meter is enough at this stage.
 8. **No page scroll.** Arrows and Space move the ship, they never scroll the
-   document underneath the canvas.
+   document underneath the canvas — *unless* a link or button has focus, where
+   they must do the normal thing and the ship must stay put.
+9. **The two coherent experiences** — the Phase 3 exit test. Walk every route
+   with the world on, then again with it off (`chrome://flags` → *WebGL* →
+   Disabled, or just tab through it on a phone). Both have to read as finished:
+   with the world, a card and a link; without it, the whole case study. From the
+   card, *read the case study* goes to `?read`, which is the same URL with
+   nothing running behind it and is what the flat index links to.
+10. **Reachable without flying.** `Tab` from a cold load: the skip link is first
+   and goes to `/en/work`, and every landmark is a link on the home panel. Press
+   `Enter` on one — the ship is placed beside that landmark with its card open.
 
 To check the WebGL2 path deliberately, disable WebGPU in the browser
 (Chrome: `chrome://flags` → *Unsafe WebGPU Support* → Disabled) and reload; the
-HUD should read `WebGL2` and everything else behave identically.
+HUD under `?debug` should read `WebGL2` and everything else behave identically.
+With WebGL2 itself unavailable, or on a touch device, the canvas never mounts at
+all and what is left is the Phase 2 site.
 
 Verify a production build the same way with `npm run build && npm run preview`.
 
@@ -94,11 +113,13 @@ src/content.ts  every MDX file, keyed by slug and locale
 src/i18n/       locales.ts (routing) + index.ts (strings) + a check
 deploy.sh       build + rsync to the server, with a routing smoke test
 deploy/nginx.conf  the server block
-src/App.tsx     baseline scene + HUD — lives at /world until Phase 3
+src/WorldGate.tsx  mounts the canvas once, decides where it shows, owns the HUD
+src/Scene.tsx   the <Canvas> and everything in it
 src/Ship.tsx    the character: procedural hovering saucer + flight controller
 src/Landmarks.tsx the three landmarks — primitives + TSL, no model files
+src/Debug.tsx   ?debug — radii, blockout boxes, waypoints
 src/useInput.ts the only place input is read (invariant 8)
-src/world.ts    landmark layout + proximity — moves into MDX frontmatter in Phase 3
+src/world.ts    landmark layout + proximity, read from the content
 ```
 
 ## Deploy

@@ -10,8 +10,8 @@ export * from './locales'
  */
 const en = {
   name: 'Seb Pinchetti',
-  role: 'Web-app & SaaS developer',
-  bio: 'Web-app and SaaS developer in Brussels. I like problems where the right answer is findable and nobody has bothered to look.',
+  role: 'Software developer',
+  bio: 'Software developer. ',
 
   skipToContent: 'Skip to the case studies',
   navHome: 'Home',
@@ -30,6 +30,11 @@ const en = {
   linkSite: 'Visit the site',
   linkRepo: 'View the source',
   noLink: 'Not deployed — the write-up is the artefact.',
+
+  // The world's only string. `useInput` reads physical key codes, so the keys
+  // named here are the ones under the same fingers on any layout — which is why
+  // the French line says ZQSD and means the same three keys.
+  worldControls: 'WASD or arrows to fly · space to rise · shift to boost',
 
   notFoundTitle: 'Nothing here',
   notFoundBody: 'That page does not exist, or it moved. The work is all one click away.',
@@ -63,6 +68,8 @@ const fr: Strings = {
   linkRepo: 'Voir le code',
   noLink: "Pas déployé — c'est le texte qui fait foi.",
 
+  worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
+
   notFoundTitle: 'Rien ici',
   notFoundBody: "Cette page n'existe pas, ou elle a bougé. Les projets sont à un clic.",
 
@@ -92,6 +99,8 @@ const nl: Strings = {
   linkSite: 'Bekijk de site',
   linkRepo: 'Bekijk de broncode',
   noLink: 'Niet uitgebracht — de tekst is het werkstuk.',
+
+  worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',
 
   notFoundTitle: 'Hier is niets',
   notFoundBody: 'Die pagina bestaat niet, of is verhuisd. Het werk is één klik weg.',

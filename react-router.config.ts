@@ -14,16 +14,13 @@ const slugs = [...new Set(readdirSync(dir).map((f) => f.split('.')[0]))].sort()
 export default {
   appDirectory: 'src',
   // No server anywhere: every route below is written to disk at build time and
-  // served as a file. `_redirects` sends `/` to a locale; Cloudflare serves
+  // served as a file. `deploy/nginx.conf` sends `/` to a locale and serves
   // 404.html for anything unmatched.
   ssr: false,
-  prerender: [
-    ...LOCALES.flatMap((l) => [
-      `/${l}`,
-      `/${l}/work`,
-      `/${l}/404`,
-      ...slugs.map((s) => `/${l}/work/${s}`),
-    ]),
-    '/world',
-  ],
+  prerender: LOCALES.flatMap((l) => [
+    `/${l}`,
+    `/${l}/work`,
+    `/${l}/404`,
+    ...slugs.map((s) => `/${l}/work/${s}`),
+  ]),
 } satisfies Config

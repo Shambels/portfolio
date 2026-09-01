@@ -111,7 +111,7 @@ a:hover {
 
 .skip:focus {
   left: clamp(1.25rem, 5vw, 3rem);
-  z-index: 2;
+  z-index: 5; /* above the world's pinned chrome and its panel */
   padding: 0.5rem 0.9rem;
   background: var(--gold);
   color: var(--ink);
@@ -305,23 +305,134 @@ main {
   margin-block-start: calc(var(--lh) * 1.5);
 }
 
-/* --- the world (Phase 0/1 scene, /world) -------------------------------- */
+/* --- the world ---------------------------------------------------------- */
 
-body:has(canvas) {
-  padding: 0;
+/*
+  The canvas is mounted once in the root layout and never unmounts, so it is a
+  fixed layer under the document rather than a page that replaces it. `html` is
+  given `.world` on the routes where it shows through; everything below is that
+  one class turning a scrolling document into pinned chrome plus one reading
+  panel. Nothing here is loaded conditionally — a class is cheaper than a second
+  stylesheet, and the flat site pays about 40 lines for it.
+*/
+
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Hidden, not unmounted: `Scene` has already stopped its frame loop. Keeping
+   the element sized means coming back does not re-measure the drawing buffer. */
+.stage.off {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 canvas {
   display: block;
 }
 
+.world,
+.world body {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.world body {
+  display: block;
+  padding: 0;
+  background: transparent; /* the scene is the background */
+}
+
+/* `header.bar`, not `.bar`: the footer wears the same class, and an `inset`
+   meant for the top of the screen stretches it across the whole of it. */
+.world header.bar {
+  position: fixed;
+  z-index: 2;
+  inset: 0 0 auto;
+  max-width: none;
+  padding: 0.85rem clamp(1.25rem, 5vw, 3rem);
+  background: linear-gradient(to bottom, #0b0c0fcc, #0b0c0f00);
+}
+
+.world main {
+  position: fixed;
+  z-index: 2;
+  top: 4.2rem;
+  right: clamp(1.25rem, 5vw, 3rem);
+  bottom: 3.4rem;
+  width: min(28rem, 46vw);
+  max-width: none;
+  margin: 0;
+  padding: var(--lh) 1.5rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #0b0c0fd9;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  backdrop-filter: blur(14px);
+}
+
+/* The measure is 28rem here, not 36 — the display sizes have to come down with
+   it or the heading is three words a line. */
+.world main h1 {
+  font-size: clamp(1.4rem, 1.15rem + 0.9vw, 1.8rem);
+}
+
+.world main > :last-child {
+  margin-block-end: 0;
+}
+
+.world .foot {
+  position: fixed;
+  z-index: 2;
+  left: clamp(1.25rem, 5vw, 3rem);
+  bottom: 0.9rem;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4rem 1.25rem;
+  width: auto;
+  max-width: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.world .foot .fine {
+  display: none;
+}
+
+/* Stacked above the footer at the same margin, not centred: centred put it
+   through the footer on any window narrower than about 1600px. */
 .hud {
   position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  font: 400 13px/1.4 var(--mono);
+  z-index: 2;
+  left: clamp(1.25rem, 5vw, 3rem);
+  bottom: 2.5rem;
+  margin: 0;
+  font: 400 12.5px/1.5 var(--mono);
   color: #7dd3fc;
-  opacity: 0.7;
+  opacity: 0.66;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* A narrow desktop window: `pointer: fine` is the mount test, and a laptop can
+   still be half-screened. The panel becomes a sheet rather than a column, and
+   the footer gets out from under the hint. */
+@media (max-width: 54rem) {
+  .world main {
+    left: clamp(1.25rem, 5vw, 3rem);
+    top: auto;
+    width: auto;
+    height: min(24rem, 52dvh);
+  }
+
+  .world .foot,
+  .hud {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
