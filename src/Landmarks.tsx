@@ -7,6 +7,8 @@ import {
 } from 'three/tsl'
 import { LANDMARKS, type Landmark } from './world'
 import mineUrl from './models/mine.glb?url'
+import easelUrl from './models/easel.glb?url'
+import boardUrl from './models/board.glb?url'
 
 /**
  * The three landmarks: a mine, an easel, a Scrabble board. Track B blockout,
@@ -14,9 +16,9 @@ import mineUrl from './models/mine.glb?url'
  * identifiable from the air, and no detail beyond that, because what Track B's
  * exit test judges is the layout and not the shading.
  *
- * Phase 4 replaces them one at a time: a landmark listed in `MODEL` loads a
- * detailed mesh and falls back to its blockout while that is in flight, and one
- * that is not listed is still the blockout. `Scene` does not learn about it.
+ * All three now load a detailed mesh from `MODEL`; the blockout below is what
+ * stands in its place while that is in flight, and what a fourth project gets
+ * before it is modelled. `Scene` does not learn about any of it.
  *
  * `world.ts` stays the source of truth for where a landmark is and how big it
  * may be. Nothing below reads a position: each landmark is modelled in its own
@@ -269,6 +271,8 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
  */
 const MODEL: Record<string, string> = {
   mine: mineUrl,
+  easel: easelUrl,
+  board: boardUrl,
 }
 
 function Detailed({ url, m }: { url: string; m: Mats }) {

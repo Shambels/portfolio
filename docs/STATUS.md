@@ -224,23 +224,30 @@ there, against the types typegen last wrote.
 
 ## Phase 4 — Craft
 
-- [ ] Detailed models replacing blockout, one at a time
+- [x] Detailed models replacing blockout, one at a time
   - [x] Mine — PolarSense. `tools/mine.py`, `src/models/mine.glb`
-  - [ ] Easel — Arts by Sandra
-  - [ ] Scrabble board — Scrubble
+  - [x] Easel — Arts by Sandra. `tools/easel.py`, `src/models/easel.glb`
+  - [x] Board — Scrubble. `tools/board.py`, `src/models/board.glb`
 - [ ] TSL shaders derived from what each project does
 - [ ] Post-processing
 - [ ] GPU compute particles where WebGPU is available
 - [ ] Ambient sound, off by default
 
-### The mine, and the pipeline the other two will use
+### The pipeline
 
 Seb's call, over detailing in code: the models are **Blender, scripted**.
-`tools/mine.py` runs Blender headless as a Python module (`pip install bpy`) and
-writes both `tools/mine.blend` — the file to open and sculpt — and
-`src/models/mine.glb`, the file the site loads. Re-running it rebuilds both, so
-the script stays the source and the .blend stays an output rather than a second
-thing to keep in sync.
+One script per landmark — `tools/mine.py`, `tools/easel.py`, `tools/board.py` — running Blender
+headless as a Python module (`pip install "bpy==4.5.13"`, which wants Python
+3.11). Each writes both a `.blend` to open and sculpt and the `.glb` the site
+loads. Re-running rebuilds both, so the script stays the source and the .blend
+stays an output rather than a second thing to keep in sync.
+
+`tools/landmark.py` holds what all of them need: the three-space-to-Blender
+conversion, a box or cylinder between two points, a slab with three rotations, a
+stone, the box-and-triangle gate, and the export and preview steps. Not an
+abstraction over landmarks — no base class, no `Landmark` type — just the
+fifteen functions each script would otherwise carry a copy of. Extracting it
+left `mine.glb` byte-identical.
 
 Nothing about the pipeline in BUILD-PLAN survived contact except its shape:
 
@@ -254,9 +261,10 @@ Nothing about the pipeline in BUILD-PLAN survived contact except its shape:
   cannot; and it keeps the proximity highlight working on a model exactly as it
   works on a blockout, because both ask the same two material sets for their
   colours.
-- **Mesh names are the material keys.** `rock_cut`, `frame_works`, `dark_holes`
-  → the `rock`, `frame` and `dark` materials. A name with no material is a
-  dev-time `console.assert`, not a black mesh found later.
+- **Mesh names are the material keys.** `rock_cut`, `frame_easel`,
+  `panel_canvases` → the `rock`, `frame` and `panel` materials. Checked twice: an
+  unknown prefix is an assertion at build time in `landmark.py` and a
+  `console.assert` in dev in the browser, rather than a black mesh found later.
 - The adit is a real hole, cut with a boolean, because the saucer hovers at 0.45
   and the portal is 0.92 high: a visitor will fly at it, and a painted-on mouth
   is a promise the world breaks on the first try. The tunnel walls belong to the
@@ -265,18 +273,90 @@ Nothing about the pipeline in BUILD-PLAN survived contact except its shape:
 `tools/mine.py --render out.png` writes three views. Its light is deliberately
 **not** the scene's — see the finding below.
 
+### The mine — PolarSense
+
+A terraced cut with a bored adit, a head-frame over the shaft, and the spoil.
+The adit is a real hole, cut with a boolean, because the saucer hovers at 0.45
+and the portal is 0.92 high: a visitor will fly at it, and a painted-on mouth is
+a promise the world breaks on the first try. The tunnel walls belong to the rock
+mesh, so the strata run from the hillside into the hole.
+
+### The easel — Arts by Sandra
+
+**Not one easel.** Sandra teaches, sells her own work and rents the studio, and
+the case study's own line is "three different conversations, funnelled into one
+form she can actually answer". So the landmark is a working corner: a canvas on
+the easel, a stretched one waiting on the table, a small finished one leaning on
+its end, and the brushes and palette where they were put down. Three canvases,
+one place.
+
+**The frontmatter box grew, 2 × 3 × 2 → 3 × 2.7 × 1.6.** A single easel at two
+metres, alone on an island of nearly eight, reads as an ornament dropped on a
+lawn — the mine fills its box and this filled a fifth of its island. `radius` is
+deliberately untouched: it sets both the proximity trigger and the island, and
+`waypoint` is 3.6 out, so shrinking it would have moved two more numbers and
+changed how the landmark feels to fly into. Undoing all of it is deleting the
+`build_table` and `build_props` calls in `main` and putting `size` back.
+
+The canvas on the easel is **blank on purpose**. What resolves on it as the
+visitor approaches is the next Phase 4 item — a TSL shader — and anything
+legible painted into the model runs straight into invariant 2.
+
+### The board — Scrubble
+
+A board is flat, and that was the problem: the frontmatter box was 6 × 0.4 × 6
+and the saucer hovers at 0.45, so the visitor flew over a rug. The mine is three
+and a half metres of silhouette, the easel two and a half; this was four hundred
+millimetres of nothing.
+
+**The box grew, 6 × 0.4 × 6 → 6 × 1 × 6**, and what fills it is the case study's
+own first line — *"the move you played is not the move that was there."* Seven
+tiles hang above the empty squares they would have gone in: the bingo nobody at
+the table saw, hooked under the played column and running out to the edge. It is
+what Scrubble does, it is the only thing that gives this landmark a shape against
+the sky, and it is the geometry the *tiles settle into a real word* item
+animates. They are stepped and tipped rather than level, because with no shadow
+maps height alone does not say "in the air" — a rank of tiles at one height reads
+as a plank.
+
+Kept from the blockout, deliberately: the grid and the premium squares stay in
+the shader rather than becoming geometry, so the plate is one slab and has to
+stay centred on the group origin — the shader reads `positionLocal.xz`. Tiles
+are blank; letters are text and text belongs in the DOM (invariant 2), and the
+crossword reads from the shape of the cluster. The found tiles are their own
+mesh, `panel_found`, so a shader can single them out later without a second
+model.
+
 ### Measured
 
-- 4.90 × 3.29 × 4.78 against the frontmatter's 5 × 3.5 × 5 box, floor at y −0.06
-- **15,412 triangles** (budget 25k) · **163 kB gz** (budget 300 kB)
+| | mine | easel | board |
+|---|---|---|---|
+| built | 4.90 × 3.29 × 4.78 | 2.94 × 2.61 × 1.25 | 5.96 × 0.98 × 5.96 |
+| frontmatter box | 5 × 3.5 × 5 | 3 × 2.7 × 1.6 | 6 × 1 × 6 |
+| triangles (budget 25k) | 15,412 | 2,012 | 1,464 |
+| gzipped (budget 300 kB) | 163 kB | 24 kB | 11 kB |
+
+All three sit at y −0.06 or above, inside the −0.08 `Landmarks.tsx` allows.
+**198 kB gz for the whole world's models**, against a 3 MB budget — the mine is
+five sixths of it, and it is a heightfield.
 - Canvas chunk **449 kB gz** (budget 600, was 422 — `useGLTF` and `GLTFLoader`
-  are the +27). First-route JS **unchanged at ~130 kB gz**; no `.glb` is
-  referenced by any prerendered document
-- `npx tsc -b` clean; 18 routes still prerender
-- Walked headless under swiftshader at `/en/work/polarsense`: the model loads
-  (200), renders with the TSL materials, console clean but for three's own
-  WebGPU-unavailable notice. In dev the box-fit and material-key assertions are
-  silent
+  are the +27; the second and third models added nothing to it). First-route JS
+  **unchanged at ~130 kB gz**; no `.glb` is referenced by any prerendered
+  document
+- `npx tsc -b` clean, `locales.check.ts` green; 18 routes still prerender
+- Walked headless under swiftshader at all three case-study URLs: every model
+  loads (200) and renders with the TSL materials — including the board's grid
+  and premium squares, which are still shader and still line up with the tiles.
+  No page errors, console clean but for three's own WebGPU-unavailable notice.
+  In dev the box-fit and material-key assertions are silent
+
+### Two frontmatter boxes grew
+
+`size` is a contract, not a description — the island, the proximity radius and
+the ship's clearance are sized from it — so both changes are here rather than
+quiet: the easel 2 × 3 × 2 → 3 × 2.7 × 1.6, the board 6 × 0.4 × 6 → 6 × 1 × 6.
+Neither touches `radius`, so no waypoint moved and nothing about how a landmark
+feels to fly into changed. The mine's box is untouched.
 
 ### New dependency: none, but drei is now actually used
 
