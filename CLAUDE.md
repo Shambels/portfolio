@@ -181,6 +181,12 @@ makes the diff smaller.
 `docs/STATUS.md` is the source of truth. Update its boxes in the same commit as
 the work.
 
-Phases 0 to 3 are built. What is open is Seb's: the first deploy and DNS/TLS
-(Phase 2's exit), Track B's *is traversal interesting or a chore* judgement, and
-reviewing the one new FR/NL UI string Phase 3 added. Phase 4 is next.
+Phases 0 to 3 are built, and Phase 4's models and shaders with them — the sun
+was swung round to port in the same pass, which is a change to the committed
+golden-hour look and is written up in `docs/STATUS.md`. Post-processing, GPU
+particles and ambient sound are the three Phase 4 items still open, all cut by
+scope rather than blocked.
+
+What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
+*is traversal interesting or a chore* judgement, reviewing the one new FR/NL UI
+string Phase 3 added, and judging the new lighting on real hardware.

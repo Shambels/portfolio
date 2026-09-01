@@ -228,10 +228,15 @@ there, against the types typegen last wrote.
   - [x] Mine — PolarSense. `tools/mine.py`, `src/models/mine.glb`
   - [x] Easel — Arts by Sandra. `tools/easel.py`, `src/models/easel.glb`
   - [x] Board — Scrubble. `tools/board.py`, `src/models/board.glb`
-- [ ] TSL shaders derived from what each project does
-- [ ] Post-processing
-- [ ] GPU compute particles where WebGPU is available
-- [ ] Ambient sound, off by default
+- [x] TSL shaders derived from what each project does
+  - [x] The mine's veins are PolarSense's columns — `src/Landmarks.tsx`
+  - [x] The easel's canvas resolves on approach
+  - [x] The Scrabble tiles settle into the move that was there
+- [x] The sun swung round, so the visitor sees lit faces — `src/Scenery.tsx`
+      *(the finding below, and Seb's call between the two honest fixes)*
+- [ ] Post-processing *(cut from this pass — Seb's scope call)*
+- [ ] GPU compute particles where WebGPU is available *(same)*
+- [ ] Ambient sound, off by default *(same)*
 
 ### The pipeline
 
@@ -365,21 +370,131 @@ nowhere. `useGLTF` is the first thing to use it — caching, Suspense and the
 loader for 27 kB gz inside the canvas chunk, against hand-rolling a loader for
 one file.
 
-### Finding, and it is not a modelling problem
+### The three shaders
 
-Rotated into the mine's local space, `Scenery.tsx`'s sun comes from **behind and
-to the right** of the landmark. The follow camera is fixed behind the ship and
-the ship approaches from the world's centre, so **every surface the visitor can
-see is in shadow**, lit by the ambient fill alone — under which a benched rock
-face and a smooth one are the same flat grey. BUILD-PLAN predicted this
-("landmarks show the camera their shadow side") and deferred it to Phase 4
-materials; the strata shader helps, because its banding does not depend on the
-light, but it does not fix it.
+Each one is the project, not a texture. All three live in `makeMats` in
+`src/Landmarks.tsx`, which is now the only file Phase 4's craft touches besides
+the sun.
 
-The honest fixes are all in `Scenery.tsx`, not in a model: swing the sun round to
-port-and-forward, or add a second weak directional light from behind the camera.
-**Seb's call** — it changes the committed golden-hour look, which is a decision
-this document records rather than one Claude should quietly take.
+**The mine — veins as columns.** The strata were already the file's rows. The
+veins are its columns: dead straight, vertical, cut through every bench and on
+into the adit, where a faint emissive keeps them readable in a hole the sun
+cannot reach — the claim PolarSense makes is that you can see the schema without
+running the file. Rows bend and columns do not, which is why the strata carry the
+lateral wobble and the veins carry none. Their axis is set across the mine's cut
+face, because rock is the mine's material and nothing else uses it; vein planes
+parallel to that face would have washed it instead of striping it.
+
+*Also changed here:* the strata wobble came down from 0.14 to 0.06. At 0.14 the
+lateral bend was most of a band's own period, so the layers read as camouflage
+rather than as strata — and a vein crossing camouflage reads as nothing at all.
+
+**The easel — the canvas resolves.** Three colour fields: scattered, soft and
+pale from across the island, drawn together and saturated by the time the ship is
+parked. Sandra teaches, sells her own work and rents the studio, and the case
+study's line is "three different conversations, funnelled into one form she can
+actually answer" — so what resolves is three things becoming one composition.
+Nothing legible is painted (invariant 2). The field is measured in the landmark's
+own space, `x` across and `y + z` up, so one expression serves a canvas standing
+on the easel and one lying flat on a table; it is anchored on the easel's canvas
+and reaches the finished one leaning on the table, while the stretched one
+waiting on the table falls outside it and stays primed, which is what
+`tools/easel.py` says that canvas is.
+
+The painting is the one thing in the world that does **not** take the proximity
+tint. The highlight washes a landmark 72% toward cyan exactly when the visitor is
+close enough for the painting to have resolved, and a painting the colour of the
+highlight is not a painting. It reads as paint on a tinted ground instead.
+
+**The board — the tiles settle.** The seven that hang over the squares they
+belong in come down as the visitor arrives, the tile nearest the played word
+first, so the hook lands before what hangs off it. The tip goes as each one
+falls: a tile is tipped to say it is in the air, and a tipped tile lying on a
+board buries a corner in it. Each tile is identified in the shader by its own x,
+which is what keeps this one material over one mesh instead of seven of anything;
+the constants it lands them on mirror `tools/board.py` and are commented as such
+in both files.
+
+Under `prefers-reduced-motion` the tiles stay up. Settling is the only thing in
+Phase 4 that moves geometry, and hanging is the pose the model was built for —
+collapsing them flat would take the landmark's silhouette with it (invariant 6).
+
+**How "approach" is measured.** From the ship, not from the camera — `CAM_OFFSET`
+is now exported from `src/Ship.tsx` for exactly this. The camera sits 7.2 behind
+the ship in *world* Z and never turns, so the board (at +Z) is always nearer the
+camera than the ship is, and the easel (at -Z) always further: a camera-distance
+shader resolves the board from the middle of the world and the easel only when
+you are sitting on it. From the ship, approach means the same thing at all three
+— about 13 units out at the world's centre, about 4 parked at a waypoint.
+
+### Two things the screenshots turned up
+
+- **Mesh names now pick a material by their whole name first, prefix second.**
+  `panel_canvases` and `panel_found` needed their own shaders and would otherwise
+  have dragged the Scrabble tiles and the easel's canvases along with them. No
+  model changed and no mesh was renamed; `landmark.py`'s prefix assertion still
+  holds.
+- **`board_palette` was drawing Scrabble grid lines across a paint palette.**
+  `tools/easel.py` gives the palette the board material on purpose — it wants a
+  different colour — but the board material has carried the 15x15 grid since
+  Phase 4's models. It has its own flat material now.
+
+### The finding is fixed, and it cost the golden hour in frame
+
+Phase 4 recorded this and left it for Seb: the camera never turns, so it only
+ever sees surfaces facing +Z, and the sun was at -Z. Every landmark showed its
+shadow side, lit by fill alone, and a benched rock face and a smooth one were
+the same flat grey.
+
+**Seb chose the swing** over a second light. `SUN` is now `(-0.66, 0.27, 0.70)`
+— the same 16 degrees up, round to port and behind, so it rakes the faces the
+visitor is actually looking at and the shadow sides fall to the right of frame
+where they model the shape instead of hiding it. Fill came down 2.8 to 2.1 to buy
+the contrast back; at 1.7 the mine's shadow side crushed to navy.
+
+The cost, paid knowingly: the sun disc, its glow and the glitter path on the
+water are all behind the camera now, so none of them is in frame. The sky in view
+is the anti-solar half. The haze warmth was wrapped right round the horizon
+rather than clamped to the sun's side, which keeps a warm band low and to the
+left, but the frame is a cool blue afternoon where it used to be a hazy gold.
+Side by side, the old frame is flatter and hazier and the mine is a silhouette in
+it; the new one has form. **If the trade reads wrong on real hardware, the whole
+of it is three numbers in `Scenery.tsx`.**
+
+### Verified for the shaders, on a throwaway install in Claude's container
+
+Not on Seb's machine. Same caveats as before: `npm install` is forbidden in the
+project folder, and `react-router typegen` and `oxlint` cannot run from Claude's
+Linux VM at all.
+
+- [x] `npx tsc -b` clean, `node src/i18n/locales.check.ts` green; 18 routes still
+      prerender; `oxlint` clean on the three files touched
+- [x] Canvas chunk **444 kB gz** (budget 600), everything else **131 kB gz**
+      (budget 200). No `.glb` and no `WebGPURenderer` in any prerendered document
+- [x] Walked headless under swiftshader at `/en` and all three case studies, with
+      the world on: no page errors, console clean
+- [x] The tiles settle. Screenshotted with the drop forced to 0 and to 1: they
+      come down from the stepped cascade and land flat, in their squares, on the
+      grid, hooked under the played column
+- [x] The veins read as gold seams down the benches, not as a wash
+- [x] The painting resolves on the easel's canvas and keeps its own colours
+      inside the proximity highlight; the canvas on the table stays primed
+- [x] The sun swing screenshotted before and after at `/en` and at the mine
+- [ ] 60fps, and whether the new frame is the one Seb wants — real hardware only.
+      Swiftshader renders it at about 1fps and has no opinion about either
+
+### Two things worth Seb's eye while he is in there
+
+- **The easel is behind the panel when you arrive.** Its waypoint sits to the
+  landmark's left, the card is on the right of the screen, and the camera does
+  not turn — so flying to Arts by Sandra parks the visitor looking at open water
+  with the easel hidden under the card. The mine and the board are both clear of
+  it. It is one number in `arts-by-sandra.en.mdx` (`waypoint`), and it is a
+  layout judgement, so it is here rather than changed.
+- **The board is only visible from close.** It sits at +Z and the camera is 7.2
+  behind the ship in world Z, so the board only crosses into frame at about 7
+  units out. The settle window was pulled in to 8.5 to 4.2 to fit inside that,
+  but it does mean the tiles are already coming down when the board appears.
 
 ## Phase 5 — Hardening
 
