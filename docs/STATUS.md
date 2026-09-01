@@ -234,9 +234,69 @@ there, against the types typegen last wrote.
   - [x] The Scrabble tiles settle into the move that was there
 - [x] The sun swung round, so the visitor sees lit faces — `src/Scenery.tsx`
       *(the finding below, and Seb's call between the two honest fixes)*
-- [ ] Post-processing *(cut from this pass — Seb's scope call)*
+- [x] Post-processing — FXAA and an emissive-only bloom — `src/Post.tsx`
 - [ ] GPU compute particles where WebGPU is available *(same)*
 - [ ] Ambient sound, off by default *(same)*
+
+### Post-processing
+
+Two effects, in `src/Post.tsx`, and the argument for each is why there are only
+two. Seb's call between three chains; this was the middle one.
+
+**FXAA**, because rendering through a target is exactly what costs the
+anti-aliasing the plain canvas got for free — so a chain with no AA in it is a
+net loss before its first effect. And this world is the worst case for it: the
+mine's head-frame is a lattice of thin diagonals against a smooth gradient sky,
+which is the shape that aliases worst. Side by side at 1000 × 640, the staircase
+on those diagonals is gone.
+
+**Bloom off the emissive buffer, at threshold zero.** BUILD-PLAN says "bloom is
+not a personality", and the way it becomes one is a luminance threshold:
+everything the sun hits hard enough starts to glow and the frame turns to soup.
+Instead the pass renders `emissive` to its own MRT target and blooms only that,
+so nothing can glow unless a material declares it emits. Here that is exactly two
+things — the ship's pulsing lamp, and the ore in the mine's veins, which is the
+whole claim that you can read PolarSense's schema without going into the adit.
+The sky, the sun's glow, the glitter on the water and every lit surface go to
+`output` and cannot reach the bloom however bright they get. There is no
+threshold to tune and no way for a new bright material to start blooming by
+accident; `strength` and `radius` are the only two numbers, and how bright a
+thing glows stays the emissive value its material already chose.
+
+Order is not free: bloom belongs in linear HDR before tone mapping, FXAA wants
+sRGB after it. Hence `outputColorTransform = false` on the pipeline and an
+explicit `renderOutput` between the two. A sky patch measured across both builds
+came back within noise, so the committed golden hour is unchanged — this pass
+adds a halo and takes away jaggies, and does nothing else.
+
+**On both backends.** TSL compiles the one graph to WGSL and to GLSL and MRT is
+native to WebGL2, so supporting the fallback costs a line of nothing; one look
+was worth more than the frames a branch might have saved. If it turns out to cost
+too much on WebGL2 that becomes a measured decision, not a guess made here.
+
+`Post` renders at `useFrame` priority 1, which is what takes the frame away from
+r3f. `frameloop` still decides whether it runs at all, so a route with no world
+costs nothing, and `PassNode` and `BloomNode` both resize themselves off the
+renderer — there is no resize handler.
+
+#### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b` clean, `node src/i18n/locales.check.ts` green, 18 routes
+      prerendered. `oxlint` and `typegen` still cannot run from the Linux VM
+- [x] Canvas chunk **447 kB gz**, up 25 from 422 (budget 600). First-route JS
+      **127 kB gz**, unchanged (budget 200). No `WebGPURenderer` and no scene
+      chunk in any prerendered document
+- [x] Walked headless under swiftshader at `/en` and at
+      `/en/work/polarsense`, WebGL2 backend: no page errors, no shader
+      compilation failures, console clean
+- [x] Screenshotted with and against a build with `<Post />` removed. The
+      head-frame's diagonals are anti-aliased; the ship's lamps have a halo and
+      bleed onto the hull; the veins pick up a wash. Nothing else glows
+- [x] A sky patch measured on both builds came back within cloud-drift noise —
+      no double colour transform, no shift in the committed look
+- [ ] 60fps with the chain on, and whether the halo is the strength Seb wants —
+      real hardware only. Swiftshader renders this at about 1fps and has no
+      opinion about either
 
 ### The pipeline
 
