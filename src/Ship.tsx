@@ -1,9 +1,9 @@
-import { useMemo, useRef } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { color, positionLocal, sin, time } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
-import { landmarkAt } from './world'
+import { landmarkAt, landmarkOf } from './world'
 
 // Saucer silhouette, rotated around Y. [radius, height]
 const PROFILE: [number, number][] = [
@@ -43,7 +43,15 @@ const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
 const _accel = new THREE.Vector3()
 
-export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: string | null) => void }) {
+export function Ship({ hover = 0.9, enabled, slug, onNear }: {
+  hover?: number
+  /** False on every route with no world showing. The ship stops reading keys. */
+  enabled: boolean
+  /** The case study the URL is showing — the URL is the state, and this is the
+   *  ship's copy of it. Null on the home page. */
+  slug: string | null
+  onNear: (slug: string | null) => void
+}) {
   const rig = useRef<THREE.Group>(null!)   // position + yaw
   const body = useRef<THREE.Group>(null!)  // bob + roll
   const vel = useRef(new THREE.Vector3())
@@ -54,7 +62,34 @@ export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: 
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
-  const input = useInput()
+  const snap = useRef(false) // next frame: place the camera, do not chase it
+  const input = useInput(enabled)
+
+  /**
+   * Deep link, or a click in the world's own project list: put the ship beside
+   * the landmark the URL names, facing it. A layout effect, so it lands before
+   * the first frame and the very next proximity read already agrees with the
+   * URL it came from — otherwise the panel a visitor followed a link to read
+   * closes itself one frame later.
+   *
+   * Skipped when the ship is the reason the URL says what it says: a proximity
+   * push must never yank the ship back to the waypoint it just flew past. The
+   * reverse — the URL going home while the ship is still parked — leaves it
+   * parked, because closing a panel is not a request to be moved.
+   */
+  useLayoutEffect(() => {
+    const l = landmarkOf(slug)
+    if (!l || near.current === l.slug) return
+    rig.current.position.set(l.waypoint[0], 0, l.waypoint[2])
+    yaw.current = Math.atan2(l.pos[0] - l.waypoint[0], l.pos[2] - l.waypoint[2])
+    rig.current.rotation.y = yaw.current
+    vel.current.set(0, 0, 0)
+    lastVel.current.set(0, 0, 0)
+    spring.current.set(0, 0, 0)
+    springVel.current.set(0, 0, 0)
+    near.current = l.slug
+    snap.current = true
+  }, [slug])
 
   const { hull, dome, glass, lamp, beam } = useMemo(() => {
     const hull = new THREE.MeshStandardNodeMaterial({ color: '#cfd8e3', roughness: 0.35, metalness: 0.6 })
@@ -86,7 +121,9 @@ export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: 
 
     // Movement is world-relative because the camera offset is fixed: rotating the
     // offset with yaw while steering relative to the camera is a spin feedback loop.
-    // ponytail: camera-relative steering arrives with `look` in Phase 3.
+    // ponytail: camera-relative steering would need `look`, and nothing has
+    // asked for it — the camera is behind the ship, so world-relative reads the
+    // same. Revisit if Phase 6's touch controls want a swipe-to-turn.
     _target.set(input.move.x, 0, -input.move.y).multiplyScalar(input.boost ? SPEED * BOOST : SPEED)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
@@ -130,12 +167,15 @@ export function Ship({ hover = 0.9, onNear }: { hover?: number; onNear?: (slug: 
       alt.current - spring.current.y * SQUASH +
       (REDUCED ? 0 : Math.sin(state.clock.elapsedTime * 1.2) * 0.05)
 
+    // Proximity is an event, not a state: it pushes a URL and the URL is what
+    // everything else reads back (invariant 3 — nothing here remounts a tree).
     const hit = landmarkAt(g.position.x, g.position.z)?.slug ?? null
-    if (hit !== near.current) { near.current = hit; onNear?.(hit) }
+    if (hit !== near.current) { near.current = hit; onNear(hit) }
 
     _cam.copy(g.position).add(CAM_OFFSET)
     _cam.y += alt.current - hover // rise with the ship, or the ceiling puts it out of frame
-    state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
+    if (snap.current) { snap.current = false; state.camera.position.copy(_cam) }
+    else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
     state.camera.lookAt(g.position.x, g.position.y + alt.current, g.position.z)
   })
 

@@ -9,7 +9,8 @@ import { Vector2 } from 'three'
  */
 export type Input = {
   move: Vector2 // x = strafe, y = forward. Length <= 1.
-  look: Vector2 // ponytail: unwired. Follow camera is fixed-offset until Phase 3.
+  look: Vector2 // ponytail: still unwired — the camera sits behind the ship, so
+  //             world-relative steering reads the same. Phase 6 may want it.
   ascend: boolean // held: climb to the ceiling. Released: sink back to hover.
   boost: boolean // held: fly faster.
   interact: boolean
@@ -26,7 +27,17 @@ const BOOST = ['ShiftLeft', 'ShiftRight']
 const INTERACT = ['KeyE', 'Enter']
 const KEYS = [...ASCEND, ...BOOST, ...INTERACT]
 
-export function useInput(): Input {
+/** Anything that already does something with a key press. The world listens on
+ *  `window`, so without this a focused link would fly the ship instead of
+ *  following itself, and Space would never reach a button. */
+const INTERACTIVE = 'a[href],button,input,select,textarea,summary,[contenteditable],[tabindex]'
+
+/**
+ * `enabled` is false wherever the world is not showing — the canvas stays
+ * mounted across every route (invariant 3), and a mounted canvas that keeps
+ * swallowing arrow keys is a flat page you cannot scroll.
+ */
+export function useInput(enabled = true): Input {
   const input = useRef<Input>({
     move: new Vector2(), look: new Vector2(), ascend: false, boost: false, interact: false,
   })
@@ -46,15 +57,20 @@ export function useInput(): Input {
       input.current.interact = INTERACT.some((c) => held.has(c))
     }
 
+    // Alt-tab while holding W would otherwise leave the ship flying forever —
+    // and so would navigating away mid-press, which is why this is the cleanup.
+    const clear = () => { held.clear(); apply() }
+
+    if (!enabled) { clear(); return }
+
     const down = (e: KeyboardEvent) => {
       if (!MOVE[e.code] && !KEYS.includes(e.code)) return
+      if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return
       e.preventDefault() // stop Space/arrows scrolling the page under the canvas
       held.add(e.code)
       apply()
     }
     const up = (e: KeyboardEvent) => { held.delete(e.code); apply() }
-    // Alt-tab while holding W would otherwise leave the ship flying forever.
-    const clear = () => { held.clear(); apply() }
 
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
@@ -63,8 +79,9 @@ export function useInput(): Input {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', clear)
+      clear()
     }
-  }, [])
+  }, [enabled])
 
   return input.current
 }

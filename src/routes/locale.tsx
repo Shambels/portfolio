@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router'
 import { CONTACT, LOCALES, SITE_URL, SOURCE_LOCALE, STRINGS, canonicalPath, isLocale, withLocale } from '../i18n'
+import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
 
 /**
@@ -9,6 +10,7 @@ import NotFound from './not-found'
 export default function LocaleLayout() {
   const { lang } = useParams()
   const pathname = canonicalPath(useLocation().pathname)
+  const world = useWorld()
   if (!isLocale(lang)) return <NotFound />
   const t = STRINGS[lang]
 
@@ -21,9 +23,19 @@ export default function LocaleLayout() {
       ))}
       <link rel="alternate" hrefLang="x-default" href={SITE_URL + withLocale(pathname, SOURCE_LOCALE)} />
 
-      <a className="skip" href="#content">
-        {t.skipToContent}
-      </a>
+      {/* Invariant 5, first in the tab order. With the world showing there is no
+          "content" further down the page to skip to — the panel is the page —
+          so it goes to the flat index, which is what a visitor in a hurry
+          actually wants and is a route with nothing moving behind it. */}
+      {world ? (
+        <Link className="skip" to={`/${lang}/work`}>
+          {t.skipToContent}
+        </Link>
+      ) : (
+        <a className="skip" href="#content">
+          {t.skipToContent}
+        </a>
+      )}
 
       <header className="bar">
         <Link to={`/${lang}`} className="wordmark">

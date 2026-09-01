@@ -245,10 +245,12 @@ function Board(m: Mats) {
 
 // ----------------------------------------------------------------- the set
 
+/** Keyed by the `landmark` frontmatter field, not by slug: two projects may
+ *  legitimately want the same shape, and a slug is a URL, not a model name. */
 const BUILD: Record<string, (m: Mats) => ReactNode> = {
-  polarsense: Mine,
-  'arts-by-sandra': Easel,
-  scrubble: Board,
+  mine: Mine,
+  easel: Easel,
+  board: Board,
 }
 
 /**
@@ -293,7 +295,7 @@ export function Landmarks({ near }: { near: string | null }) {
         // from: the adit, the canvas and the tile rack all point at the approach
         // without any of them carrying a hand-tuned angle.
         <group key={l.slug} position={l.pos} rotation-y={Math.atan2(-l.pos[0], -l.pos[2])}>
-          <group ref={(g) => { fits(g, l) }}>{BUILD[l.slug]?.(near === l.slug ? hot : cold)}</group>
+          <group ref={(g) => { fits(g, l) }}>{BUILD[l.landmark]?.(near === l.slug ? hot : cold)}</group>
         </group>
       ))}
     </>

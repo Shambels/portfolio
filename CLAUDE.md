@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**pinchs.be** — portfolio for a web-app / SaaS developer. Static React site, no
+**pinchs.be** — portfolio for a software developer. Static React site, no
 backend. The visitor controls a character in a 3D world; each project is a
 landmark they walk up to. Trilingual EN / FR / NL.
 
@@ -29,10 +29,13 @@ platform binding directory and cannot delete them afterwards, which breaks the
 build for everyone. Recovery is `rm -rf node_modules package-lock.json && npm
 install`, run by Seb on macOS.
 
-Claude verifies with `npx react-router typegen && npx tsc --noEmit` and
-`node src/i18n/locales.check.ts` — pure JS, safe from either side. Anything that
-needs a real install or a real build, Claude does on a throwaway copy in its own
-cloud container, never in this folder. Bundling and deploying are Seb's.
+Claude verifies with `npx tsc -b` and `node src/i18n/locales.check.ts` — pure
+JS, safe from either side. `react-router typegen` and `oxlint` are *not* safe:
+both ship native bindings built for macOS arm64, so they fail outright from
+Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
+Anything that needs a real install, a real build, typegen or the linter, Claude
+does on a throwaway copy in its own cloud container, never in this folder.
+Bundling and deploying are Seb's.
 
 ## Stack
 
@@ -55,6 +58,9 @@ one major behind. Noted here rather than done quietly.
 | `polarsense` | A mine | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `scrubble` | A Scrabble board | — |
+
+Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
+— is English frontmatter, not a table anywhere in code.
 
 ## Invariants
 
@@ -113,19 +119,20 @@ src/root.tsx            the HTML document — <html lang>, stylesheet, Scripts
 src/routes.ts           the route table
 src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
 src/routes/home.tsx     /{lang}
-src/routes/work.tsx     /{lang}/work
-src/routes/case-study.tsx  /{lang}/work/{slug}
+src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it
+src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose without
 src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
-src/routes/world.tsx    /world — the scene, unlinked, client-only, lazy
 src/content.ts          every MDX file, keyed by slug and locale
-src/i18n/               locales.ts (routing) + index.ts (strings) + a check
-src/App.tsx             baseline scene — moves into the root layout in Phase 3
+src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check
+src/WorldGate.tsx       mounts the canvas once, decides where it shows, owns the HUD
+src/Scene.tsx           the <Canvas> and everything in it
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Islands.tsx         the ground under each landmark — lathed, no assets
 src/Landmarks.tsx       the mine, the easel, the board — primitives + TSL, no assets
+src/Debug.tsx           ?debug — radii, blockout boxes, waypoints
 src/Ship.tsx            the character: procedural hovering saucer + flight controller
 src/useInput.ts         invariant 8 — the only place input is read
-src/world.ts            landmark layout + proximity. Moves into MDX in Phase 3
+src/world.ts            landmark layout + proximity, read from the content
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
@@ -140,10 +147,16 @@ deploy/nginx.conf       the server block — root redirect, 404, caching
 `src/content/projects/{slug}.{lang}.mdx`, and nothing lists them anywhere else —
 `react-router.config.ts` reads the directory to build its prerender list.
 
-English carries the structural frontmatter (`year`, `stack`, `landmark`,
-`waypoint`, `site`, `repo`); `fr` and `nl` carry only `title` and `summary` beside
-their prose. A URL is never written down three times. A locale with no file for a
-slug falls back to English rather than 404ing.
+English carries the structural frontmatter (`year`, `stack`, `site`, `repo`, and
+the world's `landmark`, `order`, `pos`, `size`, `radius`, `waypoint`); `fr` and
+`nl` carry only `title` and `summary` beside their prose. A URL is never written
+down three times. A locale with no file for a slug falls back to English rather
+than 404ing.
+
+`pos` and `waypoint` are XZ only — the plateau height is one constant, `GROUND`
+in `src/world.ts`. A `waypoint` must be inside its own `radius`, or a deep link
+spawns the ship outside the landmark it just opened and the panel closes itself;
+`world.ts` asserts it in dev.
 
 ## Working together
 
@@ -158,5 +171,6 @@ makes the diff smaller.
 `docs/STATUS.md` is the source of truth. Update its boxes in the same commit as
 the work.
 
-Both Phase 1 gates are Seb's and neither has started: Track A (three English case
-studies) and Track B (Blender blockout). Phase 2 is blocked on Track A.
+Phases 0 to 3 are built. What is open is Seb's: the first deploy and DNS/TLS
+(Phase 2's exit), Track B's *is traversal interesting or a chore* judgement, and
+reviewing the one new FR/NL UI string Phase 3 added. Phase 4 is next.

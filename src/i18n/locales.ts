@@ -33,3 +33,27 @@ export function withLocale(pathname: string, locale: Locale): string {
   const rest = pathname.split('/').slice(2).join('/')
   return rest ? `/${locale}/${rest}` : `/${locale}`
 }
+
+/**
+ * Where the world is allowed to show through: the home page, and a case study
+ * reached by flying to it or by deep link. Everything else — the flat index the
+ * skip link points at, the 404 — is a reading surface with nothing moving
+ * behind it.
+ *
+ * `?read` is the way out, and it is a query rather than client state so that it
+ * survives a reload, a share and the back button. The flat index links carry
+ * it, and so does the panel's "read the case study": choosing to read never
+ * leaves a scene running behind the prose.
+ */
+export function isWorldPath(pathname: string, search = ''): boolean {
+  if (new URLSearchParams(search).has('read')) return false
+  const [, lang, section, slug, ...rest] = canonicalPath(pathname).split('/')
+  if (!isLocale(lang) || rest.length) return false
+  return section === undefined || (section === 'work' && !!slug)
+}
+
+/** The case study a world path is showing, if it is showing one. */
+export function slugOf(pathname: string): string | null {
+  const [, lang, section, slug] = canonicalPath(pathname).split('/')
+  return isLocale(lang) && section === 'work' && slug ? slug : null
+}
