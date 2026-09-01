@@ -5,6 +5,7 @@ import { Scenery } from './Scenery'
 import { Islands } from './Islands'
 import { Landmarks } from './Landmarks'
 import { Debug } from './Debug'
+import { Post } from './Post'
 
 extend(THREE as never)
 
@@ -44,6 +45,7 @@ export default function Scene({
       <Islands />
       <Ship enabled={active} slug={slug} onNear={onNear} />
       <Landmarks near={slug} />
+      <Post />
       {debug && <Debug />}
     </Canvas>
   )
