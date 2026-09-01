@@ -1,10 +1,12 @@
-import { useMemo, type ReactNode } from 'react'
+import { Suspense, useMemo, type ReactNode } from 'react'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
   color, floor, fract, max, mx_fractal_noise_float, positionLocal,
   positionWorld, sin, smoothstep, step, vec3,
 } from 'three/tsl'
 import { LANDMARKS, type Landmark } from './world'
+import mineUrl from './models/mine.glb?url'
 
 /**
  * The three landmarks: a mine, an easel, a Scrabble board. Track B blockout,
@@ -12,10 +14,9 @@ import { LANDMARKS, type Landmark } from './world'
  * identifiable from the air, and no detail beyond that, because what Track B's
  * exit test judges is the layout and not the shading.
  *
- * Generated like the rest of the world: primitives and TSL, no glTF, no loader,
- * zero asset bytes. BUILD-PLAN's Blender pipeline is not cancelled by this — a
- * detailed model drops in behind this same component in Phase 4, and `App` does
- * not learn about it.
+ * Phase 4 replaces them one at a time: a landmark listed in `MODEL` loads a
+ * detailed mesh and falls back to its blockout while that is in flight, and one
+ * that is not listed is still the blockout. `Scene` does not learn about it.
  *
  * `world.ts` stays the source of truth for where a landmark is and how big it
  * may be. Nothing below reads a position: each landmark is modelled in its own
@@ -73,6 +74,8 @@ const PALETTE = {
   board: '#8d94a2',
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
+
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1 }
 
 function makeMats(hi: boolean) {
   const c = Object.fromEntries(
@@ -254,6 +257,47 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
 }
 
 /**
+ * Landmarks that have a finished model, keyed the same way. Phase 4 fills this
+ * in one at a time; everything absent from it is still its blockout, which is
+ * the point — the world stays shippable between landmarks.
+ *
+ * The files carry geometry and nothing else: no materials, no textures, no UVs
+ * (`tools/mine.py`). Every surface is still shaded by the TSL above, because the
+ * strata are PolarSense's schema and a baked texture cannot read world Y. Each
+ * mesh is named for the material it wants — `rock_cut`, `frame_works` — so the
+ * proximity highlight keeps working on a model exactly as it does on a blockout.
+ */
+const MODEL: Record<string, string> = {
+  mine: mineUrl,
+}
+
+function Detailed({ url, m }: { url: string; m: Mats }) {
+  const { scene } = useGLTF(url)
+  // Flattened to a list of meshes with their transforms baked in, rather than
+  // rendered as a `<primitive>`: it keeps the tree the same shape the blockout
+  // builds, which is what lets the box check below read either of them.
+  const parts = useMemo(() => {
+    scene.updateMatrixWorld(true)
+    const out: { geometry: THREE.BufferGeometry; key: keyof Mats }[] = []
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh
+      if (!mesh.isMesh) return
+      const key = mesh.name.split('_')[0] as keyof Mats
+      console.assert(import.meta.env.PROD || key in MATERIAL_KEYS, `${url}: no material for ${mesh.name}`)
+      out.push({ geometry: mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), key })
+    })
+    return out
+  }, [scene, url])
+  return (
+    <>
+      {parts.map((p, i) => (
+        <mesh key={i} geometry={p.geometry} material={m[p.key] ?? m.frame} />
+      ))}
+    </>
+  )
+}
+
+/**
  * The blockout box in `world.ts` is a contract, not a note: island radius,
  * proximity radius and the ship's clearance are all sized from it. Checked in
  * dev, once per landmark, from the geometry actually built — a hand-maintained
@@ -263,9 +307,9 @@ const checked = new Set<string>()
 const _box = new THREE.Box3()
 const _one = new THREE.Box3()
 
-function fits(g: THREE.Group | null, l: Landmark) {
-  if (!g || !import.meta.env.DEV || checked.has(l.slug)) return
-  checked.add(l.slug)
+function fits(g: THREE.Group | null, l: Landmark, tag: string) {
+  if (!g || !import.meta.env.DEV || checked.has(l.slug + tag)) return
+  checked.add(l.slug + tag)
   _box.makeEmpty()
   for (const c of g.children) {
     const mesh = c as THREE.Mesh
@@ -290,14 +334,30 @@ export function Landmarks({ near }: { near: string | null }) {
   const [cold, hot] = useMemo(() => [makeMats(false), makeMats(true)], [])
   return (
     <>
-      {LANDMARKS.map((l) => (
-        // Turned to face the world's centre, which is where the visitor comes
-        // from: the adit, the canvas and the tile rack all point at the approach
-        // without any of them carrying a hand-tuned angle.
-        <group key={l.slug} position={l.pos} rotation-y={Math.atan2(-l.pos[0], -l.pos[2])}>
-          <group ref={(g) => { fits(g, l) }}>{BUILD[l.landmark]?.(near === l.slug ? hot : cold)}</group>
-        </group>
-      ))}
+      {LANDMARKS.map((l) => {
+        const m = near === l.slug ? hot : cold
+        const url = MODEL[l.landmark]
+        // The blockout is both the shape a landmark has before it is modelled
+        // and what stands in its place while the model is on the wire — one
+        // fallback, not two, and nothing pops in from empty.
+        const blockout = <group ref={(g) => { fits(g, l, 'blockout') }}>{BUILD[l.landmark]?.(m)}</group>
+        return (
+          // Turned to face the world's centre, which is where the visitor comes
+          // from: the adit, the canvas and the tile rack all point at the
+          // approach without any of them carrying a hand-tuned angle.
+          <group key={l.slug} position={l.pos} rotation-y={Math.atan2(-l.pos[0], -l.pos[2])}>
+            {url ? (
+              <Suspense fallback={blockout}>
+                <group ref={(g) => { fits(g, l, 'model') }}>
+                  <Detailed url={url} m={m} />
+                </group>
+              </Suspense>
+            ) : (
+              blockout
+            )}
+          </group>
+        )
+      })}
     </>
   )
 }

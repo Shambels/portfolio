@@ -225,10 +225,81 @@ there, against the types typegen last wrote.
 ## Phase 4 — Craft
 
 - [ ] Detailed models replacing blockout, one at a time
+  - [x] Mine — PolarSense. `tools/mine.py`, `src/models/mine.glb`
+  - [ ] Easel — Arts by Sandra
+  - [ ] Scrabble board — Scrubble
 - [ ] TSL shaders derived from what each project does
 - [ ] Post-processing
 - [ ] GPU compute particles where WebGPU is available
 - [ ] Ambient sound, off by default
+
+### The mine, and the pipeline the other two will use
+
+Seb's call, over detailing in code: the models are **Blender, scripted**.
+`tools/mine.py` runs Blender headless as a Python module (`pip install bpy`) and
+writes both `tools/mine.blend` — the file to open and sculpt — and
+`src/models/mine.glb`, the file the site loads. Re-running it rebuilds both, so
+the script stays the source and the .blend stays an output rather than a second
+thing to keep in sync.
+
+Nothing about the pipeline in BUILD-PLAN survived contact except its shape:
+
+- **No Draco, no KTX2, no gltf-transform, no gltfjsx.** The raw export is 381 kB
+  and **163 kB gzipped**, against a 300 kB budget — so the whole compression
+  stage would buy nothing and cost a decoder fetched at runtime. `deploy/nginx.conf`
+  gained `model/gltf-binary` in `gzip_types`; that is the entire asset pipeline.
+- **The glTF carries geometry and nothing else** — `export_materials='NONE'`, no
+  UVs, no tangents. Every surface is still shaded by the TSL in `Landmarks.tsx`.
+  The strata are PolarSense's schema and they read world Y, which a baked texture
+  cannot; and it keeps the proximity highlight working on a model exactly as it
+  works on a blockout, because both ask the same two material sets for their
+  colours.
+- **Mesh names are the material keys.** `rock_cut`, `frame_works`, `dark_holes`
+  → the `rock`, `frame` and `dark` materials. A name with no material is a
+  dev-time `console.assert`, not a black mesh found later.
+- The adit is a real hole, cut with a boolean, because the saucer hovers at 0.45
+  and the portal is 0.92 high: a visitor will fly at it, and a painted-on mouth
+  is a promise the world breaks on the first try. The tunnel walls belong to the
+  rock mesh, so the strata run from the hillside into the hole.
+
+`tools/mine.py --render out.png` writes three views. Its light is deliberately
+**not** the scene's — see the finding below.
+
+### Measured
+
+- 4.90 × 3.29 × 4.78 against the frontmatter's 5 × 3.5 × 5 box, floor at y −0.06
+- **15,412 triangles** (budget 25k) · **163 kB gz** (budget 300 kB)
+- Canvas chunk **449 kB gz** (budget 600, was 422 — `useGLTF` and `GLTFLoader`
+  are the +27). First-route JS **unchanged at ~130 kB gz**; no `.glb` is
+  referenced by any prerendered document
+- `npx tsc -b` clean; 18 routes still prerender
+- Walked headless under swiftshader at `/en/work/polarsense`: the model loads
+  (200), renders with the TSL materials, console clean but for three's own
+  WebGPU-unavailable notice. In dev the box-fit and material-key assertions are
+  silent
+
+### New dependency: none, but drei is now actually used
+
+`@react-three/drei` has been in `package.json` since Phase 0 and imported
+nowhere. `useGLTF` is the first thing to use it — caching, Suspense and the
+loader for 27 kB gz inside the canvas chunk, against hand-rolling a loader for
+one file.
+
+### Finding, and it is not a modelling problem
+
+Rotated into the mine's local space, `Scenery.tsx`'s sun comes from **behind and
+to the right** of the landmark. The follow camera is fixed behind the ship and
+the ship approaches from the world's centre, so **every surface the visitor can
+see is in shadow**, lit by the ambient fill alone — under which a benched rock
+face and a smooth one are the same flat grey. BUILD-PLAN predicted this
+("landmarks show the camera their shadow side") and deferred it to Phase 4
+materials; the strata shader helps, because its banding does not depend on the
+light, but it does not fix it.
+
+The honest fixes are all in `Scenery.tsx`, not in a model: swing the sun round to
+port-and-forward, or add a second weak directional light from behind the camera.
+**Seb's call** — it changes the committed golden-hour look, which is a decision
+this document records rather than one Claude should quietly take.
 
 ## Phase 5 — Hardening
 
