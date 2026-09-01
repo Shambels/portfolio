@@ -17,9 +17,22 @@ import {
  * rather than by three hand-tuned colours agreeing.
  */
 
-// Low (15 deg) and off to port: high enough to catch the tops of things, low
-// enough that its path across the water runs back toward the camera.
-const SUN = new THREE.Vector3(-0.52, 0.26, -0.81).normalize()
+// Low (16 deg) and over the visitor's left shoulder.
+//
+// It used to be low and ahead, which put its glow and its path across the water
+// in the left of every frame — and every landmark in shadow, because the camera
+// never turns: it sits at a fixed offset behind the ship looking down world -Z,
+// so the only surfaces it can see are the ones facing +Z, and the sun was at
+// -Z. A benched rock face and a smooth one were the same flat grey (STATUS.md,
+// Phase 4). Swung round to port and behind, it rakes across exactly the faces
+// the visitor is looking at, and the shadow sides fall to the right of the
+// frame, where they model the shape instead of hiding it.
+//
+// The cost, and it is the reason this was Seb's call and not a quiet fix: the
+// sun disc, its glow and the glitter path on the water are all behind the
+// camera now, so none of them is in frame. The warm horizon below is what is
+// left of golden hour, and the fill was cut to buy the contrast back.
+const SUN = new THREE.Vector3(-0.66, 0.27, 0.7).normalize()
 
 const ZENITH = vec3(0.05, 0.13, 0.32)
 const HAZE_COOL = vec3(0.25, 0.35, 0.48)
@@ -60,7 +73,12 @@ function sky(dir: Vec3, { lit = true, disc = 1 } = {}): Vec3 {
   const up = clamp(dir.y, 0, 1)
   const toSun = clamp(dot(dir, sunDir), 0, 1)
 
-  const haze = mix(HAZE_COOL, HAZE_WARM, pow(toSun, 3))
+  // Warmth wrapped right round the horizon rather than clamped to the sun's own
+  // side. With the sun behind the camera the visitor faces the anti-solar half
+  // of the sky, and `pow(toSun, 3)` left that half flatly cool — which a hazy
+  // low sun does not do to a real sky either. It still falls off: the frame runs
+  // from warm at the left edge to cool at the right, and the water reflects it.
+  const haze = mix(HAZE_COOL, HAZE_WARM, pow(dot(dir, sunDir).mul(0.5).add(0.5), 1.8))
   let col = mix(haze, ZENITH, pow(up, 0.4))
   col = col.add(SUN_TINT.mul(pow(toSun, 9).mul(0.42))) // the glow, always — it is most of the look
 
@@ -100,10 +118,16 @@ export function Scenery() {
   return (
     <>
       {/* Sun. Warm and low. */}
-      <directionalLight position={[SUN.x * 80, SUN.y * 80, SUN.z * 80]} color="#ffcb92" intensity={3.2} />
+      <directionalLight position={[SUN.x * 80, SUN.y * 80, SUN.z * 80]} color="#ffcb92" intensity={3.0} />
       {/* Fill, not a hemisphere light: hemisphere lights contribute nothing
-          through the node pipeline, which is what left the landmarks black. */}
-      <ambientLight color="#8fa9c9" intensity={2.8} />
+          through the node pipeline, which is what left the landmarks black.
+          Cut from 2.8 with the sun swing: it was carrying every visible surface
+          on its own, and at that strength it flattens surfaces that now have a
+          key light on them. 2.1 rather than the 1.7 this started at — at 1.7 the
+          shadow side of the mine crushed to navy. A face toward the visitor now
+          reads about a fifth brighter than before, a face away a quarter darker,
+          which is the whole point of the swing. */}
+      <ambientLight color="#8fa9c9" intensity={2.1} />
 
       <mesh material={dome}>
         <sphereGeometry args={[520, 32, 24]} />

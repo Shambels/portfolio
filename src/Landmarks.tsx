@@ -2,10 +2,12 @@ import { Suspense, useMemo, type ReactNode } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  color, floor, fract, max, mx_fractal_noise_float, positionLocal,
-  positionWorld, sin, smoothstep, step, vec3,
+  cameraPosition, clamp, color, cos, float, floor, fract, length, max, mix, modelWorldMatrix,
+  mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, sin, smoothstep,
+  step, vec2, vec3, vec4,
 } from 'three/tsl'
 import { LANDMARKS, type Landmark } from './world'
+import { CAM_OFFSET } from './Ship'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -74,30 +76,96 @@ const PALETTE = {
   panel: '#c4c9d2', // the canvas, the tiles
   dark: '#10151d', // the adit, and anything meant to read as a hole
   board: '#8d94a2',
+  ore: '#d9a05c', // the veins — the one warm thing in the rock
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
 const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1 }
 
+/** The proximity tint, applied to every colour the same way. */
+const shade = (hex: string, hi: boolean) => new THREE.Color(hex).lerp(HI, hi ? 0.72 : 0)
+
+type Vec2 = THREE.Node<'vec2'>
+
+/**
+ * How near the visitor is to a point: 1 inside `near`, 0 beyond `far`, in XZ.
+ *
+ * Measured from the ship and not from the camera. The camera sits a fixed
+ * `CAM_OFFSET` behind the ship in *world* Z — it never turns — so the board, at
+ * +Z, is closer to the camera than to the ship all the way in, and the easel, at
+ * -Z, is further. A camera-distance shader would resolve the board from the
+ * middle of the world and the easel only when sitting on top of it. From the
+ * ship, "approach" means the same thing at all three: about 13 units out from
+ * the centre of the world, about 4 parked at a waypoint.
+ */
+const approach = (xz: Vec2, near: number, far: number) =>
+  oneMinus(smoothstep(near, far, length(xz.sub(cameraPosition.xz.sub(vec2(CAM_OFFSET.x, CAM_OFFSET.z))))))
+
+// Where the easel's painting sits, in the field's own space: [x, y, driftX,
+// driftY, radius, colour]. The first three make the canvas on the easel, the
+// last two the small finished one leaning on the table. Drift is where a field
+// sits when the visitor is far off; at close range every field is at its base.
+const CANVAS_FIELDS: [number, number, number, number, number, string][] = [
+  [0, 0, -0.42, 0.16, 0.62, '#d9954f'],
+  [0, 0, 0.4, -0.24, 0.58, '#b4586a'],
+  [0, 0, 0.06, 0.46, 0.52, '#4d7ea8'],
+  [2.96, -3.12, -0.14, 0.1, 0.34, '#c8794c'],
+  [2.96, -3.12, 0.16, -0.09, 0.3, '#5b7f95'],
+]
+
+// The found tiles, mirrored from `tools/board.py`: where they hang, the step
+// between them, the tip each one carries, and the height a played tile sits at.
+// Change one and change the other — a shader that lands tiles in the wrong
+// place is a model bug that no model change can fix.
+const FOUND_Y = 0.78
+const FOUND_STEP = 0.045
+const FOUND_Z = 2 * CELL
+const FOUND_TILT = [-0.05, -0.02] // the tip of tile k: FOUND_TILT[0] + k * FOUND_TILT[1]
+const TILE_Y = 0.2525 // TOP + TILE_H / 2
+
+// Invariant 6. The settle is the one thing here that moves geometry, so it is
+// the one thing that has to be able to not happen.
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 function makeMats(hi: boolean) {
   const c = Object.fromEntries(
-    Object.entries(PALETTE).map(([k, v]) => [k, new THREE.Color(v).lerp(HI, hi ? 0.72 : 0)]),
+    Object.entries(PALETTE).map(([k, v]) => [k, shade(v, hi)]),
   ) as Record<keyof typeof PALETTE, THREE.Color>
 
   const frame = new THREE.MeshStandardNodeMaterial({ color: c.frame, roughness: 0.72, metalness: 0.15 })
   const panel = new THREE.MeshStandardNodeMaterial({ color: c.panel, roughness: 0.85 })
   const dark = new THREE.MeshStandardNodeMaterial({ color: c.dark, roughness: 1 })
 
-  // Strata. PolarSense reads structure that is already in the file without
-  // running it, so the rock is layered before anyone digs — the one piece of
-  // metaphor worth spending a shader on this early. Bands read world Y, so they
-  // stay level across the benches however the island is turned; the noise is
-  // lateral only, which bends a layer without tilting it. Veins-as-columns are
-  // Phase 4.
+  // Strata, and the veins that cut them. PolarSense reads structure that is
+  // already in the file without running it, so the rock is layered before anyone
+  // digs. Bands read world Y, so they stay level across the benches however the
+  // island is turned; the noise is lateral only, which bends a layer without
+  // tilting it.
+  //
+  // The veins are the columns. A row bends — the strata carry the wobble — and a
+  // column does not: they are dead straight, vertical, and they run through
+  // every bench and on into the adit, because a schema does not stop at the
+  // surface. Their axis is set across the mine's cut face (the only geometry the
+  // rock material shades), so they read as seams on the face rather than as one
+  // wash over it.
   const rock = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
-  const wobble = mx_fractal_noise_float(positionWorld.mul(vec3(0.45, 0.1, 0.45)), 2).mul(0.14)
+  // 0.06, down from 0.14: at 0.14 the lateral wobble was most of a band's own
+  // period, so the layers wandered far enough to read as camouflage rather than
+  // as strata — and a vein crossing camouflage reads as nothing at all.
+  const wobble = mx_fractal_noise_float(positionWorld.mul(vec3(0.45, 0.1, 0.45)), 2).mul(0.06)
   const band = sin(positionWorld.y.add(wobble).mul(8.5)).mul(0.5).add(0.5)
-  rock.colorNode = color(c.rock).mul(smoothstep(0.2, 0.8, band).mul(0.4).add(0.76))
+  const u = positionWorld.x.mul(-0.496).add(positionWorld.z.mul(0.868)).mul(1.82)
+  const slot = floor(u)
+  const carries = step(0.66, fract(sin(slot.mul(37.719)).mul(6412.31))) // which columns hold ore
+  const vein = oneMinus(smoothstep(0.06, 0.2, fract(u).sub(0.5).abs())).mul(carries)
+  rock.colorNode = mix(
+    color(c.rock).mul(smoothstep(0.2, 0.8, band).mul(0.4).add(0.76)),
+    color(c.ore).mul(band.mul(0.25).add(0.85)),
+    vein.mul(0.9),
+  )
+  // Enough to stay readable inside the adit, where the sun does not reach: the
+  // whole claim is that you can see the schema without going in and running it.
+  rock.emissiveNode = color(c.ore).mul(vein.mul(0.14))
 
   // The board's 15x15 grid and its premium squares, drawn on the top face
   // instead of built from 225 meshes. `floor(abs(cell))` folds the hash into one
@@ -113,7 +181,88 @@ function makeMats(hi: boolean) {
     .mul(step(0.74, hash).mul(-0.26).add(1))
     .mul(line.mul(-0.45).add(1))
 
-  return { frame, panel, dark, rock, board }
+  // Sandra's canvas, resolving as the visitor comes in. She teaches, sells her
+  // own work and rents the studio — "three different conversations, funnelled
+  // into one form she can actually answer" — so the painting is three colour
+  // fields: scattered, soft and pale from across the island; drawn together and
+  // saturated by the time the ship is parked. Nothing legible is painted
+  // (invariant 2). What resolves is a picture, not a word.
+  //
+  // The field is measured in the landmark's own space, x across and y + z up, so
+  // one expression serves a canvas standing on the easel and one lying flat on
+  // the table. It is anchored on the easel's canvas and reaches the finished one
+  // leaning against the table; the stretched one waiting on the table falls
+  // outside it and stays primed, which is what `tools/easel.py` says it is.
+  const canvas = new THREE.MeshStandardNodeMaterial({ roughness: 0.9 })
+  const near = approach(positionWorld.xz, 4.5, 13)
+  const p = vec2(positionLocal.x.add(0.55), positionLocal.y.add(positionLocal.z).sub(2.13)).mul(1.5)
+  let paint = color(c.panel).mul(1)
+  for (const [bx, by, dx, dy, r, hex] of CANVAS_FIELDS) {
+    const centre = vec2(bx, by).add(vec2(dx, dy).mul(mix(float(2.2), float(1), near)))
+    const shape = oneMinus(smoothstep(float(0), float(r).mul(mix(float(2), float(1), near)), length(p.sub(centre))))
+    // Not shaded toward the proximity blue, and it is the only thing here that
+    // is not: the highlight washes the whole landmark to cyan exactly when the
+    // visitor is close enough for the painting to have resolved, and a painting
+    // the colour of the highlight is no painting. It reads as paint on a tinted
+    // ground instead, which is what it is.
+    paint = mix(paint, color(hex), shape.mul(mix(float(0.12), float(0.92), near)))
+  }
+  // Brush marks, and only from close enough that they read as marks. Farther out
+  // they would be exactly the generic noise BUILD-PLAN says does not ship.
+  const canvasNear = approach(positionWorld.xz, 4.5, 9)
+  canvas.colorNode = paint.mul(mx_fractal_noise_float(vec3(p.mul(5.5), 0), 3).mul(0.12).mul(canvasNear).add(1))
+
+  // The move that was there, settling into it. Scrubble finds the play nobody
+  // saw; the seven tiles hang over the squares they belong in, and they come
+  // down as the visitor arrives — the one nearest the played word first, so the
+  // hook lands before the tiles that hang off it.
+  //
+  // Each tile is identified by its own x, which is what makes this one material
+  // over one mesh rather than seven of anything. The tip goes as the tile falls:
+  // a tile is tipped to say it is in the air, and a tipped tile lying on a board
+  // buries a corner in it.
+  const found = new THREE.MeshStandardNodeMaterial({ color: c.panel, roughness: 0.85 })
+  const world = modelWorldMatrix.mul(vec4(positionLocal, 1))
+  // 8.5 out, not 12: the camera sits 7.2 behind the ship in world Z and the
+  // board is the landmark at +Z, so it only crosses into frame at about 7 —
+  // a settle that starts at 12 is two thirds over before anyone can see it.
+  const t = REDUCED ? float(0) : approach(world.xz, 4.2, 8.5)
+  const k = clamp(round(positionLocal.x.div(CELL).sub(1)), 0, 6)
+  const w = clamp(t.mul(1.75).sub(k.mul(0.105)), 0, 1)
+  const centreY = float(FOUND_Y).add(k.sub(3).mul(FOUND_STEP))
+  const a = k.mul(FOUND_TILT[1]).add(FOUND_TILT[0]).negate().mul(w) // unwinding the tip, by w
+  const dy = positionLocal.y.sub(centreY)
+  const dz = positionLocal.z.sub(FOUND_Z)
+  found.positionNode = vec3(
+    positionLocal.x,
+    centreY.add(dy.mul(cos(a)).sub(dz.mul(sin(a)))).sub(centreY.sub(TILE_Y).mul(w)),
+    float(FOUND_Z).add(dy.mul(sin(a)).add(dz.mul(cos(a)))),
+  )
+  // Landed tiles warm very slightly: they are part of the word now.
+  found.colorNode = mix(color(c.panel), color(shade('#e2d9c8', hi)), w.mul(0.3))
+
+  // The palette in the easel's tray. It wants the board colour — `tools/easel.py`
+  // says so, and names the mesh for it — but not the board's grid, which is
+  // 15x15 Scrabble cells and was drawing two of its lines across a palette.
+  const palette = new THREE.MeshStandardNodeMaterial({ color: c.board, roughness: 0.8 })
+
+  return {
+    frame, panel, dark, rock, board,
+    /** Overrides keyed by the whole mesh name, tried before the name's prefix —
+     *  a mesh that wants its own shader gets one without a second model. */
+    byName: {
+      panel_canvases: canvas,
+      panel_found: found,
+      board_palette: palette,
+    } as Record<string, THREE.Material | undefined>,
+  }
+}
+
+/** The material a mesh asks for by name, falling back to its prefix. */
+function matFor(m: Mats, name: string): THREE.Material {
+  const key = name.split('_')[0]
+  console.assert(import.meta.env.PROD || key in MATERIAL_KEYS, `no material for ${name}`)
+  return m.byName[name] ?? m[key as Exclude<keyof Mats, 'byName'>] ?? m.frame
 }
 
 // --------------------------------------------------------------- the mine
@@ -282,20 +431,22 @@ function Detailed({ url, m }: { url: string; m: Mats }) {
   // builds, which is what lets the box check below read either of them.
   const parts = useMemo(() => {
     scene.updateMatrixWorld(true)
-    const out: { geometry: THREE.BufferGeometry; key: keyof Mats }[] = []
+    const out: { geometry: THREE.BufferGeometry; name: string }[] = []
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh
       if (!mesh.isMesh) return
-      const key = mesh.name.split('_')[0] as keyof Mats
-      console.assert(import.meta.env.PROD || key in MATERIAL_KEYS, `${url}: no material for ${mesh.name}`)
-      out.push({ geometry: mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), key })
+      console.assert(
+        import.meta.env.PROD || mesh.name.split('_')[0] in MATERIAL_KEYS,
+        `${url}: no material for ${mesh.name}`,
+      )
+      out.push({ geometry: mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), name: mesh.name })
     })
     return out
   }, [scene, url])
   return (
     <>
       {parts.map((p, i) => (
-        <mesh key={i} geometry={p.geometry} material={m[p.key] ?? m.frame} />
+        <mesh key={i} geometry={p.geometry} material={matFor(m, p.name)} />
       ))}
     </>
   )
