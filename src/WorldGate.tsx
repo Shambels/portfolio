@@ -80,6 +80,12 @@ export function WorldGate({ children }: { children: ReactNode }) {
     [locale, navigate],
   )
 
+  // Off every time the site is loaded, and deliberately not remembered: a
+  // returning visitor cannot be given sound before they have clicked anything —
+  // the autoplay policy would refuse it — so a stored "on" would only ever be a
+  // toggle that lies about its own state.
+  const [sound, setSound] = useState(false)
+
   const [backend, setBackend] = useState('detecting…')
   const [fps, setFps] = useState('')
   useEffect(() => {
@@ -111,6 +117,7 @@ export function WorldGate({ children }: { children: ReactNode }) {
               active={active}
               slug={slug}
               debug={debug}
+              sound={sound}
               onNear={onNear}
               onBackend={setBackend}
             />
@@ -124,6 +131,15 @@ export function WorldGate({ children }: { children: ReactNode }) {
         <p className="hud">
           {STRINGS[locale].worldControls}
           {debug && ` · ${backend}${fps ? ` · ${fps}` : ''}`}
+          {' · '}
+          {/* The world's only control that is not a key, so it is the world's
+              only focusable element — last in the tab order, behind the skip
+              link and every link on the page. `aria-pressed` carries the state;
+              the dot in front of the label is the sighted half of it, and it is
+              CSS so there is nothing here for a screen reader to read twice. */}
+          <button type="button" aria-pressed={sound} onClick={() => setSound((s) => !s)}>
+            {STRINGS[locale].sound}
+          </button>
         </p>
       )}
     </WorldContext.Provider>

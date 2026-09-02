@@ -5,6 +5,7 @@ import { Scenery } from './Scenery'
 import { Islands } from './Islands'
 import { Landmarks } from './Landmarks'
 import { Particles } from './Particles'
+import { Sound } from './Sound'
 import { Debug } from './Debug'
 import { Post } from './Post'
 
@@ -20,11 +21,14 @@ extend(THREE as never)
  * holds "which panel is showing" of its own.
  */
 export default function Scene({
-  active, slug, debug, onNear, onBackend,
+  active, slug, debug, sound, onNear, onBackend,
 }: {
   active: boolean
   slug: string | null
   debug: boolean
+  /** The HUD's toggle. Off by default, and the click that turns it on is also
+   *  the gesture the browser's autoplay policy is waiting for. */
+  sound: boolean
   onNear: (slug: string | null) => void
   onBackend: (backend: string) => void
 }) {
@@ -48,6 +52,8 @@ export default function Scene({
       {/* Reads the ship's position, so it is mounted after it. */}
       <Particles />
       <Landmarks near={slug} />
+      {/* Reads the ship too, and rides this frame loop rather than one of its own. */}
+      <Sound on={sound && active} />
       <Post />
       {debug && <Debug />}
     </Canvas>

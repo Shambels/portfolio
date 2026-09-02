@@ -35,6 +35,9 @@ const en = {
   // named here are the ones under the same fingers on any layout — which is why
   // the French line says ZQSD and means the same three keys.
   worldControls: 'WASD or arrows to fly · space to rise · shift to boost',
+  // A toggle button's label stays put and `aria-pressed` carries the state, so
+  // this is one word rather than an on and an off in three languages.
+  sound: 'Sound',
 
   notFoundTitle: 'Nothing here',
   notFoundBody: 'That page does not exist, or it moved. The work is all one click away.',
@@ -69,6 +72,7 @@ const fr: Strings = {
   noLink: "Pas déployé — c'est le texte qui fait foi.",
 
   worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
+  sound: 'Son',
 
   notFoundTitle: 'Rien ici',
   notFoundBody: "Cette page n'existe pas, ou elle a bougé. Les projets sont à un clic.",
@@ -101,6 +105,7 @@ const nl: Strings = {
   noLink: 'Niet uitgebracht — de tekst is het werkstuk.',
 
   worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',
+  sound: 'Geluid',
 
   notFoundTitle: 'Hier is niets',
   notFoundBody: 'Die pagina bestaat niet, of is verhuisd. Het werk is één klik weg.',
