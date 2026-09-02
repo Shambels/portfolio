@@ -37,6 +37,28 @@ export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   waypoint: [p.waypoint[0], GROUND, p.waypoint[1]],
 }))
 
+/**
+ * Island radius as a multiple of the proximity radius. `Islands` revolves its
+ * profile out to this; it lives here rather than there because `Particles` has
+ * to know where the sea stops, and two files guessing at one coastline is one
+ * file too many.
+ */
+export const ISLAND_SPREAD = 1.9
+
+/**
+ * Fraction of that radius where the island's profile crosses sea level, taken
+ * at the widest the rim's harmonics push a coastline out. Erring outward is
+ * what keeps spray off the beach rather than stopping it short of the water.
+ */
+const SHORE = 0.93
+
+/** True where the sea surface is: clear of every island's shoreline. */
+export function overWater(x: number, z: number): boolean {
+  return !LANDMARKS.some(
+    (l) => Math.hypot(x - l.pos[0], z - l.pos[2]) < l.radius * ISLAND_SPREAD * SHORE,
+  )
+}
+
 export const landmarkOf = (slug: string | null): Landmark | undefined =>
   slug ? LANDMARKS.find((l) => l.slug === slug) : undefined
 

@@ -235,7 +235,8 @@ there, against the types typegen last wrote.
 - [x] The sun swung round, so the visitor sees lit faces — `src/Scenery.tsx`
       *(the finding below, and Seb's call between the two honest fixes)*
 - [x] Post-processing — FXAA and an emissive-only bloom — `src/Post.tsx`
-- [ ] GPU compute particles where WebGPU is available *(same)*
+- [x] GPU compute particles where WebGPU is available — the spray under the
+      ship, `src/Particles.tsx`. Nothing at all on WebGL2, on purpose
 - [ ] Ambient sound, off by default *(same)*
 
 ### Post-processing
@@ -555,6 +556,85 @@ Linux VM at all.
   behind the ship in world Z, so the board only crosses into frame at about 7
   units out. The settle window was pulled in to 8.5 to 4.2 to fit inside that,
   but it does mean the tiles are already coming down when the board appears.
+
+## The spray — Phase 4's compute particles
+
+The saucer hovers, it points a beam at the water, and until now the water did
+not notice. `src/Particles.tsx` is 2048 droplets of sea spray thrown off the
+downwash: one compute dispatch, one draw call, no assets, and the CPU sends five
+uniforms a frame whatever the count is.
+
+It also does a job nothing else in the world does. The open sea has no landmarks
+in it, so at 7.5 units per second over water nothing moves but the horizon and
+the ship reads as parked. The plume is the speedometer.
+
+**Density follows the ship, and that is a choice, not physics.** A hover's worth
+of downwash is constant, but 2048 droplets piled into one ring 0.95 across read
+as cotton wool — screenshotted, and it was worse than nothing. So `emit` runs
+from 0.22 of full density at a stop to all of it at cruise, where the plume
+smears over eight units and reads as a wake. `emit` is a *density* rather than a
+switch: each droplet draws against it at respawn and sits the lifetime out under
+the sea if it loses, so the spray thins instead of cutting. That is also what
+stops it at a shoreline and what dries it up as the ship climbs — Space lifts
+past the top of the fade, so rising takes the spray with it.
+
+**Where the sea is now lives in `world.ts`.** `overWater()` and `ISLAND_SPREAD`
+moved there out of `Islands.tsx`: two files guessing separately at one coastline
+is one file too many, and spray over a beach is the failure that would have
+looked like a shader bug.
+
+**`Ship` publishes its hull position and velocity** as a module-level `SHIP`,
+next to the `CAM_OFFSET` that `Landmarks` already reads. The alternative is
+lifting the ship's state into `Scene` and threading it through a component that
+has no other interest in it.
+
+### WebGL2 gets nothing, and that is the decision
+
+BUILD-PLAN allows "a cheaper path or nothing where it is not", and this is the
+nothing. What makes these particles worth having is that their state never
+leaves the GPU. WebGL2 has no compute stage, so the cheaper path is not a
+cheaper version of this effect — it is a *second* effect, with the state in a
+texture or on the CPU, written and tuned and debugged separately, to put foam
+under a saucer. The world without it is the world as it shipped in Phase 4, and
+`?debug` names the backend, so which one you are on is never a guess.
+
+Not mounted at all under `prefers-reduced-motion` either (invariant 6): spray is
+idle motion by definition and there is no still version of it.
+
+### Verified, on a throwaway install in Claude's container
+
+Same caveats as the last pass, and one new one — see below.
+
+- [x] `npx tsc -b` clean, `node src/i18n/locales.check.ts` green; 18 routes still
+      prerender; `oxlint` adds no new warning (`Ship.tsx`'s
+      `only-export-components` predates this — `CAM_OFFSET` was already there)
+- [x] Canvas chunk **437.7 kB gz** against 436.8 without the file — **+0.9 kB**,
+      budget 600. First-route JS **128.2 kB gz** (budget 200), unchanged. No
+      `Scene` chunk and no `WebGPURenderer` in any of the 20 prerendered
+      documents
+- [x] **Ran on the WebGPU backend**, not only the fallback: headless Chromium
+      with SwiftShader's Vulkan adapter, HUD reading `WebGPU`. The compute pass
+      compiles to WGSL and dispatches, the sprites draw from the storage buffer,
+      console clean and no page errors
+- [x] Screenshotted hovering (a light disturbance under the hull), at cruise (a
+      trailing wake), climbing on Space (gone), and parked at the mine's
+      waypoint (gone — the ship is over an island)
+- [x] WebGL2 backend, same walk: the world stands, no spray, and the only
+      console output is three's own WebGPU-unavailable notice
+- [x] `prefers-reduced-motion` on both backends: no particles, no errors
+- [ ] 60fps with the plume up, and whether the density and droplet size read
+      right — real hardware only. Swiftshader draws this at 1fps and has no
+      opinion about either. The knobs are the constants at the top of
+      `Particles.tsx`, and `COUNT`, `OPACITY` and `SIZE` are the three that
+      matter
+
+**One caveat that is new.** To get a WebGPU run at all, three 0.185's
+`GPUTextureViewDescriptor` had to be patched *in the container's own
+`node_modules`* — it sends `swizzle: 'rgba'`, which the container's Chromium 141
+rejects because the spec changed shape after it shipped. Nothing in this repo
+was touched for it, and the same code runs unpatched on a current browser. It
+does mean the WebGPU walk above proves the shaders and the plumbing, not that
+this exact three-plus-Chromium pair is happy everywhere.
 
 ## Phase 5 — Hardening
 
