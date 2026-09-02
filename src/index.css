@@ -418,6 +418,33 @@ canvas {
   white-space: nowrap;
 }
 
+/* The sound toggle — the one thing in the HUD you can click, so it takes its
+   pointer events back from a line that otherwise never eats a drag over the
+   world. The dot is the state, in CSS: `aria-pressed` already says it out loud
+   and a second copy in the DOM would be read twice. */
+.hud button {
+  pointer-events: auto;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hud button::before {
+  content: '\25CB\A0'; /* an open circle, then a non-breaking space */
+}
+
+.hud button[aria-pressed='true']::before {
+  content: '\25CF\A0';
+}
+
+.hud button:hover,
+.hud button:focus-visible {
+  color: #bae6fd;
+}
+
 /* A narrow desktop window: `pointer: fine` is the mount test, and a laptop can
    still be half-screened. The panel becomes a sheet rather than a column, and
    the footer gets out from under the hint. */

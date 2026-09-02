@@ -237,7 +237,7 @@ there, against the types typegen last wrote.
 - [x] Post-processing — FXAA and an emissive-only bloom — `src/Post.tsx`
 - [x] GPU compute particles where WebGPU is available — the spray under the
       ship, `src/Particles.tsx`. Nothing at all on WebGL2, on purpose
-- [ ] Ambient sound, off by default *(same)*
+- [x] Ambient sound, off by default — synthesised, `src/Sound.tsx`
 
 ### Post-processing
 
@@ -635,6 +635,114 @@ rejects because the spec changed shape after it shipped. Nothing in this repo
 was touched for it, and the same code runs unpatched on a current browser. It
 does mean the WebGPU walk above proves the shaders and the plumbing, not that
 this exact three-plus-Chromium pair is happy everywhere.
+
+## The sound — Phase 4's last item
+
+BUILD-PLAN gated this one on *only if it earns its place*. `src/Sound.tsx` is
+the argument: every layer is a function of something the world already knows,
+and one of them does a job nothing else in the world does.
+
+**Synthesised, not sampled.** Web Audio and nothing else — no dependency, no
+files, **+1.4 kB gz** in the canvas chunk. Two ambience loops would have been
+the first bytes in this world that are not geometry, plus a licence to keep
+track of, against a sky, an ocean and a set of clouds that are all TSL and cost
+nothing. There was no case for sound being the exception.
+
+**Off by default, and the toggle is the gesture.** No browser starts audio
+without one, so the constraint and the courtesy want the same thing. Nothing is
+constructed until the visitor clicks: no `AudioContext`, no noise buffer, no tab
+marked as playing, no cost at all to a visitor who never asks. It is also
+deliberately **not remembered** between visits — a returning visitor cannot be
+given sound before they have clicked anything, so a stored *on* would only ever
+be a toggle that lies about its own state.
+
+### Four layers, and each one is already in the world
+
+| | what it is | driven by |
+|---|---|---|
+| sea | pink noise, lowpass 420 Hz, two swells that never line up | `overWater()` — half level parked on an island |
+| wind | the same noise, bandpass 1150 Hz | altitude, opening as Space lifts the ship |
+| hum | two triangles 7 cents apart, beating at about 0.2 Hz | speed: 52 Hz idle → 74 Hz at full boost |
+| voice | one per landmark | proximity, full inside `radius`, gone at 3 × it |
+
+**The hum is what earns the feature.** The spray is WebGPU-only, on purpose, so
+on the WebGL2 fallback nothing in the frame says how fast you are crossing
+featureless water. The hum says it on both backends — the only part of Phase 4's
+craft that reaches the fallback at all. The wind opens exactly where the spray
+dries up, so one hands over to the other.
+
+**The voices are the projects, the way the shaders are.** Keyed off `landmark`
+and not off the slug, the same convention `Landmarks.tsx` keys its meshes on.
+The mine is the head-frame's sheave turning — two sines a fifth apart through a
+lowpass, a knock with a body, and a winch is what a shaft sounds like when
+something is being brought up out of it. The easel is one stroke and then the
+pause where she stands back and looks at it — noise through a bandpass swept
+650 → 2300 Hz, slow enough never to settle into a hiss. The board is tiles going
+down, two quick and one after a thought: the shader's seven settling, heard from
+the other side of the table. An ambient pad under all three would have said
+nothing about any of them.
+
+Envelopes are **scheduled** in the audio thread rather than driven frame by
+frame — a five-millisecond attack is a third of a frame at 60fps, and a knock
+without its attack is a thud. Nothing is scheduled while it is inaudible, so
+arriving at a landmark never fires everything it missed at once.
+
+### The control
+
+One button, in the HUD, last in the tab order — behind the skip link and every
+link on the page. The label is one word (`sound` in `src/i18n/index.ts`) and
+`aria-pressed` carries the state; the filled or open dot in front of it is CSS,
+so there is nothing in the DOM for a screen reader to read twice. It is the
+world's only focusable element, and `useInput` already ignores keys aimed at a
+button, so Space on it toggles sound rather than flying the ship.
+
+**It is hidden under 54rem**, because `.hud` is — the same rule that hides the
+controls hint on a half-screened laptop. Sound is opt-in and optional, so losing
+the toggle costs a narrow window nothing it had; worth knowing rather than
+worth fixing.
+
+**Not gated on `prefers-reduced-motion`.** Invariant 6 is about motion, and this
+is the one thing in the world that only exists because someone asked for it out
+loud. Silencing an opt-in on a motion preference would be guessing.
+
+### Needs Seb
+
+- **The mix, on real speakers.** Levels, the sea's swell depth, how loud a knock
+  is against the surf — all of it is the constants at the top of `Sound.tsx`,
+  and a container with a null audio sink has no opinion about any of it.
+- **`sound` in `fr` and `nl` is unreviewed** — 'Son' and 'Geluid'. One word each
+  and hard to get wrong, but CLAUDE.md says unreviewed translations do not ship,
+  and this is the second one waiting (`worldControls` from Phase 3 is the other).
+
+### Verified, on a throwaway install in Claude's container
+
+Same caveats as the earlier passes: not on Seb's machine, and `typegen` and
+`oxlint` cannot run from Claude's Linux VM. Swiftshader draws this world at
+about 1.5 fps, which is also why the flight readings below were taken over
+20-second holds.
+
+- [x] `npx tsc -b` clean, `node src/i18n/locales.check.ts` green, 18 routes
+      prerendered. No `<button>`, no `AudioContext` and no `.glb` in any
+      prerendered document; `AudioContext` appears in the canvas chunk and
+      nowhere else
+- [x] Canvas chunk **449.6 kB gz** against 448.2 with the file stubbed out —
+      **+1.4 kB**, budget 600. Everything else **131.3 kB gz** (budget 200),
+      unchanged. CSS 2.1 kB gz
+- [x] **No `AudioContext` exists on a loaded page.** Constructed on the first
+      click, `running`, and the button reads `aria-pressed="true"`
+- [x] The drive, read straight off the graph: idle `hum 0.050 @ 52 Hz, wind 0`;
+      W held `0.077 @ 61.1 Hz`; W and Shift `0.115 @ 73.8 Hz` — the top of the
+      range exactly; Space `wind 0.100`, full; everything released, back to
+      `0.050 @ 52 Hz, wind 0`. Sea swells between 0.215 and 0.305 around 0.26
+- [x] Parked at each landmark: that landmark's voice at full and the other two
+      at exactly zero, the sea pulled back to half over the island, and the
+      output pulsing — peak to floor 19× at the mine, 4× at the easel and the
+      board, where the envelopes are softer and shorter
+- [x] `/en/work` suspends the context and coming back resumes it; toggling off
+      fades and suspends. Console clean on every walk, but for three's own
+      WebGPU-unavailable notice
+- [ ] The mix on real speakers, and 60fps with the graph running — real
+      hardware only
 
 ## Phase 5 — Hardening
 
