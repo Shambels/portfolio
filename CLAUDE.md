@@ -132,6 +132,7 @@ src/WorldGate.tsx       mounts the canvas once, decides where it shows, owns the
 src/Scene.tsx           the <Canvas> and everything in it
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only
+src/Particles.tsx       the spray under the ship — GPU compute, WebGPU only
 src/Islands.tsx         the ground under each landmark — lathed, no assets
 src/Landmarks.tsx       the mine, the easel, the board — blockout in primitives +
                         TSL, and the detailed model where one exists (`MODEL`)
@@ -182,11 +183,15 @@ makes the diff smaller.
 `docs/STATUS.md` is the source of truth. Update its boxes in the same commit as
 the work.
 
-Phases 0 to 3 are built, and Phase 4's models, shaders and post-processing with
-them — the sun was swung round to port in an earlier pass, which is a change to
-the committed golden-hour look and is written up in `docs/STATUS.md`. GPU
-particles and ambient sound are the two Phase 4 items still open, both cut by
-scope rather than blocked.
+Phases 0 to 3 are built, and Phase 4's models, shaders, post-processing and GPU
+particles with them — the sun was swung round to port in an earlier pass, which
+is a change to the committed golden-hour look and is written up in
+`docs/STATUS.md`. Ambient sound is the one Phase 4 item still open, cut by scope
+rather than blocked.
+
+The particles are WebGPU only and there is deliberately no WebGL2 version —
+`docs/STATUS.md` has the argument. That makes them the first thing in the world
+a visitor can miss, which is why `?debug` names the backend.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the one new FR/NL UI

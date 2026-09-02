@@ -38,6 +38,18 @@ const JOLT = 60       // units/sec^2
 export const CAM_OFFSET = new THREE.Vector3(0, 2.4, 7.2) // flat enough to keep the horizon in frame
 const CAM_LAG = 3.5
 
+/**
+ * Where the hull is this frame, and how fast. Written once per frame, read by
+ * `Particles`, which spawns spray under the saucer and so has to know both —
+ * the position to put it, and the velocity to trail it.
+ *
+ * A module-level object rather than a ref, because a ref means lifting the
+ * ship's state into `Scene` and threading it through a component that has no
+ * other interest in it. `CAM_OFFSET` above is exported for the same kind of
+ * reason. Nothing writes to this but the frame loop below.
+ */
+export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3() }
+
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // Invariant 6: the ship still responds, it just does not oscillate about it.
 const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
@@ -169,6 +181,11 @@ export function Ship({ hover = 0.9, enabled, slug, onNear }: {
     body.current.position.y =
       alt.current - spring.current.y * SQUASH +
       (REDUCED ? 0 : Math.sin(state.clock.elapsedTime * 1.2) * 0.05)
+
+    // The rig carries XZ and the body carries altitude, so the hull's world
+    // position is one from each. Published here, after both have settled.
+    SHIP.pos.set(g.position.x, body.current.position.y, g.position.z)
+    SHIP.vel.copy(vel.current)
 
     // Proximity is an event, not a state: it pushes a URL and the URL is what
     // everything else reads back (invariant 3 — nothing here remounts a tree).

@@ -4,6 +4,7 @@ import { Ship } from './Ship'
 import { Scenery } from './Scenery'
 import { Islands } from './Islands'
 import { Landmarks } from './Landmarks'
+import { Particles } from './Particles'
 import { Debug } from './Debug'
 import { Post } from './Post'
 
@@ -44,6 +45,8 @@ export default function Scene({
       <Scenery />
       <Islands />
       <Ship enabled={active} slug={slug} onNear={onNear} />
+      {/* Reads the ship's position, so it is mounted after it. */}
+      <Particles />
       <Landmarks near={slug} />
       <Post />
       {debug && <Debug />}

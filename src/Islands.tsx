@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import { mix, mx_fractal_noise_float, positionWorld, smoothstep, vec3 } from 'three/tsl'
-import { LANDMARKS } from './world'
+import { ISLAND_SPREAD, LANDMARKS } from './world'
 
 /**
  * The ground under each landmark. One `LatheGeometry` per island, revolved from
@@ -26,7 +26,6 @@ const PROFILE: [number, number][] = [
   [0, 0], [0.52, 0], [0.68, -0.12], [0.8, -0.3], [0.88, -0.55], [0.96, -1.6], [1, -3.2],
 ]
 const SEGMENTS = 48
-const SPREAD = 1.9 // island radius as a multiple of the proximity radius
 
 const ROCK = vec3(0.09, 0.12, 0.14)
 const WET = vec3(0.36, 0.31, 0.24)
@@ -64,7 +63,7 @@ function island(radius: number, seed: number) {
 export function Islands() {
   const { geometries, ground } = useMemo(() => {
     const geometries = LANDMARKS.map((l) =>
-      island(l.radius * SPREAD, [...l.slug].reduce((h, c) => h + c.charCodeAt(0), 0)),
+      island(l.radius * ISLAND_SPREAD, [...l.slug].reduce((h, c) => h + c.charCodeAt(0), 0)),
     )
 
     const ground = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
