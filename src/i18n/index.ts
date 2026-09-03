@@ -35,6 +35,16 @@ const en = {
   // named here are the ones under the same fingers on any layout — which is why
   // the French line says ZQSD and means the same three keys.
   worldControls: 'WASD or arrows to fly · space to rise · shift to boost',
+  // The same sentence for a thumb (Phase 6), and one control shorter. Boost is
+  // the only one that needs no telling — it is the drag continued, and pushing
+  // further has already made the ship faster before it makes it boost. Naming
+  // it cost a third line of the hint in Dutch on a small phone, which is a
+  // worse trade than leaving the one gesture that teaches itself unsaid.
+  //
+  // Nothing here names a control drawn on the screen either, because none of
+  // them is: the stick is measured from wherever the finger went down, so there
+  // is no ring to aim at and nothing to put a label on.
+  worldControlsTouch: 'Drag to fly · two fingers to rise',
   // A toggle button's label stays put and `aria-pressed` carries the state, so
   // this is one word rather than an on and an off in three languages.
   sound: 'Sound',
@@ -72,6 +82,7 @@ const fr: Strings = {
   noLink: "Pas déployé — c'est le texte qui fait foi.",
 
   worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
+  worldControlsTouch: 'Glissez pour voler · deux doigts pour monter',
   sound: 'Son',
 
   notFoundTitle: 'Rien ici',
@@ -105,6 +116,7 @@ const nl: Strings = {
   noLink: 'Niet uitgebracht — de tekst is het werkstuk.',
 
   worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',
+  worldControlsTouch: 'Sleep om te vliegen · twee vingers om te stijgen',
   sound: 'Geluid',
 
   notFoundTitle: 'Hier is niets',

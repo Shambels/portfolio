@@ -80,9 +80,10 @@ Breaking one is allowed. Doing it without saying so is not.
    camera sway, instant transitions.
 7. **Content is data.** A new project is a new MDX file plus a model. Never new
    scene components.
-8. **All input goes through `useInput()`.** The one permitted early abstraction —
-   mobile is deferred, and retrofitting touch into rigs that read `keydown`
-   directly is a rewrite.
+8. **All input goes through `useInput()`.** The one permitted early abstraction,
+   and it paid: Phase 6's touch controls are a thumb stick written into the same
+   `move` vector, and the flight controller, the spray and the sound did not
+   change a line for them.
 
 ## Conventions
 
@@ -144,7 +145,8 @@ tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints
 src/Ship.tsx            the character: procedural hovering saucer + flight controller
-src/useInput.ts         invariant 8 — the only place input is read
+src/useInput.ts         invariant 8 — the only place input is read, keys and touch
+src/stick.ts            the thumb stick's arithmetic, and its check beside it
 src/world.ts            landmark layout + proximity, read from the content
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles
@@ -184,8 +186,8 @@ makes the diff smaller.
 `docs/STATUS.md` is the source of truth. Update its boxes in the same commit as
 the work.
 
-Phases 0 to 4 are built: the models, the shaders, the post-processing chain, the
-GPU particles and now the ambient sound. The sun was swung round to port in an
+Phases 0 to 4 are built, and Phase 6 with them: the models, the shaders, the
+post-processing chain, the GPU particles, the ambient sound, and now touch. The sun was swung round to port in an
 earlier pass, which is a change to the committed golden-hour look and is written
 up in `docs/STATUS.md`.
 
@@ -198,8 +200,15 @@ The particles are WebGPU only and there is deliberately no WebGL2 version —
 `docs/STATUS.md` has the argument. That makes them the first thing in the world
 a visitor can miss, which is why `?debug` names the backend.
 
+Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
+(`src/stick.ts`) read into `useInput`'s `move`, boost is the same push further,
+rise is a second finger. Nothing is cut on a phone, and the whole phase cost
+528 bytes gz. `docs/STATUS.md` has the layout it changed and the one camera
+number it changed with it.
+
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
-*is traversal interesting or a chore* judgement, reviewing the two unreviewed
-FR/NL UI strings (`worldControls` and `sound`), and judging the lighting, the
-post-processing chain and the sound mix on real hardware — swiftshader has no
-opinion about frame rate and a null audio sink has none about levels.
+*is traversal interesting or a chore* judgement, reviewing the three unreviewed
+FR/NL UI strings (`worldControls`, `sound` and `worldControlsTouch`), and judging
+the lighting, the post-processing chain, the sound mix and now the stick's feel
+on real hardware — swiftshader has no opinion about frame rate, a null audio sink
+has none about levels, and neither has a thumb.
