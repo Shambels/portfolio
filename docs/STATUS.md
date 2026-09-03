@@ -157,6 +157,7 @@ rhythm and colour. A typeface can land in Phase 4 with the shaders if it earns i
   prerendered document is still the full article for everything without JS.
 - **Touch gets no world.** `(pointer: fine)` is part of the mount test. Mobile
   is Phase 6, and a world you cannot steer is worse than no world.
+  *(Superseded in Phase 6 — touch can steer now, and the pointer test is gone.)*
 - **The capability probe asks for WebGL2**, not `navigator.gpu`: the property
   existing is not the adapter working, and three's own fallback is WebGL2. An
   earlier version trusted `navigator.gpu` and mounted a canvas that then threw.
@@ -752,7 +753,127 @@ about 1.5 fps, which is also why the flight readings below were taken over
 - [ ] Browser matrix incl. WebGL disabled
 - [ ] OG images per case study per locale
 
-## Phase 6 — Mobile  *(deferred, decide after Phase 3)*
+## Phase 6 — Mobile
 
-- [ ] Touch feeds `useInput()`
-- [ ] Tap-to-move, or full touch controls
+- [x] Touch feeds `useInput()` — a thumb stick, `src/stick.ts`
+- [x] The mount test stops rejecting a coarse pointer — `src/WorldGate.tsx`
+- [x] The world's layout on a phone — `src/index.css`, `@media (pointer: coarse)`
+- [x] The controls hint says what a thumb does — `worldControlsTouch`
+- [ ] Exit: fly it on a real phone. 60fps, the stick's feel, the framing
+
+BUILD-PLAN offered two options and **Seb chose drag-to-fly**, the faithful one,
+over tap-to-move. Tap-to-move is less code in the input hook and more code
+everywhere else — it needs an autopilot in `Ship`, a raycast layer over the
+canvas, and a second way for a landmark to become the URL. Drag-to-fly is one
+gesture read into the vector the keyboard already writes, and `Ship.tsx`,
+`Particles.tsx` and `Sound.tsx` did not change a line for it.
+
+**Everything is on, on a phone.** No effect is cut and the pixel ratio is not
+capped — Seb's call, and an honest one: swiftshader has no opinion about frame
+rate, so cutting the post-processing chain here would have been a guess dressed
+up as a budget. The particles are already WebGPU-only, which most phones are
+not, so the phone's frame is the landmarks, the shaders, the FXAA and the bloom.
+If it is a slideshow on real hardware, `<Post />` is one line in `Scene.tsx` and
+`dpr` is one prop on the `<Canvas>`.
+
+### The stick
+
+A drag anywhere on the world is a thumb stick measured **from where the finger
+went down**, not from the middle of the screen or from a ring drawn somewhere —
+so there is nothing to aim at, nothing to draw, and nothing to label. Full
+deflection is 72px of travel, a constant rather than a fraction of the viewport
+because a thumb is the same size on a phone and on a tablet.
+
+**Boost is the same push, further** — past 1.7 × that travel. It is the one
+control that teaches itself, because pushing further has already made the ship
+faster before it makes it boost, which is why it is also the one control the
+hint does not name. **Rise is a second finger**, anywhere. Neither needs a
+button over the world, and the HUD stays one line of text and one toggle.
+
+The arithmetic lives in `src/stick.ts`, on its own and importing nothing, so
+`node src/stick.check.ts` can run it — a sign flip, a clamp and a threshold are
+exactly what is wrong in one direction and invisible in a screenshot.
+
+**A drag only starts on `.stage`.** A finger that goes down on the panel is
+scrolling the case study and one on the header is following a link; once
+started, the drag keeps steering wherever the finger goes, which is the reason
+the listeners are on `window` and the origin is the finger's own. The mouse is
+excluded on purpose — it has a keyboard next to it, and a click-drag over the
+world would fight text selection for nothing. `touch-action: none` on `.stage`
+is what stops the browser panning and double-tap-zooming underneath all of it.
+
+### Two things the phone changed that the desktop did not ask for
+
+- **`AIM_DOWN` in `Ship.tsx`.** The panel is a sheet across the bottom on touch,
+  and a ship the camera centres in the viewport is a ship centred behind that
+  sheet — the visitor could not see the thing they were steering. The camera now
+  aims 1.15 units below the hull on a coarse pointer, which lifts the ship about
+  18% of the screen into the band above the panel and brings the landmarks it is
+  flying at up with it. `CAM_OFFSET` is untouched, so no approach distance and
+  no proximity radius moved. It costs sky at the top of the frame. Zero on a
+  fine pointer, so the committed desktop framing is exactly as it was.
+- **The hint lost a control.** Naming boost cost a third line of the HUD in
+  Dutch on a 320px screen, and the third line went through the panel. Measured,
+  not guessed — see the comment on the panel's `bottom` in `index.css`.
+
+### The layout, and what it costs
+
+The panel is the same card, moved to the bottom, sized to its content up to
+40dvh, capped at the site's own measure and centred in what is left — full width
+on a phone, a column on a tablet where edge to edge would be a 45em line. The
+HUD comes back below it, because on touch it is both the only place the controls
+are named and the only way to reach the sound; the world's footer is hidden, the
+same trade the narrow-window rule already makes, and its links are on every flat
+page.
+
+Two costs worth knowing: **the skip link is keyboard-only**, so on a phone the
+way to the flat index is the *Work* link in the header and the project links in
+the panel — invariant 5 holds by the second and third of its three routes, not
+the first. And **a landscape phone is cramped**: 89px of world between the
+header and the panel at 863 × 360. The flat site is one tap away and it is the
+same complete article.
+
+### Verified, on a throwaway install in Claude's container
+
+Not on Seb's machine — `npm install` is forbidden in the project folder. This
+pass could run `react-router typegen` as well, on the container copy.
+
+- [x] `npx tsc -b` clean, `node src/stick.check.ts` and
+      `node src/i18n/locales.check.ts` green, 18 routes still prerender.
+      `oxlint src/` adds no new warning
+- [x] **Cost of the whole phase: +528 bytes gz**, measured against a build of
+      `git archive HEAD` with the same `node_modules`. First-route JS
+      129,857 → 129,918 (+61, **126.9 kB**, budget 200) · canvas chunk
+      448,297 → 448,645 (+348, **438.1 kB**, budget 600) · CSS 2,034 → 2,153
+      (+119, **2.1 kB**)
+- [x] No `.hud`, no `WebGPURenderer`, no `.glb` and no `pointerdown` in any of
+      the 18 prerendered documents; the touch strings live in the i18n chunk
+- [x] **19 input checks, driven as real touch events** through CDP on a Pixel 7
+      profile: deadzone at 5px; 72px up is full forward and 72px right is full
+      strafe; half deflection is half speed; past the ring is boost; the drag
+      keeps steering when the finger slides over the panel; a second finger
+      rises and lifting it stops; `touchcancel` mid-drag stops the ship; a drag
+      begun on the header or on the panel is ignored; a mouse drag over the
+      world is ignored; W, shift and space still work on the same object; and on
+      `/en/work` the layer takes no pointers at all
+- [x] Screenshotted at Pixel 7 portrait and landscape, iPhone SE, iPad portrait,
+      1280 desktop and a 780px window, in EN and FR: the ship clears the panel
+      everywhere, the HUD clears it by 22px in the worst case (a two-line hint
+      on a 320px screen), and desktop is pixel-for-pixel what it was
+- [x] Phone with WebGL2 unavailable: no canvas, and the case study is the full
+      941-word article. `?read` and `/en/work` the same. Console clean
+- [x] `prefers-reduced-motion` on a phone: world mounts, nothing drifts
+- [ ] 60fps on a phone, whether 72px is the right travel, and whether
+      `AIM_DOWN` is the right lift — real hardware only. Swiftshader draws this
+      at about 1fps and has no opinion about any of them. On a portrait tablet
+      the same 1.15 leaves a wide empty band between the ship and the panel,
+      which is the one composition where a second number might be worth it
+
+### Needs Seb
+
+- **`worldControlsTouch` in `fr` and `nl` is unreviewed** — machine-drafted, and
+  CLAUDE.md says those do not ship. That makes three waiting, with
+  `worldControls` from Phase 3 and `sound` from Phase 4.
+- **The feel, on a phone.** The stick's travel, the boost ring, whether a second
+  finger for rise is discoverable enough to keep. All of them are the three
+  constants at the top of `src/stick.ts` and one line in `useInput.ts`.

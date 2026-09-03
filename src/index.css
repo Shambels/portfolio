@@ -320,6 +320,11 @@ main {
   position: fixed;
   inset: 0;
   z-index: 0;
+  /* Phase 6. The world reads raw pointer deltas, so the browser must not also
+     be reading them: without this a drag pans the page and a double tap zooms
+     it. It is on the layer rather than on the canvas because the gesture is
+     claimed by whatever the finger first went down on. */
+  touch-action: none;
 }
 
 /* Hidden, not unmounted: `Scene` has already stopped its frame loop. Keeping
@@ -458,6 +463,62 @@ canvas {
 
   .world .foot,
   .hud {
+    display: none;
+  }
+}
+
+/*
+  Touch — Phase 6. The mount test no longer rejects a coarse pointer, so this is
+  the world on a phone. The panel is the same card, moved to where a thumb can
+  reach it and sized to what it holds; the HUD comes back, because on touch it
+  is both the only place the controls are named and the only way to reach the
+  sound. Ordered after the rule above so it wins on a narrow phone as well as a
+  wide tablet.
+*/
+@media (pointer: coarse) {
+  .world main {
+    /* 4.6rem of clearance, which is two lines of the hint plus the gap. It is
+       measured rather than eyeballed: the Dutch hint wrapped to three lines on
+       a 320px screen and put the HUD through the panel, which is why the hint
+       above lost a control rather than this number growing again. */
+    inset: auto clamp(1.25rem, 5vw, 3rem)
+      calc(4.6rem + env(safe-area-inset-bottom)) clamp(1.25rem, 5vw, 3rem);
+    width: auto;
+    /* Sized to its content up to a ceiling, not a fixed box: the card at a
+       landmark is four short lines and has no business covering half a phone
+       just because the home panel's list does. The ceiling is what leaves the
+       ship a band to fly in — see AIM_DOWN in `Ship.tsx`, which is the other
+       half of the same composition. */
+    height: auto;
+    max-height: 40dvh;
+    /* The measure survives the rotation. Full width is right on a phone and
+       wrong on a tablet, where edge-to-edge is a 45em line — so the sheet stops
+       at the same measure every other reading surface on the site uses and
+       centres itself in what is left. */
+    max-width: var(--measure);
+    margin-inline: auto;
+    padding: calc(var(--lh) * 0.75) 1.1rem;
+  }
+
+  .hud {
+    display: block;
+    right: clamp(1.25rem, 5vw, 3rem);
+    bottom: calc(0.9rem + env(safe-area-inset-bottom));
+    white-space: normal;
+    line-height: 1.5;
+  }
+
+  /* A word in a line of 12.5px text is not a touch target. The negative margin
+     keeps the line where it was, so the hint above it does not move. */
+  .hud button {
+    padding: 0.35rem 0.45rem;
+    margin: -0.35rem -0.45rem;
+  }
+
+  /* The footer would sit under the HUD, and on a tablet beside it. Its links
+     are on every flat page and the world's chrome is better thin than complete
+     — the same trade the narrow-window rule above already makes. */
+  .world .foot {
     display: none;
   }
 }

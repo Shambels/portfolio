@@ -19,12 +19,14 @@ let capable: boolean | undefined
 
 /**
  * Invariant 4: no renderer, no canvas — and the Phase 2 site, which is a
- * complete site, is what is left. A coarse pointer gets the same treatment,
- * because touch is Phase 6 and a world you cannot steer is worse than none.
+ * complete site, is what is left.
+ *
+ * A coarse pointer used to fail here too, because touch could not steer. Phase
+ * 6 gave it a thumb stick (`src/stick.ts`), so the renderer is the only
+ * question left and a phone is asked exactly what a laptop is.
  */
 function canRenderWorld(): boolean {
   if (capable !== undefined) return capable
-  if (!window.matchMedia('(pointer: fine)').matches) return (capable = false)
   // WebGL2, not `navigator.gpu`, even though `WebGPURenderer` prefers WebGPU:
   // the property existing is not the adapter working, and three's own fallback
   // when it does not is WebGL2. So the honest question is the one three ends up
@@ -41,7 +43,14 @@ export function WorldGate({ children }: { children: ReactNode }) {
   // Detected after mount, never during prerender: the server has no GPU and no
   // opinion about the visitor's pointer.
   const [detected, setDetected] = useState(false)
-  useEffect(() => setDetected(canRenderWorld()), [])
+  // Which controls the HUD names. Not the mount test — that is the renderer's
+  // question above — and not a width either: a coarse pointer is exactly the
+  // visitor whose fingers the hint is about.
+  const [touch, setTouch] = useState(false)
+  useEffect(() => {
+    setDetected(canRenderWorld())
+    setTouch(window.matchMedia('(pointer: coarse)').matches)
+  }, [])
 
   const active = detected && isWorldPath(pathname, search)
   const locale = localeOf(pathname) ?? SOURCE_LOCALE
@@ -129,7 +138,7 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
       {active && (
         <p className="hud">
-          {STRINGS[locale].worldControls}
+          {touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls}
           {debug && ` · ${backend}${fps ? ` · ${fps}` : ''}`}
           {' · '}
           {/* The world's only control that is not a key, so it is the world's
