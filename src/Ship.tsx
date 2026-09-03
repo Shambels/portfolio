@@ -39,6 +39,21 @@ export const CAM_OFFSET = new THREE.Vector3(0, 2.4, 7.2) // flat enough to keep 
 const CAM_LAG = 3.5
 
 /**
+ * How far below the hull the camera aims, in world units. Zero everywhere the
+ * panel is a column beside the world, and Phase 6's one change to the framing
+ * where it is a sheet across the bottom of a phone: a ship the camera centres
+ * in the viewport is a ship centred behind that sheet, and the visitor cannot
+ * see the thing they are steering.
+ *
+ * Aiming low tips the camera down, which lifts the ship — about 18% of the
+ * screen at this distance and field of view — into the band above the panel,
+ * and brings the landmarks it is flying at up with it. `CAM_OFFSET` is
+ * untouched, so no approach distance and no proximity radius moves; what
+ * changes is where the frame is pointed, and it costs sky at the top.
+ */
+const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
+
+/**
  * Where the hull is this frame, and how fast. Written once per frame, read by
  * `Particles`, which spawns spray under the saucer and so has to know both —
  * the position to put it, and the velocity to trail it.
@@ -196,7 +211,7 @@ export function Ship({ hover = 0.9, enabled, slug, onNear }: {
     _cam.y += alt.current - hover // rise with the ship, or the ceiling puts it out of frame
     if (snap.current) { snap.current = false; state.camera.position.copy(_cam) }
     else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
-    state.camera.lookAt(g.position.x, g.position.y + alt.current, g.position.z)
+    state.camera.lookAt(g.position.x, g.position.y + alt.current - AIM_DOWN, g.position.z)
   })
 
   return (
