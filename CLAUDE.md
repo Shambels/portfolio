@@ -249,8 +249,11 @@ plateau under water.
 
 The boat's vertical is a buoyancy spring against the surface's own motion, and
 gravity when the water drops away faster than the hull can follow — so a roller
-taken at cruise is a ride and one taken at full sail is a jump, with no rule
-anywhere that says so. One function still writes both the shader's uniform and
+taken at cruise is a ride and one taken at full sail is a jump, out of the
+physics rather than out of a rule. Leaving the water and landing are the two
+events on top of it: a kick on the way up (`POP`, which buys the height an
+honest spring does not), and on the way down a compression of the bounce spring,
+a ring of foam opening on the water and a burst out of the spray particles. One function still writes both the shader's uniform and
 the CPU twin `swell()`, and the dev finite-difference assert beside it is what
 keeps the water and the hull the same water. `docs/STATUS.md` has the numbers. The boat floats: its altitude is the
 swell, it is pushed out of every island's shoreline instead of flying over it,

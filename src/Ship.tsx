@@ -4,7 +4,7 @@ import { color, positionLocal, sin, time } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
 import { swell } from './Scenery'
-import { VIEW, landmarkAt, landmarkOf, offshore } from './world'
+import { SPLASH, VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 
 // Saucer silhouette, rotated around Y. [radius, height]
@@ -65,20 +65,37 @@ const soft = (v: number, m: number) => m * Math.tanh(v / m)
 // units a second, it throws you.
 const BUOY_K = 70    // spring, per second squared. sqrt is the bob rate, ~1.3 Hz.
 const BUOY_C = 15    // damping toward the water's own vertical speed
-const GRAV = 9       // stylised, like the spray's: real gravity makes a twitch.
-//                      Simulated against the roller train: nothing leaves the
-//                      water below eleven units a second, a hop at thirteen,
-//                      and two and a half metres of air at full sail.
+const GRAV = 9       // stylised, like the spray's: real gravity makes a twitch
 const SKIN = 0.06    // how far clear of the surface counts as airborne
 const SINK = 0.3     // deepest a landing may drive the hull under the surface
 const SURF_MAX = 11  // cap on the surface's apparent vertical speed, units/sec
-// And a cap on what the water may throw the hull off at, which is the one that
-// matters: a crest crossed in a single frame, or the fade at an island's edge
-// taken at full sail, is a step in the surface, and a spring that chases a step
-// launches whatever is sitting on it. Seven units a second is about 2.7 of air
-// under gravity — a jump off the biggest roller, and nothing bigger, whatever
-// the water does. Falling is not capped; only being thrown.
-const LAUNCH = 7
+// Leaving the water is an event, not just the frame the spring stopped pushing,
+// and it is where the height of a jump is bought. The buoyancy alone tops out at
+// about three metres of air off the biggest roller at full sail, which is a hop
+// off something taller than the mast; `POP` multiplies the hull's upward speed
+// as it goes, which takes the same jump to five. It is a lie, and it is the same
+// lie the spray's gravity is: what the visitor is judging is the arc, and the
+// arc is not improved by being correct.
+//
+// `POP_MIN` keeps it off the small stuff — a hull drifting over a crest in a
+// calm sea separates from the water at a few centimetres a second and should
+// not be launched for it.
+const POP = 1.45
+const POP_MIN = 1.5
+// And a cap on the whole of it, which also catches the case `POP` does not: a
+// crest crossed in a single frame, or the fade at an island's edge taken at full
+// sail, is a *step* in the surface, and a spring that chases a step launches
+// whatever is sitting on it. Ten units a second is 5.5 of air under gravity, and
+// nothing goes higher whatever the water does. Falling is not capped; only being
+// thrown.
+const LAUNCH = 10
+// The landing. Impacts run to about eight units a second, so `SPLASH_FULL` is
+// where the ring of foam and the burst of spray are at full strength, and
+// `LAND_SQUASH` is what the same impact puts into the bounce spring — the hull
+// visibly compressing is half of what makes a landing land.
+const SPLASH_FULL = 7
+const SPLASH_MIN = 1.2 // below this it is a hull settling, not a hull landing
+const LAND_SQUASH = 0.5
 const WET = 9        // how fast the hull starts heeling to a wave again
 const DRY = 14       // and stops, once it is off one. Faster: it left in an instant.
 // The camera's two lags. Its height follows slowly, so the chop never moves it;
@@ -130,7 +147,7 @@ const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
  * other interest in it. `CAM_OFFSET` above is exported for the same kind of
  * reason. Nothing writes to this but the frame loop below.
  */
-export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3() }
+export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0 }
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // Invariant 6: the ship still responds, it just does not oscillate about it.
@@ -167,6 +184,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const hullVel = useRef(0)
   const lastSurface = useRef(0)
   const wet = useRef(1)   // 1 in the water, 0 in the air, smoothed between
+  const flew = useRef(false) // last frame's answer, so leaving and landing are events
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
@@ -260,18 +278,30 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     alt.current += (wantAlt - alt.current) * (1 - Math.exp(-CLIMB * dt))
     const climbVel = (alt.current - wasAlt) / dt
 
-    // The sea, for the hull that is in it. `Scenery` owns the waves and the
-    // shader reads the same ones, so this is the water the visitor can see
-    // rather than a second sea that nearly matches — and now that the rollers
-    // are displaced geometry, "nearly" would be visible.
+    // The sea under the ship, and this one is read for both hulls: the boat
+    // rides it, and the saucer hovers *over* it — which was the same as hovering
+    // over zero until the rollers made the water move. `SHIP.sea` publishes it
+    // for the spray, which spawns on the surface rather than at sea level, and
+    // for the wind, which opens with height above the water and not above the
+    // origin.
     //
-    // Every term here is zero for the saucer, which is over the water, not in it.
+    // `Scenery` owns the waves and the shader reads the same ones, so this is
+    // the water the visitor can see rather than a second sea that nearly
+    // matches — and now that the rollers are displaced geometry, "nearly" would
+    // be visible.
+    const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
+    SHIP.sea = s.y
+    // The splash's clock is wall time, not the physics' clamped `dt`: it is a
+    // thing the visitor watches fade rather than a thing that is integrated, and
+    // on a slideshow it should still be gone in a second.
+    if (SPLASH.age < 9) SPLASH.age += Math.min(delta, 0.25)
+
+    // Everything below is zero for the saucer, which is over the water, not in it.
     let ride = 0
     let roll = 0
     let heel = 0
     let vertAccel = (climbVel - altVel.current) / dt
     if (boat) {
-      const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
       const surface = s.y
       if (reset.current) {
         // A deep link puts the hull down beside a landmark. It arrives floating,
@@ -290,8 +320,25 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       const surfVel = THREE.MathUtils.clamp((surface - lastSurface.current) / dt, -SURF_MAX, SURF_MAX)
       lastSurface.current = surface
 
-      const wasVel = hullVel.current
       const flying = hull.current > surface + SKIN
+      // Off the top of a crest: the kick that turns a hop into a jump.
+      if (flying && !flew.current && hullVel.current > POP_MIN) {
+        hullVel.current = Math.min(hullVel.current * POP, LAUNCH)
+      }
+      // And back into it. The impact is last frame's fall, before the spring
+      // has had a chance to answer it — which is the number a splash is the
+      // size of, and the number the hull compresses by.
+      if (!flying && flew.current && -hullVel.current > SPLASH_MIN) {
+        const impact = Math.min(-hullVel.current, LAUNCH)
+        SPLASH.x = g.position.x
+        SPLASH.z = g.position.z
+        SPLASH.force = Math.min(impact / SPLASH_FULL, 1)
+        SPLASH.age = 0
+        springVel.current.y += impact * LAND_SQUASH
+      }
+      flew.current = flying
+
+      const wasVel = hullVel.current
       hullVel.current += dt * (flying
         ? -GRAV
         : (surface - hull.current) * BUOY_K - (hullVel.current - surfVel) * BUOY_C)
