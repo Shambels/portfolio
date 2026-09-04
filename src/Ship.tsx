@@ -45,7 +45,7 @@ const HULL = { beam: 0.5, len: 1.35, draft: 0.18, freeboard: 0.2 }
 // flat plane wearing normals — the sea it is heeling to is painted on — so this
 // is a lie told on top of a lie, and the only honest way to judge it is to look.
 //
-// The rollers get no such multiplier. Their face is thirty degrees of real
+// The rollers get no such multiplier. Their face is twenty degrees of real
 // displaced geometry, and a hull leaning three times that is a hull upside down.
 const WAVE_TILT = 3
 const HEEL = 0.6 // radians, about 34 degrees — a big sea, not a capsize
