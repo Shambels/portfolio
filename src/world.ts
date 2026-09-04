@@ -149,6 +149,15 @@ if (import.meta.env.DEV) {
   for (const l of LANDMARKS) {
     const d = Math.hypot(l.waypoint[0] - l.pos[0], l.waypoint[2] - l.pos[2])
     console.assert(d < l.radius, `${l.slug}: waypoint is ${d.toFixed(2)} out, radius is ${l.radius}`)
+    // And it has to frame the thing it arrived at. The camera never yaws — it
+    // sits at `CAM_OFFSET` from the ship, +z and above it — so the screen is
+    // read straight off the arithmetic: a landmark at a lower z than the ship
+    // is in front of it rather than between it and the camera, and a landmark
+    // at a higher x is in the right half of the frame, which is the half the
+    // reading panel does not cover. Both hold for the boat too: `offshore`
+    // moves it further out along the same direction, so neither sign flips.
+    console.assert(l.pos[2] < l.waypoint[2], `${l.slug}: waypoint is in front of the landmark — the camera would sit on it`)
+    console.assert(l.pos[0] > l.waypoint[0], `${l.slug}: waypoint is right of the landmark — it would arrive under the panel`)
     // A waypoint inside an island is where the boat's deep link starts, and
     // `offshore` is what moves it out — to exactly `moorRadius`, which has to
     // still be inside the circle that opens the panel or the deep link opens a

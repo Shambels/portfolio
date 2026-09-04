@@ -1469,14 +1469,19 @@ it.
   off, the visitor with no renderer, and every crawler still get the bio and the
   three projects as a page.
 
-### It belongs to roaming
+### The panel changed sides so the map could stay
 
-The map is up while no landmark is open and not otherwise — unmounted, not
-hidden, so reading a case study is not also running a frame loop. That is not
-only tidiness: on a narrow window and on touch the panel is a sheet across this
-same corner, so the two could not share it anyway. Roaming on touch there is no
-sheet, so the map stays and is lifted 4.6rem to clear the HUD, which is in that
-corner there.
+`.world main` was a column down the right, which is the map's corner. It is a
+column down the left now, and the map is up at a landmark as well as while
+roaming — the one whose case study is open carries `aria-current` and goes gold,
+which is the only place that state is visible while flying.
+
+The HUD and the footer were already down the left and are untouched: both sit
+below this column's bottom edge.
+
+Where the panel is a sheet across the bottom rather than a column down one side
+— a narrow window, and touch — it is back in the map's corner and the map gives
+way. Roaming there is no sheet, so it stays, lifted 4.6rem to clear the HUD.
 
 ### Cost
 
@@ -1484,8 +1489,40 @@ One lazy chunk beside the canvas, about 110 lines of TSX and 70 of CSS, no
 dependency, no asset. `npx tsc -b` clean, `node src/i18n/locales.check.ts`
 green.
 
+### Two waypoints moved with it
+
+Where a landmark lands on the screen is arithmetic, not taste: the camera never
+yaws — it is always `CAM_OFFSET` from the ship, +z and above — so `pos` against
+`waypoint` says it outright. Lower z is in front of the ship; higher x is the
+right half of the frame, which is the half the panel no longer covers. Both
+survive `offshore`, which moves the boat further out along the same direction
+without flipping either sign, so one pair of rules frames both hulls.
+
+`world.ts` asserts them in dev now, beside the waypoint-inside-its-radius check
+that has been there since Phase 3.
+
+- **PolarSense**, `[-10.5, -6]` → `[-17.1, -4.9]`. It arrived left of the mine,
+  which put the mine in the left half — under the new panel. Mirrored round to
+  the other side and pulled south: the saucer now frames the mine about three
+  quarters across, and the boat, which is pushed out to `moorRadius` and so
+  further off-axis than the saucer, stays inside the frame instead of past its
+  edge. A straight mirror to `[-17.5, -6]` framed the saucer better and put the
+  boat about a degree outside it.
+- **Scrubble**, `[0, 14]` → `[-3, 17.5]`. This one was already wrong and the
+  panel is not why. The waypoint was *south* of the board — lower z — so the
+  camera, 7.2 further south again, sat between the ship and nothing, with the
+  board behind them both. Arriving at Scrubble by deep link framed a board that
+  was behind the camera. It comes in from the north now, and the assert above is
+  what would have caught it.
+
+Arts by Sandra was already right on both counts and is untouched.
+
 ### Needs Seb
 
+- **The two moved waypoints, flown.** The arithmetic says three quarters across
+  for the saucer and something like 85% for the boat, on a 16:10 window. A
+  narrower window is a narrower field of view, and this is the kind of number a
+  screenshot settles and a calculator does not.
 - **`worldMap` in FR and NL** — "Carte du monde" / "Kaart van de wereld", the
   map's accessible name. Unreviewed, and it joins the eight already waiting.
 - **Whether the map is the right size.** `min(11rem, 34vw)`, and the letters are
@@ -1497,7 +1534,38 @@ green.
 - **Whether the arrow reads as facing.** It is drawn from `yaw`, not from the
   hull's roll, so it does not swing on a wave — which is right for a map and is
   a thing a screenshot cannot settle.
-- **Whether the map should survive the panel.** It is unmounted at a landmark
-  today. Keeping it up on a wide window, where the panel is a column and not a
-  sheet, means a second position for it and a media query that says so — worth
-  it only if you miss it while reading.
+### Two waypoints moved with it
+
+Where a landmark lands on the screen is arithmetic, not taste: the camera never
+yaws — it is always `CAM_OFFSET` from the ship, +z and above — so `pos` against
+`waypoint` says it outright. Lower z is in front of the ship; higher x is the
+right half of the frame, which is the half the panel no longer covers. Both
+survive `offshore`, which moves the boat further out along the same direction
+without flipping either sign, so one pair of rules frames both hulls.
+
+`world.ts` asserts them in dev now, beside the waypoint-inside-its-radius check
+that has been there since Phase 3.
+
+- **PolarSense**, `[-10.5, -6]` → `[-17.1, -4.9]`. It arrived left of the mine,
+  which put the mine in the left half — under the new panel. Mirrored round to
+  the other side and pulled south: the saucer now frames the mine about three
+  quarters across, and the boat, which is pushed out to `moorRadius` and so
+  further off-axis than the saucer, stays inside the frame instead of past its
+  edge. A straight mirror to `[-17.5, -6]` framed the saucer better and put the
+  boat about a degree outside it.
+- **Scrubble**, `[0, 14]` → `[-3, 17.5]`. This one was already wrong and the
+  panel is not why. The waypoint was *south* of the board — lower z — so the
+  camera, 7.2 further south again, sat between the ship and nothing, with the
+  board behind them both. Arriving at Scrubble by deep link framed a board that
+  was behind the camera. It comes in from the north now, and the assert above is
+  what would have caught it.
+
+Arts by Sandra was already right on both counts and is untouched.
+
+### Needs Seb
+
+- **The two moved waypoints, flown.** The arithmetic says three quarters across
+  for the saucer and something like 85% for the boat, on a 16:10 window. A
+  narrower window is a narrower field of view, and this is the kind of number a
+  screenshot settles and a calculator does not.
+- **`worldMap` in FR and NL**

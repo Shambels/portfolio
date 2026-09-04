@@ -486,11 +486,15 @@ canvas {
   background: transparent; /* the ocean is on the root element, below */
 }
 
+/* Left, since Phase 6's map took the other corner: a column on the right and a
+   map in the bottom right were the same corner, and the map is the world's
+   index now. The chrome that was already down the left — the HUD and the
+   footer — both sit below this column's bottom edge and are untouched. */
 .world main {
   position: fixed;
   z-index: 2;
   top: 4.2rem;
-  right: clamp(1.25rem, 5vw, 3rem);
+  left: clamp(1.25rem, 5vw, 3rem);
   bottom: 3.4rem;
   width: min(28rem, 46vw);
   max-width: none;
@@ -559,10 +563,9 @@ canvas {
   rendered and still in the prerendered document, which is what a visitor with
   no JavaScript and no renderer keeps.
 
-  The map is the other half of that class, and `WorldGate` unmounts it at a
-  landmark rather than hiding it here: on a narrow window and on touch the panel
-  is a sheet across this same corner, and a map nobody can see is not worth a
-  frame loop.
+  The map outlives the panel: the panel moved to the left so that it could. It
+  gives way only where the panel is a sheet across the bottom rather than a
+  column down one side — a narrow window, and touch.
 */
 
 .roam main {
@@ -609,6 +612,14 @@ canvas {
   color: #fff;
 }
 
+/* The landmark whose case study is open. Gold like every other current link on
+   the site, and with the panel down the left the map is where a visitor can see
+   which island they are parked at. */
+.map [aria-current] {
+  border-color: var(--gold);
+  background: #e9a8512e;
+}
+
 /* The character: a dart on the running lights' own blue, pointing where the
    ship is pointing. Drawn facing down, which is yaw 0 — `MiniMap` rotates it. */
 .map .me {
@@ -626,7 +637,7 @@ canvas {
    the footer gets out from under the hint. */
 @media (max-width: 54rem) {
   .world main {
-    left: clamp(1.25rem, 5vw, 3rem);
+    right: clamp(1.25rem, 5vw, 3rem);
     top: auto;
     width: auto;
     height: min(24rem, 52dvh);
@@ -634,6 +645,12 @@ canvas {
 
   .world .foot,
   .hud {
+    display: none;
+  }
+
+  /* Here the panel is a sheet across the bottom rather than a column down one
+     side, so it is back in the map's corner and the map gives way. */
+  .world:not(.roam) .map {
     display: none;
   }
 }
@@ -691,6 +708,12 @@ canvas {
   .map {
     bottom: calc(4.6rem + env(safe-area-inset-bottom));
     width: min(8.5rem, 34vw);
+  }
+
+  /* A tablet is wide enough to miss the rule above and still gets the sheet, so
+     the same trade is made against the pointer rather than the width. */
+  .world:not(.roam) .map {
+    display: none;
   }
 }
 

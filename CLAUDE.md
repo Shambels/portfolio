@@ -188,6 +188,13 @@ in `src/world.ts`. A `waypoint` must be inside its own `radius`, or a deep link
 spawns the ship outside the landmark it just opened and the panel closes itself;
 `world.ts` asserts it in dev.
 
+Two more, asserted beside it, because the camera never yaws — it is always
+`CAM_OFFSET` from the ship, +z and above — so where a landmark lands on the
+screen is arithmetic on the waypoint: `pos[1] < waypoint[1]` puts it in front of
+the ship rather than between the ship and the camera, and `pos[0] > waypoint[0]`
+puts it in the right half of the frame, which is the half the reading panel does
+not cover. Both survive `offshore`, so they hold for the boat too.
+
 ## Working together
 
 **Ask first:** adding a dependency, adding a route, changing the render pipeline,
