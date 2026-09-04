@@ -64,6 +64,9 @@ const en = {
   // is a landmark for a screen reader rather than decoration.
   worldMap: 'Map of the world',
   sound: 'Sound',
+  // The slider's label. One word for the whole range, because the control says
+  // the rest: all the way down is a mirror and all the way up is a gale.
+  sea: 'Sea',
   // The menu's other world setting. One word that has to cover a flying saucer
   // and a sailing boat, in three languages — "craft" does it in English and the
   // other two are Seb's to confirm.
@@ -113,6 +116,7 @@ const fr: Strings = {
   worldControlsBoatTouch: 'Glissez pour naviguer',
   worldMap: 'Carte du monde',
   sound: 'Son',
+  sea: 'Mer',
   model: 'Engin',
   modelSaucer: 'Soucoupe',
   modelBoat: 'Bateau',
@@ -157,6 +161,7 @@ const nl: Strings = {
   worldControlsBoatTouch: 'Sleep om te varen',
   worldMap: 'Kaart van de wereld',
   sound: 'Geluid',
+  sea: 'Zee',
   model: 'Vaartuig',
   modelSaucer: 'Schotel',
   modelBoat: 'Boot',

@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import {
   cameraPosition, clamp, cos, dot, float, length, max, mix, mx_fractal_noise_float,
-  normalize, oneMinus, positionLocal, positionWorld, pow, reflect, smoothstep, time, vec2, vec3,
+  normalize, oneMinus, positionLocal, positionWorld, pow, reflect, sin, smoothstep, sqrt, time,
+  uniform, vec2, vec3,
 } from 'three/tsl'
+import { SEA_CALM } from './WorldGate'
 
 /**
  * Sky, sun, ocean and clouds. Golden hour, committed — see BUILD-PLAN, "Open
@@ -42,6 +44,9 @@ const CLOUD_LIT = vec3(1.0, 0.86, 0.72)
 const CLOUD_DARK = vec3(0.36, 0.34, 0.44)
 const DEEP = vec3(0.012, 0.055, 0.085)
 const SHALLOW = vec3(0.03, 0.16, 0.19)
+// The same white the spray is made of, so a whitecap and the foam the saucer
+// tears off the same water are not two different whites.
+const FOAM = vec3(0.86, 0.93, 0.97)
 
 // Invariant 6: nothing drifts, ripples or sparkles when motion is not wanted.
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -100,6 +105,58 @@ const SWELL: [number, number, number, number, number][] = [
   [-0.42, 0.91, 0.9, 0.03, 1.5],
   [0.98, -0.19, 1.7, 0.012, 2.3],
 ]
+/** Wave height at a crest with every swell in phase, before the sea state
+ *  scales it — the number that turns the sum of the sines into -1..1. */
+const HSUM = SWELL.reduce((sum, [, , , amp]) => sum + amp, 0)
+
+/**
+ * Sea state — the menu's slider, from a mirror to a gale.
+ *
+ * `SWELL` above is the *shape* of the water and it does not move; what the
+ * slider moves is three scalars laid over it. Amplitude squares, so the calm
+ * half of the travel is where the fine control is and the top of it is a step
+ * change; frequency and speed are linear and gentle, because a storm is mostly
+ * taller and faster water rather than smaller water. All three read exactly 1
+ * at `SEA_CALM`, which is where the slider starts — so the default is the sea
+ * this world shipped with, to the bit.
+ *
+ * Two copies of the same three numbers, and deliberately: the uniforms drive
+ * the shader, the plain object drives `swell()` below on the CPU, and one
+ * function writes both. Anything else is the water and the boat disagreeing
+ * again, which is the bug the dev assert underneath already exists to catch.
+ *
+ * The shader graph is built once (`useMaterials`) and never rebuilt — a uniform
+ * is what lets a slider move a sea that has already been compiled.
+ */
+const uAmp = uniform(1)
+const uFreq = uniform(1)
+const uSpeed = uniform(1)
+/** 0 up to about half travel, then 1 — foam, and the darker water under it, are
+ *  a storm's and not a swell's. */
+const uStorm = uniform(0)
+
+const SEA = { amp: 1, freq: 1, speed: 1 }
+let level = SEA_CALM
+
+/** The slider, 0 (a mirror) to 1 (a gale). Called from `Scenery` on every
+ *  render, so it must stay idempotent and cheap. */
+export function setSea(next: number) {
+  level = next
+  SEA.amp = uAmp.value = (next / SEA_CALM) ** 2
+  SEA.freq = uFreq.value = 1 + (next - SEA_CALM) * 1.0
+  SEA.speed = uSpeed.value = 1 + (next - SEA_CALM) * 1
+  const k = Math.min(Math.max((next - 0.45) / 0.55, 0), 1)
+  uStorm.value = k * k * (3 - 2 * k)
+}
+
+/** Read by `Sound`, which puts the same weather in the mix. */
+export const seaLevel = () => level
+
+/** How far the swell's height has been scaled — 1 at `SEA_CALM`. Read by
+ *  `Ship`, which exaggerates a hull's heel and has less to exaggerate the
+ *  bigger the sea gets. */
+export const seaAmp = () => SEA.amp
+
 /**
  * The same three swells on the CPU, as a height and a gradient at a world XZ.
  * `SWELL` above is a set of sine waves, so its height field is the term the
@@ -125,9 +182,10 @@ export function swell(x: number, z: number, t: number) {
   let dx = 0
   let dz = 0
   for (const [dirX, dirZ, freq, amp, speed] of SWELL) {
-    const phase = x * dirX * freq + z * dirZ * freq + t * speed
-    y += Math.sin(phase) * amp
-    const slope = Math.cos(phase) * amp * freq
+    const k = freq * SEA.freq
+    const phase = x * dirX * k + z * dirZ * k + t * speed * SEA.speed
+    y += Math.sin(phase) * amp * SEA.amp
+    const slope = Math.cos(phase) * amp * k * SEA.amp
     dx += slope * dirX
     dz += slope * dirZ
   }
@@ -144,31 +202,59 @@ export function swell(x: number, z: number, t: number) {
  */
 if (import.meta.env.DEV) {
   const e = 1e-4
-  for (const [x, z, t] of [[3, -7, 0.4], [-11, 22, 9.1]]) {
-    const s = swell(x, z, t)
-    const dx = (swell(x + e, z, t).y - swell(x - e, z, t).y) / (2 * e)
-    const dz = (swell(x, z + e, t).y - swell(x, z - e, t).y) / (2 * e)
-    console.assert(
-      Math.abs(dx - s.dx) < 1e-5 && Math.abs(dz - s.dz) < 1e-5,
-      `swell at ${x},${z}: the gradient is not the height's — the water and the boat disagree`,
-    )
+  // Every sea state, not just the default one: the slider scales the height by
+  // `amp` and the slope by `amp * freq`, which is one place to drop a factor.
+  for (const sea of [SEA_CALM, 1, 0.15]) {
+    setSea(sea)
+    for (const [x, z, t] of [[3, -7, 0.4], [-11, 22, 9.1]]) {
+      const s = swell(x, z, t)
+      const dx = (swell(x + e, z, t).y - swell(x - e, z, t).y) / (2 * e)
+      const dz = (swell(x, z + e, t).y - swell(x, z - e, t).y) / (2 * e)
+      console.assert(
+        Math.abs(dx - s.dx) < 1e-4 && Math.abs(dz - s.dz) < 1e-4,
+        `swell at ${x},${z}, sea ${sea}: the gradient is not the height's — the water and the boat disagree`,
+      )
+    }
   }
+  setSea(SEA_CALM)
 }
 
-function waveNormal(p: Vec2) {
+/**
+ * Normal and crest height at a world XZ. The crest comes out normalised to
+ * -1 (trough) .. 1 (peak) *before* the amplitude is applied, so foam sits on
+ * the same water at every sea state instead of appearing only once the sea is
+ * tall enough to reach a threshold.
+ */
+function waves(p: Vec2) {
+  let h: Float = float(0)
   let dx: Float = float(0)
   let dz: Float = float(0)
   for (const [dirX, dirZ, freq, amp, speed] of SWELL) {
-    const phase = p.x.mul(dirX * freq).add(p.y.mul(dirZ * freq)).add(T.mul(speed))
-    const slope = cos(phase).mul(amp * freq)
+    const phase = p.x.mul(dirX * freq).add(p.y.mul(dirZ * freq)).mul(uFreq)
+      .add(T.mul(speed).mul(uSpeed))
+    h = h.add(sin(phase).mul(amp))
+    const slope = cos(phase).mul(amp * freq).mul(uFreq).mul(uAmp)
     dx = dx.add(slope.mul(dirX))
     dz = dz.add(slope.mul(dirZ))
   }
-  const ripple = mx_fractal_noise_float(vec3(p.mul(0.6), T.mul(0.25)), 2).mul(0.05)
-  return normalize(vec3(dx.add(ripple).negate(), 1, dz.sub(ripple).negate()))
+  const ripple = mx_fractal_noise_float(vec3(p.mul(float(0.6).mul(uFreq)), T.mul(0.25).mul(uSpeed)), 2)
+    .mul(float(0.05).mul(sqrt(uAmp)))
+  return {
+    n: normalize(vec3(dx.add(ripple).negate(), 1, dz.sub(ripple).negate())),
+    crest: h.div(HSUM),
+  }
 }
 
-export function Scenery() {
+export function Scenery({ sea }: {
+  /** The menu's slider, 0 (a mirror) to 1 (a gale). `SEA_CALM` is where it
+   *  starts and is the sea this world shipped with. */
+  sea: number
+}) {
+  // Written during render on purpose, and the one place in this file that is:
+  // it is four uniform assignments, it is idempotent, and doing it in an effect
+  // would leave the frame between the commit and the effect showing the sea the
+  // visitor just moved away from. Nothing reads these until the next frame.
+  setSea(sea)
   const { dome, water } = useMaterials()
   return (
     <>
@@ -202,20 +288,42 @@ function useMaterials() {
 
     const water = new THREE.MeshBasicNodeMaterial()
     const view = normalize(positionWorld.sub(cameraPosition))
-    const n = waveNormal(positionWorld.xz)
+    const { n, crest } = waves(positionWorld.xz)
     const bounce = reflect(view, n)
 
     // Grazing angles mirror the sky, steep ones show the water's own colour.
     const fresnel = pow(oneMinus(clamp(dot(n, view.negate()), 0, 1)), 4.5).mul(0.92).add(0.06)
-    const body = mix(DEEP, SHALLOW, clamp(n.y.sub(0.965).mul(14), 0, 1))
+    // Deep in the troughs, lighter on the crests. The normal's own tilt says
+    // that on a calm sea; in a storm it saturates — every facet is steep — so
+    // the crest height takes over and keeps the banding the surface needs to
+    // read as water rather than as a dark sheet.
+    const body = mix(DEEP, SHALLOW, max(
+      clamp(n.y.sub(0.965).mul(14), 0, 1),
+      smoothstep(-0.35, 0.95, crest).mul(uStorm).mul(0.75),
+    ))
     const glitter = pow(clamp(dot(bounce, sunDir), 0, 1), 420).mul(2.2)
+
+    // Whitecaps. The top of a crest, broken up by a second noise field so the
+    // foam is patches travelling with the water rather than bands drawn across
+    // it — and gated on `uStorm`, so the sea the world shipped with has none.
+    //
+    // This is where the height of a storm lives. The surface is still a flat
+    // plane wearing normals (see `SWELL`), so a wave has no silhouette to see;
+    // what says "tall" is the foam, the dark troughs, and the boat, which does
+    // ride the real height field.
+    const breakup = mx_fractal_noise_float(vec3(positionWorld.xz.mul(3.2), T.mul(0.4).mul(uSpeed)), 3)
+    const foam = smoothstep(0.55, 0.98, crest).mul(uStorm).mul(smoothstep(0.0, 0.4, breakup))
 
     // Fade into the horizon's own colour, or the plane ends in a visible edge.
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)
     const horizon = sky(normalize(vec3(view.x, 0.015, view.z)), { lit: false }).mul(0.93)
 
     water.colorNode = mix(
-      mix(body, sky(bounce, { disc: 0.3 }), fresnel).add(SUN_TINT.mul(glitter)),
+      mix(
+        mix(body, sky(bounce, { disc: 0.3 }), fresnel).add(SUN_TINT.mul(glitter)),
+        FOAM,
+        foam.mul(0.85),
+      ),
       horizon,
       far,
     )

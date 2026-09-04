@@ -20,23 +20,39 @@ const MiniMap = lazy(() => import('./MiniMap'))
  *  with it. `Ship` imports it back as a type, which compiles to nothing. */
 export type ShipModel = 'saucer' | 'boat'
 
+/**
+ * Where the slider starts: the swell this world shipped with. `Scenery` imports
+ * it back and scales its three wave terms to exactly 1 here, so the default is
+ * the committed golden-hour sea to the bit, and one number says so.
+ *
+ * A value import from the canvas chunk into this one would drag three into the
+ * first route (see `ShipModel` above); the other direction is free, because
+ * this module is already loaded by the time the canvas chunk arrives.
+ */
+export const SEA_CALM = 0.4
+
 /** What the chrome above the routes needs to know about the world: whether it
- *  is showing, and the two settings it has. */
+ *  is showing, and the three settings it has. */
 export type World = {
   active: boolean
   sound: boolean
   toggleSound: () => void
   model: ShipModel
   setModel: (model: ShipModel) => void
+  /** 0 is a mirror, 1 is a gale. */
+  sea: number
+  setSea: (sea: number) => void
 }
 
 const WorldContext = createContext<World>({
   active: false, sound: false, toggleSound: () => {}, model: 'saucer', setModel: () => {},
+  sea: SEA_CALM, setSea: () => {},
 })
 
-/** Where the choice is remembered. Namespaced, because this origin is the whole
- *  site and one day something else will want a key. */
+/** Where the two remembered choices live. Namespaced, because this origin is
+ *  the whole site and one day something else will want a key. */
 const MODEL_KEY = 'pinchs.ship'
+const SEA_KEY = 'pinchs.sea'
 
 /** `active` is true when the scene is showing behind this route — a route reads
  *  it to decide whether it is a page or a panel, and never asks whether WebGL
@@ -82,6 +98,10 @@ export function WorldGate({ children }: { children: ReactNode }) {
   // mount — `active` needs `detected`, which is set here — so there is no frame
   // of the wrong ship to see.
   const [model, setModel] = useState<ShipModel>('saucer')
+  // And the weather, for the same reason: a visitor who set the sea to a gale
+  // and came back to a millpond would have to find the slider again. Sound is
+  // the one setting that cannot be remembered, and the note beside it says why.
+  const [sea, setSea] = useState(SEA_CALM)
   useEffect(() => {
     setDetected(canRenderWorld())
     setTouch(window.matchMedia('(pointer: coarse)').matches)
@@ -89,6 +109,11 @@ export function WorldGate({ children }: { children: ReactNode }) {
     // this effect is also what decides whether there is a world at all.
     try {
       if (localStorage.getItem(MODEL_KEY) === 'boat') setModel('boat')
+      // Anything unparseable, out of range, or written by a future version of
+      // this site falls back to the default rather than to `NaN`, which would
+      // reach a uniform and take the water with it.
+      const stored = Number(localStorage.getItem(SEA_KEY))
+      if (stored >= 0 && stored <= 1) setSea(stored)
     } catch { /* no stored answer is a fine answer */ }
   }, [])
 
@@ -97,6 +122,13 @@ export function WorldGate({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(MODEL_KEY, m)
     } catch { /* as above: the setting still works, it just does not last */ }
+  }, [])
+
+  const chooseSea = useCallback((v: number) => {
+    setSea(v)
+    try {
+      localStorage.setItem(SEA_KEY, String(v))
+    } catch { /* as above */ }
   }, [])
 
   const active = detected && isWorldPath(pathname, search)
@@ -169,8 +201,11 @@ export function WorldGate({ children }: { children: ReactNode }) {
   }, [debug, mounted])
 
   const world = useMemo<World>(
-    () => ({ active, sound, toggleSound: () => setSound((s) => !s), model, setModel: chooseModel }),
-    [active, sound, model, chooseModel],
+    () => ({
+      active, sound, toggleSound: () => setSound((s) => !s),
+      model, setModel: chooseModel, sea, setSea: chooseSea,
+    }),
+    [active, sound, model, chooseModel, sea, chooseSea],
   )
 
   return (
@@ -184,6 +219,7 @@ export function WorldGate({ children }: { children: ReactNode }) {
             <Scene
               active={active}
               model={model}
+              sea={sea}
               slug={slug}
               debug={debug}
               sound={sound}

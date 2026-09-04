@@ -1569,3 +1569,116 @@ Arts by Sandra was already right on both counts and is untouched.
   narrower window is a narrower field of view, and this is the kind of number a
   screenshot settles and a calculator does not.
 - **`worldMap` in FR and NL**
+## The sea state — one slider, a mirror to a gale
+
+**Sea** in the menu, between the craft and the sound: a native `<input
+type="range">` that scales the water from dead flat to a storm. It is the
+world's third setting and the second one that is remembered.
+
+### Three scalars over `SWELL`, not a fourth wave
+
+`SWELL` is still the same three crossing swells it has been since Phase 3. What
+the slider moves is three numbers laid over them — **height, spatial frequency
+and speed** — and all three read exactly **1 at `SEA_CALM`**, which is where the
+slider starts. The default is therefore the committed golden-hour sea to the
+bit, and nobody has to trust that claim: it falls out of the mapping.
+
+- **Height** is `(level / SEA_CALM) ** 2` — squared, so the calm half of the
+  travel is where the fine control is and the last quarter is where it turns
+  into weather. Full travel is ×6.25, which is 64 cm of water at a crest against
+  10 cm today.
+- **Frequency** and **speed** are linear and gentle, ×1.6 and ×1.72 at the top.
+  A gale is mostly taller and faster water; multiplying the spatial frequency
+  much harder just makes small water.
+
+They are written twice, on purpose: `uniform()` nodes for the shader and a plain
+object for `swell()` on the CPU, both from one `setSea()`. That is the same
+"one set of numbers, read twice" the boat already depends on, and the dev
+finite-difference assert in `Scenery.tsx` **now runs at three sea states** rather
+than one — the slider scales the height by `amp` and the slope by `amp * freq`,
+which is exactly one place to drop a factor.
+
+`Scenery` calls `setSea()` **during render**, which is the one place in that file
+that writes anything during render. It is four uniform assignments and it is
+idempotent; an effect would leave the frame between commit and effect showing
+the sea the visitor just moved away from.
+
+### The water is still geometrically flat, and that is the ceiling
+
+The plane has never been displaced — Phase 3's note says a displaced mesh buys a
+silhouette the horizon hides anyway, and at 10 cm of swell that was plainly
+right. At 64 cm it is a real limitation and worth writing down: **a storm here
+has no silhouette.** What sells it instead is
+
+- **whitecaps** — the crest height, broken up by a second noise field so the foam
+  is patches travelling with the water rather than bands drawn across it, gated
+  on a `uStorm` uniform that is zero at the default sea and below;
+- **the crest banding**, which takes over from the normal's own tilt as the
+  normal saturates — without it a storm shades to a flat dark sheet;
+- **a chop that scales sub-linearly**: the noise ripple's amplitude follows
+  `sqrt(amp)` and its frequency follows the swell's, or it smears into soft
+  blobs the size of the boat at full travel;
+- **and the boat**, which rides the real height field.
+
+**Displacing the mesh is Seb's call and is not a small one.** `GROUND` is 0.45 —
+every island plateau is 45 cm above the water — so a sea whose crests reach 64 cm
+would flood the world at the top of the slider. Real waves therefore mean
+capping the slider lower, or raising the islands, which CLAUDE.md says means
+teaching `Ship` to follow the ground first. Three changes, not one.
+
+### What the hull does about it
+
+Two saturating limits in `Ship`, both `m * tanh(v / m)` rather than a clamp, so
+small signal keeps its full gain and the default sea is within a few percent of
+what it always was (ride −4%, heel −5%):
+
+- **`RIDE`, 22 cm.** The honest one. The water is a flat plane, so a hull that
+  heaves further than this drops through a mirror and vanishes. Height at a
+  storm lives in the *rate* of the heave and in the heel, which have no ceiling
+  of that kind.
+- **`HEEL`, 0.6 rad — 34°.** A gale, not a capsize.
+
+And `WAVE_TILT` now tapers: it is a lie told to make a 12 cm swell visible, and
+a gale does not need it. `1 + (WAVE_TILT - 1) / sqrt(amp)`, so it is exactly 3
+at or below the sea the boat was tuned on and about 1.8 at full travel. Simulated
+over 40 s of drifting hull: mean heel 3° at the default, 18° at the top, and only
+4% of frames against the ceiling — without the taper it was 33%, which reads as
+clipping rather than as weather.
+
+### The sound has weather too
+
+The surf is the one audio layer that is already a function of the water, so it is
+the one the slider belongs in: the sea bed's gain scales from 0.15 at a mirror to
+2.25 at a gale, 1.0 at the default. One multiplier, no new layer.
+
+### Cost
+
+No dependency, no asset. About 90 lines across seven files, and the canvas chunk
+is unchanged in size to the kilobyte. `SEA_CALM` lives in `WorldGate` beside the
+craft's default and `Scenery` imports it back — a value import *into* the canvas
+chunk, which is free, and the build confirms `WorldGate` stayed its own 1.5 kB gz
+chunk rather than pulling three into the first route.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b` clean and `node src/i18n/locales.check.ts` green, on Seb's copy.
+- Full `npm install` + `npm run build` on a copy in the container: typegen, build
+  and all 22 prerenders clean. First-route JS unchanged; canvas chunk 456 kB gz,
+  under the 600 kB budget.
+- Rendered headless on swiftshader at sea 0, 0.4, 0.7 and 1.0, both hulls, with
+  the menu open — no console errors in any of them. Screenshots in
+  `Claude outputs/`.
+
+### Needs Seb
+
+- **Whether the top of the slider is a storm or a novelty.** Swiftshader has no
+  opinion about how a sea reads at 60fps on a real GPU, and the foam thresholds
+  (`0.55 … 0.98` on the crest, `0 … 0.4` on the breakup) are the two numbers to
+  turn.
+- **Whether the flat plane is good enough at full travel**, or whether the
+  slider should stop lower — see the three-changes note above.
+- **`sea` in FR and NL** — "Mer" / "Zee", the slider's label. Unreviewed, and it
+  joins the nine already waiting.
+- **Whether remembering it is right.** A visitor who left it at a gale comes back
+  to a gale. The alternative is that the site always opens on its committed sea
+  and the storm is something you go and find.

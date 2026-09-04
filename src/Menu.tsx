@@ -6,7 +6,7 @@ import { type ShipModel, useWorld } from './WorldGate'
 /**
  * The site's only top chrome, on every route: one square in the top right, and
  * everything the header used to carry behind it — home, the work index, the
- * three languages, and the world's sound when there is a world to hear.
+ * three languages, and the world's three settings when there is a world.
  *
  * `<details>`, not a button and a piece of state. The disclosure is the
  * platform's, so it opens, closes, and takes the keyboard with JavaScript off —
@@ -20,7 +20,7 @@ import { type ShipModel, useWorld } from './WorldGate'
  * is the world's one setting, and the menu is the only thing that touches it.
  */
 export function Menu() {
-  const { active: world, sound, toggleSound, model, setModel } = useWorld()
+  const { active: world, sound, toggleSound, model, setModel, sea, setSea } = useWorld()
   const pathname = canonicalPath(useLocation().pathname)
   const lang = localeOf(pathname) ?? SOURCE_LOCALE
   const t = STRINGS[lang]
@@ -83,7 +83,7 @@ export function Menu() {
           )}
         </p>
 
-        {/* The world's two settings. A native `<select>` rather than a pair of
+        {/* The world's three settings. A native `<select>` rather than a pair of
             radios or a second toggle: two options today, and a list that grows
             costs nothing here, while the keyboard, the screen reader and the
             phone's own picker all come with it.
@@ -105,6 +105,29 @@ export function Menu() {
               <option value="saucer">{t.modelSaucer}</option>
               <option value="boat">{t.modelBoat}</option>
             </select>
+
+            {/* The weather. A native range, so the keyboard gets arrows, Home
+                and End, the phone gets a thumb, and a screen reader gets a
+                slider — none of which a pair of buttons would have brought.
+
+                It is 0 to 100 rather than 0 to 1 because the step of an integer
+                range is what browsers give the arrow keys, and a hundred
+                notches across a mirror-to-a-gale is a fine grain to steer by.
+                `WorldGate` keeps it as a fraction; this is the only place that
+                knows about percent. */}
+            <p className="label" id="menu-sea">
+              {t.sea}
+            </p>
+            <input
+              className="sea"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(sea * 100)}
+              aria-labelledby="menu-sea"
+              onChange={(e) => setSea(Number(e.target.value) / 100)}
+            />
 
             <button type="button" className="sound" aria-pressed={sound} onClick={toggleSound}>
               {t.sound}
