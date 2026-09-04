@@ -236,8 +236,11 @@ hull and the weather they chose, while it does refuse them sound before they
 have clicked.
 
 Calm is the chop the world shipped with, scaled up by `CHOP`. Agitated is that
-same chop with a train of rollers under it: 52 units apart, 2.8 tall against a
-1.9 m mast, and the **one thing in this world made of displaced geometry** —
+same chop with three crossing trains of rollers under it — 96, 74 and 60 units
+between crests, at spread headings, the tallest 2.6 against a 1.9 m mast, summed
+so that no two crests line up twice. Three rather than one because one train is
+a corrugated roof, every crest parallel to the last. They are the **one thing in
+this world made of displaced geometry** —
 Phase 3's "the surface stays geometrically flat" no longer holds for that term,
 because a wave bigger than the ship that is only a painted normal has nothing to
 ride and nothing to be thrown off. The rollers are damped to nothing over every

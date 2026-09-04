@@ -21,9 +21,10 @@ import type { Sea } from './WorldGate'
  * rather than by three hand-tuned colours agreeing.
  *
  * The sea has two states, which the menu switches between: **calm**, the chop
- * this world has always had, and **agitated**, which is that same chop with a
- * train of rollers under it — taller than the ship, far apart, and the only
- * thing in this world that is real geometry rather than a painted normal.
+ * this world has always had, and **agitated**, which is that same chop with
+ * three crossing trains of rollers under it — taller than the ship, far apart,
+ * and the only thing in this world that is real geometry rather than a painted
+ * normal.
  */
 
 // Low (16 deg) and over the visitor's left shoulder.
@@ -130,37 +131,58 @@ const CHOP = { amp: 1.5625, freq: 1.1, speed: 1.12 }
 /* ---------------------------------------------------------------------------
  * The rollers.
  *
- * The agitated sea's one addition: a single train of big, widely spaced swells
- * that the water plane is actually *displaced* by, because a wave taller than
- * the ship cannot be a painted normal — there would be nothing to ride, and
- * nothing to be thrown off.
+ * The agitated sea's one addition: big, widely spaced swells that the water
+ * plane is actually *displaced* by, because a wave taller than the ship cannot
+ * be a painted normal — there would be nothing to ride, and nothing to be
+ * thrown off.
  *
- * The crest is a sine raised to a power rather than a sine, which is what makes
- * them *few*: at `sharp` 7 a crest occupies about a fifth of a wavelength and
- * the rest is the water that was already there. `modDepth` is a second, much
- * longer wave along the crest line, so a roller is tall in places and barely
- * there in others rather than a corrugation running to the horizon.
+ * Each crest is a sine raised to a power rather than a sine, which is what
+ * makes them *few*: at `sharp` 9 or more a crest occupies about a sixth of a
+ * wavelength and the rest is the water that was already there. `modDepth` is a
+ * second, much longer wave along the crest line, so one roller is tall in
+ * places and barely there in others.
+ *
+ * And there are **three trains, not one**, because one train is a corrugated
+ * roof: every crest parallel to every other, from here to the horizon, for as
+ * long as you sail. Three at spread headings, with wavelengths and speeds that
+ * share no factor, cross into something with no readable direction — long
+ * ridges where two agree, short pyramids where three do, and flat water in
+ * between. They are summed and not maxed: a sum has the gradient of a sum,
+ * which is what keeps the hull on the water the shader drew.
+ *
+ * The heights fall off with the wavelength, which is what the sea does. The sum
+ * runs to about 3.1 at the 99th percentile of open water and peaks near 4 where
+ * all three happen to agree, against a 1.9 m mast — and sits under half a metre
+ * half the time, which is what makes the big ones worth waiting for.
  * ------------------------------------------------------------------------ */
 
-const ROLL = {
-  dir: [0.45, 0.89] as [number, number], // travel direction, unit
-  len: 52,       // wavelength, world units — fourteen vertices of the water mesh
-  height: 2.8,   // crest above the base sea. The mast is 1.9, the hull 2.7 long.
-  speed: 6.5,    // units/sec. Cruise is 7.5, so a boat can outrun one; meeting
-  //                one head on closes at fourteen, and at full sail at 24.
-  sharp: 9,      // crest exponent: higher is fewer and narrower. Nine puts 18%
-  //                of the wavelength — nine units — above half height, and the
-  //                face it leaves is 24 degrees of real geometry.
-  modLen: 150,   // the along-crest modulation, world units
-  modSpeed: 0.2, // radians/sec
-  modDepth: 0.3, // so a crest runs between 0.4 and 1.0 of its height, and where
-  //                the sea is running big drifts across it over half a minute
-}
-const RK = (2 * Math.PI) / ROLL.len
-const RW = ROLL.speed * RK
-/** Along the crest, which is the direction the modulation runs in. */
-const QDIR: [number, number] = [-ROLL.dir[1], ROLL.dir[0]]
-const QK = (2 * Math.PI) / ROLL.modLen
+const ROLLERS = [
+  // angle: heading in the XZ plane, degrees. Spread unevenly on purpose — 90
+  // apart three times over is its own kind of pattern.
+  // len/speed: wavelength in world units, and units/sec. Cruise is 7.5, so a
+  // boat can outrun the slowest; meeting the fastest head on closes at fifteen,
+  // and at full sail at twenty-five, which is the jump.
+  // phase: so the three do not all crest at the world's origin at t = 0.
+  { angle: 20, len: 96, height: 2.6, speed: 7.6, sharp: 9, modLen: 190, modSpeed: 0.2, phase: 0 },
+  { angle: 112, len: 74, height: 1.7, speed: 6.4, sharp: 10, modLen: 150, modSpeed: 0.17, phase: 2.1 },
+  { angle: 218, len: 60, height: 1.1, speed: 5.6, sharp: 11, modLen: 120, modSpeed: 0.23, phase: 4.4 },
+]
+/** How far a crest may be cut down along its own length: 0.35 puts a roller
+ *  between 0.65 and 1.0 of its height, and where the sea runs big drifts across
+ *  the world over half a minute. One number for all three — it is the same sea. */
+const MOD_DEPTH = 0.35
+
+/** Everything the trains need derived, once, at module scope: the heading, the
+ *  wavenumber, the along-crest axis the modulation runs on. */
+const TRAINS = ROLLERS.map((r) => {
+  const a = (r.angle * Math.PI) / 180
+  const dir: [number, number] = [Math.cos(a), Math.sin(a)]
+  const k = (2 * Math.PI) / r.len
+  return { ...r, dir, q: [-dir[1], dir[0]] as [number, number], k, w: r.speed * k, qk: (2 * Math.PI) / r.modLen }
+})
+
+/** The tallest single crest, which is what `crest` below is a fraction of. */
+const TALLEST = Math.max(...ROLLERS.map((r) => r.height))
 
 /**
  * How much of the roller train is in the water right now: 0 calm, 1 agitated,
@@ -221,16 +243,21 @@ export function swell(x: number, z: number, t: number) {
   let rx = 0
   let rz = 0
   if (SEA.roll > 0) {
-    const phase = (x * ROLL.dir[0] + z * ROLL.dir[1]) * RK + t * RW
-    const g = Math.sin(phase) * 0.5 + 0.5
-    const gp = g ** ROLL.sharp
-    const q = (x * QDIR[0] + z * QDIR[1]) * QK + t * ROLL.modSpeed
-    const m = 1 - ROLL.modDepth + Math.sin(q) * ROLL.modDepth
-    const h = ROLL.height * gp * m
-    const dgp = ROLL.sharp * g ** (ROLL.sharp - 1) * 0.5 * Math.cos(phase) // d(g^P)/d(phase)
-    const dm = ROLL.modDepth * Math.cos(q)
-    const hx = ROLL.height * (dgp * RK * ROLL.dir[0] * m + gp * dm * QK * QDIR[0])
-    const hz = ROLL.height * (dgp * RK * ROLL.dir[1] * m + gp * dm * QK * QDIR[1])
+    let h = 0
+    let hx = 0
+    let hz = 0
+    for (const r of TRAINS) {
+      const phase = (x * r.dir[0] + z * r.dir[1]) * r.k + t * r.w + r.phase
+      const g = Math.sin(phase) * 0.5 + 0.5
+      const gp = g ** r.sharp
+      const q = (x * r.q[0] + z * r.q[1]) * r.qk + t * r.modSpeed
+      const m = 1 - MOD_DEPTH + Math.sin(q) * MOD_DEPTH
+      const dgp = r.sharp * g ** (r.sharp - 1) * 0.5 * Math.cos(phase) // d(g^P)/d(phase)
+      const dm = MOD_DEPTH * Math.cos(q)
+      h += r.height * gp * m
+      hx += r.height * (dgp * r.k * r.dir[0] * m + gp * dm * r.qk * r.q[0])
+      hz += r.height * (dgp * r.k * r.dir[1] * m + gp * dm * r.qk * r.q[1])
+    }
     const s = shoal(x, z)
     y += h * s.f * SEA.roll
     rx = (hx * s.f + h * s.dx) * SEA.roll
@@ -301,31 +328,37 @@ function shoalNode(p: Vec2) {
 }
 
 /**
- * The roller train at a world XZ: height above the base sea, gradient, and how
- * much of a full crest this is. Called from the vertex stage to displace the
- * water and from the fragment stage to shade it — one function written once and
- * evaluated twice, rather than a varying to keep in step.
+ * The three trains at a world XZ: height above the base sea, gradient, and how
+ * much of a full crest that adds up to. Called from the vertex stage to
+ * displace the water and from the fragment stage to shade it — one function
+ * written once and evaluated twice, rather than a varying to keep in step.
  */
 function rollerNode(p: Vec2) {
-  const phase = p.x.mul(ROLL.dir[0] * RK).add(p.y.mul(ROLL.dir[1] * RK)).add(T.mul(RW))
-  const g = sin(phase).mul(0.5).add(0.5)
-  const gp = pow(g, ROLL.sharp)
-  const q = p.x.mul(QDIR[0] * QK).add(p.y.mul(QDIR[1] * QK)).add(T.mul(ROLL.modSpeed))
-  const m = sin(q).mul(ROLL.modDepth).add(1 - ROLL.modDepth)
-  const dgp = pow(g, ROLL.sharp - 1).mul(ROLL.sharp * 0.5).mul(cos(phase))
-  const dm = cos(q).mul(ROLL.modDepth)
+  let h: Float = float(0)
+  let hx: Float = float(0)
+  let hz: Float = float(0)
+  for (const r of TRAINS) {
+    const phase = p.x.mul(r.dir[0] * r.k).add(p.y.mul(r.dir[1] * r.k)).add(T.mul(r.w)).add(r.phase)
+    const g = sin(phase).mul(0.5).add(0.5)
+    const gp = pow(g, r.sharp)
+    const q = p.x.mul(r.q[0] * r.qk).add(p.y.mul(r.q[1] * r.qk)).add(T.mul(r.modSpeed))
+    const m = sin(q).mul(MOD_DEPTH).add(1 - MOD_DEPTH)
+    const dgp = pow(g, r.sharp - 1).mul(r.sharp * 0.5).mul(cos(phase))
+    const dm = cos(q).mul(MOD_DEPTH)
 
-  const h = gp.mul(m).mul(ROLL.height)
-  const hx = dgp.mul(RK * ROLL.dir[0]).mul(m).add(gp.mul(dm).mul(QK * QDIR[0])).mul(ROLL.height)
-  const hz = dgp.mul(RK * ROLL.dir[1]).mul(m).add(gp.mul(dm).mul(QK * QDIR[1])).mul(ROLL.height)
+    h = h.add(gp.mul(m).mul(r.height))
+    hx = hx.add(dgp.mul(r.k * r.dir[0]).mul(m).add(gp.mul(dm).mul(r.qk * r.q[0])).mul(r.height))
+    hz = hz.add(dgp.mul(r.k * r.dir[1]).mul(m).add(gp.mul(dm).mul(r.qk * r.q[1])).mul(r.height))
+  }
 
   const s = shoalNode(p)
   return {
     h: h.mul(s.f).mul(uRoll),
     dx: hx.mul(s.f).add(h.mul(s.dx)).mul(uRoll),
     dz: hz.mul(s.f).add(h.mul(s.dz)).mul(uRoll),
-    /** 0 to 1 of a full-height crest — what the foam and the crest colour sit on. */
-    crest: gp.mul(m).mul(s.f).mul(uRoll),
+    /** The sum as a fraction of the tallest single crest — so foam lands on the
+     *  big ones and on the places two trains agree, and nowhere else. */
+    crest: h.div(TALLEST).mul(s.f).mul(uRoll),
   }
 }
 
@@ -407,8 +440,8 @@ export function Scenery({ sea }: {
  * XZ *is* world XZ and the vertex stage can displace `positionLocal.y` with no
  * basis change to get wrong.
  *
- * 240 segments across 900 units is a vertex every 3.75, which is fourteen
- * across a roller — enough for a crest a hull rides up. It is nowhere near
+ * 240 segments across 900 units is a vertex every 3.75, which is sixteen across
+ * the shortest of the three roller trains — enough for a crest a hull rides up. It is nowhere near
  * enough for the chop, and the chop is not displaced: 15 cm of water is a
  * normal, and always was. 58k vertices, one draw call, no attributes but the
  * position: the displacement is arithmetic in the vertex stage, not a texture.

@@ -1595,13 +1595,34 @@ The agitated sea is **that same chop, unchanged**, with something under it.
 
 ### The rollers, and why the plane is no longer flat
 
-One train of big swells, `ROLL`: 52 units between crests, 2.8 tall against a
-1.9 m mast, moving at 6.5 units a second. The crest is a sine raised to the
-ninth rather than a sine, which is what makes them *few* — 18% of the wavelength
-is above half height and the rest is the water that was already there — and a
-second, much longer wave along the crest line takes each roller between 0.4 and
-1.0 of its height, so the sea runs big in places and slack in others and that
-drifts across the world over half a minute.
+Three trains of big swells, `ROLLERS`, at headings 20°, 112° and 218° with
+wavelengths 96, 74 and 60 and heights 2.6, 1.7 and 1.1 against a 1.9 m mast.
+Each crest is a sine raised to the ninth or higher rather than a sine, which is
+what makes them *few* — about a sixth of the wavelength is above half height and
+the rest is the water that was already there — and a second, much longer wave
+along each crest line takes a roller between 0.65 and 1.0 of its height, so the
+sea runs big in places and slack in others and that drifts across the world over
+half a minute.
+
+**Three and not one, and that was Seb's correction to the first build.** One
+train is a corrugated roof: every crest parallel to every other, from here to
+the horizon, for as long as you sail — the shape is unmistakable the moment you
+turn. Three at spread headings, with wavelengths and speeds sharing no factor,
+cross into something with no readable direction: long ridges where two agree,
+short pyramids where three do, flat water in between. They are summed, not
+maxed, because a sum has the gradient of a sum and that is what keeps the hull
+on the water the shader drew.
+
+Summing three peaked trains does not make three times the water, because the
+crests are narrow and rarely coincide. Over open water the height sits under
+half a metre half the time, reaches 1.8 at the 90th percentile, 3.1 at the 99th,
+and peaks near 4 where all three happen to agree — which is the rogue one, and
+worth waiting for.
+
+The heights fall off with the wavelength, which is what a real sea does, and the
+first attempt at three trains kept the old 52-unit wavelength: that made the
+faces steep enough to throw the boat into the air at cruising speed, which lost
+the distinction the whole thing is built on. Longer and lower fixed it.
 
 **The water plane is displaced now, and that reverses a decision this file has
 carried since Phase 3.** The old note said a displaced mesh buys a silhouette
@@ -1654,11 +1675,13 @@ Simulated against the real wave train, over a minute of sailing straight at it:
 
 | Speed | What happens |
 |---|---|
-| 0–9 | rides. Never leaves the water. |
-| 11 | 7 cm of daylight, once. |
-| 13 | hops — 23 cm, five times a minute. |
-| 15 | 1.2 m of air. |
-| 18 (full sail) | 2.4 m, once per wave. |
+| 7.5 (cruise) | rides. 7–30 cm of daylight at most, and rarely. |
+| 13 | 0.8 to 1.8 m of air. |
+| 18 (full sail) | 1.5 to 2.9 m, depending on the heading. |
+
+Measured over 90 seconds of sailing at each of three headings, because with
+three crossing trains the answer is no longer the same in every direction — and
+that spread is the point of having three.
 
 Cruise is 7.5 and full sail is 18, so the threshold sits inside the boost range:
 holding shift into a roller is the jump, and that is a thing a visitor finds
@@ -1714,20 +1737,24 @@ untouched.
 - `npx tsc -b` clean and `node src/i18n/locales.check.ts` green, on Seb's copy.
 - Full `npm install` + `npm run build` on a copy in the container: typegen,
   build and all 22 prerenders clean.
-- The analytic gradients checked against finite differences at three points, two
-  sea states, including inside an island's fade — 1e-11 agreement.
-- The hull dynamics simulated against the real wave field at six speeds, which
-  is the table above.
-- Rendered headless on swiftshader: both seas, both hulls, the menu open, and a
-  strip of eight frames holding W and shift into the wave train. No console
-  errors anywhere. Screenshots in `Claude outputs/`.
+- The analytic gradients checked against finite differences — 1e-11 agreement,
+  in open water and inside an island's fade, calm and agitated, and again after
+  the sea became three trains.
+- The height and slope distribution sampled over a 180-unit patch of open water,
+  which is where the percentiles above come from.
+- The hull dynamics simulated against the real wave field at three speeds and
+  three headings, which is the table above.
+- Rendered headless on swiftshader: both seas, both hulls, the menu open, and
+  nine frames sailing all four ways under full sail. No console errors anywhere.
+  Screenshots in `Claude outputs/`.
 
 ### Needs Seb
 
 - **The frame rate**, which is the one thing that changed shape here. 115k
-  triangles of water with a per-vertex roller, on a 2022 mid-tier laptop.
-  `SEGMENTS` in `Scenery.tsx` is the dial; the wave needs about twelve vertices
-  across it, so 240 has some room under it before the crest starts to shimmer.
+  triangles of water, each vertex evaluating three trains and three smoothsteps,
+  on a 2022 mid-tier laptop. `SEGMENTS` in `Scenery.tsx` is the dial; the
+  shortest train needs about twelve vertices across it and has sixteen, so there
+  is room under 240 before a crest starts to shimmer.
 - **Whether the jump is a jump or a launch.** `GRAV` 9 and `LAUNCH` 7 give 2.4 m
   of air at full sail. Higher gravity is a snappier, lower arc.
 - **Whether the camera's two lags feel right**, especially whether the horizon
