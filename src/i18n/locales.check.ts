@@ -20,8 +20,9 @@ assert.equal(localeOf('/'), null)
 assert.equal(withLocale('/fr/work/scrubble', 'nl'), '/nl/work/scrubble')
 assert.equal(withLocale('/fr', 'en'), '/en')
 assert.equal(withLocale('/en/work', 'fr'), '/fr/work')
+assert.equal(withLocale('/en/world', 'nl'), '/nl/world')
 // hreflang for every prerendered path must round-trip through itself.
-for (const p of ['/en', '/en/work', '/en/work/polarsense', '/en/404']) {
+for (const p of ['/en', '/en/world', '/en/work', '/en/work/polarsense', '/en/404']) {
   assert.equal(withLocale(p, 'en'), p)
 }
 
@@ -34,20 +35,22 @@ assert.equal(canonicalPath('/en/work'), '/en/work')
 // not obvious by reading: get it wrong in the permissive direction and the flat
 // index has a scene running behind it; wrong the other way and flying into a
 // landmark closes the panel it just opened.
-assert.equal(isWorldPath('/en'), true)
-assert.equal(isWorldPath('/nl/'), true)
+assert.equal(isWorldPath('/en/world'), true)
+assert.equal(isWorldPath('/nl/world/'), true)
 assert.equal(isWorldPath('/fr/work/scrubble'), true)
+assert.equal(isWorldPath('/en'), false) // the landing page — a gradient, not a canvas
 assert.equal(isWorldPath('/en/work'), false) // the flat index the skip link points at
 assert.equal(isWorldPath('/en/404'), false)
 assert.equal(isWorldPath('/en/work/a/b'), false)
+assert.equal(isWorldPath('/en/world/anything'), false)
 assert.equal(isWorldPath('/de'), false)
 assert.equal(isWorldPath('/'), false)
-assert.equal(isWorldPath('/world'), false) // retired in Phase 3, and not a locale anyway
+assert.equal(isWorldPath('/world'), false) // not a locale
 
 // `?read` is the way out, from any world path and only from a world path.
 assert.equal(isWorldPath('/en/work/scrubble', '?read'), false)
 assert.equal(isWorldPath('/en/work/scrubble', '?read=1&debug'), false)
-assert.equal(isWorldPath('/en', '?read'), false)
+assert.equal(isWorldPath('/en/world', '?read'), false)
 assert.equal(isWorldPath('/en/work/scrubble', '?debug'), true)
 assert.equal(isWorldPath('/en/work/scrubble', ''), true)
 

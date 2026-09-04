@@ -1,5 +1,6 @@
-import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router'
+import { Link, Outlet, useLocation, useParams } from 'react-router'
 import { CONTACT, LOCALES, SITE_URL, SOURCE_LOCALE, STRINGS, canonicalPath, isLocale, withLocale } from '../i18n'
+import { Menu } from '../Menu'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
 
@@ -10,7 +11,7 @@ import NotFound from './not-found'
 export default function LocaleLayout() {
   const { lang } = useParams()
   const pathname = canonicalPath(useLocation().pathname)
-  const world = useWorld()
+  const { active: world } = useWorld()
   if (!isLocale(lang)) return <NotFound />
   const t = STRINGS[lang]
 
@@ -37,27 +38,10 @@ export default function LocaleLayout() {
         </a>
       )}
 
-      <header className="bar">
-        <Link to={`/${lang}`} className="wordmark">
-          {t.name}
-        </Link>
-        <nav aria-label={t.navWork}>
-          <NavLink to={`/${lang}/work`}>{t.navWork}</NavLink>
-        </nav>
-        <nav aria-label={t.languages} className="langs">
-          {LOCALES.map((l) =>
-            l === lang ? (
-              <span key={l} aria-current="true">
-                {l.toUpperCase()}
-              </span>
-            ) : (
-              <Link key={l} to={withLocale(pathname, l)} hrefLang={l}>
-                {l.toUpperCase()}
-              </Link>
-            ),
-          )}
-        </nav>
-      </header>
+      {/* What is left of the header, and second in the tab order where the
+          header was: one button in the top right, and the wordmark's link, the
+          work index, the languages and the world's sound behind it. */}
+      <Menu />
 
       <main id="content">
         <Outlet context={lang} />
