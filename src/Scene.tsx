@@ -22,13 +22,16 @@ extend(THREE as never)
  * holds "which panel is showing" of its own.
  */
 export default function Scene({
-  active, model, slug, debug, sound, onNear, onBackend,
+  active, model, sea, slug, debug, sound, onNear, onBackend,
 }: {
   active: boolean
   /** Which hull the menu is showing. Passed through rather than read from the
    *  world's context: this tree is inside the canvas and reads the URL and its
    *  props, nothing else. */
   model: ShipModel
+  /** The sea state the menu's slider is on, 0 (a mirror) to 1 (a gale). Handed
+   *  to `Scenery`, which owns the waves and writes them into the shader. */
+  sea: number
   slug: string | null
   debug: boolean
   /** The HUD's toggle. Off by default, and the click that turns it on is also
@@ -51,7 +54,7 @@ export default function Scene({
     >
       {/* Seen for one frame before the dome draws, and through it if it ever fails. */}
       <color attach="background" args={['#2a3f5f']} />
-      <Scenery />
+      <Scenery sea={sea} />
       <Islands />
       <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
       {/* Reads the ship's position, so it is mounted after it. */}
