@@ -64,9 +64,12 @@ const en = {
   // is a landmark for a screen reader rather than decoration.
   worldMap: 'Map of the world',
   sound: 'Sound',
-  // The slider's label. One word for the whole range, because the control says
-  // the rest: all the way down is a mirror and all the way up is a gale.
+  // The sea, and its two states. "Agitated" rather than "rough" or "stormy":
+  // it is the sea's own word in a forecast, and it is what the water is — the
+  // same chop with a swell running under it, not weather that arrived.
   sea: 'Sea',
+  seaCalm: 'Calm',
+  seaAgitated: 'Agitated',
   // The menu's other world setting. One word that has to cover a flying saucer
   // and a sailing boat, in three languages — "craft" does it in English and the
   // other two are Seb's to confirm.
@@ -117,6 +120,8 @@ const fr: Strings = {
   worldMap: 'Carte du monde',
   sound: 'Son',
   sea: 'Mer',
+  seaCalm: 'Calme',
+  seaAgitated: 'Agitée',
   model: 'Engin',
   modelSaucer: 'Soucoupe',
   modelBoat: 'Bateau',
@@ -162,6 +167,8 @@ const nl: Strings = {
   worldMap: 'Kaart van de wereld',
   sound: 'Geluid',
   sea: 'Zee',
+  seaCalm: 'Kalm',
+  seaAgitated: 'Bewogen',
   model: 'Vaartuig',
   modelSaucer: 'Schotel',
   modelBoat: 'Boot',

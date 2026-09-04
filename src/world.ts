@@ -82,6 +82,78 @@ const BEAM = 0.55
 export const moorRadius = (l: Landmark) => shoreOf(l) + BEAM
 
 /**
+ * How far past a shoreline the big rollers take to come back to full height.
+ *
+ * The agitated sea carries swells taller than the ship, and an island plateau
+ * is `GROUND` — 45 cm — above the water. A swell that ran over one would put
+ * the mine under the sea twice a minute, so it does not: the rollers are damped
+ * to nothing over every island's shallows and each island sits in its own patch
+ * of sheltered water, which is also what a real one does.
+ *
+ * Seven and not ten, which was the first guess: the three islands are close
+ * enough together that three overlapping ten-unit fades multiplied out to a
+ * quarter of the swell at the world's origin, which is where the visitor
+ * arrives. At seven they are clear of each other and the sea is running where
+ * the ship starts.
+ */
+export const SHOAL = 7
+
+/** Islands as the swell sees them: a centre, and the radius inside which there
+ *  is no swell at all. Here rather than in `Scenery` for the same reason
+ *  `shoreOf` exists at all — two files guessing at one coastline is one too
+ *  many, and this one is read by the water shader *and* by the hull. */
+export const SHOALS = LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) }))
+
+/**
+ * How much of a roller survives at (x, z), 0 over a shoreline and 1 in open
+ * water — and the gradient of that, because the water is displaced by this
+ * product and the surface it draws has to be the surface the hull rides.
+ *
+ * The factor is a product of one smoothstep per island; its derivative is the
+ * product rule, which with three islands is nine multiplications and no
+ * allocation. `Scenery` builds the same expression in TSL, and the
+ * finite-difference assert there is what keeps the two honest.
+ *
+ * Returns a shared object — read it, do not keep it.
+ */
+const _fade = new Float64Array(SHOALS.length)
+const _rate = new Float64Array(SHOALS.length) // d(fade)/d(distance)
+const _ux = new Float64Array(SHOALS.length)
+const _uz = new Float64Array(SHOALS.length)
+const _shoal = { f: 1, dx: 0, dz: 0 }
+export function shoal(x: number, z: number) {
+  for (let i = 0; i < SHOALS.length; i++) {
+    const c = SHOALS[i]
+    const dx = x - c.x
+    const dz = z - c.z
+    const d = Math.hypot(dx, dz)
+    const t = Math.min(Math.max((d - c.r) / SHOAL, 0), 1)
+    _fade[i] = t * t * (3 - 2 * t)
+    // Zero outside the ramp, so a hull in open water pays for three clamps and
+    // nothing else.
+    _rate[i] = t > 0 && t < 1 ? (6 * t * (1 - t)) / SHOAL : 0
+    const inv = d > 1e-6 ? 1 / d : 0
+    _ux[i] = dx * inv
+    _uz[i] = dz * inv
+  }
+  let f = 1
+  for (let i = 0; i < SHOALS.length; i++) f *= _fade[i]
+  let gx = 0
+  let gz = 0
+  for (let i = 0; i < SHOALS.length; i++) {
+    if (_rate[i] === 0) continue
+    let others = 1
+    for (let j = 0; j < SHOALS.length; j++) if (j !== i) others *= _fade[j]
+    gx += _rate[i] * _ux[i] * others
+    gz += _rate[i] * _uz[i] * others
+  }
+  _shoal.f = f
+  _shoal.dx = gx
+  _shoal.dz = gz
+  return _shoal
+}
+
+/**
  * How much wider the circle that opens a panel is than the one that stops the
  * boat. A hair, and it has to be more than nothing: `offshore` puts the hull
  * *on* the stopping circle, and a strict `<` there is a panel that opens or

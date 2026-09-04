@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { LOCALES, SOURCE_LOCALE, STRINGS, canonicalPath, localeOf, withLocale } from './i18n'
-import { type ShipModel, useWorld } from './WorldGate'
+import { type Sea, type ShipModel, useWorld } from './WorldGate'
 
 /**
  * The site's only top chrome, on every route: one square in the top right, and
@@ -106,28 +106,22 @@ export function Menu() {
               <option value="boat">{t.modelBoat}</option>
             </select>
 
-            {/* The weather. A native range, so the keyboard gets arrows, Home
-                and End, the phone gets a thumb, and a screen reader gets a
-                slider — none of which a pair of buttons would have brought.
-
-                It is 0 to 100 rather than 0 to 1 because the step of an integer
-                range is what browsers give the arrow keys, and a hundred
-                notches across a mirror-to-a-gale is a fine grain to steer by.
-                `WorldGate` keeps it as a fraction; this is the only place that
-                knows about percent. */}
+            {/* The weather, and the same `<select>` as the craft above it for
+                the same reasons — two named states read better as their names
+                than as two ends of a track with nothing written on it, and the
+                platform brings the popup, the phone's wheel and the keyboard. */}
             <p className="label" id="menu-sea">
               {t.sea}
             </p>
-            <input
-              className="sea"
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(sea * 100)}
+            <select
+              className="craft"
               aria-labelledby="menu-sea"
-              onChange={(e) => setSea(Number(e.target.value) / 100)}
-            />
+              value={sea}
+              onChange={(e) => setSea(e.target.value as Sea)}
+            >
+              <option value="calm">{t.seaCalm}</option>
+              <option value="agitated">{t.seaAgitated}</option>
+            </select>
 
             <button type="button" className="sound" aria-pressed={sound} onClick={toggleSound}>
               {t.sound}
