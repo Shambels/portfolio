@@ -60,6 +60,9 @@ const en = {
   worldControlsBoatTouch: 'Drag to sail',
   // A toggle button's label stays put and `aria-pressed` carries the state, so
   // this is one word rather than an on and an off in three languages.
+  // The map's accessible name. It replaced the world's project list, so it
+  // is a landmark for a screen reader rather than decoration.
+  worldMap: 'Map of the world',
   sound: 'Sound',
   // The menu's other world setting. One word that has to cover a flying saucer
   // and a sailing boat, in three languages — "craft" does it in English and the
@@ -108,6 +111,7 @@ const fr: Strings = {
   worldControlsTouch: 'Glissez pour voler · deux doigts pour monter',
   worldControlsBoat: 'ZQSD ou flèches pour naviguer · maj pour toute la voile',
   worldControlsBoatTouch: 'Glissez pour naviguer',
+  worldMap: 'Carte du monde',
   sound: 'Son',
   model: 'Engin',
   modelSaucer: 'Soucoupe',
@@ -151,6 +155,7 @@ const nl: Strings = {
   worldControlsTouch: 'Sleep om te vliegen · twee vingers om te stijgen',
   worldControlsBoat: 'WASD of pijltjes om te varen · shift voor volle zeilen',
   worldControlsBoatTouch: 'Sleep om te varen',
+  worldMap: 'Kaart van de wereld',
   sound: 'Geluid',
   model: 'Vaartuig',
   modelSaucer: 'Schotel',

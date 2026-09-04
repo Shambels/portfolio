@@ -550,6 +550,77 @@ canvas {
   white-space: nowrap;
 }
 
+/* --- the map ------------------------------------------------------------ */
+
+/*
+  Roaming, the world has no panel: the project list that used to sit in the
+  card is a top view in the bottom right instead. `.roam` is on `<html>` and
+  means "the world is showing and no landmark is open" — the panel is still
+  rendered and still in the prerendered document, which is what a visitor with
+  no JavaScript and no renderer keeps.
+
+  The map is the other half of that class, and `WorldGate` unmounts it at a
+  landmark rather than hiding it here: on a narrow window and on touch the panel
+  is a sheet across this same corner, and a map nobody can see is not worth a
+  frame loop.
+*/
+
+.roam main {
+  display: none;
+}
+
+/* The same glass as the panel and the menu button, square, and sized off the
+   window rather than the world — the scale inside it is `SPAN` in `MiniMap`. */
+.map {
+  position: fixed;
+  z-index: 2;
+  right: clamp(1.25rem, 5vw, 3rem);
+  bottom: 2.5rem;
+  width: min(11rem, 34vw);
+  aspect-ratio: 1;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #0b0c0fd9;
+  backdrop-filter: blur(14px);
+}
+
+/* One island, one letter, one link. Positioned and sized in percentages by
+   `MiniMap`, from the same frontmatter the scene is built from. */
+.map .isle {
+  position: absolute;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d5ac7259;
+  border-radius: 50%;
+  background: #d5ac7226;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.map .isle:hover,
+.map .isle:focus-visible {
+  background: #e9a85140;
+  border-color: var(--gold);
+  color: #fff;
+}
+
+/* The character: a dart on the running lights' own blue, pointing where the
+   ship is pointing. Drawn facing down, which is yaw 0 — `MiniMap` rotates it. */
+.map .me {
+  position: absolute;
+  width: 0.6rem;
+  height: 0.78rem;
+  translate: -50% -50%;
+  background: #7dd3fc;
+  clip-path: polygon(50% 100%, 0 0, 50% 24%, 100% 0);
+  filter: drop-shadow(0 0 3px #7dd3fc80);
+}
+
 /* A narrow desktop window: `pointer: fine` is the mount test, and a laptop can
    still be half-screened. The panel becomes a sheet rather than a column, and
    the footer gets out from under the hint. */
@@ -613,6 +684,13 @@ canvas {
      — the same trade the narrow-window rule above already makes. */
   .world .foot {
     display: none;
+  }
+
+  /* The HUD is in this corner on touch, so the map sits above it — the same
+     4.6rem of clearance the panel is given, measured against the same hint. */
+  .map {
+    bottom: calc(4.6rem + env(safe-area-inset-bottom));
+    width: min(8.5rem, 34vw);
   }
 }
 

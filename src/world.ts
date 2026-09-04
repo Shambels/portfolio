@@ -28,6 +28,16 @@ export type Landmark = {
  */
 export const GROUND = 0.45
 
+/**
+ * Where the character is, in world XZ, and which way it is facing. Written once
+ * per frame by `Ship`, read by `MiniMap`.
+ *
+ * Plain numbers rather than `Ship`'s own `SHIP` vector, and here rather than
+ * there, because the map is DOM outside the canvas chunk: a value import from
+ * anything under `Scene` would pull three into the first-route bundle.
+ */
+export const VIEW = { x: 0, z: 0, yaw: 0 }
+
 export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   slug: p.slug,
   landmark: p.landmark,

@@ -1434,3 +1434,70 @@ Not on Seb's machine — the dev server cannot run from Claude's Linux VM, and
 - **Lighthouse, once it is deployed.** The shore is markup and gradients, so
   nothing here should touch LCP, but the flat-site 100 is a Phase 2 exit test
   and this is the first thing to land on that page since it was written.
+
+---
+
+## The map, and the panel that went away
+
+The world's own route no longer opens with a card listing three projects. It
+opens with the world, and the index moved into the bottom right corner as a top
+view: three islands, a letter on each, and the character's arrow moving across
+it.
+
+### What it is
+
+`src/MiniMap.tsx` — DOM, not canvas (invariant 2), and outside the canvas chunk.
+
+- **Scale is measured, not written.** The box covers every island's coastline
+  (`radius × ISLAND_SPREAD`, the same number `Islands` revolves out to) plus
+  16%, one span for both axes so a circle stays a circle. A project moving in
+  its frontmatter moves on the map, and nothing here knows there are three.
+- **The letter is the slug's first character** — `P`, `A`, `S`. The title would
+  have been the obvious source and is the wrong one: it is translated, so the
+  map would change letters with the language.
+- **Each island is a `<Link>`**, which is invariant 5 surviving the panel going
+  away: the letters are a keyboard path to every landmark and they take focus in
+  order. The menu's work index is still the other path.
+- **The arrow reads `VIEW`**, three plain numbers in `src/world.ts` that `Ship`
+  writes once a frame. Not `SHIP` — that is a `Vector3` in the canvas chunk, and
+  a value import from it would pull three into the first-route bundle. One rAF
+  loop writes `left`, `top` and `rotate` on one element; no React state moves at
+  60 fps. Past the last coast the arrow is held at the edge rather than clipped.
+- **The panel is hidden, not deleted.** `WorldGate` puts `.roam` on `<html>`
+  when the world is showing and no landmark is open, and one CSS rule hides
+  `main`. The prerendered document is untouched, so the visitor with JavaScript
+  off, the visitor with no renderer, and every crawler still get the bio and the
+  three projects as a page.
+
+### It belongs to roaming
+
+The map is up while no landmark is open and not otherwise — unmounted, not
+hidden, so reading a case study is not also running a frame loop. That is not
+only tidiness: on a narrow window and on touch the panel is a sheet across this
+same corner, so the two could not share it anyway. Roaming on touch there is no
+sheet, so the map stays and is lifted 4.6rem to clear the HUD, which is in that
+corner there.
+
+### Cost
+
+One lazy chunk beside the canvas, about 110 lines of TSX and 70 of CSS, no
+dependency, no asset. `npx tsc -b` clean, `node src/i18n/locales.check.ts`
+green.
+
+### Needs Seb
+
+- **`worldMap` in FR and NL** — "Carte du monde" / "Kaart van de wereld", the
+  map's accessible name. Unreviewed, and it joins the eight already waiting.
+- **Whether the map is the right size.** `min(11rem, 34vw)`, and the letters are
+  sized against it — one number in `.map` in `index.css`.
+- **Whether losing the panel loses the bio.** `/{lang}/world` was where a
+  visitor who flew in read who you are; now that sentence is only on the flat
+  routes. Putting it back as a line of chrome, or on first arrival only, is a
+  proposal and not built.
+- **Whether the arrow reads as facing.** It is drawn from `yaw`, not from the
+  hull's roll, so it does not swing on a wave — which is right for a map and is
+  a thing a screenshot cannot settle.
+- **Whether the map should survive the panel.** It is unmounted at a landmark
+  today. Keeping it up on a wide window, where the panel is a column and not a
+  sheet, means a second position for it and a media query that says so — worth
+  it only if you miss it while reading.
