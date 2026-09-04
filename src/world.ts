@@ -38,6 +38,18 @@ export const GROUND = 0.45
  */
 export const VIEW = { x: 0, z: 0, yaw: 0 }
 
+/**
+ * The last time a hull hit the water hard: where, how hard (0 to 1), and how
+ * long ago. Written by `Ship`, read by `Scenery` — the ring of foam that opens
+ * on the water — and by `Particles`, the burst of spray that goes up with it.
+ *
+ * Here rather than in `Ship` for the same reason `VIEW` is: two other modules
+ * want it, and `Ship` already imports `Scenery`, so the other direction would
+ * be an import cycle. A level rather than an event, decayed by `age`, so any
+ * number of things can read it and none of them consumes it.
+ */
+export const SPLASH = { x: 0, z: 0, force: 0, age: 99 }
+
 export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   slug: p.slug,
   landmark: p.landmark,

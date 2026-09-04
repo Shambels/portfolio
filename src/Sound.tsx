@@ -304,7 +304,10 @@ export function Sound({ on }: { on: boolean }) {
       * (overWater(x, z) ? 1 : SEA_LAND)
       * (1 + seaRoll() * SEA_ROLL), t, 0.5)
 
-    set(r.wind.gain, WIND * clamp01((y - HOVER) / LIFT), t, 0.25)
+    // Height above the *water*, not above the origin: since the rollers the sea
+    // itself is metres up often enough that an absolute height would open the
+    // wind on every crest.
+    set(r.wind.gain, WIND * clamp01((y - SHIP.sea - HOVER) / LIFT), t, 0.25)
 
     const k = Math.min(Math.hypot(SHIP.vel.x, SHIP.vel.z) / CRUISE, BOOST) / BOOST
     set(r.hum.gain, HUM[0] + (HUM[1] - HUM[0]) * k, t)

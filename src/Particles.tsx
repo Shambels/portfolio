@@ -2,11 +2,11 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
-  Fn, If, TWO_PI, cos, exp, hash, instanceIndex, instancedArray, mix, oneMinus, sin,
+  Fn, If, TWO_PI, cos, exp, hash, instanceIndex, instancedArray, max, mix, oneMinus, sin,
   smoothstep, sqrt, step, uniform, uv, vec2, vec3, vec4,
 } from 'three/tsl'
 import { SHIP } from './Ship'
-import { overWater } from './world'
+import { SPLASH, overWater } from './world'
 
 /**
  * Phase 4's compute particles: the spray the saucer's downwash tears off the
@@ -42,6 +42,18 @@ const LIFE = 1.1 // seconds from leaving the water to gone
 const RING = 0.95
 const SEA = 0.03 // spawn just proud of the water, or half the sprite starts clipped
 
+// The landing. `Ship` writes an impact into `SPLASH`; for the third of a second
+// after one, every droplet that comes up for reuse is respawned whatever the
+// density says, out of a wider ring and thrown harder. The plume the saucer
+// leaves is a rate; this is the same emitter told to spend everything at once.
+//
+// 2048 droplets on a 1.1 s stagger is about thirty a frame, so a burst is
+// six or seven hundred of them — enough to read as water going up, without a
+// second particle system to own, seed and dispose.
+const BURST_LIFE = 0.34
+const BURST_RING = 2.4  // times the usual ring
+const BURST_KICK = 2.2  // times the usual rise and spread
+
 // Ballistics, stylised. Real gravity makes 2 cm of foam and a 0.6 s arc that
 // reads as a twitch; this is slower and higher, which is what makes it legible
 // at the camera's distance.
@@ -53,6 +65,9 @@ const INHERIT = 0.35 // of the ship's velocity, so the plume trails instead of c
 
 // Where the downwash stops reaching the surface. Space lifts the ship to
 // hover + 2.6, which is past the top of this, so climbing dries the spray up.
+// Measured from the water rather than from the origin: with the rollers in, the
+// sea itself is three metres up often enough that an absolute height would dry
+// the spray on every crest and drown it in every trough.
 const CEILING: [number, number] = [1.35, 2.7]
 
 const SIZE: [number, number] = [0.03, 0.105] // droplets spread as they fly
@@ -85,8 +100,12 @@ function build() {
   const dt = uniform(0)
   const seed = uniform(0, 'uint')
   const emit = uniform(0)
+  const burst = uniform(0)
   const shipPos = uniform(new THREE.Vector3())
   const shipVel = uniform(new THREE.Vector3())
+  /** Height of the water under the ship. The spray belongs on the surface, and
+   *  since the rollers the surface is not y = 0. */
+  const shipSea = uniform(0)
 
   // Ages staggered across one lifetime, everything parked. The first spray then
   // fills in over 1.1 s instead of arriving as a slab on the frame the world
@@ -112,19 +131,21 @@ function build() {
       const dir = vec3(cos(a), 0, sin(a))
       // sqrt of the draw, or the disc bunches in the middle.
       const born = shipPos.mul(vec3(1, 0, 1))
-        .add(dir.mul(sqrt(hash(s.add(1))).mul(RING)))
-        .add(vec3(0, SEA, 0))
+        .add(dir.mul(sqrt(hash(s.add(1))).mul(mix(RING, RING * BURST_RING, burst))))
+        .add(vec3(0, shipSea.add(SEA), 0))
 
       // `emit` is a density and not a switch: a droplet whose draw beats it
       // comes back, the rest sit the next lifetime out under the sea. Fading
       // the live count is what lets the spray thin as the ship climbs, and stop
       // over an island, without a hard cut anywhere.
-      const alive = hash(s.add(2)).lessThan(emit)
+      const alive = hash(s.add(2)).lessThan(max(emit, burst))
 
       p.assign(vec4(alive.select(born, vec3(0, PARKED, 0)), 0))
+      const thrown = burst.mul(BURST_KICK - 1).add(1)
       v.assign(
         dir.mul(mix(OUT[0], OUT[1], hash(s.add(3))))
           .add(vec3(0, mix(RISE[0], RISE[1], hash(s.add(1))), 0))
+          .mul(thrown)
           .add(shipVel.mul(INHERIT)),
       )
     }).Else(() => {
@@ -178,10 +199,15 @@ function build() {
       seed.value = (Math.random() * 0xffffff) | 0
       shipPos.value.copy(SHIP.pos)
       shipVel.value.copy(SHIP.vel)
-      emit.value = overWater(SHIP.pos.x, SHIP.pos.z)
-        ? (1 - THREE.MathUtils.smoothstep(SHIP.pos.y, CEILING[0], CEILING[1])) *
+      shipSea.value = SHIP.sea
+      const wet = overWater(SHIP.pos.x, SHIP.pos.z)
+      emit.value = wet
+        ? (1 - THREE.MathUtils.smoothstep(SHIP.pos.y - SHIP.sea, CEILING[0], CEILING[1])) *
           (IDLE + (1 - IDLE) * Math.min(SHIP.vel.length() / CRUISE, 1))
         : 0
+      // Not gated on the ceiling: a landing is the one time the ship arrives
+      // from above and the water still has to answer.
+      burst.value = wet ? SPLASH.force * Math.max(0, 1 - SPLASH.age / BURST_LIFE) : 0
       renderer.compute(update)
     },
 

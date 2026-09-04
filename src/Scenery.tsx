@@ -2,11 +2,11 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { useFrame } from '@react-three/fiber'
 import {
-  cameraPosition, clamp, cos, dot, float, length, max, mix, mx_fractal_noise_float,
+  abs, cameraPosition, clamp, cos, dot, float, length, max, mix, mx_fractal_noise_float,
   normalize, oneMinus, positionLocal, positionWorld, pow, reflect, sin, smoothstep, time,
   uniform, vec2, vec3,
 } from 'three/tsl'
-import { SHOAL, SHOALS, shoal } from './world'
+import { SHOAL, SHOALS, SPLASH, shoal } from './world'
 import type { Sea } from './WorldGate'
 
 /**
@@ -199,6 +199,25 @@ const RAMP = 0.8 // per second, exponential — a second and a half to settle
 
 /** Read by `Sound`, which puts the same weather in the mix. */
 export const seaRoll = () => SEA.roll
+
+/* ---------------------------------------------------------------------------
+ * The splash.
+ *
+ * A ring of foam opening on the water where a hull came down, written by `Ship`
+ * into `SPLASH` and read here every frame. It is on the water rather than in
+ * the particles on purpose: the spray is WebGPU-only and always has been, so
+ * without this a landing on the WebGL2 fallback would be a hull stopping and
+ * nothing else. The two run together where both exist.
+ * ------------------------------------------------------------------------ */
+
+/** x, z, and how hard — the position is world, the force is 0 to 1. */
+const uSplash = uniform(new THREE.Vector3())
+const uSplashAge = uniform(9)
+const SPLASH_SPEED = 5.2 // units/sec the ring opens at
+const SPLASH_LIFE = 0.9  // seconds until it is gone
+const SPLASH_WIDTH = 1.3 // how thick the ring is, world units
+const SPLASH_FLASH = 2.1 // radius of the white water under the hull, world units
+const SPLASH_FLASH_LIFE = 0.26 // and how long that lasts — it is the impact, not the wake
 
 /**
  * The sea on the CPU: a height and two gradients at a world XZ.
@@ -403,6 +422,11 @@ export function Scenery({ sea }: {
   SEA.roll = uRoll.value = k.current
 
   useFrame((_, delta) => {
+    // `Ship` writes the splash and moves its clock on; this is the frame's one
+    // read of it, three numbers into two uniforms.
+    uSplash.value.set(SPLASH.x, SPLASH.z, SPLASH.force)
+    uSplashAge.value = SPLASH.age
+
     if (k.current === target) return
     // The same clamp `Ship` makes: a backgrounded tab comes back with one
     // enormous delta, and this ramp would arrive as the switch it is not.
@@ -478,7 +502,23 @@ function useMaterials() {
     // drawn along the crest. `crest` carries `uRoll`, so a calm sea has none of
     // this and pays for it only in graph size.
     const breakup = mx_fractal_noise_float(vec3(positionWorld.xz.mul(3.2), T.mul(0.4)), 3)
-    const foam = smoothstep(0.45, 0.92, crest).mul(smoothstep(0.0, 0.4, breakup))
+    const caps = smoothstep(0.45, 0.92, crest).mul(smoothstep(0.0, 0.4, breakup))
+
+    // And the ring a landing opens. Same white, so it belongs to the same water:
+    // a circle expanding from where the hull hit, thinning as it goes, torn up
+    // by the same noise the whitecaps use so it is foam rather than a decal.
+    const hit = length(positionWorld.xz.sub(vec2(uSplash.x, uSplash.z)))
+    const life = oneMinus(clamp(uSplashAge.div(SPLASH_LIFE), 0, 1))
+    const torn = smoothstep(-0.55, 0.35, breakup).mul(0.65).add(0.35)
+    const ring = smoothstep(SPLASH_WIDTH, 0, abs(hit.sub(uSplashAge.mul(SPLASH_SPEED))))
+      .mul(pow(life, 0.8)).mul(uSplash.z).mul(torn)
+    // And the white water under the hull itself for the first quarter second,
+    // which is the difference between a ring arriving from nowhere and a
+    // landing. It goes before the ring is halfway out.
+    const flash = smoothstep(SPLASH_FLASH, 0, hit)
+      .mul(oneMinus(clamp(uSplashAge.div(SPLASH_FLASH_LIFE), 0, 1)))
+      .mul(uSplash.z).mul(torn)
+    const foam = max(caps, max(ring, flash))
 
     // Fade into the horizon's own colour, or the plane ends in a visible edge.
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)
