@@ -204,12 +204,13 @@ export function WorldGate({ children }: { children: ReactNode }) {
           it. Invariant 5 — with the panel gone, these letters are the keyboard
           path to a landmark, and the menu's work index is the other one.
 
-          Roaming only, which is the same corner the panel takes on a narrow
-          window and on touch. Not hidden with a rule but unmounted, so reading
-          a case study is not also running an animation frame loop. */}
-      {active && !slug && (
+          Up at a landmark too, which is what the panel moving to the left
+          bought: a column down one side and a map in the other corner no longer
+          want the same space. Where the panel is a sheet instead — a narrow
+          window, and touch — one rule in `index.css` hides it. */}
+      {active && (
         <Suspense fallback={null}>
-          <MiniMap locale={locale} />
+          <MiniMap locale={locale} slug={slug} />
         </Suspense>
       )}
 

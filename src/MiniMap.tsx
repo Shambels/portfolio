@@ -48,7 +48,7 @@ const size = (p: { radius: number }) => `${((reach(p) * 2) / SPAN) * 100}%`
 const held = (v: number, mid: number) =>
   `${Math.max(4, Math.min(96, ((v - mid) / SPAN + 0.5) * 100))}%`
 
-export default function MiniMap({ locale }: { locale: Locale }) {
+export default function MiniMap({ locale, slug }: { locale: Locale; slug: string | null }) {
   const me = useRef<HTMLDivElement>(null!)
 
   // One rAF loop writing three properties on one element. Not React state: the
@@ -73,6 +73,7 @@ export default function MiniMap({ locale }: { locale: Locale }) {
           key={p.slug}
           className="isle"
           to={`/${locale}/work/${p.slug}`}
+          aria-current={p.slug === slug ? 'page' : undefined}
           aria-label={p.title}
           title={p.title}
           style={{ left: pct(p.pos[0], X.mid), top: pct(p.pos[1], Z.mid), width: size(p), height: size(p) }}
