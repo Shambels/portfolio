@@ -9,6 +9,11 @@ import { SOURCE_LOCALE, STRINGS, isWorldPath, localeOf, slugOf } from './i18n'
  *  fetched the first time a route wants it, and after that it never unmounts. */
 const Scene = lazy(() => import('./Scene'))
 
+/** The world's index, and the reason `/{lang}/world` no longer shows its panel.
+ *  Its own chunk, for the same reason the canvas is one: the flat site never
+ *  needs it. */
+const MiniMap = lazy(() => import('./MiniMap'))
+
 /** Which hull the visitor is steering. Declared here rather than in `Ship`
  *  because the menu is what sets it and the menu is in the first-route chunk —
  *  a value import from anything inside the canvas would drag the canvas in
@@ -107,8 +112,13 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('world', active)
-    return () => document.documentElement.classList.remove('world')
-  }, [active])
+    // Roaming: the world is showing and no landmark is open, which is the one
+    // state with no panel — the map is the index there. A class rather than a
+    // branch inside the route, so the prerendered document, the visitor with
+    // JavaScript off and the one with no renderer all still get the whole page.
+    document.documentElement.classList.toggle('roam', active && !slug)
+    return () => document.documentElement.classList.remove('world', 'roam')
+  }, [active, slug])
 
   const pushed = useRef(false)
   const onNear = useCallback(
@@ -189,6 +199,20 @@ export function WorldGate({ children }: { children: ReactNode }) {
       {/* Names the controls, and nothing more — the sound moved into the menu,
           so the world has no focusable element of its own and this line eats no
           pointer events at all. */}
+      {/* Bottom right, and the only focusable thing the world puts on the
+          screen: a top view with a letter per project and the ship's arrow on
+          it. Invariant 5 — with the panel gone, these letters are the keyboard
+          path to a landmark, and the menu's work index is the other one.
+
+          Roaming only, which is the same corner the panel takes on a narrow
+          window and on touch. Not hidden with a rule but unmounted, so reading
+          a case study is not also running an animation frame loop. */}
+      {active && !slug && (
+        <Suspense fallback={null}>
+          <MiniMap locale={locale} />
+        </Suspense>
+      )}
+
       {active && (
         <p className="hud">
           {/* Four sentences, because the boat has no rise and the phone has no
