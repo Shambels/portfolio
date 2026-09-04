@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
-import { STRINGS, localeOf } from './i18n'
+import { STRINGS, canonicalPath, localeOf } from './i18n'
 import { WorldGate } from './WorldGate'
 import stylesheet from './index.css?url'
 
@@ -10,9 +10,17 @@ export const links = () => [
 ]
 
 export function Layout({ children }: { children: ReactNode }) {
-  const locale = localeOf(useLocation().pathname) ?? 'en'
+  const pathname = canonicalPath(useLocation().pathname)
+  const locale = localeOf(pathname) ?? 'en'
+  // The landing page borrows the world's layout — full viewport, pinned chrome,
+  // no scroll — and paints the ocean the world renders. The class is written
+  // here rather than toggled in an effect the way `.world` is, because it has
+  // to be in the prerendered document: `/{lang}` is the ocean with JavaScript
+  // off (invariant 4), and a class that arrives after hydration would flash the
+  // flat page's background first.
+  const landing = pathname === `/${locale}`
   return (
-    <html lang={locale}>
+    <html lang={locale} className={landing ? 'landing' : undefined}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

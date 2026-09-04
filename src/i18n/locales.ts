@@ -35,10 +35,10 @@ export function withLocale(pathname: string, locale: Locale): string {
 }
 
 /**
- * Where the world is allowed to show through: the home page, and a case study
- * reached by flying to it or by deep link. Everything else — the flat index the
- * skip link points at, the 404 — is a reading surface with nothing moving
- * behind it.
+ * Where the world is allowed to show through: `/{lang}/world`, and a case study
+ * reached by flying to it or by deep link. Everything else — the landing page
+ * at `/{lang}`, the flat index the skip link points at, the 404 — is a still
+ * surface with nothing moving behind it.
  *
  * `?read` is the way out, and it is a query rather than client state so that it
  * survives a reload, a share and the back button. The flat index links carry
@@ -49,7 +49,7 @@ export function isWorldPath(pathname: string, search = ''): boolean {
   if (new URLSearchParams(search).has('read')) return false
   const [, lang, section, slug, ...rest] = canonicalPath(pathname).split('/')
   if (!isLocale(lang) || rest.length) return false
-  return section === undefined || (section === 'work' && !!slug)
+  return (section === 'world' && !slug) || (section === 'work' && !!slug)
 }
 
 /** The case study a world path is showing, if it is showing one. */

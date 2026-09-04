@@ -56,6 +56,7 @@ Needed to run Track B's exit test, so built before Phase 2.
 - [x] `src/i18n/` typed strings per locale — English defines the shape, so a
       missing key in `fr` or `nl` is a type error
 - [x] Routes: `/{lang}`, `/{lang}/work`, `/{lang}/work/{slug}`, `/{lang}/404`
+      *(`/{lang}/world` joined them with the landing page — last section)*
 - [x] Typography and layout — system stack, one rhythm unit, dark
 - [x] Footer — name, one line, email, GitHub
 - [x] Deploy tooling — `deploy.sh` (build + rsync + smoke test) and
@@ -90,6 +91,7 @@ rhythm and colour. A typeface can land in Phase 4 with the shaders if it earns i
 - `/world` existed, prerendered but unlinked and `noindex`, so Track B's exit
   test was runnable while the flat site shipped. **Retired in Phase 3** — the
   scene is behind `/{lang}` now and an unlinked route had nothing left to hold.
+  *(Un-retired with the landing page — it is `/{lang}/world`, and linked.)*
 - `src/Scenery.tsx` and `src/Landmarks.tsx` were type-broken against
   `@types/three` 0.185.4 (`Vec3` was aliased to what `vec3()` returns, which is
   narrower than what every operator returns). Fixed, because `npm run build` now
@@ -133,7 +135,8 @@ rhythm and colour. A typeface can land in Phase 4 with the shaders if it earns i
 `WorldGate` is the whole seam, and it is a function of the URL:
 
 - `isWorldPath()` (`src/i18n/locales.ts`) says the world shows behind `/{lang}`
-  and `/{lang}/work/{slug}`, and behind nothing else. The flat index the skip
+  and `/{lang}/work/{slug}`, and behind nothing else. *(`/{lang}` became the
+  landing page — it is `/{lang}/world` now; see the last section.)* The flat index the skip
   link points at, and the 404, are reading surfaces with nothing moving.
 - The canvas mounts the first time a route wants it and then never unmounts
   (invariant 3). Routes with no world set `frameloop="never"`, disable
@@ -877,3 +880,404 @@ pass could run `react-router typegen` as well, on the container copy.
 - **The feel, on a phone.** The stick's travel, the boost ring, whether a second
   finger for rise is discoverable enough to keep. All of them are the three
   constants at the top of `src/stick.ts` and one line in `useInput.ts`.
+
+## The landing page — `/{lang}` is the ocean, `/{lang}/world` is the world
+
+`/{lang}` used to be the world: the canvas mounted on the first route anyone
+loaded, and the panel behind it was the bio and the three projects. It is a
+landing page now — the sea, the name, one button — and the world has moved one
+URL deeper.
+
+### The route came back
+
+Phase 3 retired `/world` because the scene was behind `/{lang}` and an unlinked
+route had nothing left to hold. The landing page has taken `/{lang}`, so the
+world needs an address again — and this one is linked, shareable and survives a
+reload. One line in `routes.ts`, 21 prerendered documents instead of 18.
+
+`isWorldPath()` moved with it: the world shows behind `/{lang}/world` and
+`/{lang}/work/{slug}` and behind nothing else. So did the one navigation that
+named the home page — flying away from a landmark with nothing to pop now
+replaces with `/{lang}/world`, because leaving a landmark is not a reason to
+leave the world. The page itself is `src/routes/world.tsx`, the old home
+unchanged except for its title, so with no renderer or no JavaScript
+`/{lang}/world` is the flat bio and project list it has always been. That is why
+the button asks the visitor's hardware nothing: the address it points at is a
+complete page either way.
+
+### The ocean was sampled, not picked
+
+The background is two CSS gradients, and every stop was read off a rendered
+frame — the median of 210 columns per row, down `Claude outputs/
+mobile-desktop-unchanged.png` — rather than eyeballed. A sky of three stops, a
+sea of twelve, meeting at `--horizon`.
+
+`--horizon` is 25dvh because the camera's 45° **vertical** field of view puts
+the waterline there whatever the window size: a wider window sees more sea, not
+a different horizon. `AIM_DOWN` in `Ship.tsx` tips the camera down on a coarse
+pointer, which lifts the waterline, and one media query moves the variable to
+6dvh — fitted against a phone render, not derived: the analytic 5.7° and the
+best-fitting 5dvh agree, and 6 is within noise of both.
+
+The same gradient is on `.stage`, the canvas layer, so it is also what the world
+shows while the scene chunk loads and the renderer initialises. Pressing the
+button therefore changes nothing on screen until there is a frame to show.
+
+**Measured against the world, same viewport, same build:** worst channel
+difference 6/255 over the whole desktop column, apart from two rows at 39–42%
+where the world's own frame has an island and the ship's spray in it. On a phone
+the far-haze band below the waterline is longer than the desktop's, which one
+scale factor cannot reproduce; the residual there is up to 18/255 across about a
+sixth of the screen, and it is the one place the still frame is visibly a still
+frame.
+
+### The hero centres in the water, not in the window
+
+`padding-top: var(--horizon)` on `main`, so the name, the bio and the button sit
+in the middle of everything below the waterline — and move up with it on a
+phone. That band is also the darkest water on the page, which is what pays for
+the text: `--paper` on it is 4.7:1 at the worst row, so there is no card and no
+scrim, and the ocean is left alone. `--paper-dim` would have been 2.4:1, so the
+second link is smaller rather than dimmer.
+
+The button is the world's panel shrunk: same glass, same border, same 10px
+radius, and gold on hover like every other link on the site. It is an `<a>` —
+it goes somewhere, it has a URL, and it works before the JavaScript has loaded.
+
+The footer is the world's: `.landing` joins `.world` on the same four rules, so
+the chrome is one set of declarations, not two. One deliberate difference — the
+world hides its footer on a narrow window and on touch, where the panel and the
+HUD are already there; the landing page has neither, so it keeps it.
+
+`.landing` is written on `<html>` in `root.tsx` rather than toggled in an
+effect the way `.world` is, because it has to be in the prerendered document:
+with JavaScript off, `/{lang}` is still the ocean.
+
+### Verified, on a throwaway install in Claude's container
+
+Not on Seb's machine — `npm install` is forbidden in the project folder.
+
+- [x] `npm run typecheck` clean, `node src/i18n/locales.check.ts` and
+      `node src/stick.check.ts` green, 21 routes prerender
+- [x] **Cost: +380 bytes gz, all of it CSS** (2.16 → 2.54 kB). No new
+      dependency, no new component, no JavaScript on the landing page beyond the
+      router that was already there
+- [x] **First-route JS is 23.6 kB gz lighter on `/{lang}`**: 130,224 → 106,601
+      bytes gz, because the landing page imports no content and the MDX chunk
+      left its first route. `/{lang}/world` and `/{lang}/work` are unchanged at
+      130 kB gz (budget 200). The canvas chunk is untouched and still unasked
+      for until the button is pressed
+- [x] Colour match to the rendered world, 1280×720 and 390×844 — the numbers
+      above
+- [x] JavaScript off: `/en` is the ocean, the button, and both links;
+      `/en/world` is the full flat page
+- [x] WebGL2 unavailable: no canvas mounts, `/en/world` is the flat page, and
+      the landing page is unchanged — it never asked
+- [x] Pressing the button, sampled every ~70ms across the transition: the pixel
+      under the water never leaves the water. No flash of the flat site's ink
+- [x] Tab order on `/en`: skip · wordmark · Work · FR · NL · **Enter the
+      world** · Or read the work · email · GitHub
+- [x] `/en/world` → FR keeps the world (`/fr/world`), canonical and `hreflang`
+      correct for the new route, `deploy.sh` smoke test probes it
+
+### Needs Seb
+
+- **`enterWorld` and `enterWorldAlt` in `fr` and `nl` are unreviewed** —
+  machine-drafted, and CLAUDE.md says those do not ship. That makes five
+  waiting, with `worldControls`, `worldControlsTouch` and `sound`.
+- **Whether the horizon is in the right place on your screen.** It is measured,
+  but it was measured under swiftshader, and the one thing that would give it
+  away is the waterline jumping when the canvas takes over.
+- **Whether the landing page should hold the eye at all.** It is deliberately
+  four things on an empty sea; a visitor who wanted the case studies is two taps
+  from them and no words on the page say so twice.
+
+## The menu — one button instead of a header
+
+The header is gone from every route. In its place, one square in the top right
+of the screen, and behind it what the header carried: the wordmark's link, the
+work index, the three languages — and the world's sound, which moved out of the
+HUD, because it is the only thing on the site that is actually a setting.
+
+### `<details>`, not a button and a piece of state
+
+The disclosure is the platform's. That is the whole reason for it: with
+JavaScript off the menu still opens, still closes and still takes the keyboard,
+so the language switcher survives there — and it had to, because it was in the
+prerendered header until now and invariant 4 says the flat site is complete.
+
+Two effects add what the element does not do by itself: Escape closes it and
+gives the focus back to the button, and a pointer down anywhere else closes it.
+A third line closes it when the pathname changes, which is one line instead of a
+handler on each of the six links.
+
+### It is rendered by the layout, not by `WorldGate`
+
+The first version hung it above the routes in `WorldGate`, next to the HUD.
+That put it in front of the skip link in the DOM, and the skip link is first in
+the tab order by invariant 5 — so it moved into `src/routes/locale.tsx`, exactly
+where the header was, and the order is what it always was: **skip · menu ·
+content · footer**.
+
+The sound follows it: `useWorld()` used to return a boolean and now returns
+`{ active, sound, toggleSound }`, so the two routes that ask whether the world is
+showing read `.active` and the menu reads the rest. `WorldGate` still owns the
+state — it is what feeds `Scene` — and still resets it on every load, because a
+returning visitor cannot be given sound before they have clicked anything.
+
+### What that changes in the world
+
+The world now has **no focusable element of its own**. The HUD is a line of text
+naming the controls and nothing else: no button, no `pointer-events: auto`, and
+one less thing between a drag and the water. On touch it keeps its place — it is
+still the only thing that names the controls — but it is no longer the only way
+to reach the sound, which is now on every route including the ones with no
+world behind them.
+
+The header's dark top gradient went with it. Nothing needs it any more: the
+button is its own glass, and the sky at the top of the world is the sky.
+
+### The button
+
+Three lines drawn in CSS — two borders and one gradient for the middle — on the
+same glass, border and 10px radius as the landing page's button, with the
+current locale code beside them so the language switcher is not invisible now
+that it is behind a click. No icon file, no sprite, no request. `aria-label` is
+the word *Menu*, which is the same word in all three locales and is therefore
+the one new string here that nobody has to review.
+
+The flat pages lost about 3rem of height off the top with the header, so
+`main`'s top padding went from 1.5 to 2.75 rhythm units — measured against the
+button, not the header, so the first heading clears it on a window too narrow
+for the button to sit beside the measure.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `npm run typecheck` clean, both checks green, 21 routes prerender, no
+      console errors on any of them
+- [x] **Cost: +575 bytes gz** — CSS 2,539 → 2,708 and first-route JS 106,601 →
+      107,007 — and that is net of deleting the header, its gradient and the
+      HUD's button. `/{lang}` 104.5 kB gz, `/{lang}/world` and `/{lang}/work`
+      127.6 kB (budget 200)
+- [x] Tab order on `/en`: **skip · Menu · Enter the world · Or read the work ·
+      email · GitHub**
+- [x] Opens on click, closes on Escape with the focus back on the button,
+      closes on a click outside, closes after a link has navigated — and the
+      canvas is the same element afterwards, so invariant 3 still holds through
+      a menu navigation
+- [x] **JavaScript off: the menu opens and the three languages work.** Also
+      prerendered into all 21 documents, closed
+- [x] The sound toggles from the menu in the world, `aria-pressed` follows, the
+      menu stays open across the toggle, and there is no `button` in the HUD
+- [x] Space on the button opens the menu instead of flying the ship —
+      `useInput`'s `INTERACTIVE` selector already listed `summary` — and with
+      nothing focused the world still takes W
+- [x] `aria-current="page"` on the route you are on, `aria-current` on the
+      locale you are in, and FR from `/en/world` lands on `/fr/world`
+- [x] Screenshotted at 1280 and at 390 × 844, open and closed, on the landing
+      page, in the world, on the flat index and on a case study
+
+### Needs Seb
+
+- **Whether it should say *Settings*.** It says *Menu*, which is the same word
+  in EN, FR and NL and needs no review; *Settings* would be `Paramètres` and
+  `Instellingen`, and those two would join the five already waiting.
+- **The wordmark is only in the footer now.** On a case study, nothing at the
+  top of the page says whose site it is until you open the menu.
+- **The menu sheet overlaps the world's panel** when it is open on a wide
+  screen — it is a popover over a card, and it looked right in the screenshot,
+  but it is the one place two pieces of glass sit on top of each other.
+
+## The boat — a second craft, and the first thing in the world with water under it
+
+The visitor picks what they steer. **Craft** in the menu, above the sound:
+*Saucer* or *Boat*. The saucer is unchanged. The boat is the same ship with its
+altitude pinned to the sea, a coastline it cannot cross, and a wider circle to
+call arrival — no second controller, no second frame loop, no second camera.
+
+### Not the Going Merry
+
+Seb asked for the *Going Merry* from One Piece. That is a specific, protected
+design — the figurehead, the hull, the whole silhouette are the recognisable
+thing — and generating a model of it is copying it whichever tool draws it. So
+this is an original: a small single-masted boat with a square sail, sized and
+coloured for this world rather than for that one.
+
+### Procedural, like the saucer
+
+CLAUDE.md says the character stays procedural and that a model file needs a
+reason first. There isn't one here. A hull is the **bottom half of a squashed
+sphere** with the forward sections pinched to a stem, and the deck is the same
+unit circle in XZ with the same pinch applied — so the two rims agree by
+construction rather than by two sets of numbers being kept in step. Everything
+else is six sticks and a box: mast, yard, boom, bowsprit, rudder, cabin. Zero
+asset bytes, and the export pipeline it would otherwise need is bigger than the
+sixty lines that build it.
+
+Seb chose *procedural now, a Blender script after*. `tools/boat.py` is **not
+written** — the boat is worth looking at moving before anyone sculpts it.
+
+The waterline is the model's own y = 0, so `Ship` puts the group on the swell
+and the hull's numbers decide how much of it is wet: 18 cm of draft under, 20 cm
+of freeboard over. The beam is 50 cm, which is **wider than a real boat of this
+length and deliberately so** — the camera sits behind the ship and never turns,
+so the view you get almost all the time is from astern, a boat's narrowest. At a
+true beam the hull came out the same width as its own sail and the two read as
+one slab.
+
+### The sea is one set of numbers, read twice
+
+`Scenery` has always had `SWELL`: three crossing sine waves whose **gradient**
+the water shader turns into normals, on a plane that stays geometrically flat.
+Its **height field** is the term those normals are the derivative of — so
+`swell(x, z, t)` is a new export beside it that returns both, on the CPU, from
+the same array. The boat rides the sea the visitor can see, rather than a second
+sea that nearly matches. A dev-only finite-difference assert in that file is
+what catches the day someone adds a fourth wave and gets one of the two wrong.
+
+The noise ripple is deliberately not in the CPU version: it is a slope detail at
+a scale no hull reacts to, and the one term with no cheap twin. The clock is
+`clock.elapsedTime` rather than three's `time` node, so the phase is off by
+however long the renderer took to come up — not observable on a flat plane
+shaded by these normals, and threading the node's clock back to the CPU would be
+a uniform read per frame to fix nothing.
+
+Height is lagged into the hull (`BUOY`), and that lag is the whole of the
+buoyancy. The gradient is read in the boat's own frame, so a swell on the bow
+pitches it and one on the beam rolls it — added on top of the acceleration
+spring, which is untouched, so the boat banks into a turn exactly as the saucer
+does and wallows on the sea besides.
+
+`WAVE_TILT` is 3, and it is a knob, not a measurement. The swell is 12 cm of
+water at its steepest; a hull heeling by its true slope heels three degrees and
+reads as dead flat. The water is a flat plane wearing painted-on waves, so this
+is a lie on top of a lie and the only way to judge it is to look at it.
+
+### Space does nothing, and the hint stops naming it
+
+A boat floats. There is nowhere to climb to, so the altitude target is sea level
+and Space and the second finger are inert. Rather than leave a key in the hint
+doing nothing, there are two more control strings — one for keys, one for a
+thumb — and the boat's are shorter, not apologetic.
+
+The camera does **not** follow the heave. It follows the altitude, which for the
+boat never leaves zero. A camera that bobs with the sea is a camera nobody
+wants.
+
+### A coastline, and what it cost the proximity radius
+
+`world.ts` gained `offshore()`: a push out of every island's mooring circle,
+in place, on a `{x, z}`. A push rather than a stop, so a boat leaning on a coast
+keeps whatever part of its motion runs along it and slides round the island.
+
+The circle is the island's shoreline — which `overWater` already knew, and which
+is now `shoreOf()` so the two cannot disagree — plus half a hull, so the boat
+stops with its side off the sand rather than in it.
+
+**That shoreline is 1.77× the proximity radius**, which means a hull can never
+reach the circle the saucer triggers on. So `landmarkAt` took a `moored` flag:
+arriving *alongside* an island is what counts as arriving when you cannot fly
+over it. The mooring circle a boat is stopped on is a hair narrower than the one
+that opens the panel, because `offshore` puts the hull exactly on the first and
+a strict `<` on the second would open or not open a panel on the last bit of a
+float.
+
+Two consequences, both checked in `world.ts`'s dev block beside the waypoint
+assert it already had:
+
+- **Mooring circles must not overlap.** Two that do leave a pocket where being
+  pushed out of one puts you inside the other, and the hull buzzes between them
+  forever. The three islands clear it comfortably — the tightest pair is the
+  easel and the board, 22.5 apart against 18.2 needed.
+- **A deep link must land inside the trigger.** Every waypoint is inside its own
+  island, which is fine for something that flies and is dry land for something
+  that floats, so the same `offshore` that keeps the boat off a coast is what
+  puts the deep link on the water. It lands on the mooring circle, which is
+  inside the circle that opens the panel — otherwise the deep link opens a panel
+  and closes it one frame later, which is the Phase 3 bug wearing a hull.
+
+The yaw a deep link faces is now measured from where the ship actually ended up
+rather than from the waypoint it was aimed at. Identical for the saucer.
+
+### The setting is remembered, and it is the only one that is
+
+`localStorage`, read in the same after-mount effect as the renderer probe and
+the pointer probe — before the canvas can mount, so there is no frame of the
+wrong ship. Both the read and the write are in a `try`, because that effect is
+also what decides whether there is a world at all and site data can be blocked
+outright by policy.
+
+The sound still is not remembered, and the reason is unchanged: the autoplay
+policy would refuse to honour a stored *on*, so it would be a toggle that lies
+about its own state. Nothing refuses a returning visitor the hull they picked.
+
+### The control is a native `<select>`
+
+Two options today. A pair of radios or a second toggle would be the same size
+and would hand back the keyboard, the screen reader and the phone's own picker,
+all of which come free here. `color-scheme: dark` at the top of `index.css` is
+what keeps the popup from coming back white. `useInput`'s `INTERACTIVE`
+selector already listed `select`, so nothing had to change for a focused
+dropdown to stop flying the ship.
+
+Like the sound, it renders only where there is a world, so it is in none of the
+21 prerendered documents and does nothing with JavaScript off — which is the
+same bargain the sound made, on a control that only exists to change something
+that needs a GPU.
+
+### Both hulls stay mounted
+
+`<Saucer visible={!boat} />` and `<Boat visible={boat} />`, inside the same
+`body` group that carries the bank and the spring. Toggling `visible` costs a
+culled node. Unmounting would hand back a question about who disposes geometry
+the renderer no longer has, for a tree that is two meshes deep.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `npm run typecheck` clean, `npm run check` green, `oxlint src` adds no new
+      class of warning, **21 routes prerender**, no page errors
+- [x] **Cost: about +0.4 kB gz on the first route** — `/en` totals 107.4 kB gz
+      against the 200 kB budget, and CSS 2.71 → 2.76 kB. Canvas chunk **457 kB
+      gz against the 600 kB budget** — the boat is sixty lines of geometry in a
+      chunk that is almost entirely three.js, and by the same `gzip -9` the
+      Phase 3 entry above used it still measures the same 449 kB it did then
+- [x] The pure arithmetic, asserted: the gradient `Ship` heels to is the finite
+      difference of the height it rides, at three points; `offshore` lands
+      exactly on the circle, is idempotent, leaves anything already clear
+      untouched, never lands on dry land, and every waypoint pushed through it
+      still reads as its own landmark under `moored` — and no longer reads as
+      one without it, which is the pair that proves the wider circle is doing
+      the work
+- [x] In the built site: the select appears only in the world, changes the ship,
+      the HUD hint follows it, the choice survives a reload, and switching back
+      to the saucer works and stores
+- [x] **A deep link to `/en/work/scrubble` on the boat keeps the panel open** —
+      the boat spawns on the mooring circle and the very next proximity read
+      agrees with the URL it came from
+- [x] Screenshotted at rest, under way and mid-turn: the hull is cut by the
+      waterline where it should be, and the saucer is untouched
+- [x] Rendered offscreen from four views (broadside, bow-on, plan, and the
+      camera's own quarter) before it ever went in the scene, which is what
+      caught a hull too dark to read against this sea and a deckhouse that
+      looked like a crate
+
+### Needs Seb
+
+- **The sign of the heel.** `WAVE_TILT` is applied as roll `+` and pitch `−` in
+  the boat's own frame. It is self-consistent and it is arithmetic; whether the
+  hull leans *into* the wave or *over* it is a screenshot at 60 fps, not a
+  proof. Both signs are one character.
+- **How much it should wallow.** `BUOY` 6 and `WAVE_TILT` 3 are the two feel
+  numbers. Swiftshader ran the world at about one frame a second, which has no
+  opinion about either.
+- **Five new FR/NL strings**, joining the three already waiting: the boat's two
+  control hints, and *Craft / Engin / Vaartuig* with *Saucer / Soucoupe /
+  Schotel* and *Boat / Bateau / Boot*. *Craft* is the word doing the most work —
+  it has to cover a flying saucer and a sailing boat in three languages.
+- **`tools/boat.py`**, if the hull is worth sculpting once he has seen it move.
+  It would be the first character with a model file, so it needs the reason
+  CLAUDE.md asks for first.
+- **The boat sits lower in frame than the saucer did.** The camera aims at the
+  waterline instead of at a hover, which tips it further down and lifts the
+  horizon. It looked right at 1280; the phone's `AIM_DOWN` was tuned against a
+  saucer 90 cm higher and is worth a second look on real glass.

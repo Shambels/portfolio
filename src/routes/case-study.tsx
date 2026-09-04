@@ -17,7 +17,7 @@ import NotFound from './not-found'
 export default function CaseStudy() {
   const locale = useOutletContext<Locale>()
   const { slug } = useParams()
-  const world = useWorld()
+  const { active: world } = useWorld()
   const project = getProject(locale, slug)
   if (!project) return <NotFound />
   const t = STRINGS[locale]

@@ -92,8 +92,11 @@ Breaking one is allowed. Doing it without saying so is not.
 - New dependency needs a one-line justification and its gzipped cost.
 - No physics engine until the world needs slopes or stacking. The character
   hovers: XZ translation, sine bob, bank on turn, circle-vs-circle landmark
-  collision. No ground following over flat terrain.
-- The character stays procedural. If it ever needs a model file, say why first.
+  collision. The boat is the same controller with its altitude pinned to the
+  swell (`swell()` in `Scenery.tsx`, the CPU twin of the water's own waves) and
+  a circle-vs-circle push out of each island's shoreline — still no engine. No ground following over flat terrain.
+- The character stays procedural — both hulls. If it ever needs a model file,
+  say why first.
 - No i18n library. Typed string objects per locale in `src/i18n/`.
 - Canvas and models load via dynamic `import()`, never in the first-route chunk.
 - TypeScript strict, no `any`. A narrow cast at a library boundary is fine — see
@@ -123,13 +126,18 @@ Breaking one is allowed. Doing it without saying so is not.
 src/root.tsx            the HTML document — <html lang>, stylesheet, Scripts
 src/routes.ts           the route table
 src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
-src/routes/home.tsx     /{lang}
+src/Menu.tsx            the site's only top chrome — a <details> in the top right:
+                        home, work, the three languages, and the world's two
+                        settings: which craft you steer, and its sound
+src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, one button
+src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
 src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose without
 src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
 src/content.ts          every MDX file, keyed by slug and locale
 src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check
-src/WorldGate.tsx       mounts the canvas once, decides where it shows, owns the HUD
+src/WorldGate.tsx       mounts the canvas once, decides where it shows, owns the
+                        HUD and the sound state the menu toggles
 src/Scene.tsx           the <Canvas> and everything in it
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only
@@ -144,12 +152,14 @@ tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headles
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints
-src/Ship.tsx            the character: procedural hovering saucer + flight controller
+src/Ship.tsx            the character: the flight controller, and the two hulls
+                        it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
 src/stick.ts            the thumb stick's arithmetic, and its check beside it
 src/world.ts            landmark layout + proximity, read from the content
 docs/STATUS.md          what is built and what is not — update it with the work
-src/index.css           global styles
+src/index.css           global styles — and `.world` / `.landing`, the two
+                        classes on <html> that pin the chrome over the sea
 src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
@@ -206,9 +216,17 @@ rise is a second finger. Nothing is cut on a phone, and the whole phase cost
 528 bytes gz. `docs/STATUS.md` has the layout it changed and the one camera
 number it changed with it.
 
+The visitor picks the craft in the menu, and the choice is remembered — the one
+setting on the site that is, because nothing in the platform refuses to give a
+returning visitor the hull they chose. The boat floats: its altitude is the
+swell, it is pushed out of every island's shoreline instead of flying over it,
+and arriving *alongside* an island is what opens the panel, because a hull can
+never reach the circle the saucer triggers on.
+
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
-*is traversal interesting or a chore* judgement, reviewing the three unreviewed
-FR/NL UI strings (`worldControls`, `sound` and `worldControlsTouch`), and judging
+*is traversal interesting or a chore* judgement, reviewing the eight unreviewed
+FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
+control hints and the three craft labels), and judging
 the lighting, the post-processing chain, the sound mix and now the stick's feel
 on real hardware — swiftshader has no opinion about frame rate, a null audio sink
 has none about levels, and neither has a thumb.

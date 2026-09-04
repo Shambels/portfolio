@@ -17,6 +17,15 @@ const en = {
   navHome: 'Home',
   navWork: 'Work',
   languages: 'Language',
+  // The menu button's accessible name. The same word in all three, which is
+  // why it is the one string here nobody has to review.
+  menu: 'Menu',
+
+  // The landing page's two links. The button is a link because it goes
+  // somewhere; `enterWorldAlt` is the way past the world for someone who came
+  // to read, and it says "or" rather than offering an apology for the world.
+  enterWorld: 'Enter the world',
+  enterWorldAlt: 'Or read the work',
 
   homeWorkHeading: 'Selected work',
   workTitle: 'Work',
@@ -45,9 +54,19 @@ const en = {
   // them is: the stick is measured from wherever the finger went down, so there
   // is no ring to aim at and nothing to put a label on.
   worldControlsTouch: 'Drag to fly · two fingers to rise',
+  // And the same two for the boat, which has no rise: it floats, so Space and
+  // the second finger do nothing and are not named. Shorter on purpose.
+  worldControlsBoat: 'WASD or arrows to sail · shift for full sail',
+  worldControlsBoatTouch: 'Drag to sail',
   // A toggle button's label stays put and `aria-pressed` carries the state, so
   // this is one word rather than an on and an off in three languages.
   sound: 'Sound',
+  // The menu's other world setting. One word that has to cover a flying saucer
+  // and a sailing boat, in three languages — "craft" does it in English and the
+  // other two are Seb's to confirm.
+  model: 'Craft',
+  modelSaucer: 'Saucer',
+  modelBoat: 'Boat',
 
   notFoundTitle: 'Nothing here',
   notFoundBody: 'That page does not exist, or it moved. The work is all one click away.',
@@ -67,6 +86,10 @@ const fr: Strings = {
   navHome: 'Accueil',
   navWork: 'Projets',
   languages: 'Langue',
+  menu: 'Menu',
+
+  enterWorld: 'Entrer dans le monde',
+  enterWorldAlt: 'Ou lire les projets',
 
   homeWorkHeading: 'Projets choisis',
   workTitle: 'Projets',
@@ -83,7 +106,12 @@ const fr: Strings = {
 
   worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
   worldControlsTouch: 'Glissez pour voler · deux doigts pour monter',
+  worldControlsBoat: 'ZQSD ou flèches pour naviguer · maj pour toute la voile',
+  worldControlsBoatTouch: 'Glissez pour naviguer',
   sound: 'Son',
+  model: 'Engin',
+  modelSaucer: 'Soucoupe',
+  modelBoat: 'Bateau',
 
   notFoundTitle: 'Rien ici',
   notFoundBody: "Cette page n'existe pas, ou elle a bougé. Les projets sont à un clic.",
@@ -101,6 +129,10 @@ const nl: Strings = {
   navHome: 'Home',
   navWork: 'Werk',
   languages: 'Taal',
+  menu: 'Menu',
+
+  enterWorld: 'Betreed de wereld',
+  enterWorldAlt: 'Of lees het werk',
 
   homeWorkHeading: 'Geselecteerd werk',
   workTitle: 'Werk',
@@ -117,7 +149,12 @@ const nl: Strings = {
 
   worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',
   worldControlsTouch: 'Sleep om te vliegen · twee vingers om te stijgen',
+  worldControlsBoat: 'WASD of pijltjes om te varen · shift voor volle zeilen',
+  worldControlsBoatTouch: 'Sleep om te varen',
   sound: 'Geluid',
+  model: 'Vaartuig',
+  modelSaucer: 'Schotel',
+  modelBoat: 'Boot',
 
   notFoundTitle: 'Hier is niets',
   notFoundBody: 'Die pagina bestaat niet, of is verhuisd. Het werk is één klik weg.',
