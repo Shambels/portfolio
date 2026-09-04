@@ -141,6 +141,8 @@ src/content.ts          every MDX file, keyed by slug and locale
 src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check
 src/WorldGate.tsx       mounts the canvas once, decides where it shows, owns the
                         HUD and the sound state the menu toggles
+src/MiniMap.tsx         the world's index since the panel went away — a top view
+                        in the corner, a letter per project, the ship's arrow
 src/Scene.tsx           the <Canvas> and everything in it
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only

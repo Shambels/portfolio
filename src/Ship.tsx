@@ -4,7 +4,7 @@ import { color, positionLocal, sin, time } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
 import { swell } from './Scenery'
-import { landmarkAt, landmarkOf, offshore } from './world'
+import { VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 
 // Saucer silhouette, rotated around Y. [radius, height]
@@ -256,6 +256,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // position is one from each. Published here, after both have settled.
     SHIP.pos.set(g.position.x, body.current.position.y, g.position.z)
     SHIP.vel.copy(vel.current)
+    // And the map's share of the same frame: XZ and heading, no altitude. The
+    // arrow is drawn from `yaw`, not from the body's roll, so a hull leaning
+    // into a wave does not swing the map.
+    VIEW.x = g.position.x
+    VIEW.z = g.position.z
+    VIEW.yaw = yaw.current
 
     // Proximity is an event, not a state: it pushes a URL and the URL is what
     // everything else reads back (invariant 3 — nothing here remounts a tree).
