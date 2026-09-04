@@ -18,6 +18,7 @@
 
   --lh: 1.7rem; /* the rhythm unit — every vertical space is a multiple */
   --measure: 36rem;
+  --sand: 13dvh; /* the beach on the landing page — see "the shore" */
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -708,6 +709,423 @@ canvas {
 .instead {
   margin-block: calc(var(--lh) * 0.75) 0;
   font-size: 0.9375rem;
+}
+
+/* --- the shore ---------------------------------------------------------- */
+
+/*
+  What the landing page has that the world does not: two palm crowns leaning in
+  over the camera, a second pair further off, cloud on the sky, sand at our feet
+  and the sun's own haze between them. All of it is gradients and one SVG path
+  (`FROND` in `home.tsx`), so it costs no request, it is in the prerendered
+  document, and it is there with JavaScript off and with no renderer.
+
+  Everything below is laid out against `--horizon`, because that is where the
+  vanishing point is — see the flight at the end of this section.
+*/
+
+.shore {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.shore > * {
+  position: absolute;
+  /* The flight, and the only thing any layer changes: how far it comes toward
+     us. Transform and opacity, so a layer is a texture the compositor moves. */
+  --k: 1;
+  transform: scale(var(--k));
+  transition:
+    transform 640ms cubic-bezier(0.42, 0, 0.9, 0.5),
+    opacity 640ms cubic-bezier(0.42, 0, 0.9, 0.5);
+}
+
+/* The sun, swung round to port with the scene's. Three gradients: the glow it
+   throws into the sky, the disc itself sat on the horizon, and the light it
+   leaves on the water under it. */
+.sun {
+  inset: 0;
+  background:
+    radial-gradient(58vw 38vh at 26% var(--horizon), #f8c07d5c, #f6c88a24 45%, #f6c88a00 74%),
+    radial-gradient(9vw 6vh at 26% var(--horizon), #fff0d4a3, #ffe6bf00 72%),
+    radial-gradient(26vw 40vh at 26% 70%, #ffd9a32b, #ffd9a300 70%),
+    radial-gradient(120% 60vh at 50% var(--horizon), #ffb96b33, #ffb96b00 78%),
+    linear-gradient(#f5a94e26, #f0b46b1c 30%, #e88f3f1c 56%, #dd7a2f2e 78%, #d16f2b3d);
+}
+
+/* The sun's path on the water. Two repeating gradients at different periods so
+   the streaks do not comb, masked to an ellipse hanging off the horizon under
+   the disc — a mask, not a `clip-path`, because the edge of a light on water is
+   the one thing that cannot be a straight line. */
+.glint {
+  left: 0;
+  right: 0;
+  top: var(--horizon);
+  bottom: 0;
+  opacity: 0.2;
+  background:
+    repeating-linear-gradient(#ffe0b0 0 1px, #fff0 1px 7px),
+    repeating-linear-gradient(#ffeed3 0 1px, #fff0 1px 13px);
+  -webkit-mask-image: radial-gradient(15vw 30vh at 26% 0, #000, #0000 66%);
+  mask-image: radial-gradient(15vw 30vh at 26% 0, #000, #0000 66%);
+}
+
+/* Distance, in one band. The horizon is where a sea stops having contrast. */
+.haze {
+  left: 0;
+  right: 0;
+  top: calc(var(--horizon) - 5dvh);
+  height: 10dvh;
+  background: linear-gradient(#e8d6c000, #f0dcc054 50%, #e8d6c000);
+}
+
+/* Six ellipses, none of them opaque, one of them warm because it is the one
+   nearest the sun. Faint on purpose: this is the sky behind a headline. */
+.clouds {
+  inset: 0 0 auto;
+  height: 36dvh;
+  background:
+    radial-gradient(24vw 4vh at 17% 20%, #ffe3c057, #fff0 72%),
+    radial-gradient(15vw 2.6vh at 27% 27%, #ffd7a85e, #fff0 72%),
+    radial-gradient(31vw 4.6vh at 67% 12%, #fff1e03d, #fff0 72%),
+    radial-gradient(19vw 2.8vh at 83% 25%, #ffe8d132, #fff0 72%),
+    radial-gradient(42vw 5.4vh at 45% 5%, #ffeddc2b, #fff0 72%),
+    radial-gradient(12vw 2vh at 36% 16%, #ffc98547, #fff0 72%);
+}
+
+/* The beach. Wider than the window and curved at the top, so the waterline is
+   an arc rather than a rule — five stops from wet sand to dry, and an inset
+   shadow where the water has just been. */
+.beach {
+  left: -8vw;
+  right: -8vw;
+  bottom: 0;
+  height: var(--sand);
+  border-radius: 100% 100% 0 0 / 58% 58% 0 0;
+  background: linear-gradient(#8a7259, #ad8a61 14%, #d5ac72 38%, #e6bd7c 60%, #ae8b5c 84%, #856645);
+  box-shadow: inset 0 6px 10px -6px #00000038;
+}
+
+/* The wash, on the same arc and a touch above it. */
+.wash {
+  left: -8vw;
+  right: -8vw;
+  bottom: calc(var(--sand) - 3.4dvh);
+  height: 6dvh;
+  border-radius: 100% 100% 0 0 / 100% 100% 0 0;
+  background:
+    radial-gradient(58% 120% at 50% 100%, #fdf1e0ab, #fdf1e033 46%, #fdf1e000 66%),
+    radial-gradient(90% 150% at 50% 118%, #f2e2cd5e, #f2e2cd00 62%);
+}
+
+/* Not a mood: it is what stops the four corners competing with the headline. */
+.vignette {
+  inset: 0;
+  background: radial-gradient(122% 92% at 50% 40%, #16100800 40%, #1c130940 76%, #1a11077d);
+}
+
+/*
+  The wind, the surf and the birds. Three loops, and all three are `transform`'s
+  neighbours — `rotate`, `translate`, `scale` are separate properties, so they
+  compose with the dolly's `transform: scale(var(--k))` instead of overwriting
+  it, and the flight below needs no knowledge that any of this is running.
+
+  `prefers-reduced-motion` stops all of it: the rule at the foot of this file
+  already zeroes every duration on the page, so there is nothing to write here.
+*/
+
+/* Palms move at the crown, not at the ground. `will-change` is not a hint here
+   but the whole point: it rasterises 44 filled paths once and hands the
+   rotation to the compositor, instead of re-filling them 60 times a second. */
+.sway {
+  transform-origin: 6px 74px;
+  will-change: transform;
+  animation: sway 7.5s ease-in-out infinite alternate;
+}
+
+.palm-far .sway {
+  transform-origin: 0 0;
+  animation-duration: 9.5s; /* a gust does not reach two trees at once */
+}
+
+.palm.r .sway {
+  animation-delay: -2.6s;
+}
+
+@keyframes sway {
+  from {
+    transform: rotate(-1.1deg);
+  }
+  to {
+    transform: rotate(1.7deg);
+  }
+}
+
+/* The surf: the same shape twice, out of phase and at different periods, so the
+   two never line up into one pulse. It runs up the sand and drains back. */
+.wash {
+  animation: surf 8.5s ease-in-out infinite alternate;
+}
+
+.wash-2 {
+  bottom: calc(var(--sand) - 1.6dvh);
+  opacity: 0.45;
+  animation-duration: 12.5s;
+  animation-delay: -5s;
+}
+
+@keyframes surf {
+  from {
+    translate: 0 1.4dvh;
+    opacity: 0.35;
+  }
+  to {
+    translate: 0 -1.2dvh;
+    opacity: 0.95;
+  }
+}
+
+/* Birds. Each crossing takes about a fifth of its cycle, so most of the time
+   the sky is empty, which is the difference between "at times" and "a loop". */
+.bird {
+  top: 0;
+  left: 0;
+  width: 26px;
+  opacity: 0;
+  animation:
+    fly 74s linear infinite,
+    flap 0.62s ease-in-out infinite alternate;
+}
+
+.b1 {
+  animation-delay: -6s, 0s;
+}
+
+.b2 {
+  top: 5dvh; /* its own lane — two birds on one line read as one bird twice */
+  width: 19px;
+  animation-delay: -44s, -0.3s;
+  animation-duration: 92s, 0.78s;
+}
+
+@keyframes fly {
+  0% {
+    translate: -12vw 17dvh;
+    opacity: 0;
+  }
+  4%,
+  17% {
+    opacity: 0.5;
+  }
+  21%,
+  100% {
+    translate: 112vw 9dvh;
+    opacity: 0;
+  }
+}
+
+@keyframes flap {
+  to {
+    scale: 1 0.45;
+  }
+}
+
+/* The crowns. `overflow: visible` because the fronds are meant to leave their
+   own viewBox — `.shore` is what clips them, at the edge of the window. */
+.palm {
+  overflow: visible;
+  color: #14180d;
+}
+
+.palm-near {
+  /* Three caps, and the third is the one that matters: a half-screened laptop
+     is 1024 wide and 640 tall, and a crown sized only off the width reaches the
+     headline there. `dvh` keeps it a frame in a short window. */
+  width: min(42vw, 30rem, 58dvh);
+  top: -7dvh;
+  left: -5vw;
+}
+
+/* Aerial perspective, which is contrast and colour rather than blur: the far
+   pair is smaller, bluer and half there. A blur would have to be recomputed
+   every frame of the flight; this costs nothing. */
+.palm-far {
+  width: min(24vw, 17rem, 34dvh);
+  top: 1dvh;
+  left: 12vw;
+  color: #5a6357;
+  opacity: 0.5;
+}
+
+.palm-near.r {
+  left: auto;
+  right: -5vw;
+}
+
+.palm-far.r {
+  left: auto;
+  right: 12vw;
+}
+
+/* The one concession to the sun being behind them: the same crown again,
+   warm, a hair up and to the left. Under the dark copy, so all that shows is
+   an edge. */
+.rim {
+  color: #e0a95f;
+  opacity: 0.42;
+  transform: translate(-1.6px, -1.6px);
+}
+
+/*
+  The flight — one dolly, not eight animations.
+
+  Moving the camera forward projects every point away from the vanishing point,
+  and the vanishing point of this picture is the middle of the horizon:
+  `50vw var(--horizon)`. So every layer scales about that one place and differs
+  only in `--k`, which is how near it is. The origins below are that same point
+  written in each layer's own box, which is why they look arbitrary and are not:
+  `.beach` sits 87dvh down the window, so the horizon is 87dvh above its top
+  edge. The mirrored crowns measure it from their right edge instead.
+*/
+
+.sun,
+.vignette,
+.clouds {
+  transform-origin: 50vw var(--horizon);
+}
+.glint {
+  transform-origin: 50vw 0;
+}
+.haze {
+  transform-origin: 50vw 5dvh;
+}
+.beach {
+  transform-origin: 58vw calc(var(--horizon) - 87dvh);
+}
+.wash {
+  transform-origin: 58vw calc(var(--horizon) - 84.4dvh);
+}
+.palm-near {
+  transform-origin: 55vw calc(var(--horizon) + 7dvh);
+}
+.palm-far {
+  transform-origin: 38vw calc(var(--horizon) - 1dvh);
+}
+.palm-near.r {
+  transform-origin: calc(100% - 55vw) calc(var(--horizon) + 7dvh);
+}
+.palm-far.r {
+  transform-origin: calc(100% - 38vw) calc(var(--horizon) - 1dvh);
+}
+
+.shore.leaving .clouds {
+  --k: 1.14;
+  opacity: 0;
+}
+
+.shore.leaving .sun,
+.shore.leaving .haze,
+.shore.leaving .glint {
+  --k: 1.05;
+  opacity: 0;
+}
+
+.shore.leaving .palm-far {
+  --k: 2.6;
+  opacity: 0;
+}
+
+/* The nearest thing in the picture, so the fastest: out through the top corners
+   at nearly four times the size, which is the whole illusion. */
+.shore.leaving .palm-near {
+  --k: 3.8;
+}
+
+.shore.leaving .wash {
+  --k: 2.3;
+  opacity: 0.5;
+}
+
+.shore.leaving .beach {
+  --k: 2.7;
+}
+
+.shore.leaving .vignette {
+  --k: 1.1;
+  opacity: 0.75;
+}
+
+/* The text is not in the scene, so it does not fly — it gets out of the way,
+   and quickly, because the rest of the flight is better watched without it. */
+.hero.leaving {
+  opacity: 0;
+  transform: scale(1.14);
+  pointer-events: none;
+  transition:
+    opacity 240ms ease-out,
+    transform 460ms cubic-bezier(0.42, 0, 0.9, 0.5);
+}
+
+/* A phone. The window is a third as wide and the horizon is up at 6dvh, so the
+   crowns have to be a good deal bigger in `vw` to still read as overhead — and
+   their origins move with them. */
+@media (pointer: coarse), (max-width: 34rem) {
+  .palm-near {
+    width: 64vw;
+    top: -5dvh;
+    left: -9vw;
+    transform-origin: 59vw calc(var(--horizon) + 5dvh);
+  }
+
+  .palm-far {
+    width: 36vw;
+    top: 0;
+    left: 10vw;
+    transform-origin: 40vw var(--horizon);
+  }
+
+  .palm-near.r {
+    right: -9vw;
+    transform-origin: calc(100% - 59vw) calc(var(--horizon) + 5dvh);
+  }
+
+  .palm-far.r {
+    right: 10vw;
+    transform-origin: calc(100% - 40vw) var(--horizon);
+  }
+
+  /* 15vw is 58px on a phone, and streaks 7px apart inside 58px are a barcode
+     rather than a light. The mask gets a floor, and the whole thing dims. */
+  .glint {
+    opacity: 0.13;
+    -webkit-mask-image: radial-gradient(clamp(7rem, 15vw, 26rem) 26vh at 26% 0, #000, #0000 66%);
+    mask-image: radial-gradient(clamp(7rem, 15vw, 26rem) 26vh at 26% 0, #000, #0000 66%);
+  }
+}
+
+/*
+  The footer stands on the sand now, and dim paper on lit sand is a 1.6:1 line.
+  It is the one place on the site where the ground is lighter than the ink, so
+  the ink turns over — the alternative was a scrim, and a scrim over a beach is
+  a stain.
+*/
+
+.landing .foot {
+  color: #2f2619;
+}
+
+.landing .foot a {
+  text-decoration-color: #7a5313;
+}
+
+.landing .foot a:hover {
+  color: #6b4a12;
+}
+
+.landing .foot strong {
+  color: #241d13;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1281,3 +1281,156 @@ the renderer no longer has, for a tree that is two meshes deep.
   waterline instead of at a hover, which tips it further down and lifts the
   horizon. It looked right at 1280; the phone's `AIM_DOWN` was tuned against a
   saucer 90 cm higher and is worth a second look on real glass.
+
+## The shore — the landing page grows a foreground, and flies through it
+
+`/{lang}` was four things on an empty sea, and the open question at the end of
+the landing-page section above was whether that was enough. It was not: an empty
+sea says nothing about whether the thing behind the button is worth pressing.
+So the landing page now has a foreground — two palm crowns leaning in over the
+camera and a fainter pair behind them, cloud on the sky, the sun's glint on the
+water, sand and a wash at our feet — and pressing the button flies the whole
+thing past us.
+
+Everything below is `src/index.css` under **"the shore"** and `src/routes/home.tsx`.
+It is only on `/{lang}`. The world's own sky is the world's.
+
+### One SVG path, used 44 times
+
+`FROND` in `home.tsx` is a single palm frond: the rachis arcing out along +x,
+34 leaflets alternating sides, each falling under its own weight. It was
+generated rather than drawn — the shape is arithmetic, and arithmetic is what
+gets a leaflet's droop consistent across 34 of them — and then it is the only
+geometry on the page. Both crowns, both sides, near and far, the rim copies:
+all of it is that path under a `<use>` transform. 1.7 kB of path data, no
+request, no image, no dependency, and it is in the prerendered document, so the
+shore is there with JavaScript off and with no renderer (invariant 4).
+
+Everything else is gradients: six ellipses for the cloud, three for the sun and
+what it throws on the water, two repeating gradients under an elliptical mask
+for the glint, five stops from wet sand to dry for the beach.
+
+### The flight is one dolly, not eight animations
+
+Moving a camera forward projects every point *away from the vanishing point*.
+The vanishing point of this picture is the middle of the horizon —
+`50vw var(--horizon)`, the same constant the ocean gradient is built on — so
+every layer scales about that one place and differs only in `--k`, which is how
+near it is. The clouds barely move at 1.14; the crowns overhead go to 3.8 and
+leave through the top corners; the sand goes to 2.7, which drops the waterline
+below the bottom of the frame, because that is what a beach does when you walk
+into the sea.
+
+That is why the layers stay in register the whole way through, and it is why
+there are no keyframes: one transition on `transform` and `opacity`, one curve,
+and the numbers are depths rather than choreography. The `transform-origin`
+lines look arbitrary and are not — each is that same viewport point written in
+that layer's own box, which is why `.beach` reads `calc(var(--horizon) - 87dvh)`.
+
+The mirrored crowns are flipped *inside* their `viewBox`, not with `scaleX(-1)`
+on the element: the element's transform is the dolly and has to scale about the
+vanishing point, and a flip on the element would move the point it scales about.
+
+### The button holds the route back, and only when there is something to watch
+
+`FLIGHT` is 560 ms; the CSS is 640, so nothing is still on screen at the cut.
+The delay is a `setTimeout` held in an effect rather than in the handler, so
+leaving the page cancels it — clicking through to the flat index mid-flight must
+not drag the visitor into the world half a second later.
+
+Two ways out of the delay, both of them the link doing what it says: a modified
+click (new tab, new window) is handed straight to the browser, and
+`prefers-reduced-motion` returns before `preventDefault` at all, so the
+navigation is immediate and the CSS below it has nothing to play (invariant 6).
+With JavaScript off there is no handler and the link is a link.
+
+### Warmth, and where it comes from
+
+The first pass was cold: the ocean gradient is twelve stops sampled off a
+rendered frame, and those stops are blue. Rather than re-sample them — which
+would put the landing page out of step with `.stage`, the one background both
+share — the warmth is a wash inside `.sun`, which was already a full-frame
+layer: a wider glow, a warm band lying on the water at the horizon, and a
+linear tint over the whole frame with no gap in the middle, because a gap is
+what made the water read as a cold stripe between two warm ends. Haze, cloud,
+sand, wash, vignette and both silhouette colours went warm with it. No new
+element, no new layer, and the sampled ocean underneath is untouched.
+
+### Two things the foreground broke
+
+- **The footer stands on the sand.** `--paper-dim` on lit sand is about a 1.6:1
+  line. `.landing .foot` turns the ink over — dark on light, the one place on
+  the site where the ground is brighter than the text. A scrim was the
+  alternative, and a scrim over a beach is a stain.
+- **A crown sized off `vw` alone eats a short window.** At 1024 × 640 — a
+  half-screened laptop — the near fronds reached the headline. `width` now has a
+  third cap in `dvh`.
+
+### Idle motion, and what it is allowed to cost
+
+The first version had none — nothing drifted at rest, and the only animation was
+the one the visitor asked for. That was too still for a beach. There are three
+loops now, and they are the neighbours of `transform` rather than `transform`
+itself: `rotate`, `translate` and `scale` are separate properties, so each
+composes with the dolly's `transform: scale(var(--k))` and the flight needs no
+knowledge that any of them is running.
+
+- **Wind**, `.sway`: a group inside each crown, rotating about where the crown
+  meets its trunk. `will-change: transform` on that group is not decoration —
+  it rasterises 44 filled paths once and hands the rotation to the compositor,
+  instead of re-filling roughly nine thousand quadratic subpaths every frame.
+  Four periods, none of them equal, because a gust does not reach two trees at
+  once.
+- **Surf**, `.wash` twice: the same shape at 8.5s and 12.5s, five seconds out of
+  phase, so the two never line up into a pulse.
+- **Birds**, two `<use>` of one 60-byte path. Each crossing takes about a fifth
+  of its cycle, which is the difference between *at times* and *a loop*, and the
+  flap is a `scale` on the same element the `translate` is flying — which is why
+  the bird keeps its own `transform-origin` and does not get the vanishing
+  point's, and why it flies on through the flight instead of being faded by a
+  rule an animation outranks.
+
+`prefers-reduced-motion` stops all three for nothing: the rule at the foot of
+`index.css` already zeroes every duration on the page (invariant 6).
+
+### Verified, in the container against the real stylesheet
+
+Not on Seb's machine — the dev server cannot run from Claude's Linux VM, and
+`npm install` there is forbidden.
+
+- [x] `npx tsc -b` clean, `node src/i18n/locales.check.ts` green
+- [x] The real `src/index.css` and the real markup, screenshotted at
+      1440 × 900, 1024 × 640 and 390 × 844, at rest and mid-flight
+- [x] The dolly holds: at 40% through, the crowns are streaming out of the top
+      corners, the waterline has dropped below the frame, and the horizon has
+      not moved a pixel — which is the test that says it is a camera and not
+      eight separate fades
+- [x] Footer legible on sand at all three sizes
+- [x] No new class collides with anything already in `src`
+- [x] Cost: **+1.7 kB of path data and about 90 lines of CSS**, no dependency,
+      no image, no request, no JavaScript beyond one `useState` and one
+      `setTimeout`
+
+### Needs Seb
+
+- **The build numbers.** First-route JS and the CSS gz figure both move, and
+  neither can be measured here. The path data is markup in three prerendered
+  documents per locale rather than a chunk, so the first-route JS should be
+  near-flat and the HTML should grow by roughly 1.7 kB × 3.
+- **Whether the idle loops hold 60 fps on your machine.** The wind is the one
+  worth watching — four composited crown layers is the bet, and swiftshader in
+  the container has no opinion about whether it paid off. Every period is one
+  number in `index.css`.
+- **Whether 560 ms is the right length.** It was judged on a screenshot at 40%,
+  which has no opinion about how long a wait feels with a finger still on the
+  mouse. It is one constant in `home.tsx`, and the CSS duration beside it.
+- **Whether the canvas is ready when the flight ends.** The scene chunk is not
+  requested until the route changes, so the flight buys it nothing today. If the
+  world arrives late, starting the `import()` on the button's `pointerenter` is
+  a two-line change in `WorldGate` — proposed, not built.
+- **The sun is at 26% of the width.** The scene's own sun was swung round to
+  port; 26% is where that looked right against the sampled gradient, not a
+  number read out of `Scenery.tsx`.
+- **Lighthouse, once it is deployed.** The shore is markup and gradients, so
+  nothing here should touch LCP, but the flat-site 100 is a Phase 2 exit test
+  and this is the first thing to land on that page since it was written.

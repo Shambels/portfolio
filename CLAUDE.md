@@ -129,7 +129,10 @@ src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
 src/Menu.tsx            the site's only top chrome — a <details> in the top right:
                         home, work, the three languages, and the world's two
                         settings: which craft you steer, and its sound
-src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, one button
+src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shore
+                        over it (palms, cloud, sand — one SVG path and gradients),
+                        one button, and the dolly that flies all of it past the
+                        camera on the way into the world
 src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
 src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose without
