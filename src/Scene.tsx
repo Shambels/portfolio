@@ -8,7 +8,7 @@ import { Particles } from './Particles'
 import { Sound } from './Sound'
 import { Debug } from './Debug'
 import { Post } from './Post'
-import type { ShipModel } from './WorldGate'
+import type { Sea, ShipModel } from './WorldGate'
 
 extend(THREE as never)
 
@@ -29,9 +29,9 @@ export default function Scene({
    *  world's context: this tree is inside the canvas and reads the URL and its
    *  props, nothing else. */
   model: ShipModel
-  /** The sea state the menu's slider is on, 0 (a mirror) to 1 (a gale). Handed
-   *  to `Scenery`, which owns the waves and writes them into the shader. */
-  sea: number
+  /** Which of the two seas the menu is on. Handed to `Scenery`, which owns the
+   *  waves and ramps the rollers in and out of the shader and the hull. */
+  sea: Sea
   slug: string | null
   debug: boolean
   /** The HUD's toggle. Off by default, and the click that turns it on is also
