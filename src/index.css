@@ -132,18 +132,6 @@ a:hover {
   font-size: 0.9375rem;
 }
 
-.wordmark {
-  font-weight: 620;
-  letter-spacing: -0.01em;
-  text-decoration: none;
-  margin-inline-end: auto;
-}
-
-.bar nav {
-  display: flex;
-  gap: 1rem;
-}
-
 .langs {
   font: 500 0.8125rem/1 var(--mono);
   letter-spacing: 0.06em;
@@ -159,16 +147,160 @@ a:hover {
   text-decoration-color: var(--gold);
 }
 
-.langs [aria-current] {
-  color: var(--paper);
+/* --- the menu ----------------------------------------------------------- */
+
+/*
+  All that is left of the header: one square in the top right of every route,
+  and behind it the wordmark's link, the work index, the languages and the
+  world's sound. The disclosure is `<details>`, so opening and closing are the
+  platform's and both still work with JavaScript off — which is the only reason
+  the language switcher survives there.
+*/
+
+.menu {
+  position: fixed;
+  z-index: 3; /* over the world's panel, under the skip link */
+  top: 0.85rem;
+  right: clamp(1.25rem, 5vw, 3rem);
 }
+
+.menu summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #ffffff2e;
+  border-radius: 10px;
+  background: #0b0c0f8c;
+  backdrop-filter: blur(14px);
+  font: 500 0.8125rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none; /* the disclosure triangle: the spec's way, and Firefox's */
+}
+
+.menu summary::-webkit-details-marker {
+  display: none; /* and Safari's */
+}
+
+/* Three lines, drawn rather than fetched: two borders and one gradient for the
+   middle. No icon file, no sprite, no request. */
+.menu summary::before {
+  content: '';
+  width: 1.05rem;
+  height: 0.75rem;
+  border-block: 2px solid currentColor;
+  background: linear-gradient(currentColor, currentColor) 50% / 100% 2px no-repeat;
+}
+
+.menu summary:hover,
+.menu[open] summary {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.menu nav {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  display: grid;
+  justify-items: start;
+  min-width: 11rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #0b0c0fe6;
+  backdrop-filter: blur(14px);
+  font-size: 0.9375rem;
+  text-align: left; /* the landing page centres its main; this is not in it */
+}
+
+.menu nav a {
+  padding-block: 0.2rem;
+  text-decoration: none;
+}
+
+.menu nav a:hover {
+  text-decoration: underline;
+}
+
+.menu [aria-current] {
+  color: var(--gold);
+}
+
+.menu .label {
+  width: 100%;
+  margin: 0.7rem 0 0.15rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rule);
+  font: 400 0.75rem/1.4 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--paper-faint);
+}
+
+.menu .langs {
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+}
+
+/* The craft. A native select, styled down to the menu's own weight rather than
+   replaced: the popup is the platform's, so the phone gets its wheel and the
+   keyboard gets its type-ahead for nothing. `color-scheme: dark` at the top of
+   this file is what keeps that popup from coming back white. */
+
+.menu .craft {
+  width: 100%;
+  margin-bottom: 0.55rem;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: #ffffff08;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.menu .craft:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* The sound. `aria-pressed` carries the state and the dot in front of the label
+   is the sighted half of it — in CSS, so there is nothing here for a screen
+   reader to read twice. */
+.menu .sound {
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.menu .sound::before {
+  content: '\25CB\A0'; /* an open circle, then a non-breaking space */
+}
+
+.menu .sound[aria-pressed='true']::before {
+  content: '\25CF\A0';
+}
+
+.menu .sound:hover {
+  color: var(--gold);
+}
+
+/* --- frame, continued --------------------------------------------------- */
 
 main {
   flex: 1;
   width: 100%;
   max-width: var(--measure);
   margin-inline: auto;
-  padding-block: calc(var(--lh) * 1.5) calc(var(--lh) * 3);
+  /* Was 1.5 with a header above it. The top of the page is the menu button
+     now, and this is what clears it on a window too narrow for the button to
+     sit beside the measure. */
+  padding-block: calc(var(--lh) * 2.75) calc(var(--lh) * 3);
 }
 
 .foot {
@@ -339,26 +471,18 @@ canvas {
 }
 
 .world,
-.world body {
+.world body,
+.landing,
+.landing body {
   height: 100dvh;
   overflow: hidden;
 }
 
-.world body {
+.world body,
+.landing body {
   display: block;
   padding: 0;
-  background: transparent; /* the scene is the background */
-}
-
-/* `header.bar`, not `.bar`: the footer wears the same class, and an `inset`
-   meant for the top of the screen stretches it across the whole of it. */
-.world header.bar {
-  position: fixed;
-  z-index: 2;
-  inset: 0 0 auto;
-  max-width: none;
-  padding: 0.85rem clamp(1.25rem, 5vw, 3rem);
-  background: linear-gradient(to bottom, #0b0c0fcc, #0b0c0f00);
+  background: transparent; /* the ocean is on the root element, below */
 }
 
 .world main {
@@ -389,7 +513,8 @@ canvas {
   margin-block-end: 0;
 }
 
-.world .foot {
+.world .foot,
+.landing .foot {
   position: fixed;
   z-index: 2;
   left: clamp(1.25rem, 5vw, 3rem);
@@ -404,7 +529,8 @@ canvas {
   font-size: 0.8125rem;
 }
 
-.world .foot .fine {
+.world .foot .fine,
+.landing .foot .fine {
   display: none;
 }
 
@@ -421,33 +547,6 @@ canvas {
   opacity: 0.66;
   pointer-events: none;
   white-space: nowrap;
-}
-
-/* The sound toggle — the one thing in the HUD you can click, so it takes its
-   pointer events back from a line that otherwise never eats a drag over the
-   world. The dot is the state, in CSS: `aria-pressed` already says it out loud
-   and a second copy in the DOM would be read twice. */
-.hud button {
-  pointer-events: auto;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.hud button::before {
-  content: '\25CB\A0'; /* an open circle, then a non-breaking space */
-}
-
-.hud button[aria-pressed='true']::before {
-  content: '\25CF\A0';
-}
-
-.hud button:hover,
-.hud button:focus-visible {
-  color: #bae6fd;
 }
 
 /* A narrow desktop window: `pointer: fine` is the mount test, and a laptop can
@@ -471,9 +570,9 @@ canvas {
   Touch — Phase 6. The mount test no longer rejects a coarse pointer, so this is
   the world on a phone. The panel is the same card, moved to where a thumb can
   reach it and sized to what it holds; the HUD comes back, because on touch it
-  is both the only place the controls are named and the only way to reach the
-  sound. Ordered after the rule above so it wins on a narrow phone as well as a
-  wide tablet.
+  is the only place the controls are named — the sound is in the menu now, and
+  the menu is on every route. Ordered after the rule above so it wins on a
+  narrow phone as well as a wide tablet.
 */
 @media (pointer: coarse) {
   .world main {
@@ -508,19 +607,107 @@ canvas {
     line-height: 1.5;
   }
 
-  /* A word in a line of 12.5px text is not a touch target. The negative margin
-     keeps the line where it was, so the hint above it does not move. */
-  .hud button {
-    padding: 0.35rem 0.45rem;
-    margin: -0.35rem -0.45rem;
-  }
-
   /* The footer would sit under the HUD, and on a tablet beside it. Its links
      are on every flat page and the world's chrome is better thin than complete
      — the same trade the narrow-window rule above already makes. */
   .world .foot {
     display: none;
   }
+}
+
+/* --- the ocean ---------------------------------------------------------- */
+
+/*
+  The landing page and the world share a background, so pressing the button
+  changes nothing until the canvas has a frame to show. Both gradients were
+  sampled down a rendered frame rather than picked by eye — twelve stops of
+  water — and the horizon sits at 25dvh because the camera's 45deg vertical
+  field of view puts it there whatever the window size. `AIM_DOWN` in `Ship.tsx`
+  tips the camera down on a coarse pointer, which lifts the horizon to about a
+  sixteenth of the frame, and the rule below moves with it.
+
+  About 350 bytes, no canvas and no WebGL: the ocean is there before the scene
+  chunk has been asked for, it is what a visitor with no renderer keeps, and the
+  chunk loads over a page that is already the right colour at the right height.
+*/
+
+.landing,
+.stage {
+  --horizon: 25dvh;
+  background:
+    linear-gradient(#92a0b6, #99a7ba 66%, #a9b4c1) 0 0 / 100% var(--horizon) no-repeat,
+    linear-gradient(#a4b0bf, #93a4b6 4%, #879cae 12%, #62839c 21%, #557b94 30%,
+        #4d768d 40%, #47748b 45%, #3a6e85 56%, #2f667d 67%, #256177 78%,
+        #1f5e73 89%, #195d71) 0 100% / 100% calc(100dvh - var(--horizon)) no-repeat,
+    #195d71;
+}
+
+@media (pointer: coarse) {
+  .landing,
+  .stage {
+    --horizon: 6dvh;
+  }
+}
+
+/* --- the landing page --------------------------------------------------- */
+
+.landing main {
+  position: fixed;
+  z-index: 1; /* under the chrome, which is 2 */
+  inset: 0;
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
+  overflow: auto;
+  max-width: none;
+  margin: 0;
+  /* Centred in the water rather than in the window: the top padding is the sky,
+     so the hero sits in the middle of everything below the horizon and moves up
+     with it on a phone. That band is also the darkest water on the page, which
+     is what pays for the text — no card and no scrim, and the ocean is left
+     alone. */
+  padding: var(--horizon) clamp(1.25rem, 5vw, 3rem) 0;
+  text-align: center;
+}
+
+.hero {
+  max-width: var(--measure);
+  text-shadow: 0 1px 12px #0b0c0f80;
+}
+
+/* Not `--paper-dim`: that colour is for a line on a dark card, and this one is
+   on water. */
+.hero .lede {
+  color: var(--paper);
+  margin-block-end: calc(var(--lh) * 1.5);
+}
+
+/* The world's panel, shrunk to a button: same glass, same border, same radius.
+   It is an `<a>`, so it goes gold on hover like every other link on the site. */
+.enter {
+  display: inline-block;
+  padding: 0.75rem 1.75rem;
+  border: 1px solid #ffffff2e;
+  border-radius: 10px;
+  background: #0b0c0f8c;
+  backdrop-filter: blur(14px);
+  font-weight: 620;
+  text-decoration: none;
+  text-shadow: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.enter:hover,
+.enter:focus-visible {
+  border-color: var(--gold);
+  background: #0b0c0fbf;
+}
+
+/* Smaller, not dimmer: `--paper-dim` over water is a 2.4:1 line, and the size
+   is enough to say which of the two links is the second one. */
+.instead {
+  margin-block: calc(var(--lh) * 0.75) 0;
+  font-size: 0.9375rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

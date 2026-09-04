@@ -1,5 +1,5 @@
 import {
-  Suspense, createContext, lazy, useCallback, useContext, useEffect, useRef, useState,
+  Suspense, createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router'
@@ -9,10 +9,34 @@ import { SOURCE_LOCALE, STRINGS, isWorldPath, localeOf, slugOf } from './i18n'
  *  fetched the first time a route wants it, and after that it never unmounts. */
 const Scene = lazy(() => import('./Scene'))
 
-const WorldContext = createContext(false)
+/** Which hull the visitor is steering. Declared here rather than in `Ship`
+ *  because the menu is what sets it and the menu is in the first-route chunk —
+ *  a value import from anything inside the canvas would drag the canvas in
+ *  with it. `Ship` imports it back as a type, which compiles to nothing. */
+export type ShipModel = 'saucer' | 'boat'
 
-/** True when the scene is showing behind this route. A route reads it to decide
- *  whether it is a page or a panel — it never asks whether WebGL exists. */
+/** What the chrome above the routes needs to know about the world: whether it
+ *  is showing, and the two settings it has. */
+export type World = {
+  active: boolean
+  sound: boolean
+  toggleSound: () => void
+  model: ShipModel
+  setModel: (model: ShipModel) => void
+}
+
+const WorldContext = createContext<World>({
+  active: false, sound: false, toggleSound: () => {}, model: 'saucer', setModel: () => {},
+})
+
+/** Where the choice is remembered. Namespaced, because this origin is the whole
+ *  site and one day something else will want a key. */
+const MODEL_KEY = 'pinchs.ship'
+
+/** `active` is true when the scene is showing behind this route — a route reads
+ *  it to decide whether it is a page or a panel, and never asks whether WebGL
+ *  exists. `sound` rides along because the menu that toggles it is chrome, and
+ *  chrome is rendered by the layout, not by the world. */
 export const useWorld = () => useContext(WorldContext)
 
 let capable: boolean | undefined
@@ -47,9 +71,27 @@ export function WorldGate({ children }: { children: ReactNode }) {
   // question above — and not a width either: a coarse pointer is exactly the
   // visitor whose fingers the hint is about.
   const [touch, setTouch] = useState(false)
+  // Unlike the sound below, this one is remembered: nothing in the platform
+  // refuses to give a returning visitor the hull they picked. Read in the same
+  // effect as the rest of the after-mount detection, and before the canvas can
+  // mount — `active` needs `detected`, which is set here — so there is no frame
+  // of the wrong ship to see.
+  const [model, setModel] = useState<ShipModel>('saucer')
   useEffect(() => {
     setDetected(canRenderWorld())
     setTouch(window.matchMedia('(pointer: coarse)').matches)
+    // Reading it can throw outright where site data is blocked by policy, and
+    // this effect is also what decides whether there is a world at all.
+    try {
+      if (localStorage.getItem(MODEL_KEY) === 'boat') setModel('boat')
+    } catch { /* no stored answer is a fine answer */ }
+  }, [])
+
+  const chooseModel = useCallback((m: ShipModel) => {
+    setModel(m)
+    try {
+      localStorage.setItem(MODEL_KEY, m)
+    } catch { /* as above: the setting still works, it just does not last */ }
   }, [])
 
   const active = detected && isWorldPath(pathname, search)
@@ -79,12 +121,14 @@ export function WorldGate({ children }: { children: ReactNode }) {
       // Walking away pops back, so a lap of the world does not leave a history
       // of panels behind it. `idx` is React Router's own history cursor: if it
       // is missing, or this is the first entry, there is nothing of ours to pop
-      // — a cold deep link is the usual case — and home replaces it instead.
+      // — a cold deep link is the usual case — and `/{lang}/world` replaces it
+      // instead. Not `/{lang}`: that is the landing page now, and flying away
+      // from a landmark is not a reason to leave the world.
       const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
       const back = pushed.current && idx > 0
       pushed.current = false
       if (back) navigate(-1)
-      else navigate(`/${locale}`, { replace: true })
+      else navigate(`/${locale}/world`, { replace: true })
     },
     [locale, navigate],
   )
@@ -114,8 +158,13 @@ export function WorldGate({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(raf)
   }, [debug, mounted])
 
+  const world = useMemo<World>(
+    () => ({ active, sound, toggleSound: () => setSound((s) => !s), model, setModel: chooseModel }),
+    [active, sound, model, chooseModel],
+  )
+
   return (
-    <WorldContext.Provider value={active}>
+    <WorldContext.Provider value={world}>
       {mounted && (
         // Decorative by construction: every word in the world is in the DOM
         // beside it (invariant 2), so there is nothing here for a screen reader
@@ -124,6 +173,7 @@ export function WorldGate({ children }: { children: ReactNode }) {
           <Suspense fallback={null}>
             <Scene
               active={active}
+              model={model}
               slug={slug}
               debug={debug}
               sound={sound}
@@ -136,19 +186,17 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
       {children}
 
+      {/* Names the controls, and nothing more — the sound moved into the menu,
+          so the world has no focusable element of its own and this line eats no
+          pointer events at all. */}
       {active && (
         <p className="hud">
-          {touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls}
+          {/* Four sentences, because the boat has no rise and the phone has no
+              shift. Naming a key that does nothing is worse than a shorter hint. */}
+          {model === 'boat'
+            ? touch ? STRINGS[locale].worldControlsBoatTouch : STRINGS[locale].worldControlsBoat
+            : touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls}
           {debug && ` · ${backend}${fps ? ` · ${fps}` : ''}`}
-          {' · '}
-          {/* The world's only control that is not a key, so it is the world's
-              only focusable element — last in the tab order, behind the skip
-              link and every link on the page. `aria-pressed` carries the state;
-              the dot in front of the label is the sighted half of it, and it is
-              CSS so there is nothing here for a screen reader to read twice. */}
-          <button type="button" aria-pressed={sound} onClick={() => setSound((s) => !s)}>
-            {STRINGS[locale].sound}
-          </button>
         </p>
       )}
     </WorldContext.Provider>

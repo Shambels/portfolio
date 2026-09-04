@@ -37,7 +37,7 @@ const INTERACTIVE = 'a[href],button,input,select,textarea,summary,[contenteditab
 /**
  * The canvas layer, and the touch equivalent of the selector above: a drag is
  * only a drag if it started on the world. A finger that goes down on the panel
- * is scrolling the case study, and one on the header is following a link.
+ * is scrolling the case study, and one on the menu is opening it.
  *
  * `.stage.off` takes its pointer events away on every route with no world
  * showing, so this cannot match there either.

@@ -100,6 +100,61 @@ const SWELL: [number, number, number, number, number][] = [
   [-0.42, 0.91, 0.9, 0.03, 1.5],
   [0.98, -0.19, 1.7, 0.012, 2.3],
 ]
+/**
+ * The same three swells on the CPU, as a height and a gradient at a world XZ.
+ * `SWELL` above is a set of sine waves, so its height field is the term the
+ * shader differentiates to get its normals — one set of numbers, and a hull
+ * that rides the sea it can see rather than a second sea that nearly matches.
+ *
+ * The noise ripple is deliberately not here: it is a slope detail at a scale
+ * no hull reacts to, and it is the one term with no cheap CPU twin.
+ *
+ * `t` is the caller's, not this module's, because the caller is the only one
+ * who knows whether it is honouring `prefers-reduced-motion` — pass 0 and the
+ * sea is as frozen as the shader's is. It is `clock.elapsedTime` rather than
+ * three's `time` node: a different clock, so the phase is off by however long
+ * the renderer took to come up. On a flat plane shaded by these normals that
+ * offset is not observable, and threading the node's clock back to the CPU is
+ * a uniform read per frame to fix nothing.
+ *
+ * Returns a shared object — read it, do not keep it.
+ */
+const _swell = { y: 0, dx: 0, dz: 0 }
+export function swell(x: number, z: number, t: number) {
+  let y = 0
+  let dx = 0
+  let dz = 0
+  for (const [dirX, dirZ, freq, amp, speed] of SWELL) {
+    const phase = x * dirX * freq + z * dirZ * freq + t * speed
+    y += Math.sin(phase) * amp
+    const slope = Math.cos(phase) * amp * freq
+    dx += slope * dirX
+    dz += slope * dirZ
+  }
+  _swell.y = y
+  _swell.dx = dx
+  _swell.dz = dz
+  return _swell
+}
+
+/**
+ * The one thing that can go quietly wrong here: `SWELL` gaining a term whose
+ * height and slope do not belong to each other, which shades a sea the boat is
+ * not riding. Finite differences catch it in dev, once, at import.
+ */
+if (import.meta.env.DEV) {
+  const e = 1e-4
+  for (const [x, z, t] of [[3, -7, 0.4], [-11, 22, 9.1]]) {
+    const s = swell(x, z, t)
+    const dx = (swell(x + e, z, t).y - swell(x - e, z, t).y) / (2 * e)
+    const dz = (swell(x, z + e, t).y - swell(x, z - e, t).y) / (2 * e)
+    console.assert(
+      Math.abs(dx - s.dx) < 1e-5 && Math.abs(dz - s.dz) < 1e-5,
+      `swell at ${x},${z}: the gradient is not the height's — the water and the boat disagree`,
+    )
+  }
+}
+
 function waveNormal(p: Vec2) {
   let dx: Float = float(0)
   let dz: Float = float(0)

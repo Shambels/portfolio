@@ -8,6 +8,7 @@ import { Particles } from './Particles'
 import { Sound } from './Sound'
 import { Debug } from './Debug'
 import { Post } from './Post'
+import type { ShipModel } from './WorldGate'
 
 extend(THREE as never)
 
@@ -21,9 +22,13 @@ extend(THREE as never)
  * holds "which panel is showing" of its own.
  */
 export default function Scene({
-  active, slug, debug, sound, onNear, onBackend,
+  active, model, slug, debug, sound, onNear, onBackend,
 }: {
   active: boolean
+  /** Which hull the menu is showing. Passed through rather than read from the
+   *  world's context: this tree is inside the canvas and reads the URL and its
+   *  props, nothing else. */
+  model: ShipModel
   slug: string | null
   debug: boolean
   /** The HUD's toggle. Off by default, and the click that turns it on is also
@@ -48,7 +53,7 @@ export default function Scene({
       <color attach="background" args={['#2a3f5f']} />
       <Scenery />
       <Islands />
-      <Ship enabled={active} slug={slug} onNear={onNear} />
+      <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
       {/* Reads the ship's position, so it is mounted after it. */}
       <Particles />
       <Landmarks near={slug} />
