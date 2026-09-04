@@ -127,8 +127,9 @@ src/root.tsx            the HTML document — <html lang>, stylesheet, Scripts
 src/routes.ts           the route table
 src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
 src/Menu.tsx            the site's only top chrome — a <details> in the top right:
-                        home, work, the three languages, and the world's two
-                        settings: which craft you steer, and its sound
+                        home, work, the three languages, and the world's three
+                        settings: which craft you steer, how rough its sea is,
+                        and its sound
 src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shore
                         over it (palms, cloud, sand — one SVG path and gradients),
                         one button, and the dolly that flies all of it past the
@@ -228,9 +229,18 @@ rise is a second finger. Nothing is cut on a phone, and the whole phase cost
 528 bytes gz. `docs/STATUS.md` has the layout it changed and the one camera
 number it changed with it.
 
-The visitor picks the craft in the menu, and the choice is remembered — the one
-setting on the site that is, because nothing in the platform refuses to give a
-returning visitor the hull they chose. The boat floats: its altitude is the
+The visitor picks the craft in the menu, and the sea state beside it — a slider
+from a mirror to a gale. Both are remembered, and the sound is not, because
+nothing in the platform refuses to give a returning visitor the hull and the
+weather they chose, while it does refuse them sound before they have clicked.
+
+The sea state is three scalars over `SWELL` — height, spatial frequency, speed —
+written into shader uniforms and into the CPU twin `swell()` by one function, so
+the water and the boat still cannot disagree. All three read exactly 1 at
+`SEA_CALM`, where the slider starts, so the default is the sea this world
+shipped with. The surface stays geometrically flat: a storm is normals, foam and
+a hull thrown about, not a silhouette. `docs/STATUS.md` has why, and what it
+would cost to change. The boat floats: its altitude is the
 swell, it is pushed out of every island's shoreline instead of flying over it,
 and arriving *alongside* an island is what opens the panel, because a hull can
 never reach the circle the saucer triggers on.

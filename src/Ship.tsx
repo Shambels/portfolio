@@ -3,7 +3,7 @@ import * as THREE from 'three/webgpu'
 import { color, positionLocal, sin, time } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
-import { swell } from './Scenery'
+import { seaAmp, swell } from './Scenery'
 import { VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 
@@ -46,6 +46,33 @@ const BUOY = 6        // how fast the hull catches the swell. Lower = more wallo
 // wearing wave normals — the sea it is heeling to is painted on — so this is a
 // lie told on top of a lie, and the only honest way to judge it is to look.
 const WAVE_TILT = 3
+
+/**
+ * And `WAVE_TILT` is a lie told about a small sea, so it tapers as the sea
+ * grows: at a gale the water's own slope reaches 45 degrees and needs no help,
+ * while a mirror-to-moderate swell still gets nearly all of the exaggeration.
+ * Square root rather than linear because the amplitude itself is squared off
+ * the slider — this is what keeps the middle of the travel from going slack.
+ *
+ * At or below the sea this world shipped with it is exactly 3, so the boat
+ * that was tuned by looking at it heels by the same numbers it always did.
+ */
+const waveTilt = () => 1 + (WAVE_TILT - 1) / Math.max(1, Math.sqrt(seaAmp()))
+
+// What the menu's sea slider does to a hull. Both of these are ceilings the
+// calm sea never comes near and the storm sits against, and both are saturating
+// rather than clipping (`soft` below) — small signal keeps its full gain, so
+// the default sea rides and heels within a few percent of what it always did.
+//
+// `RIDE` is the honest one: the water is a flat plane, so a hull that heaves
+// further than this drops through a mirror and disappears, or floats above a
+// sea with no wave under it. The height of a storm is in the *rate* of the
+// heave and in the heel, which have no such ceiling.
+const RIDE = 0.22     // metres of heave the flat water plane can hide
+const HEEL = 0.6      // radians, about 34 degrees — a gale, not a capsize
+
+/** Saturating limit: `soft(v, m)` is v for small v and never leaves ±m. */
+const soft = (v: number, m: number) => m * Math.tanh(v / m)
 
 // The bounce. One spring driven by the ship's own acceleration — horizontal,
 // vertical and any mix — read back as lean, pitch and suspension travel. The
@@ -238,11 +265,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     if (boat) {
       const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
       heave.current += (s.y - heave.current) * (1 - Math.exp(-BUOY * dt))
-      ride = heave.current
+      ride = soft(heave.current, RIDE)
       // Flip either sign if the hull leans into the wave rather than over it —
       // this is the pair of numbers a screenshot settles and arithmetic does not.
-      roll = (s.dx * cy - s.dz * sy) * WAVE_TILT
-      heel = -(s.dx * sy + s.dz * cy) * WAVE_TILT
+      const tilt = waveTilt()
+      roll = soft((s.dx * cy - s.dz * sy) * tilt, HEEL)
+      heel = soft(-(s.dx * sy + s.dz * cy) * tilt, HEEL)
     }
 
     body.current.rotation.z = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK) + roll

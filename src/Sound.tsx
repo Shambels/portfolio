@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { SHIP } from './Ship'
+import { seaLevel } from './Scenery'
 import { LANDMARKS, overWater, type Landmark } from './world'
 
 /**
@@ -48,6 +49,11 @@ const SEA_HZ = 420
 const SEA = 0.26
 const SEA_LAND = 0.5 // of that, parked on an island — the landmark's voice needs the room
 const SWELL = 0.35 // depth of the two slow swells below
+// And what the menu's sea slider does to it: the surf is the one layer that is
+// already a function of the water, so it is the one the weather belongs in.
+// Linear, and 1.0 at `SEA_CALM` — a mirror is nearly silent, a gale is loud.
+const SEA_STILL = 0.15
+const SEA_GALE = 2.25
 
 // The wind, opening as the ship climbs. Hover is 0.9 and Space lifts it 2.6
 // (`Ship`), which is also the height where the downwash stops reaching the
@@ -295,7 +301,8 @@ export function Sound({ on }: { on: boolean }) {
     // Two swells whose periods never line up, so the sea breathes rather than
     // pulses: ten seconds and fifteen, and the sum repeats in about half a minute.
     set(r.sea.gain, SEA * (1 + (SWELL / 4) * (Math.sin(t * 0.62) + Math.sin(t * 0.41)))
-      * (overWater(x, z) ? 1 : SEA_LAND), t, 0.5)
+      * (overWater(x, z) ? 1 : SEA_LAND)
+      * (SEA_STILL + seaLevel() * (SEA_GALE - SEA_STILL)), t, 0.5)
 
     set(r.wind.gain, WIND * clamp01((y - HOVER) / LIFT), t, 0.25)
 
