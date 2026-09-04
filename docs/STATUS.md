@@ -1675,13 +1675,24 @@ Simulated against the real wave train, over a minute of sailing straight at it:
 
 | Speed | What happens |
 |---|---|
-| 7.5 (cruise) | rides. 7–30 cm of daylight at most, and rarely. |
-| 13 | 0.8 to 1.8 m of air. |
-| 18 (full sail) | 1.5 to 2.9 m, depending on the heading. |
+| 7.5 (cruise) | rides. Under a metre of daylight at most, and rarely. |
+| 13 | 1.1 to 2.9 m of air. |
+| 18 (full sail) | 2.3 to 4.9 m, depending on the heading. |
 
 Measured over 90 seconds of sailing at each of three headings, because with
 three crossing trains the answer is no longer the same in every direction — and
-that spread is the point of having three.
+that spread is the point of having three. Logged from the running world, the
+biggest launches leave the water at the `LAUNCH` cap of 10 units a second, which
+is 5.6 m of air.
+
+**`POP` is what makes those numbers what they are, and it is a lie.** Buoyancy
+alone tops out around three metres off the biggest roller at full sail — a
+respectable hop off something taller than the mast, and not what Seb asked for.
+So the hull's upward speed is multiplied by 1.45 at the instant it leaves the
+water, which takes the same jump to five. It is the same class of lie as the
+spray's gravity, and for the same reason: what a visitor judges is the arc, and
+the arc is not improved by being correct. `POP_MIN` keeps it off the small
+stuff, so a hull drifting over a crest in a calm sea is not launched for it.
 
 Cruise is 7.5 and full sail is 18, so the threshold sits inside the boost range:
 holding shift into a roller is the jump, and that is a thing a visitor finds
@@ -1694,11 +1705,49 @@ whatever sits on it. `SINK` stops a landing driving the hull under displaced
 water it would disappear behind. `SURF_MAX` caps how fast the surface may appear
 to be moving. Falling is not capped; only being thrown.
 
-There is no landing case in the code. The hull's own vertical acceleration is
-fed into the bounce spring that has been there since Phase 0 — the one that
-already turns acceleration into squash — so the wave face, the drop off a crest
-and the slam at the bottom all arrive through it, bounded by `JOLT`, with no
-second path to tune.
+Leaving the water and landing are now the only two events in the flight
+controller — everything else in it is still a rate. Between them the hull's own
+vertical acceleration is fed into the bounce spring that has been there since
+Phase 0, the one that already turns acceleration into squash, so the wave face
+and the drop off a crest arrive through it bounded by `JOLT` with no second path
+to tune. The landing adds to that spring directly (`LAND_SQUASH`), because
+`JOLT` bounds the bounce at exactly the moment a landing should not be bounded.
+
+### The splash
+
+An impact writes `SPLASH` in `world.ts` — where, how hard, how long ago — and
+two things read it. It is a level with an age rather than an event, so any
+number of readers can have it and none of them consumes it.
+
+**A ring of foam on the water**, in the water shader: a circle opening at 5.2
+units a second from where the hull hit, thinning over 0.9 s, plus white water
+under the hull itself for the first quarter second — the ring alone arrives from
+nowhere; the flash is what makes it a landing. Both are torn up by the same
+noise field the whitecaps use, so it is foam rather than a decal.
+
+**A burst of spray**, in the existing compute particles: for a third of a second
+every droplet that comes up for reuse is respawned whatever the density says,
+out of a ring 2.4× as wide and thrown 2.2× as hard. 2048 droplets on a 1.1 s
+stagger is about thirty a frame, so a burst is six or seven hundred of them —
+enough to read as water going up, and no second particle system to own, seed and
+dispose.
+
+The ring is on the water rather than in the particles **on purpose**: the spray
+is WebGPU-only and always has been (see the Phase 4 argument), so without it a
+landing on the WebGL2 fallback would be a hull stopping and nothing else.
+
+### Two things the displaced water quietly broke, now fixed
+
+Both were introduced when the rollers arrived and neither was visible in a still:
+
+- **The spray spawned at sea level**, which stopped being the sea. `SEA` is
+  0.03 above y = 0, and the water is now three metres up as often as not, so the
+  plume was spawning under the surface on every crest. `SHIP.sea` — the height
+  of the water under the ship, published by `Ship` each frame for both hulls —
+  is what it spawns on now.
+- **The spray's ceiling and the wind's fade were measured from the origin.** A
+  saucer hovering 0.9 over a 3 m crest read as 3.9 up: no spray, full wind, on
+  water it was nearly touching. Both are `SHIP.pos.y - SHIP.sea` now.
 
 The chop's slope is still exaggerated by `WAVE_TILT` and the roller's is not:
 one is 15 cm of painted water that would heel a hull four degrees, the other is
@@ -1744,6 +1793,16 @@ untouched.
   which is where the percentiles above come from.
 - The hull dynamics simulated against the real wave field at three speeds and
   three headings, which is the table above.
+- The launch and landing events logged out of the running world over two and a
+  half minutes of sailing at full sail: launches from 2.4 to the 10-unit cap,
+  impacts from 6.2 to 10, splash force 0.89 to 1.0 on the big ones.
+- The foam ring photographed by driving `SPLASH` on a loop in the container copy
+  — swiftshader runs the world twenty times slower than wall time, so a real
+  landing and a splash that fades in 0.9 s of wall time cannot both be caught in
+  one screenshot. The ring in `Claude outputs/sea-splash.png` is therefore a
+  forced one; what it shows is that the shader draws what it should.
+- **Not verified anywhere: the burst of spray.** It is WebGPU-only and headless
+  Chromium here has no WebGPU adapter, so it has been read and not seen.
 - Rendered headless on swiftshader: both seas, both hulls, the menu open, and
   nine frames sailing all four ways under full sail. No console errors anywhere.
   Screenshots in `Claude outputs/`.
@@ -1755,8 +1814,13 @@ untouched.
   on a 2022 mid-tier laptop. `SEGMENTS` in `Scenery.tsx` is the dial; the
   shortest train needs about twelve vertices across it and has sixteen, so there
   is room under 240 before a crest starts to shimmer.
-- **Whether the jump is a jump or a launch.** `GRAV` 9 and `LAUNCH` 7 give 2.4 m
-  of air at full sail. Higher gravity is a snappier, lower arc.
+- **Whether the jump is a jump or a launch.** `POP` 1.45 with `GRAV` 9 and
+  `LAUNCH` 10 gives up to 5.6 m of air and about two seconds of hang, which at
+  full sail into the wave train means the hull is off the water a good part of
+  the time. That is what "higher" asked for and it is one number from being
+  calmer.
+- **The burst of spray, on a machine with WebGPU.** `BURST_RING`, `BURST_KICK`
+  and `BURST_LIFE` in `Particles.tsx` have never been seen doing anything.
 - **Whether the camera's two lags feel right**, especially whether the horizon
   swinging as the aim follows a jump reads as drama or as seasickness. `CAM_RISE`
   and `CAM_AIM` in `Ship.tsx`.
