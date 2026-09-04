@@ -21,15 +21,16 @@ const MiniMap = lazy(() => import('./MiniMap'))
 export type ShipModel = 'saucer' | 'boat'
 
 /**
- * Where the slider starts: the swell this world shipped with. `Scenery` imports
- * it back and scales its three wave terms to exactly 1 here, so the default is
- * the committed golden-hour sea to the bit, and one number says so.
+ * Which sea the world is on. Two states and not a dial: `calm` is the chop this
+ * world has always had, and `agitated` is that same chop with a train of
+ * rollers under it — taller than the ship, far apart, and made of real
+ * displaced geometry rather than a normal (`Scenery`).
  *
- * A value import from the canvas chunk into this one would drag three into the
- * first route (see `ShipModel` above); the other direction is free, because
- * this module is already loaded by the time the canvas chunk arrives.
+ * Declared here for the same reason `ShipModel` is: the menu sets it, the menu
+ * is in the first-route chunk, and a value import from anything inside the
+ * canvas would drag the canvas in with it.
  */
-export const SEA_CALM = 0.4
+export type Sea = 'calm' | 'agitated'
 
 /** What the chrome above the routes needs to know about the world: whether it
  *  is showing, and the three settings it has. */
@@ -39,14 +40,13 @@ export type World = {
   toggleSound: () => void
   model: ShipModel
   setModel: (model: ShipModel) => void
-  /** 0 is a mirror, 1 is a gale. */
-  sea: number
-  setSea: (sea: number) => void
+  sea: Sea
+  setSea: (sea: Sea) => void
 }
 
 const WorldContext = createContext<World>({
   active: false, sound: false, toggleSound: () => {}, model: 'saucer', setModel: () => {},
-  sea: SEA_CALM, setSea: () => {},
+  sea: 'calm', setSea: () => {},
 })
 
 /** Where the two remembered choices live. Namespaced, because this origin is
@@ -98,10 +98,11 @@ export function WorldGate({ children }: { children: ReactNode }) {
   // mount — `active` needs `detected`, which is set here — so there is no frame
   // of the wrong ship to see.
   const [model, setModel] = useState<ShipModel>('saucer')
-  // And the weather, for the same reason: a visitor who set the sea to a gale
-  // and came back to a millpond would have to find the slider again. Sound is
-  // the one setting that cannot be remembered, and the note beside it says why.
-  const [sea, setSea] = useState(SEA_CALM)
+  // And the weather, for the same reason: a visitor who left the sea running and
+  // came back to a millpond would have to go and find the setting again. Sound
+  // is the one setting that cannot be remembered, and the note beside it says
+  // why.
+  const [sea, setSea] = useState<Sea>('calm')
   useEffect(() => {
     setDetected(canRenderWorld())
     setTouch(window.matchMedia('(pointer: coarse)').matches)
@@ -109,11 +110,9 @@ export function WorldGate({ children }: { children: ReactNode }) {
     // this effect is also what decides whether there is a world at all.
     try {
       if (localStorage.getItem(MODEL_KEY) === 'boat') setModel('boat')
-      // Anything unparseable, out of range, or written by a future version of
-      // this site falls back to the default rather than to `NaN`, which would
-      // reach a uniform and take the water with it.
-      const stored = Number(localStorage.getItem(SEA_KEY))
-      if (stored >= 0 && stored <= 1) setSea(stored)
+      // Anything else — nothing stored, or the number an earlier version of
+      // this site wrote here when the setting was a slider — is a calm sea.
+      if (localStorage.getItem(SEA_KEY) === 'agitated') setSea('agitated')
     } catch { /* no stored answer is a fine answer */ }
   }, [])
 
@@ -124,10 +123,10 @@ export function WorldGate({ children }: { children: ReactNode }) {
     } catch { /* as above: the setting still works, it just does not last */ }
   }, [])
 
-  const chooseSea = useCallback((v: number) => {
+  const chooseSea = useCallback((v: Sea) => {
     setSea(v)
     try {
-      localStorage.setItem(SEA_KEY, String(v))
+      localStorage.setItem(SEA_KEY, v)
     } catch { /* as above */ }
   }, [])
 

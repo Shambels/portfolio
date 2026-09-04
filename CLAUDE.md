@@ -229,18 +229,27 @@ rise is a second finger. Nothing is cut on a phone, and the whole phase cost
 528 bytes gz. `docs/STATUS.md` has the layout it changed and the one camera
 number it changed with it.
 
-The visitor picks the craft in the menu, and the sea state beside it — a slider
-from a mirror to a gale. Both are remembered, and the sound is not, because
-nothing in the platform refuses to give a returning visitor the hull and the
-weather they chose, while it does refuse them sound before they have clicked.
+The visitor picks the craft in the menu, and the sea beside it — **calm** or
+**agitated**, two states and not a dial. Both are remembered, and the sound is
+not, because nothing in the platform refuses to give a returning visitor the
+hull and the weather they chose, while it does refuse them sound before they
+have clicked.
 
-The sea state is three scalars over `SWELL` — height, spatial frequency, speed —
-written into shader uniforms and into the CPU twin `swell()` by one function, so
-the water and the boat still cannot disagree. All three read exactly 1 at
-`SEA_CALM`, where the slider starts, so the default is the sea this world
-shipped with. The surface stays geometrically flat: a storm is normals, foam and
-a hull thrown about, not a silhouette. `docs/STATUS.md` has why, and what it
-would cost to change. The boat floats: its altitude is the
+Calm is the chop the world shipped with, scaled up by `CHOP`. Agitated is that
+same chop with a train of rollers under it: 52 units apart, 2.8 tall against a
+1.9 m mast, and the **one thing in this world made of displaced geometry** —
+Phase 3's "the surface stays geometrically flat" no longer holds for that term,
+because a wave bigger than the ship that is only a painted normal has nothing to
+ride and nothing to be thrown off. The rollers are damped to nothing over every
+island's shallows (`shoal()` in `world.ts`), or a 2.8 m swell would put a 45 cm
+plateau under water.
+
+The boat's vertical is a buoyancy spring against the surface's own motion, and
+gravity when the water drops away faster than the hull can follow — so a roller
+taken at cruise is a ride and one taken at full sail is a jump, with no rule
+anywhere that says so. One function still writes both the shader's uniform and
+the CPU twin `swell()`, and the dev finite-difference assert beside it is what
+keeps the water and the hull the same water. `docs/STATUS.md` has the numbers. The boat floats: its altitude is the
 swell, it is pushed out of every island's shoreline instead of flying over it,
 and arriving *alongside* an island is what opens the panel, because a hull can
 never reach the circle the saucer triggers on.

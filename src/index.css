@@ -267,19 +267,6 @@ a:hover {
   color: var(--gold);
 }
 
-/* The sea. A native range, styled with `accent-color` and nothing else: the
-   track, the thumb, the keyboard and the phone's own hit target all come from
-   the platform, and the one thing worth saying is which colour the site uses.
-   Replacing it would mean two vendor pseudo-element blocks to redraw what is
-   already there. */
-
-.menu .sea {
-  width: 100%;
-  margin: 0 0 0.55rem;
-  accent-color: var(--gold);
-  cursor: ew-resize;
-}
-
 /* The sound. `aria-pressed` carries the state and the dot in front of the label
    is the sighted half of it — in CSS, so there is nothing here for a screen
    reader to read twice. */

@@ -1569,116 +1569,172 @@ Arts by Sandra was already right on both counts and is untouched.
   narrower window is a narrower field of view, and this is the kind of number a
   screenshot settles and a calculator does not.
 - **`worldMap` in FR and NL**
-## The sea state — one slider, a mirror to a gale
 
-**Sea** in the menu, between the craft and the sound: a native `<input
-type="range">` that scales the water from dead flat to a storm. It is the
-world's third setting and the second one that is remembered.
+## The sea has two states, and the agitated one is real geometry
 
-### Three scalars over `SWELL`, not a fourth wave
+**Sea** in the menu, under the craft and above the sound: a native `<select>`
+with two options, *Calm* and *Agitated*. It is the world's third setting and the
+second one that is remembered.
 
-`SWELL` is still the same three crossing swells it has been since Phase 3. What
-the slider moves is three numbers laid over them — **height, spatial frequency
-and speed** — and all three read exactly **1 at `SEA_CALM`**, which is where the
-slider starts. The default is therefore the committed golden-hour sea to the
-bit, and nobody has to trust that claim: it falls out of the mapping.
+This replaced a continuous slider, built first and thrown away after Seb flew
+it. Two named states beat a dial here for the reason two named states usually
+do: there is nothing between them worth steering to, and a control with two
+stops and no labels is worse than a control with two words on it.
 
-- **Height** is `(level / SEA_CALM) ** 2` — squared, so the calm half of the
-  travel is where the fine control is and the last quarter is where it turns
-  into weather. Full travel is ×6.25, which is 64 cm of water at a crest against
-  10 cm today.
-- **Frequency** and **speed** are linear and gentle, ×1.6 and ×1.72 at the top.
-  A gale is mostly taller and faster water; multiplying the spatial frequency
-  much harder just makes small water.
+### Calm is the old sea, a little bigger
 
-They are written twice, on purpose: `uniform()` nodes for the shader and a plain
-object for `swell()` on the CPU, both from one `setSea()`. That is the same
-"one set of numbers, read twice" the boat already depends on, and the dev
-finite-difference assert in `Scenery.tsx` **now runs at three sea states** rather
-than one — the slider scales the height by `amp` and the slope by `amp * freq`,
-which is exactly one place to drop a factor.
+`SWELL` still holds the three crossing swells the world shipped with, and `CHOP`
+is the scale over them — ×1.5625 on height, ×1.1 on frequency, ×1.12 on speed.
+Those are the numbers the discarded slider produced at half travel, which is
+where Seb stopped it. Keeping the shipped array and a scale beside it rather
+than folding the two together is what keeps the provenance readable; both are
+constants, so the shader folds them at graph-build time and neither costs a
+uniform.
 
-`Scenery` calls `setSea()` **during render**, which is the one place in that file
-that writes anything during render. It is four uniform assignments and it is
-idempotent; an effect would leave the frame between commit and effect showing
-the sea the visitor just moved away from.
+The agitated sea is **that same chop, unchanged**, with something under it.
 
-### The water is still geometrically flat, and that is the ceiling
+### The rollers, and why the plane is no longer flat
 
-The plane has never been displaced — Phase 3's note says a displaced mesh buys a
-silhouette the horizon hides anyway, and at 10 cm of swell that was plainly
-right. At 64 cm it is a real limitation and worth writing down: **a storm here
-has no silhouette.** What sells it instead is
+One train of big swells, `ROLL`: 52 units between crests, 2.8 tall against a
+1.9 m mast, moving at 6.5 units a second. The crest is a sine raised to the
+ninth rather than a sine, which is what makes them *few* — 18% of the wavelength
+is above half height and the rest is the water that was already there — and a
+second, much longer wave along the crest line takes each roller between 0.4 and
+1.0 of its height, so the sea runs big in places and slack in others and that
+drifts across the world over half a minute.
 
-- **whitecaps** — the crest height, broken up by a second noise field so the foam
-  is patches travelling with the water rather than bands drawn across it, gated
-  on a `uStorm` uniform that is zero at the default sea and below;
-- **the crest banding**, which takes over from the normal's own tilt as the
-  normal saturates — without it a storm shades to a flat dark sheet;
-- **a chop that scales sub-linearly**: the noise ripple's amplitude follows
-  `sqrt(amp)` and its frequency follows the swell's, or it smears into soft
-  blobs the size of the boat at full travel;
-- **and the boat**, which rides the real height field.
+**The water plane is displaced now, and that reverses a decision this file has
+carried since Phase 3.** The old note said a displaced mesh buys a silhouette
+the horizon hides anyway, and at 15 cm of swell that was plainly right. At 2.8 m
+it is not: a wave taller than the ship that is only a painted normal has nothing
+to ride and nothing to be thrown off, and the hull would climb an invisible
+hill. So the plane is 240 × 240 segments — a vertex every 3.75 units, fourteen
+across a roller, 58k vertices and one draw call — and `positionNode` raises it
+by the roller term in the vertex stage. The chop is still not displaced and
+still does not need to be.
 
-**Displacing the mesh is Seb's call and is not a small one.** `GROUND` is 0.45 —
-every island plateau is 45 cm above the water — so a sea whose crests reach 64 cm
-would flood the world at the top of the slider. Real waves therefore mean
-capping the slider lower, or raising the islands, which CLAUDE.md says means
-teaching `Ship` to follow the ground first. Three changes, not one.
+The frame-rate consequence is Seb's to judge on real hardware: the water went
+from two triangles to 115k, each vertex evaluating one roller and three
+smoothsteps.
 
-### What the hull does about it
+### The islands sit in their own calm water
 
-Two saturating limits in `Ship`, both `m * tanh(v / m)` rather than a clamp, so
-small signal keeps its full gain and the default sea is within a few percent of
-what it always was (ride −4%, heel −5%):
+A 2.8 m swell running over a plateau 45 cm above the sea would put the mine
+underwater twice a minute. So the rollers are damped to nothing across every
+island's shallows: `shoal()` in `world.ts` is a product of one smoothstep per
+island, and it lives there rather than in `Scenery` for the reason `shoreOf`
+does — the water shader and the hull must not be two files guessing at one
+coastline.
 
-- **`RIDE`, 22 cm.** The honest one. The water is a flat plane, so a hull that
-  heaves further than this drops through a mirror and vanishes. Height at a
-  storm lives in the *rate* of the heave and in the heel, which have no ceiling
-  of that kind.
-- **`HEEL`, 0.6 rad — 34°.** A gale, not a capsize.
+It returns the **gradient** as well as the factor, and that is not decoration.
+The water is displaced by `roller × shoal`, so its slope is the product rule; a
+version that faded the height and not the slope would shade a flat ring around
+each island that visibly slopes. The dev finite-difference assert in `Scenery`
+now runs calm and agitated, in open water and inside that ring, which is exactly
+where a dropped term would hide.
 
-And `WAVE_TILT` now tapers: it is a lie told to make a 12 cm swell visible, and
-a gale does not need it. `1 + (WAVE_TILT - 1) / sqrt(amp)`, so it is exactly 3
-at or below the sea the boat was tuned on and about 1.8 at full travel. Simulated
-over 40 s of drifting hull: mean heel 3° at the default, 18° at the top, and only
-4% of frames against the ceiling — without the taper it was 33%, which reads as
-clipping rather than as weather.
+`SHOAL` is 7 units and was 10 in the first pass. The three islands are close
+enough that three overlapping ten-unit fades multiplied out to a quarter of the
+swell **at the world's origin**, which is where the visitor arrives — so the
+setting appeared to do nothing until you had sailed for five seconds. At seven
+they clear each other and the sea is running where the ship starts.
 
-### The sound has weather too
+### The hull rides it, and at speed it leaves it
 
-The surf is the one audio layer that is already a function of the water, so it is
-the one the slider belongs in: the sea bed's gain scales from 0.15 at a mirror to
-2.25 at a gale, 1.0 at the default. One multiplier, no new layer.
+`BUOY`'s first-order lag is gone. The boat's vertical is now one spring toward
+the surface, damped against the surface's **own** vertical speed, with gravity
+instead of the spring the moment the water drops away faster than the hull can
+follow. Which is to say the hull can be in the air, and the air is ballistic.
+
+The nice part is that "if it has enough speed" needed no rule of its own. The
+surface is sampled under the hull each frame, so what the spring reads is
+`dh/dt + v·∇h` — the wave's own motion plus the hull's run up the face. Standing
+still, a roller lifts you. Meeting one at fourteen units a second, it throws you.
+Simulated against the real wave train, over a minute of sailing straight at it:
+
+| Speed | What happens |
+|---|---|
+| 0–9 | rides. Never leaves the water. |
+| 11 | 7 cm of daylight, once. |
+| 13 | hops — 23 cm, five times a minute. |
+| 15 | 1.2 m of air. |
+| 18 (full sail) | 2.4 m, once per wave. |
+
+Cruise is 7.5 and full sail is 18, so the threshold sits inside the boost range:
+holding shift into a roller is the jump, and that is a thing a visitor finds
+rather than a thing the hint has to tell them.
+
+Three bounds keep it from becoming a catapult. `LAUNCH` caps what the water may
+throw the hull off at — a crest crossed in one frame, or the island fade taken
+at full sail, is a *step* in the surface, and a spring chasing a step launches
+whatever sits on it. `SINK` stops a landing driving the hull under displaced
+water it would disappear behind. `SURF_MAX` caps how fast the surface may appear
+to be moving. Falling is not capped; only being thrown.
+
+There is no landing case in the code. The hull's own vertical acceleration is
+fed into the bounce spring that has been there since Phase 0 — the one that
+already turns acceleration into squash — so the wave face, the drop off a crest
+and the slam at the bottom all arrive through it, bounded by `JOLT`, with no
+second path to tune.
+
+The chop's slope is still exaggerated by `WAVE_TILT` and the roller's is not:
+one is 15 cm of painted water that would heel a hull four degrees, the other is
+a 24-degree face you can see. And the hull stops heeling to a wave it has left —
+`wet` fades over about a tenth of a second, so a boat in the air holds its
+attitude instead of banking to water it is no longer touching.
+
+### The camera got a second lag
+
+"A camera that bobs with the sea is a camera nobody wants" still holds for the
+chop, and stops holding when the hull goes three metres up: a camera that
+ignored that would lose the thing the visitor is steering off the top of the
+frame — which is exactly what the first build did, and the screenshots caught.
+
+So there are two lags. The camera's **height** follows slowly, so the chop never
+moves it; its **aim** follows quickly, so the boat stays in the middle of the
+frame. The gap between them is a tilt, and the tilt is what a jump looks like
+from behind. The saucer's framing is untouched.
+
+### The sound
+
+The surf is the one layer already a function of the water, so it is the one the
+rollers belong in: +85% on the sea bed at a full train, riding the same ramp the
+water does. Switching seas ramps over about a second and a half rather than
+popping two and a half metres of water into existence under the hull, and the
+uniform and the CPU twin are moved by one function, as they have always been.
 
 ### Cost
 
-No dependency, no asset. About 90 lines across seven files, and the canvas chunk
-is unchanged in size to the kilobyte. `SEA_CALM` lives in `WorldGate` beside the
-craft's default and `Scenery` imports it back — a value import *into* the canvas
-chunk, which is free, and the build confirms `WorldGate` stayed its own 1.5 kB gz
-chunk rather than pulling three into the first route.
+No dependency, no asset. The canvas chunk went from 456.68 to 457.61 kB gz —
+under a kilobyte for all of it, because it is arithmetic. The first-route JS is
+untouched.
 
 ### Verified, on a throwaway install in Claude's container
 
 - `npx tsc -b` clean and `node src/i18n/locales.check.ts` green, on Seb's copy.
-- Full `npm install` + `npm run build` on a copy in the container: typegen, build
-  and all 22 prerenders clean. First-route JS unchanged; canvas chunk 456 kB gz,
-  under the 600 kB budget.
-- Rendered headless on swiftshader at sea 0, 0.4, 0.7 and 1.0, both hulls, with
-  the menu open — no console errors in any of them. Screenshots in
-  `Claude outputs/`.
+- Full `npm install` + `npm run build` on a copy in the container: typegen,
+  build and all 22 prerenders clean.
+- The analytic gradients checked against finite differences at three points, two
+  sea states, including inside an island's fade — 1e-11 agreement.
+- The hull dynamics simulated against the real wave field at six speeds, which
+  is the table above.
+- Rendered headless on swiftshader: both seas, both hulls, the menu open, and a
+  strip of eight frames holding W and shift into the wave train. No console
+  errors anywhere. Screenshots in `Claude outputs/`.
 
 ### Needs Seb
 
-- **Whether the top of the slider is a storm or a novelty.** Swiftshader has no
-  opinion about how a sea reads at 60fps on a real GPU, and the foam thresholds
-  (`0.55 … 0.98` on the crest, `0 … 0.4` on the breakup) are the two numbers to
-  turn.
-- **Whether the flat plane is good enough at full travel**, or whether the
-  slider should stop lower — see the three-changes note above.
-- **`sea` in FR and NL** — "Mer" / "Zee", the slider's label. Unreviewed, and it
-  joins the nine already waiting.
-- **Whether remembering it is right.** A visitor who left it at a gale comes back
-  to a gale. The alternative is that the site always opens on its committed sea
-  and the storm is something you go and find.
+- **The frame rate**, which is the one thing that changed shape here. 115k
+  triangles of water with a per-vertex roller, on a 2022 mid-tier laptop.
+  `SEGMENTS` in `Scenery.tsx` is the dial; the wave needs about twelve vertices
+  across it, so 240 has some room under it before the crest starts to shimmer.
+- **Whether the jump is a jump or a launch.** `GRAV` 9 and `LAUNCH` 7 give 2.4 m
+  of air at full sail. Higher gravity is a snappier, lower arc.
+- **Whether the camera's two lags feel right**, especially whether the horizon
+  swinging as the aim follows a jump reads as drama or as seasickness. `CAM_RISE`
+  and `CAM_AIM` in `Ship.tsx`.
+- **Whether the shelter around each island is welcome or annoying.** It is what
+  keeps the mine dry, but it also means the sea goes quiet exactly where the
+  case studies are.
+- **`seaCalm` and `seaAgitated` in FR and NL** — "Calme"/"Agitée",
+  "Kalm"/"Bewogen". Unreviewed, and with `sea` they join the nine waiting.

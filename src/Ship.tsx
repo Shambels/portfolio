@@ -3,7 +3,7 @@ import * as THREE from 'three/webgpu'
 import { color, positionLocal, sin, time } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
-import { seaAmp, swell } from './Scenery'
+import { swell } from './Scenery'
 import { VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 
@@ -40,39 +40,53 @@ const PITCH = 0.32    // max nose-up on acceleration, radians
 // from astern — a boat's narrowest. At a true beam the hull was the same width
 // as its own sail and the two read as one slab.
 const HULL = { beam: 0.5, len: 1.35, draft: 0.18, freeboard: 0.2 }
-const BUOY = 6        // how fast the hull catches the swell. Lower = more wallow.
-// The swell is 12 cm of water at its steepest, so a hull heeling by its true
-// slope heels three degrees and reads as dead flat. The water is a flat plane
-// wearing wave normals — the sea it is heeling to is painted on — so this is a
-// lie told on top of a lie, and the only honest way to judge it is to look.
-const WAVE_TILT = 3
-
-/**
- * And `WAVE_TILT` is a lie told about a small sea, so it tapers as the sea
- * grows: at a gale the water's own slope reaches 45 degrees and needs no help,
- * while a mirror-to-moderate swell still gets nearly all of the exaggeration.
- * Square root rather than linear because the amplitude itself is squared off
- * the slider — this is what keeps the middle of the travel from going slack.
- *
- * At or below the sea this world shipped with it is exactly 3, so the boat
- * that was tuned by looking at it heels by the same numbers it always did.
- */
-const waveTilt = () => 1 + (WAVE_TILT - 1) / Math.max(1, Math.sqrt(seaAmp()))
-
-// What the menu's sea slider does to a hull. Both of these are ceilings the
-// calm sea never comes near and the storm sits against, and both are saturating
-// rather than clipping (`soft` below) — small signal keeps its full gain, so
-// the default sea rides and heels within a few percent of what it always did.
+// The chop is 15 cm of water at its steepest, so a hull heeling by its true
+// slope heels four degrees and reads as dead flat. That part of the water is a
+// flat plane wearing normals — the sea it is heeling to is painted on — so this
+// is a lie told on top of a lie, and the only honest way to judge it is to look.
 //
-// `RIDE` is the honest one: the water is a flat plane, so a hull that heaves
-// further than this drops through a mirror and disappears, or floats above a
-// sea with no wave under it. The height of a storm is in the *rate* of the
-// heave and in the heel, which have no such ceiling.
-const RIDE = 0.22     // metres of heave the flat water plane can hide
-const HEEL = 0.6      // radians, about 34 degrees — a gale, not a capsize
+// The rollers get no such multiplier. Their face is thirty degrees of real
+// displaced geometry, and a hull leaning three times that is a hull upside down.
+const WAVE_TILT = 3
+const HEEL = 0.6 // radians, about 34 degrees — a big sea, not a capsize
 
 /** Saturating limit: `soft(v, m)` is v for small v and never leaves ±m. */
 const soft = (v: number, m: number) => m * Math.tanh(v / m)
+
+// The hull in the water, which since the rollers arrived is a real thing that
+// happens rather than a height with a lag on it. One vertical spring toward the
+// surface, damped against the surface's *own* vertical speed — so a hull sitting
+// on water that is rising is not fighting it — and gravity instead of the spring
+// the moment the water drops away faster than the hull can follow.
+//
+// That is the whole of the jump, and it is why speed is what buys one: the
+// surface is sampled under the hull each frame, so what the spring sees is
+// dh/dt + v·grad h. Standing still, a roller lifts you. Meeting one at fourteen
+// units a second, it throws you.
+const BUOY_K = 70    // spring, per second squared. sqrt is the bob rate, ~1.3 Hz.
+const BUOY_C = 15    // damping toward the water's own vertical speed
+const GRAV = 9       // stylised, like the spray's: real gravity makes a twitch.
+//                      Simulated against the roller train: nothing leaves the
+//                      water below eleven units a second, a hop at thirteen,
+//                      and two and a half metres of air at full sail.
+const SKIN = 0.06    // how far clear of the surface counts as airborne
+const SINK = 0.3     // deepest a landing may drive the hull under the surface
+const SURF_MAX = 11  // cap on the surface's apparent vertical speed, units/sec
+// And a cap on what the water may throw the hull off at, which is the one that
+// matters: a crest crossed in a single frame, or the fade at an island's edge
+// taken at full sail, is a step in the surface, and a spring that chases a step
+// launches whatever is sitting on it. Seven units a second is about 2.7 of air
+// under gravity — a jump off the biggest roller, and nothing bigger, whatever
+// the water does. Falling is not capped; only being thrown.
+const LAUNCH = 7
+const WET = 9        // how fast the hull starts heeling to a wave again
+const DRY = 14       // and stops, once it is off one. Faster: it left in an instant.
+// The camera's two lags. Its height follows slowly, so the chop never moves it;
+// its aim follows quickly, so a hull that has just been thrown three metres in
+// the air is still in the middle of the frame. The gap between them is the
+// tilt, and the tilt is what a jump looks like from behind.
+const CAM_RISE = 1.8
+const CAM_AIM = 4
 
 // The bounce. One spring driven by the ship's own acceleration — horizontal,
 // vertical and any mix — read back as lean, pitch and suspension travel. The
@@ -146,11 +160,20 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const near = useRef<string | null>(null)
   const alt = useRef(hover)
   const altVel = useRef(0)
+  // The boat's own vertical state. `hull` is a world Y, not an offset: it is
+  // the one value the buoyancy spring and gravity both write, and the one the
+  // camera follows.
+  const hull = useRef(0)
+  const hullVel = useRef(0)
+  const lastSurface = useRef(0)
+  const wet = useRef(1)   // 1 in the water, 0 in the air, smoothed between
+  const camY = useRef(0)  // the camera's lagged share of the hull's rise
+  const aimY = useRef(0)  // and the faster one it points at
+  const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
   const snap = useRef(false) // next frame: place the camera, do not chase it
-  const heave = useRef(0)    // the boat's lagged ride on the swell
   const input = useInput(enabled)
   const boat = model === 'boat'
 
@@ -186,7 +209,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     lastVel.current.set(0, 0, 0)
     spring.current.set(0, 0, 0)
     springVel.current.set(0, 0, 0)
-    heave.current = 0
+    reset.current = true
     near.current = l.slug
     snap.current = true
     // `boat` is read above and is deliberately not a dependency — see the note
@@ -207,6 +230,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // ponytail: camera-relative steering would need `look`, and nothing has
     // asked for it — the camera is behind the ship, so world-relative reads the
     // same. Revisit if Phase 6's touch controls want a swipe-to-turn.
+    // The hull's own frame. Up here rather than beside the bounce spring it also
+    // serves, because the sea below reads a wave's slope in it first.
+    const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
+    const cy = Math.cos(yaw.current)
+
     _target.set(input.move.x, 0, -input.move.y).multiplyScalar(input.boost ? SPEED * BOOST : SPEED)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
@@ -232,10 +260,70 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     alt.current += (wantAlt - alt.current) * (1 - Math.exp(-CLIMB * dt))
     const climbVel = (alt.current - wasAlt) / dt
 
+    // The sea, for the hull that is in it. `Scenery` owns the waves and the
+    // shader reads the same ones, so this is the water the visitor can see
+    // rather than a second sea that nearly matches — and now that the rollers
+    // are displaced geometry, "nearly" would be visible.
+    //
+    // Every term here is zero for the saucer, which is over the water, not in it.
+    let ride = 0
+    let roll = 0
+    let heel = 0
+    let vertAccel = (climbVel - altVel.current) / dt
+    if (boat) {
+      const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
+      const surface = s.y
+      if (reset.current) {
+        // A deep link puts the hull down beside a landmark. It arrives floating,
+        // not falling from wherever the last one was.
+        reset.current = false
+        hull.current = surface
+        hullVel.current = 0
+        lastSurface.current = surface
+        wet.current = 1
+        camY.current = aimY.current = surface
+      }
+      // How fast the water under the hull is moving: dh/dt plus the hull's own
+      // run up the face, because the sample follows the hull. The second term is
+      // what turns speed into height. Capped, or a frame that crosses a crest
+      // reads as an impulse.
+      const surfVel = THREE.MathUtils.clamp((surface - lastSurface.current) / dt, -SURF_MAX, SURF_MAX)
+      lastSurface.current = surface
+
+      const wasVel = hullVel.current
+      const flying = hull.current > surface + SKIN
+      hullVel.current += dt * (flying
+        ? -GRAV
+        : (surface - hull.current) * BUOY_K - (hullVel.current - surfVel) * BUOY_C)
+      hullVel.current = Math.min(hullVel.current, LAUNCH)
+      hull.current += hullVel.current * dt
+      // A hull landing at six units a second would otherwise be a metre under
+      // before the spring caught it, which on displaced water is a hull that
+      // disappeared. It stops at the draft it has, and the spring floats it back.
+      if (hull.current < surface - SINK) {
+        hull.current = surface - SINK
+        hullVel.current = Math.max(hullVel.current, 0)
+      }
+      // The landing, the wave face and the drop off a crest all reach the body
+      // through the bounce spring below rather than through a case of their own:
+      // that spring is already the thing that turns vertical acceleration into
+      // squash, and `JOLT` already bounds it.
+      vertAccel = (hullVel.current - wasVel) / dt
+      ride = hull.current
+
+      wet.current += ((flying ? 0 : 1) - wet.current) * (1 - Math.exp(-(flying ? DRY : WET) * dt))
+      // Flip either sign if the hull leans into the wave rather than over it —
+      // this is the pair of numbers a screenshot settles and arithmetic does not.
+      // The chop's slope is exaggerated and the roller's is not: one is 15 cm of
+      // painted water, the other is a thirty-degree face you can see.
+      roll = soft((s.dx * cy - s.dz * sy) * WAVE_TILT + (s.rx * cy - s.rz * sy), HEEL) * wet.current
+      heel = soft(-((s.dx * sy + s.dz * cy) * WAVE_TILT + (s.rx * sy + s.rz * cy)), HEEL) * wet.current
+    }
+
     // Acceleration this frame, all three axes at once — so a diagonal that also
     // climbs bounces once, in the direction it actually changed.
     _accel.subVectors(vel.current, lastVel.current).divideScalar(dt)
-    _accel.y = (climbVel - altVel.current) / dt
+    _accel.y = vertAccel
     _accel.clampLength(0, JOLT)
     lastVel.current.copy(vel.current)
     altVel.current = climbVel
@@ -247,31 +335,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
 
     // Read the spring in the ship's own frame: sideways travel leans it, travel
     // along the heading pitches the nose, vertical travel is suspension give.
-    const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
-    const cy = Math.cos(yaw.current)
     const lateral = spring.current.x * cy - spring.current.z * sy
     const along = spring.current.x * sy + spring.current.z * cy
-
-    // The sea, for the hull that is in it. `Scenery` owns the three swells and
-    // the shader reads the same ones, so this is the water the visitor can see
-    // rather than a second sea that nearly matches. The lag on the height is
-    // the whole of the buoyancy; the gradient is read in the boat's own frame,
-    // so a swell taken on the bow pitches it and one on the beam rolls it.
-    //
-    // Both terms are zero for the saucer, which is over the water, not in it.
-    let ride = 0
-    let roll = 0
-    let heel = 0
-    if (boat) {
-      const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
-      heave.current += (s.y - heave.current) * (1 - Math.exp(-BUOY * dt))
-      ride = soft(heave.current, RIDE)
-      // Flip either sign if the hull leans into the wave rather than over it —
-      // this is the pair of numbers a screenshot settles and arithmetic does not.
-      const tilt = waveTilt()
-      roll = soft((s.dx * cy - s.dz * sy) * tilt, HEEL)
-      heel = soft(-(s.dx * sy + s.dz * cy) * tilt, HEEL)
-    }
 
     body.current.rotation.z = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK) + roll
     body.current.rotation.x = THREE.MathUtils.clamp(-along * LEAN, -PITCH, PITCH) + heel
@@ -296,14 +361,29 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     const hit = landmarkAt(g.position.x, g.position.z, boat)?.slug ?? null
     if (hit !== near.current) { near.current = hit; onNear(hit) }
 
+    // A camera that bobs with the chop is a camera nobody wants, and that is
+    // still true — but a hull that rides a roller and leaves it goes three
+    // metres up, and a camera that ignored *that* would lose the thing the
+    // visitor is steering off the top of the frame. So it follows a heavily
+    // lagged copy: a second of time constant filters the chop out entirely and
+    // still keeps most of a jump in shot. Aim and position use the same value,
+    // so the boat holds its place in the frame and the horizon is what moves.
+    camY.current += (ride - camY.current) * (1 - Math.exp(-CAM_RISE * dt))
+    aimY.current += (ride - aimY.current) * (1 - Math.exp(-CAM_AIM * dt))
+
     _cam.copy(g.position).add(CAM_OFFSET)
-    // Rise with the ship, or the ceiling puts it out of frame. The boat's `alt`
-    // never leaves zero, and its ride on the swell is deliberately left out of
-    // this: a camera that bobs with the sea is a camera nobody wants.
-    _cam.y += alt.current - (boat ? 0 : hover)
-    if (snap.current) { snap.current = false; state.camera.position.copy(_cam) }
-    else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
-    state.camera.lookAt(g.position.x, g.position.y + alt.current - AIM_DOWN, g.position.z)
+    // Rise with the ship, or the ceiling puts it out of frame.
+    _cam.y += boat ? camY.current : alt.current - hover
+    if (snap.current) {
+      snap.current = false
+      camY.current = aimY.current = ride
+      state.camera.position.copy(_cam)
+    } else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
+    state.camera.lookAt(
+      g.position.x,
+      g.position.y + (boat ? aimY.current : alt.current) - AIM_DOWN,
+      g.position.z,
+    )
   })
 
   return (
