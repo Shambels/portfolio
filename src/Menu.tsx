@@ -104,6 +104,7 @@ export function Menu() {
             >
               <option value="saucer">{t.modelSaucer}</option>
               <option value="boat">{t.modelBoat}</option>
+              <option value="surfer">{t.modelSurfer}</option>
             </select>
 
             {/* The weather, and the same `<select>` as the craft above it for

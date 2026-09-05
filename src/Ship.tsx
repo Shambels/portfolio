@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
-import { color, positionLocal, sin, time } from 'three/tsl'
+import { color, positionLocal, sin, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useInput } from './useInput'
 import { swell } from './Scenery'
@@ -50,7 +50,16 @@ const HULL = { beam: 0.5, len: 1.35, draft: 0.18, freeboard: 0.2 }
 const WAVE_TILT = 3
 const HEEL = 0.6 // radians, about 34 degrees — a big sea, not a capsize
 
-/** Saturating limit: `soft(v, m)` is v for small v and never leaves ±m. */
+// The surfer. Same controller, same water, a lighter thing on it: 2.3 units of
+// board, no keel, and the whole reason for a third craft is that it leaves the
+// surface. Faster round a turn and quicker off a crest, which is what a board
+// is; the numbers are below, beside the boat's, so the difference between the
+// two floating craft is one table rather than a branch per constant.
+const BOARD = { beam: 0.3, len: 1.15, thick: 0.075 }
+// Nose and tail bent up out of the flat. A board without it is a plank, and it
+// is most of what makes the silhouette read as a board from astern at all.
+const ROCKER = 0.1
+
 const soft = (v: number, m: number) => m * Math.tanh(v / m)
 
 // The hull in the water, which since the rollers arrived is a real thing that
@@ -98,6 +107,44 @@ const SPLASH_MIN = 1.2 // below this it is a hull settling, not a hull landing
 const LAND_SQUASH = 0.5
 const WET = 9        // how fast the hull starts heeling to a wave again
 const DRY = 14       // and stops, once it is off one. Faster: it left in an instant.
+
+/** How hard each craft turns, and how fast it goes — the flight controller's
+ *  share of the difference. The saucer and the boat are 1 and `TURN`, which is
+ *  what they have always been. */
+const AGILITY: Record<ShipModel, { speed: number; turn: number }> = {
+  saucer: { speed: 1, turn: TURN },
+  boat: { speed: 1, turn: TURN },
+  // Not much quicker in a straight line — the sea is the same sea and the
+  // landmarks are where they are — but nearly twice as sharp into a turn. A
+  // board turns by leaning, and a board that turned like a hull would be a hull.
+  surfer: { speed: 1.18, turn: 16 },
+}
+
+/**
+ * And the water's share: the numbers the buoyancy, the crest and the landing
+ * read, per floating craft. The boat's column is every constant above,
+ * unchanged and still commented where it is defined — a third craft is not a
+ * reason to renumber the second.
+ *
+ * The surfer is the light one, and every entry says that in its own units: it
+ * bobs faster (`buoyK`) and is damped less (`buoyC`), it leaves a crest half
+ * again as hard and leaves much smaller ones (`pop`, `popMin`), it leans
+ * further into a wave face (`tilt`, `heel`), it cannot be driven under (`sink`
+ * — a board rides on the surface where a hull sits in it), and it lands with
+ * less to compress (`squash`).
+ */
+const CRAFT_WATER = {
+  boat: {
+    buoyK: BUOY_K, buoyC: BUOY_C, pop: POP, popMin: POP_MIN, launch: LAUNCH,
+    tilt: WAVE_TILT, heel: HEEL, sink: SINK, squash: LAND_SQUASH,
+  },
+  surfer: {
+    buoyK: 105, buoyC: 11, pop: 1.95, popMin: 1, launch: 12,
+    tilt: 4.6, heel: 0.95, sink: 0.12, squash: 0.34,
+  },
+}
+
+/** Saturating limit: `soft(v, m)` is v for small v and never leaves ±m. */
 // The camera's two lags. Its height follows slowly, so the chop never moves it;
 // its aim follows quickly, so a hull that has just been thrown three metres in
 // the air is still in the middle of the frame. The gap between them is the
@@ -161,9 +208,10 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   hover?: number
   /** False on every route with no world showing. The ship stops reading keys. */
   enabled: boolean
-  /** Which hull the visitor picked in the menu. One flight controller either
-   *  way: a boat is the same ship with its altitude pinned to the sea, a
-   *  coastline it cannot cross, and a bigger circle to call arrival. */
+  /** Which craft the visitor picked in the menu. One flight controller for all
+   *  three: anything that floats is the same ship with its altitude pinned to
+   *  the sea, a coastline it cannot cross, and a bigger circle to call arrival.
+   *  What separates the boat from the surfer is `AGILITY` and `CRAFT_WATER`. */
   model: ShipModel
   /** The case study the URL is showing — the URL is the state, and this is the
    *  ship's copy of it. Null on the home page. */
@@ -193,7 +241,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const springVel = useRef(new THREE.Vector3())
   const snap = useRef(false) // next frame: place the camera, do not chase it
   const input = useInput(enabled)
-  const boat = model === 'boat'
+  // Everything below asks "does it float", not "is it the boat" — the surfer
+  // does the same thing in the same water, with its own column of numbers.
+  const floats = model !== 'saucer'
+  const agile = AGILITY[model]
+  const water = model === 'surfer' ? CRAFT_WATER.surfer : CRAFT_WATER.boat
 
   /**
    * Deep link, or a click in the world's own project list: put the ship beside
@@ -215,10 +267,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // flies and is dry land for something that floats. The same push that keeps
     // the boat off a coast puts the deep link on the water — onto the mooring
     // circle exactly, which `world.ts` asserts is inside the circle that opens
-    // the panel. `boat` is read here and deliberately not a dependency: this
+    // the panel. `floats` is read here and deliberately not a dependency: this
     // effect answers the URL changing, and changing a setting in the menu is
-    // not a reason to pick the ship up and move it.
-    if (boat) offshore(rig.current.position)
+    // not a reason to pick the ship up and move it. True for the surfer too:
+    // both floating craft are held off the same coastline.
+    if (floats) offshore(rig.current.position)
     // From where it actually ended up, not from the waypoint it was aimed at.
     const p = rig.current.position
     yaw.current = Math.atan2(l.pos[0] - p.x, l.pos[2] - p.z)
@@ -230,9 +283,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     reset.current = true
     near.current = l.slug
     snap.current = true
-    // `boat` is read above and is deliberately not a dependency — see the note
-    // beside it. Nothing here goes stale: the effect only runs on a URL change,
-    // and at that point `boat` is whatever this render says it is.
+    // `floats` is read above and is deliberately not a dependency — see the
+    // note beside it. Nothing here goes stale: the effect only runs on a URL
+    // change, and at that point it is whatever this render says it is.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
@@ -253,18 +306,19 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
     const cy = Math.cos(yaw.current)
 
-    _target.set(input.move.x, 0, -input.move.y).multiplyScalar(input.boost ? SPEED * BOOST : SPEED)
+    _target.set(input.move.x, 0, -input.move.y)
+      .multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
     // A hull cannot climb a beach. Pushed back onto the mooring circle rather
     // than stopped dead, so a boat leaning on a coast keeps whatever part of its
     // motion runs along it and slides round the island instead of sticking.
-    if (boat) offshore(g.position)
+    if (floats) offshore(g.position)
 
     if (vel.current.lengthSq() > 0.0025) {
       const want = Math.atan2(vel.current.x, vel.current.z)
       const diff = Math.atan2(Math.sin(want - yaw.current), Math.cos(want - yaw.current))
-      yaw.current += diff * (1 - Math.exp(-TURN * dt))
+      yaw.current += diff * (1 - Math.exp(-agile.turn * dt))
     }
     g.rotation.y = yaw.current
 
@@ -274,7 +328,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // to and nothing for Space to do. `WorldGate`'s hint stops naming the key
     // rather than leaving it in the sentence doing nothing.
     const wasAlt = alt.current
-    const wantAlt = boat ? 0 : input.ascend ? hover + LIFT : hover
+    const wantAlt = floats ? 0 : input.ascend ? hover + LIFT : hover
     alt.current += (wantAlt - alt.current) * (1 - Math.exp(-CLIMB * dt))
     const climbVel = (alt.current - wasAlt) / dt
 
@@ -301,7 +355,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     let roll = 0
     let heel = 0
     let vertAccel = (climbVel - altVel.current) / dt
-    if (boat) {
+    if (floats) {
       const surface = s.y
       if (reset.current) {
         // A deep link puts the hull down beside a landmark. It arrives floating,
@@ -322,33 +376,33 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
 
       const flying = hull.current > surface + SKIN
       // Off the top of a crest: the kick that turns a hop into a jump.
-      if (flying && !flew.current && hullVel.current > POP_MIN) {
-        hullVel.current = Math.min(hullVel.current * POP, LAUNCH)
+      if (flying && !flew.current && hullVel.current > water.popMin) {
+        hullVel.current = Math.min(hullVel.current * water.pop, water.launch)
       }
       // And back into it. The impact is last frame's fall, before the spring
       // has had a chance to answer it — which is the number a splash is the
       // size of, and the number the hull compresses by.
       if (!flying && flew.current && -hullVel.current > SPLASH_MIN) {
-        const impact = Math.min(-hullVel.current, LAUNCH)
+        const impact = Math.min(-hullVel.current, water.launch)
         SPLASH.x = g.position.x
         SPLASH.z = g.position.z
         SPLASH.force = Math.min(impact / SPLASH_FULL, 1)
         SPLASH.age = 0
-        springVel.current.y += impact * LAND_SQUASH
+        springVel.current.y += impact * water.squash
       }
       flew.current = flying
 
       const wasVel = hullVel.current
       hullVel.current += dt * (flying
         ? -GRAV
-        : (surface - hull.current) * BUOY_K - (hullVel.current - surfVel) * BUOY_C)
-      hullVel.current = Math.min(hullVel.current, LAUNCH)
+        : (surface - hull.current) * water.buoyK - (hullVel.current - surfVel) * water.buoyC)
+      hullVel.current = Math.min(hullVel.current, water.launch)
       hull.current += hullVel.current * dt
       // A hull landing at six units a second would otherwise be a metre under
       // before the spring caught it, which on displaced water is a hull that
       // disappeared. It stops at the draft it has, and the spring floats it back.
-      if (hull.current < surface - SINK) {
-        hull.current = surface - SINK
+      if (hull.current < surface - water.sink) {
+        hull.current = surface - water.sink
         hullVel.current = Math.max(hullVel.current, 0)
       }
       // The landing, the wave face and the drop off a crest all reach the body
@@ -363,8 +417,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       // this is the pair of numbers a screenshot settles and arithmetic does not.
       // The chop's slope is exaggerated and the roller's is not: one is 15 cm of
       // painted water, the other is a thirty-degree face you can see.
-      roll = soft((s.dx * cy - s.dz * sy) * WAVE_TILT + (s.rx * cy - s.rz * sy), HEEL) * wet.current
-      heel = soft(-((s.dx * sy + s.dz * cy) * WAVE_TILT + (s.rx * sy + s.rz * cy)), HEEL) * wet.current
+      roll = soft((s.dx * cy - s.dz * sy) * water.tilt + (s.rx * cy - s.rz * sy), water.heel) * wet.current
+      heel = soft(-((s.dx * sy + s.dz * cy) * water.tilt + (s.rx * sy + s.rz * cy)), water.heel) * wet.current
     }
 
     // Acceleration this frame, all three axes at once — so a diagonal that also
@@ -390,7 +444,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     body.current.position.y =
       alt.current + ride - spring.current.y * SQUASH +
       // The saucer's idle hover. The boat already has one and it is the sea's.
-      (REDUCED || boat ? 0 : Math.sin(state.clock.elapsedTime * 1.2) * 0.05)
+      (REDUCED || floats ? 0 : Math.sin(state.clock.elapsedTime * 1.2) * 0.05)
 
     // The rig carries XZ and the body carries altitude, so the hull's world
     // position is one from each. Published here, after both have settled.
@@ -405,7 +459,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
 
     // Proximity is an event, not a state: it pushes a URL and the URL is what
     // everything else reads back (invariant 3 — nothing here remounts a tree).
-    const hit = landmarkAt(g.position.x, g.position.z, boat)?.slug ?? null
+    const hit = landmarkAt(g.position.x, g.position.z, floats)?.slug ?? null
     if (hit !== near.current) { near.current = hit; onNear(hit) }
 
     // A camera that bobs with the chop is a camera nobody wants, and that is
@@ -420,7 +474,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
 
     _cam.copy(g.position).add(CAM_OFFSET)
     // Rise with the ship, or the ceiling puts it out of frame.
-    _cam.y += boat ? camY.current : alt.current - hover
+    _cam.y += floats ? camY.current : alt.current - hover
     if (snap.current) {
       snap.current = false
       camY.current = aimY.current = ride
@@ -428,7 +482,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     } else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
     state.camera.lookAt(
       g.position.x,
-      g.position.y + (boat ? aimY.current : alt.current) - AIM_DOWN,
+      g.position.y + (floats ? aimY.current : alt.current) - AIM_DOWN,
       g.position.z,
     )
   })
@@ -436,12 +490,13 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   return (
     <group ref={rig}>
       <group ref={body} position-y={hover}>
-        {/* Both hulls stay mounted and one of them is drawn. Toggling
+        {/* All three stay mounted and one of them is drawn. Toggling
             `visible` costs a culled node; unmounting would hand back a
             question about who disposes geometry the renderer no longer has,
             for a tree that is two meshes deep. */}
-        <Saucer visible={!boat} />
-        <Boat visible={boat} />
+        <Saucer visible={model === 'saucer'} />
+        <Boat visible={model === 'boat'} />
+        <Surfer visible={model === 'surfer'} />
       </group>
     </group>
   )
@@ -587,6 +642,258 @@ function Boat({ visible }: { visible: boolean }) {
         <sphereGeometry args={[0.04, 10, 8]} />
       </mesh>
     </group>
+  )
+}
+
+
+/** The wake strip: where it starts behind the tail, how long, and how wide at
+ *  each end. Read by the geometry that draws it and by the fade in `FOAM`. */
+const WAKE = { gap: 0.85, len: 1.9, near: 0.26, far: 0.72 }
+
+/**
+ * How much of a wake there is, 0 to 1 — the board's speed, smoothed. At module
+ * scope for the same reason `LAMP` is: this module is the canvas chunk, so
+ * nothing here is constructed until the world mounts, and one uniform written
+ * by one frame loop is not state a component should be holding.
+ */
+const WAKE_SPEED = uniform(0)
+
+/**
+ * Foam, not neon. `Post` blooms the emissive buffer at threshold zero, so what
+ * a material declares here is exactly how much halo it gets: this peaks at 0.6
+ * against the lamp's 1, and only at full speed. It is the surfer's whole share
+ * of the bloom — the other two craft carry running lights, and this one carries
+ * the only thing a board leaves behind.
+ *
+ * Two fades, and the second is not optional: bloom reads the emissive buffer
+ * and not the alpha, so a strip that stops dead at its own rails blooms as a
+ * rectangle with corners however transparent it is. Along the length from
+ * `positionLocal`, across it from `uv` — which is the only one of the two that
+ * survives the taper baked into the geometry.
+ */
+const FOAM = new THREE.MeshStandardNodeMaterial({
+  color: '#0b1220', transparent: true, depthWrite: false, side: THREE.DoubleSide,
+})
+const WAKE_ALONG = positionLocal.z.add(WAKE.gap + WAKE.len).div(WAKE.len).clamp()
+const WAKE_ACROSS = uv().x.mul(2).sub(1).abs().oneMinus().pow(1.5)
+FOAM.emissiveNode = color('#cfeaff').mul(WAKE_ALONG.mul(WAKE_ACROSS).mul(0.6)).mul(WAKE_SPEED)
+FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
+
+/**
+ * And the third one: somebody on a board. Procedural like the other two — the
+ * rule is that the character stays that way — and the one that most looks like
+ * it should have been a model file, so it is worth saying what it actually is:
+ * two solids of revolution, eleven tapered cylinders, eight spheres, a cone
+ * for a fin and two boxes for feet. A limb is a cylinder between two points
+ * (`Bone`), which is the only arithmetic the rider needs, and the pose is the
+ * list of points below — so the crouch is moved rather than rewritten.
+ *
+ * The stance is read off what the camera can see. It sits astern and never
+ * yaws, so the visitor spends the whole session looking at this thing's back:
+ * the rider is turned toe-side and crouched with both arms out, which is the
+ * one surfing pose that is still a pose from directly behind. Arms wide also
+ * buy the silhouette its width — a figure this size head-on is a post.
+ *
+ * The waterline is this group's y = 0, same as the boat, so `Ship` puts the
+ * group on the swell and the board's own numbers decide what is wet.
+ */
+function Surfer({ visible }: { visible: boolean }) {
+  const kit = useMemo(() => {
+    // The board. The same trick as the hull — an ellipsoid, pinched in plan —
+    // except that this one keeps its top half, because a board is a board from
+    // above. The nose pinches harder than the tail (a shortboard is pointed
+    // forward and square-ish aft), and the rocker bends both ends up out of the
+    // flat, more at the nose than at the tail, which is what a board is.
+    const boardGeo = new THREE.SphereGeometry(1, 26, 12)
+    boardGeo.scale(BOARD.beam, BOARD.thick, BOARD.len)
+    const p = boardGeo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < p.count; i++) {
+      const t = p.getZ(i) / BOARD.len // -1 at the tail, +1 at the nose
+      p.setX(i, p.getX(i) * (1 - (t > 0 ? 0.88 : 0.5) * t * t))
+      p.setY(i, p.getY(i) + ROCKER * t * t * (t > 0 ? 1 : 0.55))
+    }
+    boardGeo.computeVertexNormals()
+    // Ride it high: the keel sits on the waterline and the deck is clear of it,
+    // because a board under a rider planes rather than floats. At the 2 cm of
+    // the first pass the calm chop — 15 cm at its steepest — washed straight
+    // over the deck and the board disappeared under its own rider.
+    boardGeo.translate(0, 0.08, 0)
+
+    // The stringer, and the reason it is a clone rather than a box: the deck is
+    // curved by the rocker, and a straight box laid on it sinks into both ends.
+    // The same geometry scaled to a fifth of its beam follows that curve by
+    // construction, and pinches to a point at the nose the way a real one does.
+    const stripeGeo = boardGeo.clone()
+    stripeGeo.scale(0.2, 1, 1)
+    stripeGeo.translate(0, 0.006, 0)
+
+    // The wake: one strip of water behind the tail, widening and fading aft.
+    // It is the surfer's share of the bloom — the other two craft carry running
+    // lights and this one carries the only thing a board leaves behind.
+    const wakeGeo = new THREE.PlaneGeometry(1, 1, 1, 10)
+    wakeGeo.rotateX(-Math.PI / 2)
+    wakeGeo.scale(1, 1, WAKE.len)
+    wakeGeo.translate(0, 0, -(WAKE.gap + WAKE.len / 2))
+    const w = wakeGeo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < w.count; i++) {
+      const t = (-WAKE.gap - w.getZ(i)) / WAKE.len // 0 at the tail, 1 at the end
+      w.setX(i, w.getX(i) * (WAKE.near + (WAKE.far - WAKE.near) * t))
+    }
+
+    const deck = new THREE.MeshStandardNodeMaterial({ color: '#f2ece0', roughness: 0.32, metalness: 0.05 })
+    const stripe = new THREE.MeshStandardNodeMaterial({ color: '#ff6b45', roughness: 0.3 })
+    // Shorty wetsuit: torso, thighs and upper arms. Shins, forearms and head are
+    // skin, which is the whole of what makes a figure this size read as a person
+    // rather than a mannequin — two materials doing the job of a texture.
+    const suit = new THREE.MeshStandardNodeMaterial({ color: '#12384c', roughness: 0.5 })
+    const skin = new THREE.MeshStandardNodeMaterial({ color: '#e0a274', roughness: 0.72 })
+    const hair = new THREE.MeshStandardNodeMaterial({ color: '#e6b552', roughness: 0.85 })
+
+    return { boardGeo, stripeGeo, wakeGeo, deck, stripe, suit, skin, hair }
+  }, [])
+
+  // One number a frame, and only while this craft is the one being drawn. The
+  // wake is a thing the board does, not a thing it wears: at rest there is
+  // nothing behind it, and it is the only cue in open water that says how fast
+  // you are actually going now that the plume belongs to the saucer.
+  useFrame(() => {
+    if (!visible) return
+    WAKE_SPEED.value += (Math.min(SHIP.vel.length() / SPEED, 1) - WAKE_SPEED.value) * 0.12
+  })
+
+  return (
+    <group visible={visible}>
+      <mesh geometry={kit.boardGeo} material={kit.deck} />
+      <mesh geometry={kit.stripeGeo} material={kit.stripe} />
+
+      {/* The fin. Three radial segments squashed to a blade: a cone is the
+          cheapest thing in the library that is already a triangle. */}
+      <mesh material={kit.deck} position={[0, -0.11, -0.78]} rotation-x={Math.PI} scale={[0.13, 1, 1]}>
+        <coneGeometry args={[0.14, 0.3, 3]} />
+      </mesh>
+
+      {/* Feet, flat on the deck and staggered along it — the stance is what
+          says this is surfing and not standing. */}
+      <mesh material={kit.skin} position={[FOOT_F[0], FOOT_F[1] - 0.01, FOOT_F[2]]} rotation-y={0.12}>
+        <boxGeometry args={[0.11, 0.055, 0.22]} />
+      </mesh>
+      <mesh material={kit.skin} position={[FOOT_B[0], FOOT_B[1] - 0.01, FOOT_B[2]]} rotation-y={-0.1}>
+        <boxGeometry args={[0.11, 0.055, 0.22]} />
+      </mesh>
+
+      {/* Legs. Wetsuit to the knee, skin below it — a shorty, and two materials
+          doing the work of a texture. The knees are spheres because a joint
+          between two cylinders at an angle is a corner otherwise. */}
+      <Bone a={FOOT_F} b={KNEE_F} r={0.068} taper={0.8} material={kit.skin} />
+      <Bone a={KNEE_F} b={HIP_F} r={0.088} taper={0.8} material={kit.suit} />
+      <Bone a={FOOT_B} b={KNEE_B} r={0.068} taper={0.8} material={kit.skin} />
+      <Bone a={KNEE_B} b={HIP_B} r={0.088} taper={0.8} material={kit.suit} />
+      <Joint at={KNEE_F} r={0.072} material={kit.suit} />
+      <Joint at={KNEE_B} r={0.072} material={kit.suit} />
+
+      <Bone a={PELVIS} b={CHEST} r={0.125} taper={1.05} material={kit.suit} />
+
+      {/* Arms, both out and neither symmetrical: the leading one low over the
+          rail and the trailing one high, which is what a person does with them
+          on a board and what stops the pose reading as a scarecrow. They are
+          also most of the silhouette's width — a figure this size head-on with
+          its arms down is a post. */}
+      <Bone a={SHOULDER_F} b={ELBOW_F} r={0.058} taper={0.9} material={kit.suit} />
+      <Bone a={ELBOW_F} b={HAND_F} r={0.048} taper={0.85} material={kit.skin} />
+      <Bone a={SHOULDER_B} b={ELBOW_B} r={0.058} taper={0.9} material={kit.suit} />
+      <Bone a={ELBOW_B} b={HAND_B} r={0.048} taper={0.85} material={kit.skin} />
+      <Joint at={SHOULDER_F} r={0.062} material={kit.suit} />
+      <Joint at={SHOULDER_B} r={0.062} material={kit.suit} />
+      <Joint at={HAND_F} r={0.058} material={kit.skin} />
+      <Joint at={HAND_B} r={0.058} material={kit.skin} />
+
+      <Bone a={CHEST} b={NECK} r={0.065} taper={0.9} material={kit.skin} />
+      <Joint at={HEAD} r={0.15} material={kit.skin} />
+      {/* Hair is a second sphere a hair bigger, set back and up, so the face is
+          the part of the first one still showing. */}
+      <Joint at={HAIR} r={0.157} material={kit.hair} />
+      {/* And the ponytail, which is the one detail here that is not structural.
+          It is also the only thing on this craft that says which way it is
+          facing when it is a hundred units away and four pixels tall. */}
+      <Bone a={TIE} b={TAIL} r={0.06} taper={0.3} material={kit.hair} />
+
+      <mesh geometry={kit.wakeGeo} material={FOAM} position-y={0.015} />
+    </group>
+  )
+}
+
+/**
+ * The rider's pose, in board space: +z is the nose, y is measured from the
+ * waterline, and the deck under the feet is at 0.08. One list, so changing the
+ * crouch is moving points rather than editing eleven meshes — which is the
+ * whole reason `Bone` takes two points instead of a position and a rotation.
+ */
+type P3 = [number, number, number]
+const FOOT_F: P3 = [0.06, 0.16, 0.44]
+const KNEE_F: P3 = [0.26, 0.39, 0.46]
+const HIP_F: P3 = [0.08, 0.6, 0.06]
+const FOOT_B: P3 = [-0.06, 0.16, -0.34]
+const KNEE_B: P3 = [-0.22, 0.41, -0.26]
+const HIP_B: P3 = [-0.08, 0.62, -0.1]
+const PELVIS: P3 = [0, 0.61, -0.02]
+const CHEST: P3 = [0.06, 0.96, 0.14]
+const SHOULDER_F: P3 = [0.16, 0.94, 0.22]
+const ELBOW_F: P3 = [0.46, 0.9, 0.44]
+const HAND_F: P3 = [0.72, 0.78, 0.62]
+const SHOULDER_B: P3 = [-0.09, 0.96, 0.02]
+const ELBOW_B: P3 = [-0.38, 1.06, -0.22]
+const HAND_B: P3 = [-0.62, 1.22, -0.42]
+const NECK: P3 = [0.07, 1.08, 0.17]
+const HEAD: P3 = [0.08, 1.24, 0.21]
+const HAIR: P3 = [0.04, 1.27, 0.16]
+const TIE: P3 = [0.01, 1.28, 0.07]
+const TAIL: P3 = [-0.13, 1.18, -0.3]
+
+const _a = new THREE.Vector3()
+const _b = new THREE.Vector3()
+const _dir = new THREE.Vector3()
+const UP = new THREE.Vector3(0, 1, 0)
+
+/**
+ * A limb: a tapered cylinder from `a` to `b`, thinner at `a`. The cylinder is
+ * built along y and turned by the rotation that takes y to the direction
+ * between the points, which is one `setFromUnitVectors` and no trigonometry.
+ *
+ * Seven radial segments, not eight: at this size the difference is invisible
+ * and a limb is drawn eleven times.
+ */
+function Bone({ a, b, r, taper = 0.85, material }: {
+  a: P3
+  b: P3
+  r: number
+  /** Radius at `a`, as a fraction of `r`. Limbs taper toward the extremity. */
+  taper?: number
+  material: THREE.Material
+}) {
+  const { pos, quat, len } = useMemo(() => {
+    _a.set(a[0], a[1], a[2])
+    _b.set(b[0], b[1], b[2])
+    return {
+      pos: _a.clone().add(_b).multiplyScalar(0.5),
+      quat: new THREE.Quaternion().setFromUnitVectors(UP, _dir.subVectors(_b, _a).normalize()),
+      len: _a.distanceTo(_b),
+    }
+  }, [a, b])
+
+  return (
+    <mesh position={pos} quaternion={quat} material={material}>
+      <cylinderGeometry args={[r * taper, r, len, 7]} />
+    </mesh>
+  )
+}
+
+/** A knee, a fist, a head. A sphere where two cylinders meet at an angle,
+ *  because the alternative is a corner where a person has a joint. */
+function Joint({ at, r, material }: { at: P3; r: number; material: THREE.Material }) {
+  return (
+    <mesh position={at} material={material}>
+      <sphereGeometry args={[r, 12, 8]} />
+    </mesh>
   )
 }
 

@@ -1225,9 +1225,9 @@ Like the sound, it renders only where there is a world, so it is in none of the
 same bargain the sound made, on a control that only exists to change something
 that needs a GPU.
 
-### Both hulls stay mounted
+### All the craft stay mounted
 
-`<Saucer visible={!boat} />` and `<Boat visible={boat} />`, inside the same
+`<Saucer visible={model === 'saucer'} />` and its two siblings, inside the same
 `body` group that carries the bank and the spring. Toggling `visible` costs a
 culled node. Unmounting would hand back a question about who disposes geometry
 the renderer no longer has, for a tree that is two meshes deep.
@@ -1829,3 +1829,150 @@ untouched.
   case studies are.
 - **`seaCalm` and `seaAgitated` in FR and NL** — "Calme"/"Agitée",
   "Kalm"/"Bewogen". Unreviewed, and with `sea` they join the nine waiting.
+
+## The surfer — a third craft, and the first one that is a person
+
+**Craft** in the menu now has three entries: *Saucer*, *Boat*, *Surfer*. The
+surfer floats, so it is the boat's machinery — altitude pinned to the sea, a
+coastline it cannot cross, the wider circle that calls arrival — carrying a
+different thing on top of it and a different column of numbers underneath.
+
+Still one flight controller, one frame loop, one camera.
+
+### `boat` became `floats`
+
+Every branch in `Ship` that used to ask *is this the boat* now asks *does this
+float*. That is the whole structural change: `const floats = model !== 'saucer'`
+and eighteen call sites that read better for it. Nothing about the saucer or the
+boat moved.
+
+What is per-craft lives in two tables at the top of the file rather than in a
+branch beside each constant:
+
+- **`AGILITY`** — speed and turn rate, read for all three. The saucer and the
+  boat are 1 and `TURN`, exactly what they were. The surfer is **1.18× and 16**:
+  barely quicker in a straight line (the sea is the same sea and the landmarks
+  are where they are) and **nearly twice as sharp into a turn**, because a board
+  turns by leaning and a board that turned like a hull would be a hull.
+- **`CRAFT_WATER`** — the nine numbers the buoyancy, the crest and the landing
+  read. The boat's column *is* the existing constants, by reference, so the boat
+  is provably unchanged. The surfer's says "lighter" nine ways: `buoyK` 105 to
+  the boat's 70 and `buoyC` 11 to its 15 (bobs faster, damped less), `pop` 1.95
+  and `popMin` 1 against 1.45 and 1.5 (leaves crests harder, and leaves much
+  smaller ones), `tilt` 4.6 and `heel` 0.95 against 3 and 0.6 (leans further
+  into a face), `launch` 12 against 10, `sink` **0.12 against 0.3** — a board
+  rides on the surface where a hull sits in it — and `squash` 0.34 against 0.5,
+  because there is less of it to compress on landing.
+
+The whole point of a third craft is that it leaves the water, so the numbers
+that decide that are the ones that moved most.
+
+### The model: two ellipsoids, eleven cylinders, eight spheres
+
+Procedural, like the other two. It is the one that most looks like it should
+have been a model file, so, concretely: the board is the hull's trick again — an
+ellipsoid pinched in plan, nose harder than tail, with a rocker bent into both
+ends — and the **stringer is a clone of that geometry scaled to a fifth of its
+beam**, so it follows the rocker by construction and pinches to a point at the
+nose. A straight box laid on a curved deck sinks into both ends.
+
+The rider is a pose: nineteen points in board space and a `Bone` that draws a
+tapered cylinder between two of them. Changing the crouch is moving points.
+Spheres at the knees, shoulders, fists and head, because two cylinders meeting
+at an angle is a corner where a person has a joint. Shorty wetsuit — torso,
+thighs and upper arms in it, shins, forearms and head bare — which is two
+materials doing the work of a texture, and the thing that makes a figure this
+small read as a person rather than a mannequin.
+
+**The stance is read off what the camera can see.** It sits astern and never
+yaws, so the visitor spends the session looking at this thing's back. The rider
+is turned toe-side and crouched with **both arms out** — the one surfing pose
+that is still a pose from directly behind — and those arms are most of the
+silhouette's width, because a figure this size head-on with its arms down is a
+post. The ponytail is the only detail here that is not structural: it is also
+the only thing that says which way the craft is facing at a hundred units.
+
+**The board rides high on purpose.** The first pass floated it with 2 cm of
+keel under the waterline and the calm chop — 15 cm at its steepest — washed
+straight over the deck; the board disappeared under its own rider. It now sits
+with the keel *on* the waterline, which is what a board under a rider does.
+
+### The wake is the surfer's share of the bloom
+
+The other two craft carry running lights. This one carries the only thing a
+board leaves behind: one strip of foam behind the tail, widening and fading aft,
+its brightness multiplied by a `WAKE_SPEED` uniform that follows the board's own
+speed. At rest there is nothing there. At full speed it peaks at 0.6 emissive
+against the lamp's 1.
+
+It fades **twice**, and the second one is not optional: `Post` blooms the
+emissive buffer and not the alpha, so a strip that stops dead at its own rails
+blooms as a rectangle with corners however transparent it is. Along the length
+from `positionLocal.z`, across it from `uv().x` — which is the only one of the
+two that survives the taper baked into the geometry.
+
+The material and its uniform are at module scope, for the reason `LAMP` is: this
+module is the canvas chunk, so nothing constructs it until the world mounts.
+
+### Cost
+
+No dependency, no asset. **1.15 kB gz** in the canvas chunk — the same chunk
+built with the surfer stripped out measures 451,267 B gz against 452,440 B with
+it. The chunk is **441.8 kB gz against the 600 kB budget**; the first route is
+**106 kB gz against 200 kB**, and its share of this is six locale strings and a
+third `<option>`.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b` clean and `node src/i18n/locales.check.ts` green on Seb's copy.
+- Full `npm install` + `npm run build` on a copy in the container: typegen,
+  build and all 22 prerenders clean. `oxlint src` adds no warning that Ship.tsx
+  did not already have — the first draft held the wake uniform in a `useMemo`
+  and picked up a `react(immutability)` warning for writing to it in the frame
+  loop, which is why it is at module scope now.
+- **The TSL graph, compiled and drawn in isolation** before it went near the
+  world: the wake material built exactly as `Ship.tsx` builds it, rendered
+  through `WebGPURenderer` on its WebGL2 fallback, which is the path a machine
+  without WebGPU takes. It compiles, and the fade runs the right way — brightest
+  at the tail.
+- **The model, rendered and looked at** rather than reasoned about. The
+  geometry was ported to a standalone three.js page and screenshot from astern,
+  the quarter, the side and close, and the pose went through three rounds on
+  what those showed: the first rider was spindly and stood upright, the second
+  had no feet and no crouch.
+- **The built site driven headless**, surfer selected out of `localStorage`, on
+  a calm sea and an agitated one: no console errors, the menu carries three
+  craft, the HUD reads *WASD or arrows to surf · shift to charge*.
+- The waterline checked with a probe on `SHIP` rather than by eye — the board
+  settles to within a few centimetres of the sea it is riding.
+
+### Not verified, and one of them is a trap
+
+- **Nothing here has been seen at a real frame rate.** Swiftshader runs this
+  world at about half a frame a second, and at that timestep the water under the
+  hull appears to jump: `surfVel` sits on its ±11 cap, the buoyancy spring reads
+  a step, and the board gets thrown metres into the air. *The boat does exactly
+  the same thing under the same conditions* — probing both is what proved it was
+  the frame rate and not the new craft — but it means every "airborne" frame in
+  the screenshots below is an artifact, not a jump.
+- **The wake at full strength.** Its uniform smooths at 0.12 a frame, so at half
+  a frame a second it needs forty seconds of wall time to come up. `Claude
+  outputs/surfer-wake.png` catches it partway.
+- **The spray**, which is WebGPU-only and has never been seen by anyone here.
+
+### Needs Seb
+
+- **Whether the surfer is too jumpy.** `pop` 1.95 and `popMin` 1 in
+  `CRAFT_WATER` are the two numbers; on an agitated sea it should be off the
+  water a good part of the time, and that is the intent, but the intent has
+  never been watched at 60 fps.
+- **Whether 16 is too sharp a turn.** It is nearly twice the boat's, and a
+  camera that never yaws is the thing that has to keep up with it.
+- **The wake on real water.** It is a flat strip at the waterline behind a board
+  that is riding displaced geometry; on a roller it will cut into the wave face
+  behind it. Two units long and fading was chosen to keep that cheap, and it has
+  only ever been seen on a calm sea.
+- **`modelSurfer` and the two control hints in FR and NL** — "Surfeur"/"Surfer",
+  and *ZQSD ou flèches pour surfer · maj pour foncer* / *WASD of pijltjes om te
+  surfen · shift om te knallen*. Unreviewed, and they join the eleven waiting.
+
