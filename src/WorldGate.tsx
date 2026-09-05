@@ -18,7 +18,7 @@ const MiniMap = lazy(() => import('./MiniMap'))
  *  because the menu is what sets it and the menu is in the first-route chunk —
  *  a value import from anything inside the canvas would drag the canvas in
  *  with it. `Ship` imports it back as a type, which compiles to nothing. */
-export type ShipModel = 'saucer' | 'boat'
+export type ShipModel = 'saucer' | 'boat' | 'surfer'
 
 /**
  * Which sea the world is on. Two states and not a dial: `calm` is the chop this
@@ -109,7 +109,11 @@ export function WorldGate({ children }: { children: ReactNode }) {
     // Reading it can throw outright where site data is blocked by policy, and
     // this effect is also what decides whether there is a world at all.
     try {
-      if (localStorage.getItem(MODEL_KEY) === 'boat') setModel('boat')
+      const stored = localStorage.getItem(MODEL_KEY)
+      // Named rather than cast: this is a string from the visitor's own disk,
+      // and an old or hand-edited one must not become a `ShipModel` the switch
+      // below has no case for.
+      if (stored === 'boat' || stored === 'surfer') setModel(stored)
       // Anything else — nothing stored, or the number an earlier version of
       // this site wrote here when the setting was a slider — is a calm sea.
       if (localStorage.getItem(SEA_KEY) === 'agitated') setSea('agitated')
@@ -251,11 +255,14 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
       {active && (
         <p className="hud">
-          {/* Four sentences, because the boat has no rise and the phone has no
-              shift. Naming a key that does nothing is worse than a shorter hint. */}
-          {model === 'boat'
-            ? touch ? STRINGS[locale].worldControlsBoatTouch : STRINGS[locale].worldControlsBoat
-            : touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls}
+          {/* Six sentences: two per craft, because neither floating craft has a
+              rise and the phone has no shift. Naming a key that does nothing is
+              worse than a shorter hint. */}
+          {model === 'saucer'
+            ? touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls
+            : model === 'boat'
+              ? touch ? STRINGS[locale].worldControlsBoatTouch : STRINGS[locale].worldControlsBoat
+              : touch ? STRINGS[locale].worldControlsSurferTouch : STRINGS[locale].worldControlsSurfer}
           {debug && ` · ${backend}${fps ? ` · ${fps}` : ''}`}
         </p>
       )}

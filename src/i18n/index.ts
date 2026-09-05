@@ -58,6 +58,12 @@ const en = {
   // the second finger do nothing and are not named. Shorter on purpose.
   worldControlsBoat: 'WASD or arrows to sail · shift for full sail',
   worldControlsBoatTouch: 'Drag to sail',
+  // And the surfer's, which floats like the boat and so has no rise either.
+  // "Charge" rather than "boost" or "full sail": it is the word for taking a
+  // wave hard, and it is what shift does to a craft this light — the third
+  // craft exists because it leaves the water, and the hint says which key does.
+  worldControlsSurfer: 'WASD or arrows to surf · shift to charge',
+  worldControlsSurferTouch: 'Drag to surf',
   // A toggle button's label stays put and `aria-pressed` carries the state, so
   // this is one word rather than an on and an off in three languages.
   // The map's accessible name. It replaced the world's project list, so it
@@ -76,6 +82,7 @@ const en = {
   model: 'Craft',
   modelSaucer: 'Saucer',
   modelBoat: 'Boat',
+  modelSurfer: 'Surfer',
 
   notFoundTitle: 'Nothing here',
   notFoundBody: 'That page does not exist, or it moved. The work is all one click away.',
@@ -117,6 +124,8 @@ const fr: Strings = {
   worldControlsTouch: 'Glissez pour voler · deux doigts pour monter',
   worldControlsBoat: 'ZQSD ou flèches pour naviguer · maj pour toute la voile',
   worldControlsBoatTouch: 'Glissez pour naviguer',
+  worldControlsSurfer: 'ZQSD ou flèches pour surfer · maj pour foncer',
+  worldControlsSurferTouch: 'Glissez pour surfer',
   worldMap: 'Carte du monde',
   sound: 'Son',
   sea: 'Mer',
@@ -125,6 +134,7 @@ const fr: Strings = {
   model: 'Engin',
   modelSaucer: 'Soucoupe',
   modelBoat: 'Bateau',
+  modelSurfer: 'Surfeur',
 
   notFoundTitle: 'Rien ici',
   notFoundBody: "Cette page n'existe pas, ou elle a bougé. Les projets sont à un clic.",
@@ -164,6 +174,8 @@ const nl: Strings = {
   worldControlsTouch: 'Sleep om te vliegen · twee vingers om te stijgen',
   worldControlsBoat: 'WASD of pijltjes om te varen · shift voor volle zeilen',
   worldControlsBoatTouch: 'Sleep om te varen',
+  worldControlsSurfer: 'WASD of pijltjes om te surfen · shift om te knallen',
+  worldControlsSurferTouch: 'Sleep om te surfen',
   worldMap: 'Kaart van de wereld',
   sound: 'Geluid',
   sea: 'Zee',
@@ -172,6 +184,7 @@ const nl: Strings = {
   model: 'Vaartuig',
   modelSaucer: 'Schotel',
   modelBoat: 'Boot',
+  modelSurfer: 'Surfer',
 
   notFoundTitle: 'Hier is niets',
   notFoundBody: 'Die pagina bestaat niet, of is verhuisd. Het werk is één klik weg.',
