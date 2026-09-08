@@ -28,11 +28,17 @@ const GULL = 'M-12 0Q-6 -6.5 0 -1.2Q6 -6.5 12 0Q6 -3.6 0 1.6Q-6 -3.6 -12 0Z'
  * The board is the one piece measured in the picture rather than the model. A
  * planted board is flat, and how much of its face turns back to the camera is
  * a choice rather than a fact — so only its axis is projected, and the outline
- * is fitted along that axis at the width that reads: 1.95m of it above the
- * sand, a sixth of that across.
+ * is fitted along that axis at the width that reads: 1.95m of it, a sixth of
+ * that across, and the profile still measured from a tail 18cm under the sand.
+ *
+ * It has no tail, because it is in the ground: the outline stops at the plane
+ * z = 0 and `Z` closes it with the straight edge between the two sides. That
+ * edge is not level — it is the sand at the board's own distance, which the
+ * projection tilts — and it is the whole of why the board is planted rather
+ * than stood on the beach.
  */
 const BOARD =
-  'M315 316C319 311 335 295 341 284C346 273 347 261 349 250C351 238 353 228 355 217C357 205 358 193 360 181C361 170 362 158 363 146C364 134 365 122 366 111C367 99 368 88 368 77C369 65 370 53 369 41C368 29 365 10 364 4C361 10 352 26 348 38C343 49 341 61 338 72C334 83 332 93 329 105C326 116 324 128 321 139C318 151 316 163 314 174C311 186 309 198 307 209C306 221 304 231 303 242C301 254 298 266 300 278C302 290 312 310 315 316Z'
+  'M335 292C337 287 342 271 344 261C347 250 349 239 350 229C352 218 354 209 355 198C357 188 358 177 359 166C361 156 362 145 363 134C364 123 365 112 366 102C366 91 367 81 368 71C368 60 369 49 369 38C368 27 365 10 364 4C361 9 352 24 348 35C344 45 341 56 338 66C335 76 333 85 330 96C327 106 325 117 322 127C320 138 317 148 315 159C313 169 310 180 308 191C306 201 304 210 303 221C301 231 300 242 298 253C297 264 297 280 296 285Z'
 
 const crown = (fronds: [number, number][], x = 0, y = 0) =>
   fronds.map(([rot, scale], i) => (
@@ -143,7 +149,7 @@ export default function Home() {
                 `.sun` above puts it. */}
             <g fill="url(#cast)">
               <ellipse cx="105" cy="330" rx="128" ry="30" transform="rotate(8 105 330)" />
-              <ellipse cx="348" cy="314" rx="58" ry="12" transform="rotate(13 348 314)" />
+              <ellipse cx="350" cy="293" rx="58" ry="12" transform="rotate(13 350 293)" />
             </g>
             <path d={BOARD} fill="currentColor" />
             {/* Four legs, then the seat and the back as two slabs sharing the

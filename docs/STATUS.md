@@ -43,7 +43,8 @@ Needed to run Track B's exit test, so built before Phase 2.
 - [x] Flight controller: damped velocity, shortest-arc yaw, bank on turn
 - [x] Held-Space climb to a ceiling and sink back; held-Shift speed boost
 - [x] Acceleration-driven spring: lean, pitch and suspension bounce on any change
-- [x] Fixed-offset follow camera
+- [x] Follow camera *(fixed-offset then; it swings round to stay astern of the
+      heading now — see "The camera turns" at the end of this file)*
 - [x] Proximity detection, landmark in range surfaced in the HUD
 - [x] `src/Scenery.tsx` — sky, sun, ocean and clouds in TSL, golden hour, zero assets
 
@@ -2327,3 +2328,84 @@ lost rather than as *out that way*.
 - **The palms and the water at real scale.** Everything here is metres against a
   1.8 m rider: 12 m trunks, a 13 m ridge, 70 m of beach. Whether the world still
   reads at that scale beside three 17 m islands is a judgement, not a number.
+
+## The camera turns — it stays astern of the heading now
+
+Phase 0's "fixed-offset follow camera" is gone, and with it the sentence that
+had been load-bearing in five files: *the camera never yaws*. It sits the same
+7.2 back and 1.5 up, and it swings round the hull to stay behind whichever way
+the hull is pointed.
+
+**The one number that did not change is the pitch.** Swinging round changes the
+bearing and not the 7.2 or the 1.5, so `atan(1.5 / 7.2)` is still 11.77 degrees
+at every heading, the horizon is still 24.85% down the frame, and `--horizon` in
+`index.css`, `SKY_TOP` in `Scenery.tsx` and the dev assert in `Ship.tsx` are all
+untouched. The cut from the landing page still does not step.
+
+### Steering moved with it, and that closes a loop
+
+`move` is read against where the camera points rather than against the world:
+forward is into the frame and right is right, at every heading. That is the loop
+the fixed camera existed to avoid — steer left, the ship turns, the camera comes
+round, and *left* is somewhere else — and it is now a bounded thing rather than
+an avoided one. `CAM_SWING_MAX` caps the camera at 0.9 rad/s, so the worst a
+sustained sideways push can do is carve: seven seconds a revolution, a circle
+8.3 units in radius at cruise and 20 at full boost. Simulated against the real
+flight constants, a full-right hold settles 77 degrees off the camera's bearing
+and comes round at exactly the cap; W holds the camera dead astern. Tapped, it turns and settles;
+`CAM_SWING` is 2.6, about a third of a second of lag.
+
+The arithmetic — the screen-to-world basis and the capped swing — is `src/camera.ts`,
+its own module importing nothing, and `node src/camera.check.ts` asserts the
+things a screenshot cannot show: that forward is the camera's own bearing and
+right is starboard at eight headings, that a push keeps its length, that the
+swing takes the short way round without overshooting, and that a full-left hold
+turns the camera at exactly the cap and no faster.
+
+### Three things it changed that were not asked for
+
+- **The ship spawns pointed the other way.** `yaw` starts at pi rather than 0.
+  It has to: the camera is astern of the heading, and a hull spawned at 0 would
+  put the camera on the far side of the world looking at empty sea. Pi is the
+  heading every visitor has flown on every frame — forward is -z — so the camera
+  lands exactly where `Scene.tsx` parks it and the frame is the one the landing
+  page already cut to, with the stern of the craft in it rather than the bow.
+  The first press of W no longer spins the hull through 180 degrees to start
+  moving, which was a Phase 0 oddity nobody had written down.
+- **A deep link now centres its landmark.** Arriving parks the ship facing the
+  thing it named, and the camera is behind the ship, so the landmark is dead
+  ahead instead of three quarters across the frame. `world.ts` still asserts
+  `pos[2] < waypoint[2]` and `pos[0] > waypoint[0]` — they still fix which side
+  the world is approached from, which is the composition the sun was swung for —
+  but the second one no longer decides which half of the frame anything lands
+  in. **Whether a centred landmark reads well against a panel down the left is
+  Seb's eye, not an assert.** Every waypoint is one line of frontmatter.
+- **The landmarks' approach shader stopped reading the camera.** It recovered
+  the ship's position by subtracting a constant `CAM_OFFSET` from
+  `cameraPosition`, which stops being a constant the moment the camera turns.
+  `Ship.tsx` publishes `SHIP_XZ`, a uniform written in the same block as `SHIP`,
+  and `Landmarks.tsx` measures from that — the hull's own position, which is
+  what the subtraction was reconstructing all along.
+
+Under `prefers-reduced-motion` the camera still comes round and takes four times
+as long about it — `CAM_SWING` 0.7, capped at 0.22 rad/s (invariant 6). A
+rotating world is the one thing on this page that can make somebody ill, and the
+alternative — no rotation at all for those visitors — would have left them
+steering against a camera that no longer agrees with the ship.
+
+### Verified
+
+- `npx tsc -b`, `node src/camera.check.ts`, `node src/i18n/locales.check.ts`,
+  `node src/stick.check.ts`.
+
+### Not verified — Seb's eye
+
+- **The feel of the carve.** 0.9 rad/s and 2.6 of lag are two numbers in
+  `Ship.tsx` and they were chosen by arithmetic, not by flying. A held sideways
+  push circling is deliberate; whether the circle is the right size is a thumb's
+  judgement and a thumb's alone.
+- **Where a deep-linked landmark now sits against the panel**, above.
+- **The world's composition off-axis.** The sun is at -z and the islands were
+  laid out for a camera that only ever looked that way. Flying north now turns
+  the frame round to face an empty sea and an anti-solar sky, which is a view of
+  this world nobody has ever had.
