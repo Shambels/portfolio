@@ -111,7 +111,13 @@ Breaking one is allowed. Doing it without saying so is not.
   pad, fin and wake. The **rider** is the one exception, and `tools/surfer.py`
   is where it says why: a hull is a solid of revolution with things bolted to
   it and code is good at those; a person is one skin over a skeleton. Anything
-  else that wants a model file still has to argue for one first.
+  else that wants a model file still has to argue for one first. He is also the
+  only thing in the world with bones in it — seventeen, read off the same pose
+  list the skin was laid along — and the only animation in the file is none:
+  `Ship.tsx` bends him from the flight controller's own numbers every frame, the
+  upper body by FK and the legs by a two-bone solve against ankles that are
+  fixed to the deck. With no input every bone is at rest, which is the model
+  exactly.
 - No i18n library. Typed string objects per locale in `src/i18n/`.
 - Canvas and models load via dynamic `import()`, never in the first-route chunk.
 - TypeScript strict, no `any`. A narrow cast at a library boundary is fine — see
@@ -128,7 +134,9 @@ Breaking one is allowed. Doing it without saying so is not.
   the world: toon shading, an inverted-hull outline and a fresnel rim, because
   the sun is ahead of the ship and the visitor only ever sees his shadow side. `pip install
   "bpy==4.5.13"` (Python 3.11) and `python3 tools/<name>.py` rebuilds;
-  `--render out.png` writes the preview views.
+  `--render out.png` writes the preview views, and `--render out.png --flex`
+  writes them in a stress pose, which is the only way to see whether a rig's
+  weights hold.
 - Shaders derive from what a project does. Generic noise does not ship.
 
 ## Budgets
@@ -263,6 +271,13 @@ before that click.
 The particles are WebGPU only and there is deliberately no WebGL2 version —
 `docs/STATUS.md` has the argument. That makes them the first thing in the world
 a visitor can miss, which is why `?debug` names the backend.
+
+The rider is rigged. Nothing about the model changed — same triangles, same
+COLOR_0, same rest pose to the vertex — but he now leans into a carve, absorbs a
+landing in his knees and opens up in the air, out of a sum of five numbers the
+controller already had rather than out of a clip. `docs/STATUS.md`, "The rider
+moves", has the two mechanisms and the four amplitudes that want a second
+opinion. It cost 62 kB gz on the model and nothing measurable a frame.
 
 Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
 (`src/stick.ts`) read into `useInput`'s `move`, boost is the same push further,

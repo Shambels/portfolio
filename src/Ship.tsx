@@ -257,6 +257,32 @@ export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0
  */
 export const SHIP_XZ = uniform(new THREE.Vector2())
 
+/**
+ * What the rider is riding, as five numbers a frame. `Surfer` reads them and
+ * nothing else does, which is why they are module-local where `SHIP` above is
+ * exported — same reason, one file smaller.
+ *
+ * They are the whole interface between the physics and the man on the board.
+ * There is no clip, no state machine and no animation graph: every joint below
+ * is a sum of these five, so the rider is *reacting* rather than playing back,
+ * and a jump he has never taken before still lands.
+ *
+ * `turn` is signed and the rest are not. All five are smoothed here rather than
+ * at the joints, because a body's own lag is one lag and not seventeen.
+ */
+const RIDE = {
+  speed: 0, // 0 at rest, 1 at cruise. Boost pushes it past 1; nothing clamps it down.
+  turn: -0, // -1 to 1, the heading's rate. Positive is round toward his open side.
+  air: 0,   // 1 with the board clear of the water
+  slam: 0,  // a landing, decaying. Set by the impact, spent over about a third of a second.
+  push: 0,  // -1 to 1: leaning back under acceleration, forward under the brake
+}
+/** The yaw rate a full carve reaches, radians/sec — what `RIDE.turn` is 1 at. */
+const CARVE = 2.2
+/** How fast the body answers a change in any of the five. A person is not a
+ *  spring here: this is reaction time, and 9 is about 110 ms of it. */
+const REACT = 9
+
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // Invariant 6: the ship still responds, it just does not oscillate about it.
 const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
@@ -327,6 +353,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   // own value rather than `yaw` read late, because the lag between the two *is*
   // the turn, and steering is measured against this one.
   const camYaw = useRef(Math.PI)
+  const lastYaw = useRef(Math.PI) // last frame's heading, for `RIDE.turn`
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
@@ -524,6 +551,10 @@ const FOLLOW = 3.2
         SPLASH.force = Math.min(impact / SPLASH_FULL, 1)
         SPLASH.age = 0
         springVel.current.y += impact * water.squash
+        // The same impact the hull compresses by, and the rider absorbs it in
+        // his knees. Set rather than accumulated: a second landing during the
+        // first is one landing, not a rider driven through the deck.
+        RIDE.slam = SPLASH.force
       }
       flew.current = flying
 
@@ -573,6 +604,23 @@ const FOLLOW = 3.2
     // along the heading pitches the nose, vertical travel is suspension give.
     const lateral = spring.current.x * cy - spring.current.z * sy
     const along = spring.current.x * sy + spring.current.z * cy
+
+    // And the rider's five, read off the same frame the hull was just built
+    // from. Written for every craft rather than only for the surfer: they are
+    // facts about the hull, the branch would save four multiplies, and a value
+    // that only updates while you are looking at it is a value that jumps the
+    // moment you switch craft in the menu.
+    const spin = Math.atan2(Math.sin(yaw.current - lastYaw.current),
+      Math.cos(yaw.current - lastYaw.current)) / dt
+    lastYaw.current = yaw.current
+    const react = 1 - Math.exp(-REACT * dt)
+    RIDE.turn += (THREE.MathUtils.clamp(spin / CARVE, -1, 1) - RIDE.turn) * react
+    RIDE.speed += (vel.current.length() / SPEED - RIDE.speed) * react
+    RIDE.push += (THREE.MathUtils.clamp(-along * 2.2, -1, 1) - RIDE.push) * react
+    RIDE.air += ((1 - wet.current) - RIDE.air) * react
+    // Spent over about a third of a second, and linearly: a landing is a thing
+    // that finishes, where an exponential leaves the knees half bent forever.
+    RIDE.slam = Math.max(0, RIDE.slam - dt * 3.2)
 
     body.current.rotation.z = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK) + roll
     body.current.rotation.x = THREE.MathUtils.clamp(-along * LEAN, -PITCH, PITCH) + heel
@@ -852,6 +900,10 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * from directly behind. Arms wide also buy the silhouette its width — a figure
  * this size head-on is a post.
  *
+ * That is the *rest* pose, and since the rig it is only where he starts: the
+ * bones bend from the physics every frame — see "the rider moves" below — and
+ * the same three sentences still describe the shape he keeps coming back to.
+ *
  * The waterline is this group's y = 0, same as the boat, so `Ship` puts the
  * group on the swell and the board's own numbers decide what is wet. What the
  * rider stands on is `deckY`, and his soles are placed against it in Blender.
@@ -946,7 +998,7 @@ function Surfer({ visible }: { visible: boolean }) {
           423 kB of rider has landed yet. */}
       <mesh geometry={kit.padGeo} material={kit.grip} />
       <Suspense fallback={null}>
-        <Rider />
+        <Rider visible={visible} />
       </Suspense>
 
       <mesh geometry={kit.wakeGeo} material={FOAM} position-y={0.015} />
@@ -961,9 +1013,10 @@ function Surfer({ visible }: { visible: boolean }) {
  * is what code is good at — and a person is one skin over a skeleton, which is
  * what eleven cylinders and eight spheres could not close a shoulder seam on.
  *
- * Flattened to one mesh with the transform baked in, the way `Landmarks.tsx`
- * flattens its models and for the same reason. The material is where the two
- * pipelines part: a landmark asks for its material by name prefix and gets TSL,
+ * One mesh, and — unlike every landmark, which is flattened with its transform
+ * baked in — its node hierarchy is kept, because the hierarchy is the skeleton
+ * and flattening it would be throwing the rig away. The material is where the
+ * two pipelines part: a landmark asks for its material by name prefix and gets TSL,
  * and this asks for nothing — the colour is COLOR_0 on the geometry, linear in
  * the file and linear in the shader, and `vertexColors` multiplies it in. It is
  * a wetsuit with neon ribbons across it, and no prefix was going to say that.
@@ -1040,29 +1093,448 @@ RIDER.emissiveNode = color('#ffb478').mul(RIM.mul(SUNWARD).mul(1.35))
  * scaling the push by view depth — is arithmetic for a problem this world does
  * not have. It is `MeshBasicNodeMaterial` because an outline is not lit, and it
  * declares no emissive, so it costs nothing at the bloom.
+ *
+ * It skins for free, and that is not luck. `NodeMaterial.setupPosition` runs
+ * the skinning node *before* it reads `positionNode`, and the skinning node
+ * assigns into `positionLocal` and `normalLocal` themselves — so the two names
+ * below are already the deformed position and the deformed normal by the time
+ * this expression is built, and the outline follows every bone the rider has.
  */
 const OUTLINE = new THREE.MeshBasicNodeMaterial({ color: '#0a0d14', side: THREE.BackSide })
 OUTLINE.positionNode = positionLocal.add(normalLocal.mul(0.011))
 
-function Rider() {
+/* ------------------------------------------------------------ the rider moves
+ *
+ * Seventeen bones out of `tools/surfer.py`, bent every frame from `RIDE`.
+ *
+ * The problem this solves is that a man welded to his board reads as a figurine
+ * of a surfer. Everything under him already moved — the sea, the bank, the
+ * three metres of air off a roller — and he held one crouch through all of it,
+ * which is the one thing in the world that could be *more* wrong the better the
+ * water got.
+ *
+ * What it is not: there is no clip and no animation mixer in the file, and the
+ * glb carries no animation either. Every angle below is a sum of the five
+ * numbers in `RIDE`, so what the rider does is a response and not a playback —
+ * he leans into a carve because the heading is turning, he folds on a landing
+ * because the hull just took an impact, and a wave nobody has ridden before is
+ * ridden correctly the first time. It also means the rest pose is the shipped
+ * model exactly: with no input, every sum is zero and every bone is where
+ * Blender put it, to the vertex.
+ *
+ * Two halves, and they are not the same mechanism.
+ *
+ * *The upper body is forward kinematics.* Hips, spine, chest, neck, head and
+ * both arms are told how far to rotate about board space's own axes — x across
+ * the deck, y up, z out the nose — and their children come along. That is the
+ * right model for a limb whose end is in the air: an arm counterweighting a
+ * turn does not have a target, it has a swing.
+ *
+ * *The legs are inverse kinematics,* because a foot is not in the air. It is on
+ * the deck, and it stays there: `Ship.tsx` builds the board and
+ * `tools/surfer.py` puts the soles against it, so both ankles are constants in
+ * board space and the only honest way to move the hips is to solve the knees
+ * for them. Two bones and a fixed target is the case with a closed form — one
+ * triangle, no iteration, no solver — and what it buys is that every drop of
+ * the hips, every lean over the rail and every landing compression comes out as
+ * a leg that bends, rather than as a rider sliding through his own board.
+ */
+
+const _v = new THREE.Vector3()
+const _hip = new THREE.Vector3()
+const _to = new THREE.Vector3()
+const _pole = new THREE.Vector3()
+const _knee = new THREE.Vector3()
+const _dir = new THREE.Vector3()
+const _q = new THREE.Quaternion()
+const _qt = new THREE.Quaternion()
+const _qa = new THREE.Quaternion()
+const _qb = new THREE.Quaternion()
+const _qi = new THREE.Quaternion()
+const _mat = new THREE.Matrix4()
+const _step = new THREE.Matrix4()
+const _AX = new THREE.Vector3(1, 0, 0)
+const _AY = new THREE.Vector3(0, 1, 0)
+const _AZ = new THREE.Vector3(0, 0, 1)
+const _ONE = new THREE.Vector3(1, 1, 1)
+const _scale = new THREE.Vector3()
+
+/**
+ * A node's rest transform in the *model's* frame — board space, the same frame
+ * `deckY` and `tools/surfer.py` are written in.
+ *
+ * Composed up the chain from local transforms rather than read off
+ * `matrixWorld`, and that is the whole point: `matrixWorld` also carries the
+ * ship's heading, its bank and the swell it is sitting on, none of which is a
+ * fact about the rider. This is the same numbers Blender exported, whatever the
+ * hull is doing this frame.
+ */
+function restOf(o: THREE.Object3D, root: THREE.Object3D, out: THREE.Matrix4): THREE.Matrix4 {
+  out.identity()
+  for (let n: THREE.Object3D | null = o; n && n !== root; n = n.parent) {
+    out.premultiply(_step.compose(n.position, n.quaternion, n.scale))
+  }
+  return out
+}
+
+/**
+ * One bone, plus what it takes to rotate it about a board-space axis.
+ *
+ * A bone's `quaternion` is relative to its parent, and every angle in `ride()`
+ * is written in board space, because "roll toward the inside of the turn" is a
+ * sentence about the world and not about a femur. Converting an axis costs one
+ * rotation by the parent's rest orientation inverted, and it is done once here
+ * rather than three times a frame.
+ *
+ * The parent's *rest* orientation and not its current one, which is an
+ * approximation and a deliberate one: a bone whose parent has already moved
+ * turns about an axis a few degrees stale. At these amplitudes that is
+ * invisible, and the alternative is a matrix update between every joint.
+ */
+type Joint = {
+  bone: THREE.Bone
+  rest: THREE.Quaternion
+  ax: THREE.Vector3
+  ay: THREE.Vector3
+  az: THREE.Vector3
+}
+
+function jointOf(bone: THREE.Bone, root: THREE.Object3D): Joint {
+  const parent = new THREE.Quaternion()
+  restOf(bone.parent!, root, _mat).decompose(_v, parent, _scale)
+  // Every axis below is rotated and not transformed, and the hips' offset in
+  // `ride` is a distance in metres. Both assume the chain above a bone is a
+  // rotation, which is what `tools/surfer.py` exports and what glTF's y-up
+  // conversion leaves it as. A scale anywhere in it would quietly shrink the
+  // whole pose instead of failing.
+  console.assert(
+    import.meta.env.PROD || Math.abs(_scale.x - 1) + Math.abs(_scale.y - 1) + Math.abs(_scale.z - 1) < 1e-4,
+    `surfer.glb: \`${bone.name}\` sits under a scale of ${_scale.toArray()} — the rig assumes none`,
+  )
+  parent.invert()
+  return {
+    bone,
+    rest: bone.quaternion.clone(),
+    ax: _AX.clone().applyQuaternion(parent),
+    ay: _AY.clone().applyQuaternion(parent),
+    az: _AZ.clone().applyQuaternion(parent),
+  }
+}
+
+/** Rotate a joint about board space's x, y and z, on top of its rest pose. */
+function bend(j: Joint, x: number, y: number, z: number): void {
+  _q.setFromAxisAngle(j.ax, x)
+  _q.multiply(_qt.setFromAxisAngle(j.ay, y))
+  _q.multiply(_qt.setFromAxisAngle(j.az, z))
+  j.bone.quaternion.copy(j.rest).premultiply(_q)
+}
+
+/**
+ * Fold a joint further the way it is already folded. An elbow has one axis and
+ * it is not one of board space's: it is the normal of the plane the arm is bent
+ * in, which `rigOf` reads off the rest pose. One number opens and closes the
+ * arm, and it stays anatomy rather than becoming a hinge in the wrong plane.
+ */
+function fold(j: Joint, axis: THREE.Vector3, angle: number): void {
+  j.bone.quaternion.copy(j.rest).premultiply(_q.setFromAxisAngle(axis, angle))
+}
+
+/** An arm: three joints and the plane its elbow and wrist fold in. */
+type Arm = {
+  upper: Joint
+  fore: Joint
+  hand: Joint
+  elbow: THREE.Vector3 // the fold axis, in the upper arm's frame
+  wrist: THREE.Vector3 // the same axis, in the forearm's
+  side: number         // +1 for the leading arm, -1 for the trailing one
+}
+
+/**
+ * A leg, as the triangle the solver needs. `ankle` is where the sole is in
+ * board space and it never changes — that is the constraint the whole thing
+ * exists to honour.
+ */
+type Leg = {
+  thigh: THREE.Bone
+  shin: THREE.Bone
+  foot: THREE.Bone
+  at: THREE.Vector3     // the hip joint, inside the hips bone's own frame
+  ankle: THREE.Vector3  // the sole, in board space, fixed
+  up: number            // thigh length
+  low: number           // shin length
+  pole: THREE.Vector3   // which way the knee points, in board space
+  d1: THREE.Vector3     // hip -> knee at rest, normalised
+  d2: THREE.Vector3     // knee -> ankle at rest, normalised
+  q1: THREE.Quaternion  // and the three rest orientations, in board space
+  q2: THREE.Quaternion
+  q3: THREE.Quaternion
+}
+
+type Rig = {
+  hips: Joint
+  hipsHome: THREE.Vector3   // the hips bone's rest position, in its parent's frame
+  hipsInto: THREE.Quaternion // board space -> that frame, for the offset below
+  hipsFrom: THREE.Matrix4   // the hips bone's parent, in board space. Constant.
+  hipsTurn: THREE.Quaternion // and that parent's rotation alone
+  spine: Joint
+  chest: Joint
+  neck: Joint
+  head: Joint
+  arms: Arm[]
+  legs: Leg[]
+}
+
+function rigOf(scene: THREE.Object3D): Rig {
+  const bone = (name: string) => {
+    const b = scene.getObjectByName(name) as THREE.Bone | undefined
+    if (!b) throw new Error(`surfer.glb: no bone \`${name}\` — rebuild it with tools/surfer.py`)
+    return b
+  }
+  const at = (name: string) => new THREE.Vector3().setFromMatrixPosition(restOf(bone(name), scene, _mat))
+  const spin = (name: string) => {
+    const q = new THREE.Quaternion()
+    restOf(bone(name), scene, _mat).decompose(_v, q, _scale)
+    return q
+  }
+
+  const hips = jointOf(bone('hips'), scene)
+  const hipsFrom = restOf(hips.bone.parent!, scene, new THREE.Matrix4())
+  const hipsTurn = new THREE.Quaternion()
+  hipsFrom.decompose(_v, hipsTurn, _scale)
+
+  const arm = (tag: string, side: number): Arm => {
+    const upper = jointOf(bone(`${tag}_upper`), scene)
+    const fore = jointOf(bone(`${tag}_fore`), scene)
+    const hand = jointOf(bone(`${tag}_hand`), scene)
+    // The plane the arm is already bent in. A nearly straight arm makes a short
+    // cross product but never a zero one — the rider's are both bent — and the
+    // fallback is there because a rig is a file and files change.
+    const a = new THREE.Vector3().subVectors(at(`${tag}_fore`), at(`${tag}_upper`)).normalize()
+    const b = new THREE.Vector3().subVectors(at(`${tag}_hand`), at(`${tag}_fore`)).normalize()
+    const axis = new THREE.Vector3().crossVectors(a, b)
+    if (axis.lengthSq() < 1e-8) axis.crossVectors(b, _AY)
+    axis.normalize()
+    return {
+      upper, fore, hand, side,
+      elbow: axis.clone().applyQuaternion(spin(`${tag}_upper`).invert()),
+      wrist: axis.clone().applyQuaternion(spin(`${tag}_fore`).invert()),
+    }
+  }
+
+  const leg = (tag: string): Leg => {
+    const hip = at(`${tag}_thigh`)
+    const knee = at(`${tag}_shin`)
+    const ankle = at(`${tag}_foot`)
+    const span = new THREE.Vector3().subVectors(ankle, hip).normalize()
+    const pole = new THREE.Vector3().subVectors(knee, hip)
+    pole.addScaledVector(span, -pole.dot(span)).normalize()
+    return {
+      thigh: bone(`${tag}_thigh`), shin: bone(`${tag}_shin`), foot: bone(`${tag}_foot`),
+      at: bone(`${tag}_thigh`).position.clone(),
+      ankle, pole,
+      up: hip.distanceTo(knee),
+      low: knee.distanceTo(ankle),
+      d1: new THREE.Vector3().subVectors(knee, hip).normalize(),
+      d2: new THREE.Vector3().subVectors(ankle, knee).normalize(),
+      q1: spin(`${tag}_thigh`), q2: spin(`${tag}_shin`), q3: spin(`${tag}_foot`),
+    }
+  }
+
+  const rig: Rig = {
+    hips,
+    hipsHome: hips.bone.position.clone(),
+    hipsInto: hipsTurn.clone().invert(),
+    hipsFrom, hipsTurn,
+    spine: jointOf(bone('spine'), scene),
+    chest: jointOf(bone('chest'), scene),
+    neck: jointOf(bone('neck'), scene),
+    head: jointOf(bone('head'), scene),
+    arms: [arm('armF', 1), arm('armB', -1)],
+    legs: [leg('legF'), leg('legB')],
+  }
+
+  /**
+   * The one claim the whole rig rests on, checked against the file it was just
+   * read from: solve the legs with the hips exactly where Blender left them and
+   * every bone must come back to the rest rotation it already has.
+   *
+   * It is the closed form's own identity — the triangle that produced `pole`
+   * has to be the triangle `reach` reconstructs from it — so a failure here is
+   * a real one: a leg chain renamed, a bone that stopped being connected to its
+   * parent, a scale in the export. All three would otherwise show up as a rider
+   * whose legs are subtly, permanently in the wrong place, which is exactly the
+   * kind of wrong nobody spots in a screenshot.
+   */
+  if (import.meta.env.DEV) {
+    for (const l of rig.legs) {
+      const was = [l.thigh, l.shin, l.foot].map((b) => b.quaternion.clone())
+      reach(l, restOf(l.thigh.parent!, scene, new THREE.Matrix4()), spin('hips'))
+      const off = Math.max(...[l.thigh, l.shin, l.foot]
+        .map((b, i) => b.quaternion.angleTo(was[i])))
+      console.assert(off < 1e-3, `surfer.glb: the ${l.thigh.name} chain solves ` +
+        `${(off * 180 / Math.PI).toFixed(2)}deg off its own rest pose`)
+      ;[l.thigh, l.shin, l.foot].forEach((b, i) => b.quaternion.copy(was[i]))
+    }
+  }
+  return rig
+}
+
+/**
+ * Two bones to a fixed foot, in closed form.
+ *
+ * The hip has moved and the ankle has not, so the knee is wherever it has to be
+ * to make the two lengths meet — one intersection of two spheres, which is a
+ * circle, and `pole` picks the point on it. Taking the rest knee's own offset
+ * as the pole is what makes this exact at rest: with the hips home the triangle
+ * solves back to the pose Blender sculpted, to the last decimal, so the rider
+ * standing still is the model and not an approximation of it.
+ *
+ * The reach is clamped short of straight. A leg at full extension has no plane
+ * left to bend in and the knee snaps to wherever the pole happens to point,
+ * which is the classic pop; a millimetre of slack costs nothing and there is no
+ * pop.
+ */
+function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion): void {
+  const hip = _hip.copy(leg.at).applyMatrix4(from)
+  const to = _to.subVectors(leg.ankle, hip)
+  const span = THREE.MathUtils.clamp(
+    to.length(), Math.abs(leg.up - leg.low) + 1e-3, leg.up + leg.low - 1e-3)
+  to.normalize()
+
+  const along = (span * span + leg.up * leg.up - leg.low * leg.low) / (2 * span)
+  const out = Math.sqrt(Math.max(leg.up * leg.up - along * along, 0))
+  const pole = _pole.copy(leg.pole)
+  pole.addScaledVector(to, -pole.dot(to))
+  if (pole.lengthSq() < 1e-8) pole.set(0, 1, 0).addScaledVector(to, -to.y)
+  pole.normalize()
+  const knee = _knee.copy(hip).addScaledVector(to, along).addScaledVector(pole, out)
+
+  // Each bone: the rotation that takes its rest direction to its new one, laid
+  // on its rest orientation, then expressed in whatever its parent now is.
+  _qa.setFromUnitVectors(leg.d1, _dir.subVectors(knee, hip).normalize()).multiply(leg.q1)
+  leg.thigh.quaternion.copy(_qa).premultiply(_qi.copy(turn).invert())
+  _qb.setFromUnitVectors(leg.d2, _dir.subVectors(leg.ankle, knee).normalize()).multiply(leg.q2)
+  leg.shin.quaternion.copy(_qb).premultiply(_qi.copy(_qa).invert())
+  // And the foot keeps the board-space orientation it was sculpted with, which
+  // is flat on the deck. Everything above it has moved; a sole has not.
+  leg.foot.quaternion.copy(leg.q3).premultiply(_qi.copy(_qb).invert())
+}
+
+/**
+ * The pose, and every number in it is an amplitude rather than an angle: what
+ * arrives is `RIDE`, and what leaves is seventeen sums.
+ *
+ * The shape of it is one idea. A person on a moving board is a stack of
+ * counter-rotations — the hips go with the turn, the chest goes less far, the
+ * head goes further and levels itself, and the arms go the other way to pay for
+ * all of it. Rotate them by the same amount and you get a plank on a turntable;
+ * the graduation *is* the humanity, and it is why `spine`, `chest` and `head`
+ * each get their own fraction of `turn` rather than sharing one.
+ *
+ * The idle layer is the other half and it is smaller than it looks: breath, a
+ * weight shift, a drift of the head, the hands riding the air. Four sines at
+ * rates that share no common multiple, so a visitor parked on flat water never
+ * sees it repeat. Invariant 6 switches all four off — `idle` is the only place
+ * `REDUCED` reaches in here, because everything else is a response to something
+ * the visitor did and stopping *those* would be a rider who ignores the sea.
+ */
+function ride(r: Rig, t: number): void {
+  const s = Math.min(RIDE.speed, 1)
+  const c = RIDE.turn
+  const air = RIDE.air
+  const slam = RIDE.slam
+  const idle = REDUCED ? 0 : 1
+  const breath = Math.sin(t * 1.7) * idle
+  const sway = Math.sin(t * 1.19) * idle
+  const drift = Math.sin(t * 0.71) * idle
+  const flutter = Math.sin(t * 1.43) * idle
+
+  // The hips, and they carry the stance. The drop is the sum of everything that
+  // asks a person to get low: a landing most of all, then a hard carve, then
+  // just going fast. Airborne it gives some of it back, because there is
+  // nothing left to brace against.
+  bend(r.hips, 0.10 * slam + 0.03 * breath, 0.12 * c, -0.16 * c)
+  r.hips.bone.position.copy(r.hipsHome).add(_v.set(
+    0.085 * c + 0.012 * sway,
+    -0.075 * slam - 0.045 * s * Math.abs(c) - 0.020 * s + 0.030 * air + 0.006 * breath,
+    -0.035 * RIDE.push + 0.010 * drift,
+  ).applyQuaternion(r.hipsInto))
+
+  // Up the spine, each one turning a little further into the wave than the one
+  // below it and rolling a little less far over the rail.
+  bend(r.spine, 0.12 * slam + 0.05 * s - 0.06 * air + 0.030 * breath, 0.14 * c, -0.14 * c)
+  bend(r.chest, 0.08 * slam - 0.05 * air + 0.040 * breath, 0.16 * c, -0.10 * c)
+  bend(r.neck, 0.04 * slam - 0.05 * air, 0.10 * c, 0.04 * c)
+  // The head leads. It is the one joint that turns further than the turn, and
+  // the roll is *against* the body's, which is a person keeping their eyes
+  // level — the single cue that most reliably reads as alive at this size.
+  bend(r.head,
+    0.06 * slam - 0.10 * air + 0.04 * drift,
+    0.24 * c + 0.05 * drift,
+    0.10 * c + 0.03 * sway)
+
+  for (const a of r.arms) {
+    // One roll, both arms, opposite ends of it: `-0.30 * c` drops the leading
+    // hand toward the water on the inside of a turn and lifts the trailing one,
+    // which is a counterweight rather than two poses. What is per-arm is what
+    // is symmetrical — both come up in the air, both drop on a landing — and
+    // that is the term carrying `side`.
+    bend(a.upper,
+      0.10 * air * a.side + 0.06 * RIDE.push,
+      0.08 * c * a.side,
+      -0.30 * c + a.side * (0.22 * air - 0.16 * slam + 0.05 * flutter))
+    fold(a.fore, a.elbow, 0.22 * Math.abs(c) + 0.35 * slam + 0.18 * air + 0.03 * flutter)
+    fold(a.hand, a.wrist, 0.12 * Math.abs(c) + 0.20 * slam)
+  }
+
+  // And the legs answer wherever the hips ended up. `hipsFrom` is constant —
+  // the chain above the hips bone never moves — so this is the one matrix the
+  // frame composes, and both legs read it.
+  _mat.multiplyMatrices(r.hipsFrom,
+    _step.compose(r.hips.bone.position, r.hips.bone.quaternion, _ONE))
+  _qt.copy(r.hipsTurn).multiply(r.hips.bone.quaternion)
+  for (const l of r.legs) reach(l, _mat, _qt)
+}
+
+function Rider({ visible }: { visible: boolean }) {
   const { scene } = useGLTF(surferUrl)
-  const geometry = useMemo(() => {
-    scene.updateMatrixWorld(true)
-    const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh
+  const rig = useMemo(() => {
+    const mesh = scene.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh | undefined
     console.assert(
-      import.meta.env.PROD || !!mesh.geometry.getAttribute('color'),
+      import.meta.env.PROD || !!mesh?.geometry.getAttribute('color'),
       'surfer.glb: no COLOR_0 — rebuild it with tools/surfer.py',
     )
-    return mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
+    if (!mesh) throw new Error('surfer.glb: not skinned — rebuild it with tools/surfer.py')
+    mesh.material = RIDER
+    // The outline is the same geometry and the *same skeleton*, not a copy of
+    // either: one set of bone matrices, computed once, read by both draws. It
+    // is added beside the rider rather than under it so the two share a parent
+    // and therefore a bind matrix, and `renderOrder` keeps the intent the two
+    // JSX meshes used to carry — the outline first, the rider over it.
+    if (!scene.getObjectByName('outline')) {
+      const edge = new THREE.SkinnedMesh(mesh.geometry, OUTLINE)
+      edge.name = 'outline'
+      edge.position.copy(mesh.position)
+      edge.quaternion.copy(mesh.quaternion)
+      edge.scale.copy(mesh.scale)
+      edge.bind(mesh.skeleton, mesh.bindMatrix)
+      edge.renderOrder = -1
+      // A bounding sphere measured in the rest pose is a sphere a posed rider
+      // can leave, and a culled rider is a rider who vanishes at the edge of
+      // the frame. He is one small object that is always in shot; the cull is
+      // not worth the bug.
+      edge.frustumCulled = mesh.frustumCulled = false
+      mesh.parent!.add(edge)
+    }
+    return rigOf(scene)
   }, [scene])
 
-  // Outline first, so the rider is drawn over it rather than z-fighting it.
-  return (
-    <>
-      <mesh geometry={geometry} material={OUTLINE} />
-      <mesh geometry={geometry} material={RIDER} />
-    </>
-  )
+  useFrame((state) => {
+    if (!visible) return
+    ride(rig, state.clock.elapsedTime)
+  })
+
+  return <primitive object={scene} />
 }
 
 /**

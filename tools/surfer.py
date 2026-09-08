@@ -3,6 +3,7 @@ The rider — the surfer's third craft grew a person on it. Phase 4½.
 
     python3 tools/surfer.py                    # tools/surfer.blend + src/models/surfer.glb
     python3 tools/surfer.py --render out.png   # ...and four preview views
+    python3 tools/surfer.py --render out.png --flex   # ...of a stress pose
 
 CLAUDE.md asks for a reason before a character gets a model file, and this is
 it: the rider is a *body*, and the procedural one was eleven cylinders and eight
@@ -40,6 +41,15 @@ carries colour on the CORNER domain and paints whole faces: a face is one
 colour, the boundary is the edge between two faces, and the exporter splits the
 verts that need splitting while the normals stay smooth. Neon with an edge on
 it, on the same mesh, for about six hundred extra vertices.
+
+*And then he moved.* The skin was the hard half and it was done, and what was
+left was that a rider welded to his board reads as a figurine of a surfer
+rather than a surfer — the sea under him moves, the board banks, and the man on
+it holds one crouch through all of it. So the pose list below gets a second
+reading, as an armature, and `Ship.tsx` bends it from the physics that is
+already moving the board. The rest pose *is* the sculpted pose: the runtime
+writes rotations relative to it, so a rider with no input is the model that
+shipped before the bones existed, to the vertex.
 
 The other half of the reason for a model file at all is that colour. The rider
 wears a wetsuit that is not one colour, and the landmark pipeline (geometry
@@ -142,6 +152,56 @@ HEAD_UP = RIGHT.cross(GAZE).normalized()
 # deltoid, trapezius — is placed on this frame rather than on the world's.
 TORSO_F = Vector((0.16, 0.0, 1.0)).normalized()
 TORSO_R = TORSO_F.cross(Vector((0, 1, 0))).normalized()
+
+# --------------------------------------------------------------- the skeleton
+# The pose, read a second time. Nothing here invents an anatomy: every bone is
+# two points that were already up there, in the order the metaballs were laid
+# along them, so deepening the crouch is still moving a point and the rig
+# follows it rather than having to be moved after it.
+#
+# Three points the skin never needed, because a bone has to end somewhere and a
+# head and two feet had no tail in the list. The toes are 14 cm forward of the
+# ankle, which is where the foot blob's own half-extent puts them.
+HEAD_TOP: P3 = tuple(Vector(HEAD) + HEAD_UP * 0.16)
+TOE_F: P3 = (FOOT_F[0], FOOT_F[1], FOOT_F[2] + 0.14)
+TOE_B: P3 = (FOOT_B[0], FOOT_B[1], FOOT_B[2] + 0.14)
+
+# name, parent, head, tail. Seventeen, and the count is the argument: it is one
+# bone per joint the pose already had, and not one more. There is no clavicle,
+# no twist bone in the forearm and no toe — a figure whose whole screen presence
+# is 90 pixels of back does not spend a joint on a collarbone.
+#
+# `armF_upper` and not `arm.L`: these two arms are not a mirrored pair — the
+# leading one is down over the rail and the trailing one is high and back — and
+# naming them as one invites every symmetry operator in Blender to make them
+# one.
+#
+# Runtime reads these names. `Ship.tsx` looks each one up once at load and
+# keeps the reference, so a rename here is a rename there.
+BONES: tuple[tuple[str, str | None, P3, P3], ...] = (
+    ("hips", None, PELVIS, WAIST),
+    ("spine", "hips", WAIST, CHEST),
+    ("chest", "spine", CHEST, NECK),
+    ("neck", "chest", NECK, HEAD),
+    ("head", "neck", HEAD, HEAD_TOP),
+    # Both arms hang off `chest` and neither is connected to it: a shoulder is
+    # not where the chest bone ends, and a connected bone is dragged to its
+    # parent's tail whatever its head says.
+    ("armF_upper", "chest", SHOULDER_F, ELBOW_F),
+    ("armF_fore", "armF_upper", ELBOW_F, WRIST_F),
+    ("armF_hand", "armF_fore", WRIST_F, HAND_F),
+    ("armB_upper", "chest", SHOULDER_B, ELBOW_B),
+    ("armB_fore", "armB_upper", ELBOW_B, WRIST_B),
+    ("armB_hand", "armB_fore", WRIST_B, HAND_B),
+    # And the legs off `hips`, for the same reason: the hips bone runs from the
+    # pelvis up to the waist, and a hip joint is at neither end of it.
+    ("legF_thigh", "hips", HIP_F, KNEE_F),
+    ("legF_shin", "legF_thigh", KNEE_F, ANKLE_F),
+    ("legF_foot", "legF_shin", ANKLE_F, TOE_F),
+    ("legB_thigh", "hips", HIP_B, KNEE_B),
+    ("legB_shin", "legB_thigh", KNEE_B, ANKLE_B),
+    ("legB_foot", "legB_shin", ANKLE_B, TOE_B),
+)
 
 # ------------------------------------------------------------------- the skin
 # A metaball's `radius` is where its influence dies, not where the surface is:
@@ -851,6 +911,129 @@ def join_all() -> bpy.types.Object:
     return body
 
 
+def rig(body: bpy.types.Object, extras: list[bpy.types.Object]) -> bpy.types.Object:
+    """The armature, and the weights that tie the skin to it.
+
+    Automatic weights, and the reason they work here is the pipeline above:
+    bone heat wants a closed shell with no slivers in it, and by this point
+    `weld` has thrown away every stray and Quadriflow has re-laid the whole
+    surface at one honest density. It is the only method that gets the boundary
+    between a deltoid and a pec right without somebody painting it, and it is
+    the difference between a shoulder that rotates and a shoulder that shears.
+
+    The hair and the face are deliberately not part of that shell and are not
+    weighted by it. A curl and an eyeball belong wholly to the head, and the way
+    to say so is one group at weight 1 — not a solver's opinion about a sphere
+    floating inside a skull, which is a question bone heat answers badly and
+    slowly.
+
+    Last, `orphans`. Bone heat reports a refusal as a warning on one bone and
+    leaves the vertices it could not reach with no group at all, and a vertex
+    with no group does not stay where it is when the rig moves — it stays at the
+    *origin*, which at runtime is a spike out of the model to the waterline.
+    That is the one failure worth a hard fallback, so whatever is left over is
+    given to the bone it is nearest and the count is printed."""
+    amt = bpy.data.armatures.new("rig")
+    rig_obj = bpy.data.objects.new("rig", amt)
+    bpy.context.collection.objects.link(rig_obj)
+
+    tails = {name: tail for name, _, _, tail in BONES}
+    bpy.context.view_layer.objects.active = rig_obj
+    bpy.ops.object.mode_set(mode="EDIT")
+    for name, parent, head, tail in BONES:
+        eb = amt.edit_bones.new(name)
+        eb.head, eb.tail = T(*head), T(*tail)
+        if parent is not None:
+            eb.parent = amt.edit_bones[parent]
+            # Connected only where the joint is genuinely shared, which is the
+            # spine and the limbs below the shoulder and the hip. Connecting
+            # anything else moves its head to the parent's tail.
+            eb.use_connect = (Vector(head) - Vector(tails[parent])).length < 1e-6
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    bpy.ops.object.select_all(action="DESELECT")
+    body.select_set(True)
+    rig_obj.select_set(True)
+    bpy.context.view_layer.objects.active = rig_obj
+    try:
+        bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+    except RuntimeError as e:
+        print(f"[surfer] bone heat declined ({e}) — nearest bone for the whole skin")
+        bpy.ops.object.parent_set(type="ARMATURE_NAME")
+
+    left = orphans(body)
+    print(f"[surfer] rig: {len(BONES)} bones, "
+          f"{len(body.vertex_groups)} groups, {left} verts filled by nearest")
+
+    for ob in extras:
+        g = ob.vertex_groups.new(name="head")
+        g.add(list(range(len(ob.data.vertices))), 1.0, "REPLACE")
+        ob.parent = rig_obj
+        ob.modifiers.new("rig", "ARMATURE").object = rig_obj
+    return rig_obj
+
+
+def orphans(obj: bpy.types.Object) -> int:
+    """Every vertex the solver left with no weight, given to the bone whose
+    segment it is closest to. Distance to the segment and not to the head:
+    a point beside the middle of a thigh is nearer the knee than the hip and
+    nearer both than either endpoint suggests."""
+    segments = [(name, T(*head), T(*tail)) for name, _, head, tail in BONES]
+    groups = {g.name: g for g in obj.vertex_groups}
+    for name, *_ in segments:
+        if name not in groups:
+            groups[name] = obj.vertex_groups.new(name=name)
+
+    n = 0
+    for v in obj.data.vertices:
+        if any(g.weight > 1e-4 for g in v.groups):
+            continue
+        best, near = segments[0][0], 1e9
+        for name, a, b in segments:
+            d = b - a
+            t = max(0.0, min(1.0, (v.co - a).dot(d) / max(d.length_squared, 1e-9)))
+            gap = (v.co - (a + d * t)).length
+            if gap < near:
+                best, near = name, gap
+        groups[best].add([v.index], 1.0, "REPLACE")
+        n += 1
+    return n
+
+
+def flex() -> None:
+    """A stress pose, for `--render --flex` and for nothing else.
+
+    The preview renders the rest pose, which is the pose the skin was sculpted
+    in and therefore the one pose that cannot tell you whether the skinning
+    works. This bends every joint the runtime bends, further than the runtime
+    ever will, and the four views then show what a deep crouch does to the
+    knees, what a full carve does to the waist, and whether the deltoid keeps
+    its shape when the arm comes down.
+
+    Rotations are about each bone's own local axes — Y runs along the bone, so X
+    bends it and Y twists it — which is enough for a smoke test and is not how
+    `Ship.tsx` drives the same rig. Nothing here is exported."""
+    rig_obj = bpy.context.scene.objects["rig"]
+    bpy.context.view_layer.objects.active = rig_obj
+    bpy.ops.object.mode_set(mode="POSE")
+    bend = {
+        "hips": (0.10, 0.30, 0.0), "spine": (0.16, 0.26, -0.10), "chest": (0.10, 0.30, -0.16),
+        "neck": (-0.10, 0.20, 0.0), "head": (-0.14, 0.28, 0.10),
+        "armF_upper": (0.45, 0.0, 0.35), "armF_fore": (0.60, 0.0, 0.0), "armF_hand": (0.30, 0.0, 0.0),
+        "armB_upper": (-0.40, 0.0, -0.30), "armB_fore": (0.55, 0.0, 0.0), "armB_hand": (-0.25, 0.0, 0.0),
+        "legF_thigh": (0.35, 0.0, 0.0), "legF_shin": (0.55, 0.0, 0.0), "legF_foot": (-0.30, 0.0, 0.0),
+        "legB_thigh": (0.30, 0.0, 0.0), "legB_shin": (0.50, 0.0, 0.0), "legB_foot": (-0.25, 0.0, 0.0),
+    }
+    for name, (x, y, z) in bend.items():
+        pb = rig_obj.pose.bones[name]
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = (Quaternion((1, 0, 0), x)
+                                  @ Quaternion((0, 1, 0), y) @ Quaternion((0, 0, 1), z))
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.view_layer.update()
+    print("[surfer] flexed — the preview is a stress pose, not the model")
+
+
 def paint(obj: bpy.types.Object, flat: Vector | None = None) -> None:
     """COLOR_0, one value a *face corner*, and the whole point is the domain.
 
@@ -925,8 +1108,12 @@ def export() -> None:
         export_tangents=False,
         export_cameras=False,
         export_lights=False,
+        # Skins, and still no animations. The armature and its weights go in the
+        # file; what it does is `Ship.tsx`'s, read off the sea and the steering
+        # rather than baked here as a clip. `export_apply` is safe beside it —
+        # the exporter applies every modifier except the armature.
         export_animations=False,
-        export_skins=False,
+        export_skins=True,
         export_morph=False,
         export_yup=True,
     )
@@ -1002,8 +1189,17 @@ if __name__ == "__main__":
     paint(hair, flat=HAIR)
     for part, colour in FACE_PARTS:
         paint(part, flat=colour)
+    # Rigged before the join and not after: bone heat is given the body alone,
+    # which is the one closed shell in the scene, and the hair and the face
+    # arrive already carrying a `head` group. Joining merges vertex groups by
+    # name, so what comes out the other side is one skin with one set of
+    # weights — and the modifier that survives a join is the active object's,
+    # which is the body's.
+    rig(body, [hair] + [part for part, _ in FACE_PARTS])
     obj = join_all()
     finish(obj)
     export()
     if "--render" in sys.argv:
+        if "--flex" in sys.argv:
+            flex()
         preview(sys.argv[sys.argv.index("--render") + 1])
