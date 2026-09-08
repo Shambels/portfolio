@@ -1,11 +1,13 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { color, positionLocal, sin, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
 import { swell } from './Scenery'
 import { SPLASH, VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
+import surferUrl from './models/surfer.glb?url'
 
 // Saucer silhouette, rotated around Y. [radius, height]
 const PROFILE: [number, number][] = [
@@ -59,6 +61,21 @@ const BOARD = { beam: 0.3, len: 1.15, thick: 0.075 }
 // Nose and tail bent up out of the flat. A board without it is a plank, and it
 // is most of what makes the silhouette read as a board from astern at all.
 const ROCKER = 0.1
+
+/**
+ * The top of the board under a point on it, which the traction pad is laid on
+ * and `tools/surfer.py` puts the rider's soles on. Written out rather than read
+ * off the geometry because by the time the geometry exists it is a deformed
+ * sphere and no longer answers questions: this is the same three steps the
+ * deformation does, in the same order — the plan pinch, the ellipsoid, and the
+ * rocker on top.
+ */
+function deckY(x: number, z: number): number {
+  const t = z / BOARD.len                        // -1 at the tail, +1 at the nose
+  const beam = BOARD.beam * (1 - (t > 0 ? 0.88 : 0.5) * t * t)
+  const r = 1 - (x / beam) ** 2 - t * t
+  return 0.08 + (r > 0 ? BOARD.thick * Math.sqrt(r) : 0) + ROCKER * t * t * (t > 0 ? 1 : 0.55)
+}
 
 const soft = (v: number, m: number) => m * Math.tanh(v / m)
 
@@ -680,22 +697,21 @@ FOAM.emissiveNode = color('#cfeaff').mul(WAKE_ALONG.mul(WAKE_ACROSS).mul(0.6)).m
 FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
 
 /**
- * And the third one: somebody on a board. Procedural like the other two — the
- * rule is that the character stays that way — and the one that most looks like
- * it should have been a model file, so it is worth saying what it actually is:
- * two solids of revolution, eleven tapered cylinders, eight spheres, a cone
- * for a fin and two boxes for feet. A limb is a cylinder between two points
- * (`Bone`), which is the only arithmetic the rider needs, and the pose is the
- * list of points below — so the crouch is moved rather than rewritten.
+ * And the third one: somebody on a board. The board is still built here — two
+ * solids of revolution, a grid for the traction pad, a cone for a fin and a
+ * strip for the wake — and the rider is a model file, the only one any craft in
+ * this world has. `tools/surfer.py` is the reason and the argument for it.
  *
  * The stance is read off what the camera can see. It sits astern and never
  * yaws, so the visitor spends the whole session looking at this thing's back:
- * the rider is turned toe-side and crouched with both arms out, which is the
- * one surfing pose that is still a pose from directly behind. Arms wide also
- * buy the silhouette its width — a figure this size head-on is a post.
+ * the rider is crouched with both arms out, the leading one low over the rail
+ * and the trailing one high, which is the one surfing pose that is still a pose
+ * from directly behind. Arms wide also buy the silhouette its width — a figure
+ * this size head-on is a post.
  *
  * The waterline is this group's y = 0, same as the boat, so `Ship` puts the
- * group on the swell and the board's own numbers decide what is wet.
+ * group on the swell and the board's own numbers decide what is wet. What the
+ * rider stands on is `deckY`, and his soles are placed against it in Blender.
  */
 function Surfer({ visible }: { visible: boolean }) {
   const kit = useMemo(() => {
@@ -727,6 +743,17 @@ function Surfer({ visible }: { visible: boolean }) {
     stripeGeo.scale(0.2, 1, 1)
     stripeGeo.translate(0, 0.006, 0)
 
+    // The traction pad under the back foot, which is the one part of a board
+    // that is not the board. A grid laid on `deckY` rather than a box on the
+    // deck: the deck is curved along its length and across its beam, and a flat
+    // slab on it either floats at the middle or sinks at the corners.
+    const padGeo = new THREE.PlaneGeometry(0.24, 0.34, 4, 6)
+    padGeo.rotateX(-Math.PI / 2)
+    padGeo.translate(0, 0, -0.30)
+    const g = padGeo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < g.count; i++) g.setY(i, deckY(g.getX(i), g.getZ(i)) + 0.004)
+    padGeo.computeVertexNormals()
+
     // The wake: one strip of water behind the tail, widening and fading aft.
     // It is the surfer's share of the bloom — the other two craft carry running
     // lights and this one carries the only thing a board leaves behind.
@@ -740,16 +767,14 @@ function Surfer({ visible }: { visible: boolean }) {
       w.setX(i, w.getX(i) * (WAKE.near + (WAKE.far - WAKE.near) * t))
     }
 
-    const deck = new THREE.MeshStandardNodeMaterial({ color: '#f2ece0', roughness: 0.32, metalness: 0.05 })
-    const stripe = new THREE.MeshStandardNodeMaterial({ color: '#ff6b45', roughness: 0.3 })
-    // Shorty wetsuit: torso, thighs and upper arms. Shins, forearms and head are
-    // skin, which is the whole of what makes a figure this size read as a person
-    // rather than a mannequin — two materials doing the job of a texture.
-    const suit = new THREE.MeshStandardNodeMaterial({ color: '#12384c', roughness: 0.5 })
-    const skin = new THREE.MeshStandardNodeMaterial({ color: '#e0a274', roughness: 0.72 })
-    const hair = new THREE.MeshStandardNodeMaterial({ color: '#e6b552', roughness: 0.85 })
+    // Lime, magenta and black — the board is the rider's, and the rider's
+    // colours are in his file. The skin, suit and hair materials that used to
+    // live here went with him: they are COLOR_0 now.
+    const deck = new THREE.MeshStandardNodeMaterial({ color: '#a8ec2b', roughness: 0.28, metalness: 0.05 })
+    const stripe = new THREE.MeshStandardNodeMaterial({ color: '#ff2d95', roughness: 0.3 })
+    const grip = new THREE.MeshStandardNodeMaterial({ color: '#14171d', roughness: 0.9 })
 
-    return { boardGeo, stripeGeo, wakeGeo, deck, stripe, suit, skin, hair }
+    return { boardGeo, stripeGeo, padGeo, wakeGeo, deck, stripe, grip }
   }, [])
 
   // One number a frame, and only while this craft is the one being drawn. The
@@ -772,50 +797,14 @@ function Surfer({ visible }: { visible: boolean }) {
         <coneGeometry args={[0.14, 0.3, 3]} />
       </mesh>
 
-      {/* Feet, flat on the deck and staggered along it — the stance is what
-          says this is surfing and not standing. */}
-      <mesh material={kit.skin} position={[FOOT_F[0], FOOT_F[1] - 0.01, FOOT_F[2]]} rotation-y={0.12}>
-        <boxGeometry args={[0.11, 0.055, 0.22]} />
-      </mesh>
-      <mesh material={kit.skin} position={[FOOT_B[0], FOOT_B[1] - 0.01, FOOT_B[2]]} rotation-y={-0.1}>
-        <boxGeometry args={[0.11, 0.055, 0.22]} />
-      </mesh>
-
-      {/* Legs. Wetsuit to the knee, skin below it — a shorty, and two materials
-          doing the work of a texture. The knees are spheres because a joint
-          between two cylinders at an angle is a corner otherwise. */}
-      <Bone a={FOOT_F} b={KNEE_F} r={0.068} taper={0.8} material={kit.skin} />
-      <Bone a={KNEE_F} b={HIP_F} r={0.088} taper={0.8} material={kit.suit} />
-      <Bone a={FOOT_B} b={KNEE_B} r={0.068} taper={0.8} material={kit.skin} />
-      <Bone a={KNEE_B} b={HIP_B} r={0.088} taper={0.8} material={kit.suit} />
-      <Joint at={KNEE_F} r={0.072} material={kit.suit} />
-      <Joint at={KNEE_B} r={0.072} material={kit.suit} />
-
-      <Bone a={PELVIS} b={CHEST} r={0.125} taper={1.05} material={kit.suit} />
-
-      {/* Arms, both out and neither symmetrical: the leading one low over the
-          rail and the trailing one high, which is what a person does with them
-          on a board and what stops the pose reading as a scarecrow. They are
-          also most of the silhouette's width — a figure this size head-on with
-          its arms down is a post. */}
-      <Bone a={SHOULDER_F} b={ELBOW_F} r={0.058} taper={0.9} material={kit.suit} />
-      <Bone a={ELBOW_F} b={HAND_F} r={0.048} taper={0.85} material={kit.skin} />
-      <Bone a={SHOULDER_B} b={ELBOW_B} r={0.058} taper={0.9} material={kit.suit} />
-      <Bone a={ELBOW_B} b={HAND_B} r={0.048} taper={0.85} material={kit.skin} />
-      <Joint at={SHOULDER_F} r={0.062} material={kit.suit} />
-      <Joint at={SHOULDER_B} r={0.062} material={kit.suit} />
-      <Joint at={HAND_F} r={0.058} material={kit.skin} />
-      <Joint at={HAND_B} r={0.058} material={kit.skin} />
-
-      <Bone a={CHEST} b={NECK} r={0.065} taper={0.9} material={kit.skin} />
-      <Joint at={HEAD} r={0.15} material={kit.skin} />
-      {/* Hair is a second sphere a hair bigger, set back and up, so the face is
-          the part of the first one still showing. */}
-      <Joint at={HAIR} r={0.157} material={kit.hair} />
-      {/* And the ponytail, which is the one detail here that is not structural.
-          It is also the only thing on this craft that says which way it is
-          facing when it is a hundred units away and four pixels tall. */}
-      <Bone a={TIE} b={TAIL} r={0.06} taper={0.3} material={kit.hair} />
+      {/* The pad, and then the man standing on it. `Suspense` around him and
+          not around the craft: the board is geometry this file builds and it
+          should be on the water the frame the surfer is chosen, whether or not
+          423 kB of rider has landed yet. */}
+      <mesh geometry={kit.padGeo} material={kit.grip} />
+      <Suspense fallback={null}>
+        <Rider />
+      </Suspense>
 
       <mesh geometry={kit.wakeGeo} material={FOAM} position-y={0.015} />
     </group>
@@ -823,78 +812,36 @@ function Surfer({ visible }: { visible: boolean }) {
 }
 
 /**
- * The rider's pose, in board space: +z is the nose, y is measured from the
- * waterline, and the deck under the feet is at 0.08. One list, so changing the
- * crouch is moving points rather than editing eleven meshes — which is the
- * whole reason `Bone` takes two points instead of a position and a rotation.
- */
-type P3 = [number, number, number]
-const FOOT_F: P3 = [0.06, 0.16, 0.44]
-const KNEE_F: P3 = [0.26, 0.39, 0.46]
-const HIP_F: P3 = [0.08, 0.6, 0.06]
-const FOOT_B: P3 = [-0.06, 0.16, -0.34]
-const KNEE_B: P3 = [-0.22, 0.41, -0.26]
-const HIP_B: P3 = [-0.08, 0.62, -0.1]
-const PELVIS: P3 = [0, 0.61, -0.02]
-const CHEST: P3 = [0.06, 0.96, 0.14]
-const SHOULDER_F: P3 = [0.16, 0.94, 0.22]
-const ELBOW_F: P3 = [0.46, 0.9, 0.44]
-const HAND_F: P3 = [0.72, 0.78, 0.62]
-const SHOULDER_B: P3 = [-0.09, 0.96, 0.02]
-const ELBOW_B: P3 = [-0.38, 1.06, -0.22]
-const HAND_B: P3 = [-0.62, 1.22, -0.42]
-const NECK: P3 = [0.07, 1.08, 0.17]
-const HEAD: P3 = [0.08, 1.24, 0.21]
-const HAIR: P3 = [0.04, 1.27, 0.16]
-const TIE: P3 = [0.01, 1.28, 0.07]
-const TAIL: P3 = [-0.13, 1.18, -0.3]
-
-const _a = new THREE.Vector3()
-const _b = new THREE.Vector3()
-const _dir = new THREE.Vector3()
-const UP = new THREE.Vector3(0, 1, 0)
-
-/**
- * A limb: a tapered cylinder from `a` to `b`, thinner at `a`. The cylinder is
- * built along y and turned by the rotation that takes y to the direction
- * between the points, which is one `setFromUnitVectors` and no trigonometry.
+ * The rider, and the only character in this world that comes out of a file.
+ * `tools/surfer.py` argues the case; the short version is that every other
+ * craft here is a hull — a solid of revolution with things bolted to it, which
+ * is what code is good at — and a person is one skin over a skeleton, which is
+ * what eleven cylinders and eight spheres could not close a shoulder seam on.
  *
- * Seven radial segments, not eight: at this size the difference is invisible
- * and a limb is drawn eleven times.
+ * Flattened to one mesh with the transform baked in, the way `Landmarks.tsx`
+ * flattens its models and for the same reason. The material is where the two
+ * pipelines part: a landmark asks for its material by name prefix and gets TSL,
+ * and this asks for nothing — the colour is COLOR_0 on the geometry, linear in
+ * the file and linear in the shader, and `vertexColors` multiplies it in. It is
+ * a wetsuit with neon ribbons across it, and no prefix was going to say that.
  */
-function Bone({ a, b, r, taper = 0.85, material }: {
-  a: P3
-  b: P3
-  r: number
-  /** Radius at `a`, as a fraction of `r`. Limbs taper toward the extremity. */
-  taper?: number
-  material: THREE.Material
-}) {
-  const { pos, quat, len } = useMemo(() => {
-    _a.set(a[0], a[1], a[2])
-    _b.set(b[0], b[1], b[2])
-    return {
-      pos: _a.clone().add(_b).multiplyScalar(0.5),
-      quat: new THREE.Quaternion().setFromUnitVectors(UP, _dir.subVectors(_b, _a).normalize()),
-      len: _a.distanceTo(_b),
-    }
-  }, [a, b])
+const RIDER = new THREE.MeshStandardNodeMaterial({
+  vertexColors: true, roughness: 0.52, metalness: 0,
+})
 
-  return (
-    <mesh position={pos} quaternion={quat} material={material}>
-      <cylinderGeometry args={[r * taper, r, len, 7]} />
-    </mesh>
-  )
-}
+function Rider() {
+  const { scene } = useGLTF(surferUrl)
+  const geometry = useMemo(() => {
+    scene.updateMatrixWorld(true)
+    const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh
+    console.assert(
+      import.meta.env.PROD || !!mesh.geometry.getAttribute('color'),
+      'surfer.glb: no COLOR_0 — rebuild it with tools/surfer.py',
+    )
+    return mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
+  }, [scene])
 
-/** A knee, a fist, a head. A sphere where two cylinders meet at an angle,
- *  because the alternative is a corner where a person has a joint. */
-function Joint({ at, r, material }: { at: P3; r: number; material: THREE.Material }) {
-  return (
-    <mesh position={at} material={material}>
-      <sphereGeometry args={[r, 12, 8]} />
-    </mesh>
-  )
+  return <mesh geometry={geometry} material={RIDER} />
 }
 
 /**
