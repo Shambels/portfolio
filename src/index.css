@@ -508,6 +508,23 @@ canvas {
   backdrop-filter: blur(14px);
 }
 
+/* Ink on bright water, for the same reason as `.hud` below. */
+.world .foot {
+  color: #04343a;
+}
+
+.world .foot a {
+  text-decoration-color: #0a5a63;
+}
+
+.world .foot a:hover {
+  color: #0d6b74;
+}
+
+.world .foot strong {
+  color: #022226;
+}
+
 /* The measure is 28rem here, not 36 — the display sizes have to come down with
    it or the heading is three words a line. */
 .world main h1 {
@@ -548,8 +565,12 @@ canvas {
   bottom: 2.5rem;
   margin: 0;
   font: 400 12.5px/1.5 var(--mono);
-  color: #7dd3fc;
-  opacity: 0.66;
+  /* It used to be a pale cyan, which is what an instrument reads as on a dark
+     sea. The sea is not dark any more — the readout and the footer under it
+     both sit on the brightest water in the frame — so both turn over to ink,
+     the same move `.landing .foot` makes on the sand. */
+  color: #04343a;
+  opacity: 0.82;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -722,26 +743,59 @@ canvas {
 /*
   The landing page and the world share a background, so pressing the button
   changes nothing until the canvas has a frame to show. Both gradients were
-  sampled down a rendered frame rather than picked by eye — twelve stops of
+  sampled down a reference frame rather than picked by eye — twelve stops of
   water — and the horizon sits at 25dvh because the camera's 45deg vertical
   field of view puts it there whatever the window size. `AIM_DOWN` in `Ship.tsx`
   tips the camera down on a coarse pointer, which lifts the horizon to about a
   sixteenth of the frame, and the rule below moves with it.
+
+  The sky runs deep blue at the top through pale cyan to gold on the waterline,
+  and the water is the reverse: the vivid turquoise is the top fifth, nearest
+  the horizon, and it deepens toward us. That is what the reference does, and it
+  is also what pays for the headline — the hero is centred at about half the
+  water's height, where the gradient is at its darkest teal, so the type sits on
+  water rather than on a card. `Scenery.tsx`'s ZENITH, HAZE_*, DEEP and SHALLOW
+  are the same twelve stops in linear space; move one and move the other.
+
+  Two skies and two seas, and the sun's position is what splits them. On the
+  landing page it is in front of us: gold on the waterline, deep blue overhead,
+  and the water darkening toward our feet, which is the reference frame and also
+  what pays for the headline. In the world it is behind the camera (`SUN` in
+  `Scenery.tsx`), which never turns — so that frame is the anti-solar half of
+  the sky, cool blue-cyan at the horizon, over water lit from behind and
+  brightest near us. `.stage` is that frame and nothing else: it is what stands
+  on screen until the canvas has one of its own, and it is wrong the moment it
+  stops matching. Both palettes are the same eight constants at the top of
+  `Scenery.tsx`, read from two directions.
 
   About 350 bytes, no canvas and no WebGL: the ocean is there before the scene
   chunk has been asked for, it is what a visitor with no renderer keeps, and the
   chunk loads over a page that is already the right colour at the right height.
 */
 
+.landing {
+  --sky: linear-gradient(#1a68a8, #2f81ba 28%, #67aacd 52%, #a9c8cb 70%, #f0b77e 88%, #fbd096);
+  --water: linear-gradient(#b3e0d4, #5ccdc8 4%, #22c0c2 11%, #14b2ba 19%,
+      #0e979f 27%, #097c86 34%, #076872 42%, #055963 50%, #054e58 58%,
+      #05464f 70%, #054049 84%, #053c46);
+  --deep: #053c46;
+}
+
+.stage {
+  --sky: linear-gradient(#5ea7c7, #66acc8 40%, #70b2c9 70%, #83bdcc);
+  --water: linear-gradient(#89c1cd, #70b5c7 4%, #59adc1 11%, #45a7bb 19%,
+      #34a4b6 27%, #2aa2b2 34%, #20a1af 42%, #19a0ac 50%, #13a0aa 58%,
+      #0d9fa8 70%, #099fa6 84%, #079fa5);
+  --deep: #079fa5;
+}
+
 .landing,
 .stage {
   --horizon: 25dvh;
   background:
-    linear-gradient(#92a0b6, #99a7ba 66%, #a9b4c1) 0 0 / 100% var(--horizon) no-repeat,
-    linear-gradient(#a4b0bf, #93a4b6 4%, #879cae 12%, #62839c 21%, #557b94 30%,
-        #4d768d 40%, #47748b 45%, #3a6e85 56%, #2f667d 67%, #256177 78%,
-        #1f5e73 89%, #195d71) 0 100% / 100% calc(100dvh - var(--horizon)) no-repeat,
-    #195d71;
+    var(--sky) 0 0 / 100% var(--horizon) no-repeat,
+    var(--water) 0 100% / 100% calc(100dvh - var(--horizon)) no-repeat,
+    var(--deep);
 }
 
 @media (pointer: coarse) {
@@ -772,9 +826,15 @@ canvas {
   text-align: center;
 }
 
+/* Two shadows, not one: a tight dark edge under each letter and a wide one that
+   lifts the whole block off the water. The vivid end of the sea gradient is its
+   top fifth, above the hero and next to the horizon where it belongs; by the
+   height the headline sits at, the water is down to a 3.4:1 ground for the
+   display size and 4.6:1 for the lede, and it is the sun's wash and the glint
+   crossing that band — not the base colour — that these are here to survive. */
 .hero {
   max-width: var(--measure);
-  text-shadow: 0 1px 12px #0b0c0f80;
+  text-shadow: 0 1px 2px #04222aa6, 0 2px 14px #04222acc;
 }
 
 /* Not `--paper-dim`: that colour is for a line on a dark card, and this one is
@@ -845,15 +905,20 @@ canvas {
 
 /* The sun, swung round to port with the scene's. Three gradients: the glow it
    throws into the sky, the disc itself sat on the horizon, and the light it
-   leaves on the water under it. */
+   leaves on the water under it.
+   Every one of these is short. Orange over turquoise is olive, and orange over
+   the zenith is grey, so the glow has to sit on the horizon and stop — the sky
+   is only 25dvh tall and a 42vh radius reaches both ends of it at once. Warm
+   band, blue above it, water left alone: that is the whole balance here, and it
+   is why the radii look mean. */
 .sun {
   inset: 0;
   background:
-    radial-gradient(58vw 38vh at 26% var(--horizon), #f8c07d5c, #f6c88a24 45%, #f6c88a00 74%),
-    radial-gradient(9vw 6vh at 26% var(--horizon), #fff0d4a3, #ffe6bf00 72%),
-    radial-gradient(26vw 40vh at 26% 70%, #ffd9a32b, #ffd9a300 70%),
-    radial-gradient(120% 60vh at 50% var(--horizon), #ffb96b33, #ffb96b00 78%),
-    linear-gradient(#f5a94e26, #f0b46b1c 30%, #e88f3f1c 56%, #dd7a2f2e 78%, #d16f2b3d);
+    radial-gradient(52vw 22vh at 26% var(--horizon), #ffb35c8c, #ff9e4a3d 45%, #ff9e4a00 76%),
+    radial-gradient(10vw 6.5vh at 26% var(--horizon), #fffbe8d6, #ffd98a00 74%),
+    radial-gradient(16vw 20vh at 26% 52%, #ffc97a1c, #ffc97a00 72%),
+    radial-gradient(110% 18vh at 44% var(--horizon), #ff9f4a5c, #ff9f4a00 80%),
+    linear-gradient(#ff9c3c0f, #ffb45e1f 18%, #ff9c3c0a 32%, #ff8c2e00 44%);
 }
 
 /* The sun's path on the water. Two repeating gradients at different periods so
@@ -865,7 +930,7 @@ canvas {
   right: 0;
   top: var(--horizon);
   bottom: 0;
-  opacity: 0.2;
+  opacity: 0.28;
   background:
     repeating-linear-gradient(#ffe0b0 0 1px, #fff0 1px 7px),
     repeating-linear-gradient(#ffeed3 0 1px, #fff0 1px 13px);
@@ -877,23 +942,26 @@ canvas {
 .haze {
   left: 0;
   right: 0;
-  top: calc(var(--horizon) - 5dvh);
-  height: 10dvh;
-  background: linear-gradient(#e8d6c000, #f0dcc054 50%, #e8d6c000);
+  top: calc(var(--horizon) - 5.5dvh);
+  height: 8dvh;
+  background: linear-gradient(#fff0dc00, #fff0dc7a 62%, #fff0dc00);
 }
 
-/* Six ellipses, none of them opaque, one of them warm because it is the one
-   nearest the sun. Faint on purpose: this is the sky behind a headline. */
+/* Six ellipses, none of them opaque, and all of them lit from below — a low sun
+   under cloud is pink on the underside, not white, and that pink against the
+   blue is half of what makes the sky read as evening. The two nearest the sun
+   are the deepest. None of them reaches 25dvh: the lowest sits at 27% of 36dvh
+   with a 2.6vh radius, so nothing here spills onto the water. */
 .clouds {
   inset: 0 0 auto;
   height: 36dvh;
   background:
-    radial-gradient(24vw 4vh at 17% 20%, #ffe3c057, #fff0 72%),
-    radial-gradient(15vw 2.6vh at 27% 27%, #ffd7a85e, #fff0 72%),
-    radial-gradient(31vw 4.6vh at 67% 12%, #fff1e03d, #fff0 72%),
-    radial-gradient(19vw 2.8vh at 83% 25%, #ffe8d132, #fff0 72%),
-    radial-gradient(42vw 5.4vh at 45% 5%, #ffeddc2b, #fff0 72%),
-    radial-gradient(12vw 2vh at 36% 16%, #ffc98547, #fff0 72%);
+    radial-gradient(24vw 4vh at 17% 20%, #ffc9a8ab, #fff0 72%),
+    radial-gradient(15vw 2.6vh at 27% 27%, #ffb894a8, #fff0 72%),
+    radial-gradient(31vw 4.6vh at 67% 12%, #ffd9c47a, #fff0 72%),
+    radial-gradient(19vw 2.8vh at 83% 25%, #ffcbb06b, #fff0 72%),
+    radial-gradient(42vw 5.4vh at 45% 5%, #ffdccb5c, #fff0 72%),
+    radial-gradient(12vw 2vh at 36% 16%, #ffab7f94, #fff0 72%);
 }
 
 /* The beach. Wider than the window and curved at the top, so the waterline is
@@ -921,10 +989,12 @@ canvas {
     radial-gradient(90% 150% at 50% 118%, #f2e2cd5e, #f2e2cd00 62%);
 }
 
-/* Not a mood: it is what stops the four corners competing with the headline. */
+/* Not a mood: it is what stops the four corners competing with the headline.
+   Teal rather than the brown it used to be — a warm vignette over this water
+   greys it, which is the one thing the new palette cannot afford. */
 .vignette {
   inset: 0;
-  background: radial-gradient(122% 92% at 50% 40%, #16100800 40%, #1c130940 76%, #1a11077d);
+  background: radial-gradient(122% 92% at 50% 44%, #04222a00 46%, #04222a33 78%, #04222a6b);
 }
 
 /*

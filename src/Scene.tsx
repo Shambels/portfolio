@@ -52,8 +52,10 @@ export default function Scene({
         })
       }}
     >
-      {/* Seen for one frame before the dome draws, and through it if it ever fails. */}
-      <color attach="background" args={['#2a3f5f']} />
+      {/* Seen for one frame before the dome draws, and through it if it ever fails.
+          One colour standing in for a whole frame, so it is the middle of the
+          palette rather than either end of it — see `.stage` in `index.css`. */}
+      <color attach="background" args={['#106e80']} />
       <Scenery sea={sea} />
       <Islands />
       <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
