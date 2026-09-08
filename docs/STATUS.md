@@ -2164,3 +2164,166 @@ and within about 20 levels per channel in the sky above it.
   so the very bottom of the frame still steps, behind a vignette that is three
   quarters closed and a shore flying past. Closing it means either a lighter
   landing page or a darker world.
+
+## The isle — an island that is not a project
+
+The world had three islands, all of them 17 metres across, all of them flat, and
+all of them a project. From the water it read as three rocks in an empty sea:
+the camera never yaws, so every frame looks down -Z, and there was nothing out
+there. This is what is out there now — a tropical island at human scale, 70
+metres of coast, a 13 m ridge, thirty-eight palm trees, and no case study.
+
+The reference was an illustration: a surfer inside a wave at golden hour, palms
+on a beach behind him. What was taken from it is the light and the palette, not
+the picture.
+
+### It carries no project, and that is a second list in the world
+
+A landmark here *is* a project — `src/content.ts` reads `content/projects/*.mdx`,
+`react-router.config.ts` prerenders one route per slug, and `/work` lists them.
+An island with palm trees on it has no year, no stack and no case study, and
+giving it a fake one to get a coastline would have put it in the index beside
+three real ones.
+
+So `src/isles.ts` is a second list beside `LANDMARKS`: islands that are places.
+They have ground, a coastline, a mooring circle and a lagoon; they have no slug,
+no panel, no URL and no row on `/work`. `overWater`, `offshore` and the shoal
+damping all read both lists. Nothing else in the world learned a new concept —
+`Scene` mounts `<Isle />` and passes it nothing.
+
+**This bends invariant 7** ("content is data — never new scene components"). The
+invariant is about *projects*, and it holds for them: a fourth project is still
+one MDX file. But an island that is scenery is a new component, and that is the
+first time anything in this world has been added to the scene without being
+added to the content. Written here rather than done quietly.
+
+`isles.ts` and not `isle.ts`, because `Isle.tsx` sits beside it and macOS cannot
+tell the two apart — the same trap `Scenery.tsx` is named around, and this time
+TypeScript caught it rather than a blank screen.
+
+### One height function, a mesh and a flight controller
+
+`isleHeight(isle, x, z)` is the island: a beach berm, an apron, a jungle slope,
+a squeezed-axis ridge, gullies as a multiplier that vanishes at the waterline,
+and a lagoon shelf that drops away to the seabed. `Isle.tsx` evaluates it on a
+polar grid to build the mesh. `Ship.tsx` evaluates it to know where the ground
+is. It is the rule the water and the hull already live by — one function, two
+readers — and for the same reason: two surfaces that merely agree will stop.
+
+`node src/isles.check.ts` asserts the parts a screenshot cannot: the ground is
+exactly zero at the coastline the hull is pushed out of, land is above water on
+one side of it and sea below on the other, the profile climbs monotonically the
+whole way in (a dip is a hole the saucer would dive into), the summit is where
+the ridge says, along the ridge is 2.5 m higher than across it, and `ground()`
+is sea level everywhere else in the world.
+
+The rings of the mesh are spaced by hand, not evenly: the ground does everything
+interesting in the twenty metres either side of the waterline, so that is where
+they are. 152 segments, ~14k triangles, no heightmap and no asset.
+
+### The saucer follows the ground now
+
+`GROUND` in `world.ts` says a taller island is one the saucer flies through, and
+that raising it means teaching `Ship` to follow the ground first. That is done.
+
+`ride` — the value the camera has always followed for a hull — is now the land
+under the saucer, lagged by `FOLLOW` (3.2, about a third of a second). Two
+details make it a change nobody can see anywhere except on the isle:
+
+1. It is measured **above `GROUND`**, not above the water: `max(0, ground - 0.45)`.
+   The saucer has always flown 0.9 over the sea and 0.45 over a landmark's flat
+   plateau, and both of those frames are bit-for-bit what they were. Only ground
+   *higher than a plateau* moves it, and the only ground higher than a plateau
+   is this ridge.
+2. The camera's two lagged copies now serve every craft: `alt + camY - hover`.
+   A hull holds `alt` at zero, the saucer held `camY` at zero until there was a
+   hill, so the sum is what both of them always were — one expression instead of
+   a branch.
+
+A lag and not a spring, deliberately: the one thing worse than flying through a
+hill is bouncing over it. Reduced motion snaps instead of lagging.
+
+### The lagoon, and the surf on the beach
+
+The water gained two terms, and they apply to **all four islands**, so this is a
+change to the committed look of the three that were already there:
+
+- **Shallows.** `LAGOONS` in `world.ts` is each island's own coastline (not the
+  wider circle the swell is sheltered inside — turquoise starting eight metres
+  offshore is a ring, not a lagoon), and the water's body colour ramps to
+  turquoise and then to pale aqua across a third of that radius. Proportional
+  and not a fixed width, or a 9 m rock wears the same skirt as a 70 m island and
+  the world loses its sense of scale in the one place it is trying to show it.
+- **Surf.** The last few metres of every shore break white, on a slow beat
+  running along the coast, torn up by the same noise the whitecaps use. In both
+  sea states, because a calm sea still breaks on sand.
+
+### The palms
+
+`tools/palm.py` — the second model file in this world, and the second argument
+for one. A palm is a curve with a hundred and forty leaflets hung off it, each a
+quad at its own angle; the same case `surfer.py` makes about a person. Built
+once it costs bytes, built in `Isle.tsx` it costs bytes *and* a frame budget on
+something that never changes and is drawn thirty-eight times.
+
+It exports a library rather than a landmark: three palms (old and leaning, 11.6 m;
+upright, 8.9 m; young, 6.1 m), a fern clump and a boulder, each at its own
+origin. 6.2k triangles, 262 kB. `landmark.py` gained three material keys —
+`bark`, `frond`, `bush` — read by `Isle.tsx` the way `Landmarks.tsx` reads the
+other five.
+
+`Isle.tsx` plants them by rejection sampling against `isleHeight`: palms between
+0.8 and 9.4 m and off anything steeper than 33 degrees, turned so their lean
+faces the water; ferns higher and on steeper ground; boulders at the waterline
+where the surf breaks on them and a few on the ridge they came from. One
+`InstancedMesh` per part, eight draw calls, matrices written once on mount.
+Deterministic — the island is the same island on every load.
+
+Three numbers were found by rendering rather than by thinking: leaflets at
+18 stations and half a spacing wide (at 11 and a third of that, a frond is a
+fish bone); a boulder's origin at 0.40 and not 0.62, which is where `lump`'s
+flattened underside actually lands after scaling — at 0.62 twenty-six boulders
+floated up the hillside; and an edge split at 62 degrees rather than the
+landmarks' 34, which was turning every boulder into a cut gemstone.
+
+### Where it is, and what it is not on
+
+`[-52, -58]`, 78 units from the world's origin — beyond the mine, in the half of
+the frame the camera looks into, and clear of every mooring circle by more than
+its own radius (asserted in dev). From the spawn point it is a headland filling
+the top-left; from the mine it is the horizon.
+
+**It is not on the map.** The minimap is bounded by the projects, and fitting an
+island four times the size of everything on it would have shrunk every project
+target from 38% of the box to 15% — on a phone, a 24 px circle with a letter in
+it. The map is the project index and invariant 5's fallback; the isle is not a
+project. Sailing out to it pins the arrow at the edge, which is what the map
+already does for anything flown past. Reversible in four lines if it reads as
+lost rather than as *out that way*.
+
+### Verified
+
+- `npx tsc -b`, `node src/isles.check.ts`, `node src/i18n/locales.check.ts`.
+- A real `npm install && npm run build` on a throwaway copy in the cloud
+  container: builds and prerenders. **Canvas chunk 444 kB gz** against the
+  600 kB budget, first-route JS ~127 kB gz against 200 kB, models 1.2 MB
+  uncompressed against the 3 MB world budget.
+- Rendered in headless Chromium on swiftshader (WebGL2 backend) from the spawn
+  point, from the lagoon, from the beach and from the summit — which is how the
+  floating boulders and the fish-bone fronds were found.
+
+### Not verified — Seb's eye
+
+- **Frame rate.** Swiftshader has no opinion about it, and this adds ~90k
+  triangles in eight instanced draw calls plus a 14k-triangle terrain mesh. If
+  it costs, the cheap cuts in order are: ferns 110 → 60, palms 38 → 24, terrain
+  segments 152 → 112.
+- **The turquoise on the three project islands.** They were never meant to have
+  lagoons and now do. It suits them; it is still a change to a committed look.
+- **The isle from the spawn point.** It is large and close to the left edge on a
+  16:9 frame. `pos` is one line in `src/isles.ts`.
+- **The saucer over the ridge**, which is the one place the new flight code can
+  look wrong, and the one place `FOLLOW` can feel slow or floaty.
+- **The palms and the water at real scale.** Everything here is metres against a
+  1.8 m rider: 12 m trunks, a 13 m ridge, 70 m of beach. Whether the world still
+  reads at that scale beside three 17 m islands is a judgement, not a number.

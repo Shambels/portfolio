@@ -1,4 +1,5 @@
 import { PROJECTS } from './content'
+import { ISLES, RIM_MAX, isleHeight, isleShore } from './isles'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -27,6 +28,10 @@ export type Landmark = {
  * through. Raising this means teaching `Ship` to follow the ground first.
  */
 export const GROUND = 0.45
+
+/** The isles are their own module — pure arithmetic, no content import, so
+ *  `node src/isle.check.ts` can run it. This is where the world is read from. */
+export { ISLES, ISLE_EXTENT, ground, isleHeight, isleShore, type Isle } from './isles'
 
 /**
  * Where the character is, in world XZ, and which way it is facing. Written once
@@ -79,7 +84,12 @@ const shoreOf = (l: Landmark) => l.radius * ISLAND_SPREAD * SHORE
 
 /** True where the sea surface is: clear of every island's shoreline. */
 export function overWater(x: number, z: number): boolean {
-  return !LANDMARKS.some((l) => Math.hypot(x - l.pos[0], z - l.pos[2]) < shoreOf(l))
+  if (LANDMARKS.some((l) => Math.hypot(x - l.pos[0], z - l.pos[2]) < shoreOf(l))) return false
+  return !ISLES.some((i) => {
+    const dx = x - i.pos[0]
+    const dz = z - i.pos[1]
+    return Math.hypot(dx, dz) < isleShore(i, Math.atan2(dz, dx))
+  })
 }
 
 /**
@@ -114,7 +124,27 @@ export const SHOAL = 7
  *  is no swell at all. Here rather than in `Scenery` for the same reason
  *  `shoreOf` exists at all — two files guessing at one coastline is one too
  *  many, and this one is read by the water shader *and* by the hull. */
-export const SHOALS = LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) }))
+/**
+ * Islands as the *water's colour* sees them: a centre and the radius where the
+ * beach is. Not `SHOALS` — those circles are drawn around the outside of an
+ * island so no roller can stand up over a headland, and turquoise starting
+ * eight metres offshore is a ring, not a lagoon. This is the coastline itself,
+ * and `Scenery` ramps outward from it.
+ */
+export const LAGOONS = [
+  ...LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) })),
+  ...ISLES.map((i) => ({ x: i.pos[0], z: i.pos[1], r: i.radius })),
+]
+
+export const SHOALS = [
+  ...LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) })),
+  // An isle's coast is not a circle, and this list is one the water shader
+  // unrolls — so it gets the circle that contains the whole island. Erring
+  // outward is the safe direction: the cost is a wider patch of sheltered
+  // water, which is what a 70 m island in a swell actually makes, and the
+  // alternative is a roller standing up over a headland.
+  ...ISLES.map((i) => ({ x: i.pos[0], z: i.pos[1], r: i.radius * RIM_MAX })),
+]
 
 /**
  * How much of a roller survives at (x, z), 0 over a shoreline and 1 in open
@@ -184,6 +214,21 @@ const MOOR_REACH = 0.6
  * land inside another.
  */
 export function offshore(p: { x: number; z: number }): void {
+  // The isles first: they are the big ones, and their coast is a radius at an
+  // angle rather than a circle. `isleRim` is star-convex, so the push is the
+  // same one line of arithmetic — out along the bearing the hull is already on,
+  // onto the coast in that direction and not onto some average of it.
+  for (const i of ISLES) {
+    const dx = p.x - i.pos[0]
+    const dz = p.z - i.pos[1]
+    const d = Math.hypot(dx, dz)
+    if (d >= i.radius * RIM_MAX + BEAM) continue
+    const r = isleShore(i, Math.atan2(dz, dx)) + BEAM
+    if (d >= r) continue
+    const k = d > 1e-6 ? r / d : 0
+    p.x = i.pos[0] + (d > 1e-6 ? dx * k : r)
+    p.z = i.pos[1] + (d > 1e-6 ? dz * k : 0)
+  }
   for (const l of LANDMARKS) {
     const dx = p.x - l.pos[0]
     const dz = p.z - l.pos[2]
@@ -230,6 +275,31 @@ export function landmarkAt(x: number, z: number, moored = false): Landmark | nul
  * a different hat. Checked in dev, from the built data, once.
  */
 if (import.meta.env.DEV) {
+  for (const i of ISLES) {
+    // RIM_MAX is a number written down twice — here and in the harmonics — and
+    // the one that matters is the shader's shoal circle and the hull's early
+    // reject. Both are wrong the moment a harmonic changes and this does not.
+    let widest = 0
+    let zero = 0
+    for (let k = 0; k < 720; k++) {
+      const theta = (k / 720) * Math.PI * 2
+      widest = Math.max(widest, isleShore(i, theta) / i.radius)
+      // And the profile has to meet the water where the coast says it does, or
+      // the mesh draws a beach the hull is pushed out of somewhere else.
+      const s = isleShore(i, theta)
+      zero = Math.max(zero, Math.abs(isleHeight(i, i.pos[0] + Math.cos(theta) * s, i.pos[1] + Math.sin(theta) * s)))
+    }
+    console.assert(widest <= RIM_MAX, `${i.id}: rim reaches ${widest.toFixed(3)}, RIM_MAX is ${RIM_MAX}`)
+    console.assert(zero < 1e-6, `${i.id}: the ground is ${zero.toFixed(3)} off the water at its own coastline`)
+    console.assert(isleHeight(i, i.pos[0], i.pos[1]) > i.peak * 0.8, `${i.id}: no summit — the ridge missed the middle`)
+    // Clear of every landmark, moorings included: an isle overlapping one is a
+    // hull pushed out of a coast into a coast, forever.
+    for (const l of LANDMARKS) {
+      const gap = Math.hypot(l.pos[0] - i.pos[0], l.pos[2] - i.pos[1])
+      const need = i.radius * RIM_MAX + BEAM + moorRadius(l) + MOOR_REACH
+      console.assert(gap > need, `${i.id} and ${l.slug} overlap: ${gap.toFixed(1)} apart, need ${need.toFixed(1)}`)
+    }
+  }
   for (const l of LANDMARKS) {
     const d = Math.hypot(l.waypoint[0] - l.pos[0], l.waypoint[2] - l.pos[2])
     console.assert(d < l.radius, `${l.slug}: waypoint is ${d.toFixed(2)} out, radius is ${l.radius}`)
