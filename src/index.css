@@ -741,67 +741,81 @@ canvas {
 /* --- the ocean ---------------------------------------------------------- */
 
 /*
+  24.85dvh, and it is arithmetic rather than taste. The camera sits 1.5 above
+  the hull and 7.2 behind it (`CAM_OFFSET` in `Ship.tsx`) and never turns, so it
+  looks down atan(1.5 / 7.2) = 11.77deg; a perspective frame is linear in
+  tangents, so the horizon lands tan(11.77) / tan(22.5) = 0.503 of the
+  half-height above centre, which is 24.85% of the way down. `AIM_DOWN` adds
+  1.15 to the drop on a coarse pointer and the media query below is the same sum
+  with it. Round numbers here are a horizon that steps at the cut.
+*/
+
+/*
   The landing page and the world share a background, so pressing the button
-  changes nothing until the canvas has a frame to show. Both gradients were
-  sampled down a reference frame rather than picked by eye — twelve stops of
-  water — and the horizon sits at 25dvh because the camera's 45deg vertical
-  field of view puts it there whatever the window size. `AIM_DOWN` in `Ship.tsx`
-  tips the camera down on a coarse pointer, which lifts the horizon to about a
-  sixteenth of the frame, and the rule below moves with it.
+  changes nothing until the canvas has a frame to show.
 
-  The sky runs deep blue at the top through pale cyan to gold on the waterline,
-  and the water is the reverse: the vivid turquoise is the top fifth, nearest
-  the horizon, and it deepens toward us. That is what the reference does, and it
-  is also what pays for the headline — the hero is centred at about half the
-  water's height, where the gradient is at its darkest teal, so the type sits on
-  water rather than on a card. `Scenery.tsx`'s ZENITH, HAZE_*, DEEP and SHALLOW
-  are the same twelve stops in linear space; move one and move the other.
+  The sky runs deep blue overhead through a pale band to gold on the waterline.
+  The landing page's water is the reverse — vivid turquoise at the horizon,
+  deepening to teal at our feet, which is what pays for the headline, since the
+  hero is centred at about half the water's height and sits on the darkest band
+  of it rather than on a card.
 
-  Two skies and two seas, and the sun's position is what splits them. On the
-  landing page it is in front of us: gold on the waterline, deep blue overhead,
-  and the water darkening toward our feet, which is the reference frame and also
-  what pays for the headline. In the world it is behind the camera (`SUN` in
-  `Scenery.tsx`), which never turns — so that frame is the anti-solar half of
-  the sky, cool blue-cyan at the horizon, over water lit from behind and
-  brightest near us. `.stage` is that frame and nothing else: it is what stands
-  on screen until the canvas has one of its own, and it is wrong the moment it
-  stops matching. Both palettes are the same eight constants at the top of
-  `Scenery.tsx`, read from two directions.
+  Two of each, and they are close now rather than identical. `.landing` is the
+  reference frame, picked by eye. `.stage` is `Scenery.tsx`'s `sky()` and water
+  evaluated down the middle of the frame it draws — the same three colours in
+  the same order, come at through a tone map — so the placeholder is the frame
+  and the canvas replacing it changes nothing. What is left between the two is a
+  cooler pale band and a pinker 88% in the world, which is what mixing gold into
+  cyan does in linear light and is not worth a fourth stop in the shader to fix.
 
-  About 350 bytes, no canvas and no WebGL: the ocean is there before the scene
+  Below the waterline they share their first four stops — the band the eye is
+  actually holding on to at the cut, and in both cases it is the same gold
+  reflected at a grazing angle — and part after that: the landing's darkens
+  toward our feet, where the headline sits, while the world's opens out into the
+  turquoise the visitor is about to steer across. By the depth they differ at,
+  the shore has flown off the top of the frame and the vignette is three
+  quarters closed.
+
+  About 500 bytes, no canvas and no WebGL: the ocean is there before the scene
   chunk has been asked for, it is what a visitor with no renderer keeps, and the
   chunk loads over a page that is already the right colour at the right height.
 */
 
 .landing {
-  --sky: linear-gradient(#1a68a8, #2f81ba 28%, #67aacd 52%, #a9c8cb 70%, #f0b77e 88%, #fbd096);
-  --water: linear-gradient(#b3e0d4, #5ccdc8 4%, #22c0c2 11%, #14b2ba 19%,
+  --sky: linear-gradient(#1a68a8, #2f81ba 28%, #67aacd 52%, #a9c8cb 70%,
+      #eec09a 88%, #f9cd93);
+  --water: linear-gradient(#f4c2a5, #e4bfc0 4%, #73b5c6 11%, #44a0b6 19%,
       #0e979f 27%, #097c86 34%, #076872 42%, #055963 50%, #054e58 58%,
       #05464f 70%, #054049 84%, #053c46);
   --deep: #053c46;
 }
 
 .stage {
-  --sky: linear-gradient(#5ea7c7, #66acc8 40%, #70b2c9 70%, #83bdcc);
-  --water: linear-gradient(#89c1cd, #70b5c7 4%, #59adc1 11%, #45a7bb 19%,
-      #34a4b6 27%, #2aa2b2 34%, #20a1af 42%, #19a0ac 50%, #13a0aa 58%,
-      #0d9fa8 70%, #099fa6 84%, #079fa5);
-  --deep: #079fa5;
+  --sky: linear-gradient(#1a68a8, #488db7 28%, #79b0c8 52%, #8cbdcf 70%,
+      #e9c2c1 88%, #f8c78f);
+  --water: linear-gradient(#f4c2a5, #e4bfc0 4%, #73b5c6 11%, #44a0b6 19%,
+      #158ea7 27%, #0c8fa5 34%, #0a93a5 42%, #0996a4 50%, #0898a4 58%,
+      #069aa4 70%, #069ca4 84%, #059da4);
+  --deep: #059da4;
 }
 
 .landing,
 .stage {
-  --horizon: 25dvh;
+  --horizon: 24.85dvh;
   background:
     var(--sky) 0 0 / 100% var(--horizon) no-repeat,
-    var(--water) 0 100% / 100% calc(100dvh - var(--horizon)) no-repeat,
+    /* One pixel taller than the gap it fills, so it runs a pixel up behind the
+       sky. `--horizon` is 24.85dvh and lands mid-pixel at most window heights;
+       without the overlap that fractional row is the sky at partial alpha over
+       `--deep`, which draws a dark hairline along the horizon. */
+    var(--water) 0 100% / 100% calc(100dvh - var(--horizon) + 1px) no-repeat,
     var(--deep);
 }
 
 @media (pointer: coarse) {
   .landing,
   .stage {
-    --horizon: 6dvh;
+    --horizon: 5.57dvh;
   }
 }
 

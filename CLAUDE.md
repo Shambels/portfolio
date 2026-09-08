@@ -109,7 +109,9 @@ Breaking one is allowed. Doing it without saying so is not.
   Geometry only: materials stay in TSL, and a mesh's name prefix picks which one
   it gets. `tools/surfer.py` is the exception and the only one — a wetsuit with
   neon ribbons is not a material a prefix can name, so the rider carries its own
-  colour in COLOR_0 and one `vertexColors` material draws it. `pip install
+  colour in COLOR_0. He is also the only thing in the world that is not lit like
+  the world: toon shading, an inverted-hull outline and a fresnel rim, because
+  the sun is ahead of the ship and the visitor only ever sees his shadow side. `pip install
   "bpy==4.5.13"` (Python 3.11) and `python3 tools/<name>.py` rebuilds;
   `--render out.png` writes the preview views.
 - Shaders derive from what a project does. Generic noise does not ship.
