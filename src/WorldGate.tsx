@@ -45,8 +45,8 @@ export type World = {
 }
 
 const WorldContext = createContext<World>({
-  active: false, sound: false, toggleSound: () => {}, model: 'saucer', setModel: () => {},
-  sea: 'calm', setSea: () => {},
+  active: false, sound: false, toggleSound: () => {}, model: 'surfer', setModel: () => {},
+  sea: 'agitated', setSea: () => {},
 })
 
 /** Where the two remembered choices live. Namespaced, because this origin is
@@ -97,12 +97,12 @@ export function WorldGate({ children }: { children: ReactNode }) {
   // effect as the rest of the after-mount detection, and before the canvas can
   // mount — `active` needs `detected`, which is set here — so there is no frame
   // of the wrong ship to see.
-  const [model, setModel] = useState<ShipModel>('saucer')
+  const [model, setModel] = useState<ShipModel>('surfer')
   // And the weather, for the same reason: a visitor who left the sea running and
   // came back to a millpond would have to go and find the setting again. Sound
   // is the one setting that cannot be remembered, and the note beside it says
   // why.
-  const [sea, setSea] = useState<Sea>('calm')
+  const [sea, setSea] = useState<Sea>('agitated')
   useEffect(() => {
     setDetected(canRenderWorld())
     setTouch(window.matchMedia('(pointer: coarse)').matches)
@@ -113,10 +113,11 @@ export function WorldGate({ children }: { children: ReactNode }) {
       // Named rather than cast: this is a string from the visitor's own disk,
       // and an old or hand-edited one must not become a `ShipModel` the switch
       // below has no case for.
-      if (stored === 'boat' || stored === 'surfer') setModel(stored)
+      if (stored === 'saucer' || stored === 'boat') setModel(stored)
       // Anything else — nothing stored, or the number an earlier version of
-      // this site wrote here when the setting was a slider — is a calm sea.
-      if (localStorage.getItem(SEA_KEY) === 'agitated') setSea('agitated')
+      // this site wrote here when the setting was a slider — is the default
+      // sea, which is the agitated one.
+      if (localStorage.getItem(SEA_KEY) === 'calm') setSea('calm')
     } catch { /* no stored answer is a fine answer */ }
   }, [])
 
