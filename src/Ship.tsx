@@ -183,15 +183,21 @@ const SQUASH = 0.35   // spring travel -> metres of vertical give. ~0.12 m start
 // The altitude target is a step, so its derivative spikes by whatever the frame
 // rate is. Capping the drive keeps the bounce bounded and the same at 30 or 144.
 const JOLT = 60       // units/sec^2
-/** Camera offset from the ship, in world space — the camera does not turn with
- *  yaw. Exported because `Landmarks` measures the visitor's approach from the
- *  ship rather than from the camera, and this is the difference between them. */
+/** Where the camera sits relative to the hull: `z` astern of it and `y` above,
+ *  in the hull's own frame rather than the world's — the camera comes round
+ *  behind the heading now, so +z is "behind" whichever way the ship is pointed
+ *  rather than a fixed world direction. Its x is zero and `camYaw`'s arithmetic
+ *  in the frame loop assumes it. Neither number changes when the camera turns,
+ *  which is why the pitch below, and everything derived from it, is untouched. */
 export const CAM_OFFSET = new THREE.Vector3(0, 2.4, 7.2) // flat enough to keep the horizon in frame
 /**
  * Where the horizon lands, and the reason the number below is not decoration.
  *
  * The camera sits `CAM_OFFSET` behind the hull and `hover` above it — 1.5 up
- * over 7.2 back, so it looks down 11.77deg — and it never turns. A perspective
+ * over 7.2 back, so it looks down 11.77deg. It yaws, and that is exactly why
+ * this still holds: swinging round behind the hull changes the bearing and not
+ * the 7.2 or the 1.5, so the pitch, and the horizon it puts on the screen, are
+ * the same at every heading. Only a change to the offset itself moves it. A perspective
  * frame is linear in tangents, so the horizon sits at tan(11.77) / tan(22.5) =
  * 0.503 of the half-height above centre, which is 24.85% of the way down the
  * frame. `--horizon` in `index.css` is that number, `SKY_TOP` in `Scenery.tsx`
@@ -213,7 +219,6 @@ if (import.meta.env.DEV) {
 }
 
 const CAM_LAG = 3.5
-
 /**
  * How far below the hull the camera aims, in world units. Zero everywhere the
  * panel is a column beside the world, and Phase 6's one change to the framing
@@ -241,9 +246,37 @@ const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
  */
 export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0 }
 
+/**
+ * The same hull, as the vec2 the landmarks' shaders measure an approach from.
+ * They used to recover it by subtracting a constant `CAM_OFFSET` from the
+ * camera, which stopped being a constant the moment the camera started turning
+ * with the ship. One uniform, written in the same block of the frame loop as
+ * `SHIP` above, and it is a smaller thing to read than the subtraction was.
+ */
+export const SHIP_XZ = uniform(new THREE.Vector2())
+
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 // Invariant 6: the ship still responds, it just does not oscillate about it.
 const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
+
+/**
+ * How the camera comes round behind the hull.
+ *
+ * It chases `yaw` — the heading, not the roll — with a lag, so a turn reads as
+ * the world swinging round rather than as a cut. The cap is the part that
+ * matters: steering is measured against where the camera points, so a held
+ * sideways push turns the ship, which turns the camera, which re-aims the push.
+ * That loop is real and it is what a sustained sideways hold is *for* — it
+ * carves a circle rather than sliding across the frame. `CAM_SWING_MAX` is what
+ * keeps the circle a carve instead of a spin: 0.9 rad/s is seven seconds a
+ * revolution, about 8 units of radius at cruise and 20 at full boost.
+ *
+ * Invariant 6: a rotating world is the one thing on this page that can make
+ * somebody ill, so a visitor who asked for less motion gets a camera that still
+ * ends up astern and takes four times as long about it.
+ */
+const CAM_SWING = REDUCED ? 0.7 : 2.6
+const CAM_SWING_MAX = REDUCED ? 0.22 : 0.9
 
 const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
@@ -266,7 +299,14 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const rig = useRef<THREE.Group>(null!)   // position + yaw
   const body = useRef<THREE.Group>(null!)  // bob + roll
   const vel = useRef(new THREE.Vector3())
-  const yaw = useRef(0)
+  // Pointed the way the camera looks, not the way it sits: the camera is astern
+  // of the heading now, so a hull spawned at yaw 0 would put the camera on the
+  // far side of the world, looking back at an empty sea. Pi is the heading the
+  // ship has held on every frame anyone has ever flown — forward is -z — so
+  // this is the frame the landing page already cuts to, with the stern of the
+  // craft in it rather than its bow, and the first press of W no longer spins
+  // the hull through 180deg to start moving.
+  const yaw = useRef(Math.PI)
   const near = useRef<string | null>(null)
   const alt = useRef(hover)
   const altVel = useRef(0)
@@ -281,6 +321,10 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const lastSurface = useRef(0)
   const wet = useRef(1)   // 1 in the water, 0 in the air, smoothed between
   const flew = useRef(false) // last frame's answer, so leaving and landing are events
+  // Where the camera is round the hull, chasing `yaw` — see `CAM_SWING`. Its
+  // own value rather than `yaw` read late, because the lag between the two *is*
+  // the turn, and steering is measured against this one.
+  const camYaw = useRef(Math.PI)
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
@@ -348,18 +392,27 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     const dt = THREE.MathUtils.clamp(delta, 1 / 240, 0.05)
     const g = rig.current
 
-    // Movement is world-relative because the camera offset is fixed: rotating the
-    // offset with yaw while steering relative to the camera is a spin feedback loop.
-    // ponytail: camera-relative steering would need `look`, and nothing has
-    // asked for it — the camera is behind the ship, so world-relative reads the
-    // same. Revisit if Phase 6's touch controls want a swipe-to-turn.
+    // Movement is measured against where the camera points, not against the
+    // world: forward is into the screen and right is right, at every heading,
+    // which is the whole reason the camera turns at all. It is the loop the
+    // fixed camera was avoiding — steer left, the ship turns, the camera comes
+    // round, and left is somewhere else — and `CAM_SWING_MAX` is what bounds
+    // it. Held sideways it carves; tapped, it turns and settles.
     // The hull's own frame. Up here rather than beside the bounce spring it also
     // serves, because the sea below reads a wave's slope in it first.
     const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
     const cy = Math.cos(yaw.current)
 
-    _target.set(input.move.x, 0, -input.move.y)
-      .multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
+    // Last frame's bearing, deliberately: the camera has not turned yet this
+    // frame, and steering against a camera that moves inside the same tick is
+    // the loop above with the lag taken out of it.
+    const camSin = Math.sin(camYaw.current)
+    const camCos = Math.cos(camYaw.current)
+    _target.set(
+      input.move.y * camSin - input.move.x * camCos,
+      0,
+      input.move.y * camCos + input.move.x * camSin,
+    ).multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
     // A hull cannot climb a beach. Pushed back onto the mooring circle rather
@@ -539,6 +592,7 @@ const FOLLOW = 3.2
     VIEW.x = g.position.x
     VIEW.z = g.position.z
     VIEW.yaw = yaw.current
+    SHIP_XZ.value.set(g.position.x, g.position.z)
 
     // Proximity is an event, not a state: it pushes a URL and the URL is what
     // everything else reads back (invariant 3 — nothing here remounts a tree).
@@ -555,7 +609,25 @@ const FOLLOW = 3.2
     camY.current += (ride - camY.current) * (1 - Math.exp(-CAM_RISE * dt))
     aimY.current += (ride - aimY.current) * (1 - Math.exp(-CAM_AIM * dt))
 
-    _cam.copy(g.position).add(CAM_OFFSET)
+    // Round behind the heading, capped so the loop steering closes cannot spin.
+    // On a snap it is simply astern already: a deep link arrives facing the
+    // landmark it named, and the camera has no swing to make.
+    if (snap.current) camYaw.current = yaw.current
+    else {
+      const swing = Math.atan2(
+        Math.sin(yaw.current - camYaw.current),
+        Math.cos(yaw.current - camYaw.current),
+      ) * (1 - Math.exp(-CAM_SWING * dt))
+      camYaw.current += THREE.MathUtils.clamp(swing, -CAM_SWING_MAX * dt, CAM_SWING_MAX * dt)
+    }
+    // `CAM_OFFSET.z` is a distance astern of the hull's heading rather than a
+    // world +z, and `.x` is zero — see the note on it. The height is the same
+    // number it always was, so the pitch and the horizon do not move.
+    _cam.set(
+      g.position.x - camSin * CAM_OFFSET.z,
+      g.position.y + CAM_OFFSET.y,
+      g.position.z - camCos * CAM_OFFSET.z,
+    )
     // Rise with the ship, or the ceiling puts it out of frame. `- hover` is the
     // hull's own altitude coming back out, and it is subtracted for every craft
     // rather than the saucer alone: without it the camera sat 2.4 over a boat

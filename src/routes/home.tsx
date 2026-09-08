@@ -19,11 +19,20 @@ const FAR: [number, number][] = [[-30, 0.8], [-2, 0.95], [26, 0.9], [56, 0.75], 
 
 const GULL = 'M-12 0Q-6 -6.5 0 -1.2Q6 -6.5 12 0Q6 -3.6 0 1.6Q-6 -3.6 -12 0Z'
 
-/** The board, drawn about its own middle so the plant is a rotation: 190 units
- *  from a pointed nose to a round tail, which against the chair below is the
- *  2.7m it would be. */
+/**
+ * The board and the chair below it are one projection, not a drawing: a chaise
+ * and a man laid out in metres, a camera 4m behind his left shoulder and a
+ * little above him, and the outline is what came back. Which is why nothing
+ * here is symmetrical and none of the numbers are round.
+ *
+ * The board is the one piece measured in the picture rather than the model. A
+ * planted board is flat, and how much of its face turns back to the camera is
+ * a choice rather than a fact — so only its axis is projected, and the outline
+ * is fitted along that axis at the width that reads: 1.95m of it above the
+ * sand, a sixth of that across.
+ */
 const BOARD =
-  'M0 -95C9 -62 16 -28 16 4C16 40 9 72 0 95C-9 72 -16 40 -16 4C-16 -28 -9 -62 0 -95Z'
+  'M315 316C319 311 335 295 341 284C346 273 347 261 349 250C351 238 353 228 355 217C357 205 358 193 360 181C361 170 362 158 363 146C364 134 365 122 366 111C367 99 368 88 368 77C369 65 370 53 369 41C368 29 365 10 364 4C361 10 352 26 348 38C343 49 341 61 338 72C334 83 332 93 329 105C326 116 324 128 321 139C318 151 316 163 314 174C311 186 309 198 307 209C306 221 304 231 303 242C301 254 298 266 300 278C302 290 312 310 315 316Z'
 
 const crown = (fronds: [number, number][], x = 0, y = 0) =>
   fronds.map(([rot, scale], i) => (
@@ -104,63 +113,67 @@ export default function Home() {
         <div className="wash" />
         <div className="wash wash-2" />
         {/*
-          Someone got here first. A lounger three-quarters from behind — the
-          chair recedes to the upper right, so the back is the near end and his
-          feet are the far one — with a board planted in the sand beside him.
-          Neither is more than its outline: they are between us and a sun on the
-          horizon, so all that reaches the camera is a shape and the two
-          shadows it lays down the beach.
+          Someone got here first: a man in a lounger with a board stuck in the
+          sand beside him, and no more of either than the shape. They are
+          between us and a sun on the horizon, so what reaches the camera is an
+          outline and the two shadows it lays down the beach.
 
-          Sizes are the chair's: 78 units is a metre, which puts his head 0.9m
-          off the sand and the board at 2.7m. The frame and his limbs are round
-          strokes rather than paths — one silhouette in one colour has no edges
-          to give away, so a stroke and a fill are the same mark, and a limb is
-          cheaper as a line.
+          The geometry is a projection of a chaise, a man and a board built in
+          metres, seen from four metres behind his left shoulder and a metre
+          above the sand — which is what puts his head over the top of the back,
+          his knees up the seat, and the whole chair receding to the left. He is
+          facing the way the chair points, which is out and away from us.
+
+          The limbs and the chair's legs are round strokes rather than paths:
+          one silhouette in one colour has no edges to give away, so a stroke
+          and a fill are the same mark, and a limb is far cheaper as a line. The
+          widths are the projected diameters, which is why they all differ.
         */}
         <div className="figures">
-          <svg className="lounger" viewBox="36 0 264 230">
+          <svg className="lounger" viewBox="0 0 374 362">
             <defs>
               <radialGradient id="cast">
-                <stop offset="0%" stopColor="#241c10" stopOpacity="0.46" />
-                <stop offset="58%" stopColor="#241c10" stopOpacity="0.24" />
+                <stop offset="0%" stopColor="#241c10" stopOpacity="0.5" />
+                <stop offset="55%" stopColor="#241c10" stopOpacity="0.26" />
                 <stop offset="100%" stopColor="#241c10" stopOpacity="0" />
               </radialGradient>
             </defs>
             {/* Both shadows run the same way, down the frame and to the right:
                 away from a sun sitting at 26% of the window, which is where
-                `.sun` puts it. */}
+                `.sun` above puts it. */}
             <g fill="url(#cast)">
-              <ellipse cx="146" cy="202" rx="94" ry="16" transform="rotate(-5 146 202)" />
-              <ellipse cx="258" cy="201" rx="38" ry="9" transform="rotate(13 258 201)" />
+              <ellipse cx="105" cy="330" rx="128" ry="30" transform="rotate(8 105 330)" />
+              <ellipse cx="348" cy="314" rx="58" ry="12" transform="rotate(13 348 314)" />
             </g>
-            <path d={BOARD} transform="translate(238 103) rotate(6)" fill="currentColor" />
-            {/* The chair. Four legs and an armrest, then the back and the seat
-                as two slabs meeting along the hinge — the same edge in both, so
-                they close into one shape without a join to draw. */}
-            <g fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round">
-              <path d="M88 182L82 205" />
-              <path d="M126 168L123 193" />
-              <path d="M150 156L146 197" />
-              <path d="M187 143L185 187" />
-              <path d="M84 172Q117 157 150 142" />
-              <path d="M150 142L151 156" />
-            </g>
-            <path d="M84 184L128 168L190 142L146 158Z" fill="currentColor" />
-            <path d="M84 184L128 168L96 110L52 126Z" fill="currentColor" />
-            {/* Him: two legs up the seat with the knees just off the chord,
-                one arm over the near side, and the shoulders and the head clear
-                of the top of the back — which is the whole of the pose. He is
-                looking where the chair points, out past the board. */}
+            <path d={BOARD} fill="currentColor" />
+            {/* Four legs, then the seat and the back as two slabs sharing the
+                hinge edge — the same two points in both, so they close into one
+                shape with no join to draw. */}
             <g fill="none" stroke="currentColor" strokeLinecap="round">
-              <path d="M110 174Q131 159 156 155" strokeWidth="14" />
-              <path d="M125 168Q146 153 171 149" strokeWidth="14" />
-              <path d="M56 128Q46 152 50 186" strokeWidth="9" />
+              <path d="M97 304L93 356" strokeWidth="11" />
+              <path d="M194 292L197 341" strokeWidth="10" />
+              <path d="M12 268L10 311" strokeWidth="9" />
+              <path d="M97 260L100 300" strokeWidth="9" />
             </g>
-            <g fill="currentColor">
-              <circle cx="51" cy="190" r="6.5" />
-              <ellipse cx="74" cy="118" rx="24" ry="13" transform="rotate(-20 74 118)" />
-              <circle cx="63" cy="99" r="10" />
+            <path d="M4 266L93 258L203 293L203 303L98 317L4 274Z" fill="currentColor" />
+            <path d="M98 306L163 217L279 209L283 219L206 302L101 316Z" fill="currentColor" />
+            {/* Him. The near leg is drawn up, the far one out straight — one
+                bent knee is the whole difference between lying down and being
+                laid out. */}
+            <g fill="none" stroke="currentColor" strokeLinecap="round">
+              <path d="M142 275L185 218" strokeWidth="61" />
+              <path d="M118 273L66 217" strokeWidth="40" />
+              <path d="M66 217L47 257" strokeWidth="29" />
+              <path d="M47 257L41 244" strokeWidth="22" />
+              <path d="M161 269L114 243" strokeWidth="38" />
+              <path d="M114 243L72 247" strokeWidth="27" />
+              <path d="M72 247L67 235" strokeWidth="20" />
+              <path d="M153 229L90 270" strokeWidth="26" />
+              <path d="M90 270L75 271" strokeWidth="20" />
+              <path d="M210 224L186 260" strokeWidth="24" />
+              <path d="M186 260L148 264" strokeWidth="19" />
             </g>
+            <circle cx="214" cy="181" r="21" fill="currentColor" />
           </svg>
         </div>
         <svg className="palm palm-far" viewBox="0 0 200 160">

@@ -1023,9 +1023,9 @@ canvas {
    and 0.88 is enough sand through it to say so without softening the edge. */
 .lounger {
   position: absolute;
-  right: 7vw;
+  right: 8vw;
   bottom: 2.4dvh;
-  width: min(26vw, 18rem, 30dvh);
+  width: min(25vw, 17.5rem, 29dvh);
   overflow: visible;
   color: #14180d;
   opacity: 0.88;
@@ -1322,7 +1322,7 @@ canvas {
      corner: a third of the width is not much beach to lie on. */
   .lounger {
     width: 46vw;
-    right: 3vw;
+    right: 5vw;
     bottom: 1.6dvh;
   }
 
