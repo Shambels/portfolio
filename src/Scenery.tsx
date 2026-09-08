@@ -42,27 +42,40 @@ import type { Sea } from './WorldGate'
 // sun disc, its glow and the glitter path on the water are all behind the
 // camera now, so none of them is in frame. The warm horizon below is what is
 // left of golden hour, and the fill was cut to buy the contrast back.
-const SUN = new THREE.Vector3(-0.66, 0.27, 0.7).normalize()
+export const SUN = new THREE.Vector3(-0.66, 0.27, 0.7).normalize()
 
-// The palette, and it is the same one twice: these are the twelve stops of
-// `.landing, .stage` in `index.css` in linear space, so the gradient the
-// visitor sees before the canvas has a frame is the frame's own colour. Move
-// one and move the other — the whole point of the pair is that the button press
-// changes nothing. sRGB, for reading: #1a68a8 zenith, #6aa8bd and #ffb35c the
-// two ends of the horizon haze, #ffcf8c the sun, #ffe0cc and #9b7386 the lit
-// and shaded sides of a cloud, #06333d and #14b2b4 the deep water and the
-// turquoise on a crest.
+// The palette, and it is the landing page's, top to bottom: the sky here is
+// `--sky` in `index.css` and these are its stops, inverted back through the
+// tone mapping so that what comes out of the pipeline is the gradient the
+// visitor was just looking at. #1a68a8 overhead, #8fbfd0 in the band below it,
+// #f9c884 on the waterline. HAZE_WARM is over 1 in red because gold that
+// survives ACES has to go in hotter than it comes out.
 //
-// HAZE_COOL is the one stop that is not shared with the landing page, and the
-// sun swing is why: the sun sits behind the camera, so nearly every frame is
-// the anti-solar half of the sky and this is most of what the visitor sees.
-// The landing page's waterline is gold because there the glow is in front of
-// us. Carry that gold round to the back of the sky and the world goes flat and
-// foggy — so the cool end stays a saturated blue-cyan and the frame still runs
-// warm at the left edge to cool at the right.
-const ZENITH = vec3(0.0103, 0.1384, 0.3916)
-const HAZE_COOL = vec3(0.1441, 0.3916, 0.5089)
-const HAZE_WARM = vec3(1.0, 0.4508, 0.107)
+// The warm end used to be the sun's own side of the sky only, which left the
+// world cool: the sun sits behind the camera (`SUN` above), so nearly every
+// frame is the anti-solar half. WARM_FLOOR is the answer — the waterline is
+// gold all the way round, a little hotter to port, and the world reads as the
+// same evening as the page in front of it.
+const ZENITH = vec3(0.0198, 0.1071, 0.2628)
+const HAZE_COOL = vec3(0.1847, 0.3781, 0.5229)
+const HAZE_WARM = vec3(2.7722, 0.4451, 0.1588)
+/** How much of the gold the anti-solar horizon keeps. 0 is where this started,
+ *  and with the sun behind the camera it was a fog bank. High enough that what
+ *  is left is a hair of extra heat to port rather than a side of the sky. */
+const WARM_FLOOR = 0.92
+/** Where the warm band gives out and the blue takes over, in `lift` below. */
+const SKY_BREAK = 0.22
+/**
+ * The highest the frame ever looks: half the 45deg field of view, less the
+ * 11.77deg the camera is pitched down by `CAM_OFFSET` — 10.73deg, and its sine
+ * is what `dir.y` reads there. The whole vertical gradient of the landing page
+ * has to fit inside it. `pow(up, 0.4)` spent half its travel above the top edge
+ * of the frame and left the world pale and flat; dividing by this spends all of
+ * it inside the frame instead. Above 10.73deg the dome is flat zenith, which
+ * only a wave steep enough to reflect it can show, and it is the right colour
+ * there anyway.
+ */
+const SKY_TOP = 0.18621
 const SUN_TINT = vec3(1.0, 0.624, 0.2623)
 const CLOUD_LIT = vec3(1.0, 0.7454, 0.6038)
 // Pink, not grey. A cumulus at this sun angle is lit from underneath, and the
@@ -104,13 +117,19 @@ function sky(dir: Vec3, { lit = true, disc = 1 } = {}): Vec3 {
   const up = clamp(dir.y, 0, 1)
   const toSun = clamp(dot(dir, sunDir), 0, 1)
 
-  // Warmth wrapped right round the horizon rather than clamped to the sun's own
-  // side. With the sun behind the camera the visitor faces the anti-solar half
-  // of the sky, and `pow(toSun, 3)` left that half flatly cool — which a hazy
-  // low sun does not do to a real sky either. It still falls off: the frame runs
-  // from warm at the left edge to cool at the right, and the water reflects it.
-  const haze = mix(HAZE_COOL, HAZE_WARM, pow(dot(dir, sunDir).mul(0.5).add(0.5), 1.8))
-  let col = mix(haze, ZENITH, pow(up, 0.4))
+  // The landing page's three stops, in the order it draws them. `lift` is how
+  // far up the frame we are looking, 0 on the waterline and 1 at the top edge;
+  // the gold band lives under `SKY_BREAK` and the blue above it, and the pale
+  // stop between them is where the two ramps meet rather than a colour anyone
+  // had to name.
+  //
+  // Warmth still falls off away from the sun — the waterline is hottest to
+  // port, where the sun is — but it falls to WARM_FLOOR, not to nothing.
+  const lift = clamp(up.div(SKY_TOP), 0, 1)
+  const warmth = mix(float(WARM_FLOOR), float(1), pow(dot(dir, sunDir).mul(0.5).add(0.5), 1.8))
+  const horizon = mix(HAZE_COOL, HAZE_WARM, warmth)
+  let col = mix(horizon, HAZE_COOL, smoothstep(0, SKY_BREAK, lift))
+  col = mix(col, ZENITH, smoothstep(SKY_BREAK, 1, lift))
   col = col.add(SUN_TINT.mul(pow(toSun, 9).mul(0.42))) // the glow, always — it is most of the look
 
   if (!lit) return col

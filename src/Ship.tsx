@@ -1,10 +1,13 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
-import { color, positionLocal, sin, time, uniform, uv } from 'three/tsl'
+import {
+  attribute, cameraPosition, color, normalLocal, normalWorld, positionLocal, positionWorld, sin,
+  time, uniform, uv, vec3,
+} from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
-import { swell } from './Scenery'
+import { SUN, swell } from './Scenery'
 import { SPLASH, VIEW, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
@@ -184,6 +187,31 @@ const JOLT = 60       // units/sec^2
  *  yaw. Exported because `Landmarks` measures the visitor's approach from the
  *  ship rather than from the camera, and this is the difference between them. */
 export const CAM_OFFSET = new THREE.Vector3(0, 2.4, 7.2) // flat enough to keep the horizon in frame
+/**
+ * Where the horizon lands, and the reason the number below is not decoration.
+ *
+ * The camera sits `CAM_OFFSET` behind the hull and `hover` above it — 1.5 up
+ * over 7.2 back, so it looks down 11.77deg — and it never turns. A perspective
+ * frame is linear in tangents, so the horizon sits at tan(11.77) / tan(22.5) =
+ * 0.503 of the half-height above centre, which is 24.85% of the way down the
+ * frame. `--horizon` in `index.css` is that number, `SKY_TOP` in `Scenery.tsx`
+ * is the sine of what is left above it, and the gradient behind the canvas is
+ * the frame the canvas draws. Change the offset and all three move — which is
+ * what the assert below is for, because two of the three are in other files and
+ * one of them is CSS, where nothing can reach in and check.
+ */
+const HORIZON = 0.2485
+
+if (import.meta.env.DEV) {
+  const drop = CAM_OFFSET.y - 0.9 // the default `hover`; see the prop below
+  const at = (1 - Math.tan(Math.atan(drop / CAM_OFFSET.z)) / Math.tan((45 / 2) * (Math.PI / 180))) / 2
+  console.assert(
+    Math.abs(at - HORIZON) < 0.002,
+    `the camera puts the horizon at ${(at * 100).toFixed(2)}% of the frame, not ${(HORIZON * 100).toFixed(2)}% — ` +
+      'update `--horizon` in index.css and `SKY_TOP` in Scenery.tsx to match, or the landing page steps at the cut',
+  )
+}
+
 const CAM_LAG = 3.5
 
 /**
@@ -256,7 +284,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
-  const snap = useRef(false) // next frame: place the camera, do not chase it
+  // True on the first frame as well as after a deep link: the camera starts
+  // wherever `Scene` parked it, and a lag of 3.5 turns that into a second of
+  // swooping into position — which is a camera move the visitor did not ask
+  // for, over the cut from a page whose horizon was already in the right place.
+  const snap = useRef(true) // next frame: place the camera, do not chase it
   const input = useInput(enabled)
   // Everything below asks "does it float", not "is it the boat" — the surfer
   // does the same thing in the same water, with its own column of numbers.
@@ -490,8 +522,14 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     aimY.current += (ride - aimY.current) * (1 - Math.exp(-CAM_AIM * dt))
 
     _cam.copy(g.position).add(CAM_OFFSET)
-    // Rise with the ship, or the ceiling puts it out of frame.
-    _cam.y += floats ? camY.current : alt.current - hover
+    // Rise with the ship, or the ceiling puts it out of frame. `- hover` is the
+    // hull's own altitude coming back out, and it is subtracted for every craft
+    // rather than the saucer alone: without it the camera sat 2.4 over a boat
+    // and 1.5 over a saucer, which is 18.4deg of pitch against 11.8deg and put
+    // the horizon a tenth of the way down the frame instead of a quarter. The
+    // craft is remembered between visits, so that was a different world every
+    // time somebody who had once picked the boat came back to the landing page.
+    _cam.y += (floats ? camY.current : alt.current) - hover
     if (snap.current) {
       snap.current = false
       camY.current = aimY.current = ride
@@ -678,9 +716,10 @@ const WAKE_SPEED = uniform(0)
 /**
  * Foam, not neon. `Post` blooms the emissive buffer at threshold zero, so what
  * a material declares here is exactly how much halo it gets: this peaks at 0.6
- * against the lamp's 1, and only at full speed. It is the surfer's whole share
- * of the bloom — the other two craft carry running lights, and this one carries
- * the only thing a board leaves behind.
+ * against the lamp's 1, and only at full speed. It was the surfer's whole share
+ * of the bloom until the rider got a rim light and his ribbons got a glow — see
+ * `RIDER` below — and it is still the broad one: this is a halo behind the
+ * board, and those are a filament on an edge and a line on a stripe.
  *
  * Two fades, and the second is not optional: bloom reads the emissive buffer
  * and not the alpha, so a strip that stops dead at its own rails blooms as a
@@ -825,9 +864,81 @@ function Surfer({ visible }: { visible: boolean }) {
  * the file and linear in the shader, and `vertexColors` multiplies it in. It is
  * a wetsuit with neon ribbons across it, and no prefix was going to say that.
  */
-const RIDER = new THREE.MeshStandardNodeMaterial({
-  vertexColors: true, roughness: 0.52, metalness: 0,
-})
+/**
+ * `emissiveNode` is read by `NodeMaterial.setupEmissive`, which every node
+ * material inherits, so a toon material honours it at runtime exactly as a
+ * standard one does — see three/src/materials/nodes/NodeMaterial.js. Only
+ * `MeshStandardNodeMaterial` declares the field in the types, hence the
+ * widening: it is the narrow cast at a library boundary that CLAUDE.md allows,
+ * and it is narrower than the `THREE as never` the canvas already needs.
+ */
+const RIDER = new THREE.MeshToonNodeMaterial({ vertexColors: true }) as
+  THREE.MeshToonNodeMaterial & Pick<THREE.MeshStandardNodeMaterial, 'emissiveNode'>
+
+/**
+ * Where the rider stops being lit like the rest of the world.
+ *
+ * Everything else here is `MeshStandardNodeMaterial` under a golden-hour sun,
+ * which is right for a hull: a boat is a painted surface and a painted surface
+ * has a smooth falloff. The rider is drawn, not painted. Toon shading quantises
+ * the same sun into two or three steps, so a shoulder gets a lit side and a
+ * shadow side with a line between them instead of a gradient, and the neon in
+ * COLOR_0 stays the colour it was authored as across the whole lit half rather
+ * than being dimmed through it. It is the same trick as the crisp bands in
+ * `tools/surfer.py`, one stage further along: hard edges in the colour, then
+ * hard edges in the light.
+ *
+ * The rim is the other half, and it turned out to be the important half. The
+ * sun in `Scenery` is ahead of the ship, not behind it — the glow on the
+ * horizon in front of you is the sun itself — so what the visitor gets is this
+ * figure's *shadow* side, lit by fill alone. That is the same complaint
+ * docs/STATUS.md files against every landmark, and on a black wetsuit it is
+ * worse than on a rock: unlit, the rider is a silhouette on a bright sea with
+ * no edge of its own, which reads as a sticker. A fresnel term biased to the
+ * sun's side lights the outline instead, which is what a backlit body against
+ * water actually does.
+ *
+ * The exponent is the whole tuning. A fresnel at pow 2 over a body this round
+ * is not an edge, it is most of the surface, and at a brightness that reads as
+ * an edge it turned a black suit tan. At pow 7 it is a filament along the
+ * grazing angles and the suit stays black.
+ *
+ * The second term is the neon lighting itself. Chroma — the spread between a
+ * colour's brightest and dimmest channel — is near zero for the suit, the
+ * black, the hair and the skin, and near one for exactly the four ribbon
+ * colours, so multiplying COLOR_0 by its own chroma is a mask that selects the
+ * neon and nothing else, with no second attribute and no list of colours to
+ * keep in step with `tools/surfer.py`.
+ *
+ * Both are emissive, so both bloom, and that is a claim on a budget `FOAM`
+ * above was spending alone. It is deliberate: the wake is the halo and this is
+ * the filament, the rim only touches silhouette pixels, and the glow only
+ * touches the ribbons. If they ever fight, cut these two before the wake.
+ */
+const VIEW_DIR = positionWorld.sub(cameraPosition).normalize()
+const RIM = normalWorld.dot(VIEW_DIR).abs().oneMinus().pow(7)
+const SUNWARD = normalWorld.dot(vec3(SUN.x, SUN.y, SUN.z)).mul(0.5).add(0.5)
+const COL = attribute<'vec3'>('color', 'vec3')
+const CHROMA = COL.r.max(COL.g).max(COL.b).sub(COL.r.min(COL.g).min(COL.b))
+RIDER.emissiveNode = color('#ffb478').mul(RIM.mul(SUNWARD).mul(1.35))
+  .add(COL.mul(CHROMA).mul(0.5))
+
+/**
+ * The outline: the same geometry again, inside out, grown a centimetre along
+ * its own normals. Back faces only, so what survives the depth test is the
+ * sliver that pokes out past the silhouette of the real mesh — a line that is
+ * thick where the surface turns away and absent where it faces you, which is
+ * how an inked drawing weights its own outline.
+ *
+ * A centimetre is chosen against the model and not against the screen: the
+ * camera sits at a fixed distance astern and never dollies, so a fixed offset
+ * in metres is a near-enough-fixed offset in pixels, and the alternative —
+ * scaling the push by view depth — is arithmetic for a problem this world does
+ * not have. It is `MeshBasicNodeMaterial` because an outline is not lit, and it
+ * declares no emissive, so it costs nothing at the bloom.
+ */
+const OUTLINE = new THREE.MeshBasicNodeMaterial({ color: '#0a0d14', side: THREE.BackSide })
+OUTLINE.positionNode = positionLocal.add(normalLocal.mul(0.011))
 
 function Rider() {
   const { scene } = useGLTF(surferUrl)
@@ -841,7 +952,13 @@ function Rider() {
     return mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
   }, [scene])
 
-  return <mesh geometry={geometry} material={RIDER} />
+  // Outline first, so the rider is drawn over it rather than z-fighting it.
+  return (
+    <>
+      <mesh geometry={geometry} material={OUTLINE} />
+      <mesh geometry={geometry} material={RIDER} />
+    </>
+  )
 }
 
 /**
