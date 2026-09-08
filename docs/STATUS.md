@@ -2409,3 +2409,178 @@ steering against a camera that no longer agrees with the ship.
   laid out for a camera that only ever looked that way. Flying north now turns
   the frame round to face an empty sea and an anti-solar sky, which is a view of
   this world nobody has ever had.
+
+## The rider moves — seventeen bones, and no animation in the file
+
+The skin was finished and the man was still a figurine. Everything under him
+already moved — the swell, the bank, the three metres of air off a roller — and
+he held one crouch through all of it, which made him *more* wrong the better the
+water got. He is rigged now, and what bends him is the physics that was already
+there.
+
+### The rest pose is the shipped model, to the vertex
+
+`tools/surfer.py` grew an armature and skin weights; it did not grow a pose.
+Every bone is two points that were already in the pose list the metaballs were
+laid along — `HIP_F` to `KNEE_F`, `CHEST` to `NECK` — so the rig is that list
+read a second time rather than an anatomy invented beside it. Deepening the
+crouch is still moving a point.
+
+Which means the rest pose is exactly the model that shipped before this. The
+runtime writes rotations *relative* to rest, so with no input every sum is zero
+and every vertex is where Blender put it. That is not a coincidence to be
+grateful for; it is the property that made this safe to do at all.
+
+Seventeen bones: hips, spine, chest, neck, head, three a side in the arms and
+three a side in the legs. No clavicle, no forearm twist, no toe. A figure whose
+whole screen presence is ninety pixels of back does not spend a joint on a
+collarbone.
+
+Weights are Blender's bone heat, and it worked first time because of the
+pipeline that was already in front of it — `weld` throws away every stray shell
+and Quadriflow re-lays the surface at one honest density, which is exactly the
+input the solver wants. It left zero vertices unweighted (`orphans` is the
+fallback for the day it does not, and it printed 0). The hair and the seven face
+parts are *not* given to the solver: a curl and an eyeball belong wholly to the
+head, and one group at weight 1 says so faster and better than an opinion about
+a sphere floating inside a skull. Rigged before the join, so joining merges the
+groups by name and what comes out is one skin with one set of weights.
+
+`python3 tools/surfer.py --render out.png --flex` is new: it renders a stress
+pose rather than the rest pose, because the rest pose is the one pose that
+cannot tell you whether the skinning works.
+
+### No clip, no mixer, no animation in the glb
+
+`export_animations` is still `False`. What the rider does is a sum of five
+numbers written by the flight controller every frame:
+
+| | |
+|---|---|
+| `speed` | 0 at rest, 1 at cruise |
+| `turn` | -1 to 1 — the heading's own rate, over `CARVE` = 2.2 rad/s |
+| `air` | 1 with the board clear of the water — `wet` inverted |
+| `slam` | the landing impact, spent linearly over about a third of a second |
+| `push` | the bounce spring along the heading: leaning back under power, forward under the brake |
+
+So he is *reacting* and not playing back. He leans into a carve because the
+heading is turning, folds on a landing because the hull just took an impact, and
+a wave nobody has ridden before is ridden correctly the first time. It is the
+same argument the shaders make about generic noise: the motion derives from what
+the thing does.
+
+They are smoothed once, where they are written, at `REACT` = 9 — about 110 ms,
+which is a person's reaction time. A body's lag is one lag and not seventeen.
+
+### Two mechanisms, because a foot is not a hand
+
+**The upper body is forward kinematics.** Hips, spine, chest, neck, head and both
+arms are told how far to rotate about board space's own axes, and their children
+come with them. That is right for a limb whose end is in the air: an arm
+counterweighting a turn has a swing, not a target.
+
+The shape of it is one idea — a person on a moving board is a stack of
+counter-rotations. The hips go with the turn, the chest goes less far, the head
+goes *further* and rolls back against the body to keep the eyes level, and the
+arms go the other way to pay for all of it. Rotate them equally and you get a
+plank on a turntable; the graduation is the humanity, which is why `spine`,
+`chest` and `head` each get their own fraction of `turn` rather than sharing one.
+
+The arms are one number, not two poses: a single roll drops the leading hand
+toward the water on the inside of a turn and lifts the trailing one. Only what
+is symmetrical carries a per-arm sign — both come up in the air, both drop on a
+landing. At a full carve the leading hand reaches y 0.17, which is the
+waterline: he touches the face of the wave, and that was not aimed for.
+
+**The legs are inverse kinematics,** because a foot is not in the air. `Ship.tsx`
+builds the board and `tools/surfer.py` puts the soles against it, so both ankles
+are *constants in board space* and the only honest way to move the hips is to
+solve the knees for them. Two bones to a fixed target has a closed form — one
+triangle, no iteration, no solver — and what it buys is that every drop of the
+hips, every lean over the rail and every landing compression comes out as a leg
+that bends rather than as a rider sliding through his own board.
+
+The knee's plane comes from the rest pose's own knee offset, which is what makes
+the solve exact at rest, and the reach is clamped a millimetre short of straight
+so a nearly-extended leg has a plane left to bend in. That millimetre is the
+difference between a knee and the classic pop.
+
+`prefers-reduced-motion` switches off the idle layer — breath, a weight shift, a
+drift of the head, the hands riding the air, four sines at rates that share no
+common multiple — and nothing else. Everything else is a response to something
+the visitor did, and stopping *those* would be a rider who ignores the sea.
+
+### What changed in `Ship.tsx`
+
+- `RIDE`, module-local beside `SHIP` and not exported, because only `Surfer`
+  reads it. Written for every craft rather than only the surfer: they are facts
+  about the hull, the branch would save four multiplies, and a value that only
+  updates while you are looking at it jumps the moment you switch craft.
+- `Rider` stopped flattening the model. Every landmark is flattened with its
+  transform baked in; this one cannot be, because the hierarchy *is* the
+  skeleton.
+- The outline is a second `SkinnedMesh` on the **same geometry and the same
+  skeleton** — one set of bone matrices, computed once, read by both draws. It
+  is added beside the rider so the two share a parent and a bind matrix, and
+  `renderOrder` keeps the ordering the two JSX meshes used to carry.
+- `OUTLINE.positionNode` did not change and did not need to.
+  `NodeMaterial.setupPosition` runs the skinning node *before* it reads
+  `positionNode`, and the skinning node assigns into `positionLocal` and
+  `normalLocal` themselves — so both names in that expression are already the
+  deformed values, and the outline follows every bone. Worth writing down
+  because it looks like luck and is not.
+- Both meshes are `frustumCulled = false`. A bounding sphere measured in the
+  rest pose is a sphere a posed rider can leave.
+
+### Cost
+
+- **`src/models/surfer.glb`: 264 kB gz -> 326 kB gz.** All of it is `JOINTS_0`
+  and `WEIGHTS_0` on 10,341 vertices. The joints are already `UNSIGNED_BYTE`;
+  the weights are `FLOAT` and Blender's exporter has no option to quantise them,
+  so halving that would mean a post-process or meshopt — **a dependency, which
+  is Seb's call and has not been taken.** Triangles, vertices and the whole
+  colour pipeline are unchanged.
+- **`src/Ship.tsx`: about 300 lines**, all of it below the material block.
+- **Runtime: seventeen bone quaternions and one 4x4 a frame**, and only while
+  the surfer is the craft being drawn. No allocation in the loop.
+
+### Verified
+
+- `npx tsc -b`, `npm run check`.
+- **The rig solves back to its own rest pose.** A dev-only assert in `rigOf`
+  runs the leg solver with the hips exactly where Blender left them and requires
+  every bone to come back to the rotation it already has. It is the closed
+  form's own identity, so a failure is a real one — a renamed chain, a bone that
+  stopped being connected to its parent, a scale in the export. Measured
+  0.019deg and 0.008deg against a 0.057deg threshold.
+- **The soles do not move.** Rendered six drive states in a headless Chromium in
+  the container — rest, cruise, both carves, airborne, landing — and measured
+  where each foot bone ended up in board space. 0.00 mm in every one.
+- **The skinning holds at the extremes.** `--flex` renders every joint bent well
+  past anything the runtime asks for: no shear at the shoulder, no collapse at
+  the waist, hair and face riding the head.
+- **The poses are the poses.** In the same headless pass, at a full carve the
+  leading hand goes from y 0.64 to 0.17 and the trailing one from 1.12 to 1.45,
+  and the head shifts 31 cm into the turn. The mirror carve mirrors. Airborne
+  lifts both hands; a landing drops the head 18 cm and puts it forward.
+
+### Not verified
+
+- **Nothing has run under WebGPU.** The container's pass is WebGL with a
+  stand-in material, which proves the bones and not the pipeline. The two things
+  it cannot see are whether the skinned outline really does track the pose in
+  TSL — the reasoning above says it must — and what skinning costs the frame
+  rate on real hardware.
+
+### Needs Seb
+
+- **The amplitudes.** Every number in `ride()` was chosen against a still frame
+  and the thing they have to survive is motion. The two most likely to be wrong:
+  the arm roll at `-0.30`, which is dramatic at a full carve and may be a
+  quarter too much, and `CARVE` = 2.2, which decides how much of the range a
+  normal turn actually uses. Both are one line.
+- **The sign of `push`.** Leaning back under power is the guess; it is one minus
+  sign and it is a screenshot question, not an arithmetic one.
+- **Whether the idle layer is felt or noticed.** It is meant to be the first and
+  never the second.
+- **The 62 kB gz**, and whether it is worth a quantisation dependency.
