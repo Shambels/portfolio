@@ -2,12 +2,12 @@ import { Suspense, useMemo, type ReactNode } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  cameraPosition, clamp, color, cos, float, floor, fract, length, max, mix, modelWorldMatrix,
+  clamp, color, cos, float, floor, fract, length, max, mix, modelWorldMatrix,
   mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, sin, smoothstep,
   step, vec2, vec3, vec4,
 } from 'three/tsl'
 import { LANDMARKS, type Landmark } from './world'
-import { CAM_OFFSET } from './Ship'
+import { SHIP_XZ } from './Ship'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -90,16 +90,19 @@ type Vec2 = THREE.Node<'vec2'>
 /**
  * How near the visitor is to a point: 1 inside `near`, 0 beyond `far`, in XZ.
  *
- * Measured from the ship and not from the camera. The camera sits a fixed
- * `CAM_OFFSET` behind the ship in *world* Z — it never turns — so the board, at
- * +Z, is closer to the camera than to the ship all the way in, and the easel, at
- * -Z, is further. A camera-distance shader would resolve the board from the
- * middle of the world and the easel only when sitting on top of it. From the
- * ship, "approach" means the same thing at all three: about 13 units out from
- * the centre of the world, about 4 parked at a waypoint.
+ * Measured from the ship and not from the camera. A camera-distance shader
+ * would resolve the board, which sits at +Z where the camera used to hang, from
+ * the middle of the world, and the easel at -Z only when sitting on top of it.
+ * From the ship, "approach" means the same thing at all three: about 13 units
+ * out from the centre of the world, about 4 parked at a waypoint.
+ *
+ * It reads `SHIP_XZ` rather than subtracting `CAM_OFFSET` from the camera,
+ * because since the camera swings round behind the heading that subtraction is
+ * a bearing and not a constant — and the hull's own position was always the
+ * thing being reconstructed.
  */
 const approach = (xz: Vec2, near: number, far: number) =>
-  oneMinus(smoothstep(near, far, length(xz.sub(cameraPosition.xz.sub(vec2(CAM_OFFSET.x, CAM_OFFSET.z))))))
+  oneMinus(smoothstep(near, far, length(xz.sub(SHIP_XZ))))
 
 // Where the easel's painting sits, in the field's own space: [x, y, driftX,
 // driftY, radius, colour]. The first three make the canvas on the easel, the

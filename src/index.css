@@ -742,8 +742,9 @@ canvas {
 
 /*
   24.85dvh, and it is arithmetic rather than taste. The camera sits 1.5 above
-  the hull and 7.2 behind it (`CAM_OFFSET` in `Ship.tsx`) and never turns, so it
-  looks down atan(1.5 / 7.2) = 11.77deg; a perspective frame is linear in
+  the hull and 7.2 behind it (`CAM_OFFSET` in `Ship.tsx`). It swings round the
+  hull to stay astern of the heading, which changes the bearing and not those
+  two numbers, so it looks down atan(1.5 / 7.2) = 11.77deg at every heading; a perspective frame is linear in
   tangents, so the horizon lands tan(11.77) / tan(22.5) = 0.503 of the
   half-height above centre, which is 24.85% of the way down. `AIM_DOWN` adds
   1.15 to the drop on a coarse pointer and the media query below is the same sum
@@ -1025,7 +1026,7 @@ canvas {
   position: absolute;
   right: 8vw;
   bottom: 2.4dvh;
-  width: min(25vw, 17.5rem, 29dvh);
+  width: min(29vw, 20rem, 33dvh);
   overflow: visible;
   color: #14180d;
   opacity: 0.88;
@@ -1321,8 +1322,8 @@ canvas {
   /* Bigger in `vw` for the same reason the crowns are, and further into the
      corner: a third of the width is not much beach to lie on. */
   .lounger {
-    width: 46vw;
-    right: 5vw;
+    width: 52vw;
+    right: 4vw;
     bottom: 1.6dvh;
   }
 

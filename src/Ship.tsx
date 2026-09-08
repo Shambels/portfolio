@@ -7,6 +7,7 @@ import {
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
+import { steer, swing } from './camera'
 import { SUN, swell } from './Scenery'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
@@ -219,6 +220,7 @@ if (import.meta.env.DEV) {
 }
 
 const CAM_LAG = 3.5
+
 /**
  * How far below the hull the camera aims, in world units. Zero everywhere the
  * panel is a column beside the world, and Phase 6's one change to the framing
@@ -398,6 +400,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // fixed camera was avoiding — steer left, the ship turns, the camera comes
     // round, and left is somewhere else — and `CAM_SWING_MAX` is what bounds
     // it. Held sideways it carves; tapped, it turns and settles.
+    //
     // The hull's own frame. Up here rather than beside the bounce spring it also
     // serves, because the sea below reads a wave's slope in it first.
     const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
@@ -406,13 +409,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // Last frame's bearing, deliberately: the camera has not turned yet this
     // frame, and steering against a camera that moves inside the same tick is
     // the loop above with the lag taken out of it.
-    const camSin = Math.sin(camYaw.current)
-    const camCos = Math.cos(camYaw.current)
-    _target.set(
-      input.move.y * camSin - input.move.x * camCos,
-      0,
-      input.move.y * camCos + input.move.x * camSin,
-    ).multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
+    steer(input.move.x, input.move.y, camYaw.current, _target)
+    _target.y = 0
+    _target.multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
     // A hull cannot climb a beach. Pushed back onto the mooring circle rather
@@ -612,21 +611,16 @@ const FOLLOW = 3.2
     // Round behind the heading, capped so the loop steering closes cannot spin.
     // On a snap it is simply astern already: a deep link arrives facing the
     // landmark it named, and the camera has no swing to make.
-    if (snap.current) camYaw.current = yaw.current
-    else {
-      const swing = Math.atan2(
-        Math.sin(yaw.current - camYaw.current),
-        Math.cos(yaw.current - camYaw.current),
-      ) * (1 - Math.exp(-CAM_SWING * dt))
-      camYaw.current += THREE.MathUtils.clamp(swing, -CAM_SWING_MAX * dt, CAM_SWING_MAX * dt)
-    }
+    camYaw.current = snap.current
+      ? yaw.current
+      : swing(camYaw.current, yaw.current, dt, CAM_SWING, CAM_SWING_MAX)
     // `CAM_OFFSET.z` is a distance astern of the hull's heading rather than a
     // world +z, and `.x` is zero — see the note on it. The height is the same
     // number it always was, so the pitch and the horizon do not move.
     _cam.set(
-      g.position.x - camSin * CAM_OFFSET.z,
+      g.position.x - Math.sin(camYaw.current) * CAM_OFFSET.z,
       g.position.y + CAM_OFFSET.y,
-      g.position.z - camCos * CAM_OFFSET.z,
+      g.position.z - Math.cos(camYaw.current) * CAM_OFFSET.z,
     )
     // Rise with the ship, or the ceiling puts it out of frame. `- hover` is the
     // hull's own altitude coming back out, and it is subtracted for every craft

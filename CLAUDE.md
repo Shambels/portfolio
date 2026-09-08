@@ -93,6 +93,12 @@ Breaking one is allowed. Doing it without saying so is not.
 - Ponytail: fewest files, shortest working diff, platform and stdlib before
   dependencies. No abstraction before its third use — except invariant 8.
 - New dependency needs a one-line justification and its gzipped cost.
+- The camera is a follow camera that turns: 7.2 astern of the *heading* and 1.5
+  up, swinging round the hull with a lagged, rate-capped chase, and `move` is
+  read against where it points. The bearing changes and the two distances do
+  not, so the pitch — and `--horizon`, `SKY_TOP` and the assert that ties them
+  together — is the same at every heading. `src/camera.ts` is the arithmetic
+  and `src/camera.check.ts` is what holds it.
 - No physics engine until the world needs slopes or stacking. The character
   hovers: XZ translation, sine bob, bank on turn, circle-vs-circle landmark
   collision — and, since the isle, one height query a frame under the saucer so
@@ -187,6 +193,9 @@ src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
 src/stick.ts            the thumb stick's arithmetic, and its check beside it
+src/camera.ts           the follow camera's two sums — a push read against the
+                        camera's bearing, and the capped swing that keeps it
+                        astern of the heading — with its check beside it
 src/world.ts            landmark layout + proximity, read from the content;
                         coastlines, moorings and lagoons, isles included
 docs/STATUS.md          what is built and what is not — update it with the work
@@ -215,12 +224,18 @@ in `src/world.ts`. A `waypoint` must be inside its own `radius`, or a deep link
 spawns the ship outside the landmark it just opened and the panel closes itself;
 `world.ts` asserts it in dev.
 
-Two more, asserted beside it, because the camera never yaws — it is always
-`CAM_OFFSET` from the ship, +z and above — so where a landmark lands on the
-screen is arithmetic on the waypoint: `pos[1] < waypoint[1]` puts it in front of
-the ship rather than between the ship and the camera, and `pos[0] > waypoint[0]`
-puts it in the right half of the frame, which is the half the reading panel does
-not cover. Both survive `offshore`, so they hold for the boat too.
+Two more, asserted beside it. They were written when the camera never yawed —
+it was always `CAM_OFFSET` from the ship, +z and above — so where a landmark
+landed on the screen was arithmetic on the waypoint: `pos[1] < waypoint[1]` put
+it in front of the ship rather than between the ship and the camera, and
+`pos[0] > waypoint[0]` put it in the right half of the frame, the half the
+reading panel does not cover. The camera stays astern of the heading now and a
+deep link parks the ship facing its landmark, so the first is true by
+construction and the second no longer picks the half of the frame. Both are kept
+because they still fix which side the world is approached from — the composition
+the sun was swung for — and both survive `offshore`, so they hold for the boat
+too. `docs/STATUS.md`, "The camera turns", has what that left for Seb to look
+at.
 
 ## Working together
 
