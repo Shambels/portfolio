@@ -1976,3 +1976,110 @@ third `<option>`.
   and *ZQSD ou flèches pour surfer · maj pour foncer* / *WASD of pijltjes om te
   surfen · shift om te knallen*. Unreviewed, and they join the eleven waiting.
 
+
+
+## The rider — the first character with a model file
+
+Seb pointed at a picture of a surfer and asked for that man on the board. The
+procedural rider could not become him: it was eleven tapered cylinders and eight
+spheres, and what the picture has is a face, a beard, curls, and a wetsuit with
+neon ribbons running across black. So `tools/surfer.py` exists, and it is the
+first time anything in this world that moves has come out of a file.
+
+### The reason CLAUDE.md asks for
+
+Every other craft here is a **hull** — a solid of revolution with things bolted
+to it. Code is good at those: the saucer is a lathe, the boat is half a squashed
+sphere with six sticks on it, and the board still is. A **person** is one skin
+over a skeleton, and the seam where a cylinder arm met a sphere shoulder was
+never going to close no matter how the arithmetic was arranged.
+
+So the skin is a **metaball field**: capsules and ellipsoids laid along the
+pose, converted to a mesh, decimated to 20k triangles. Joints are blends. The
+pose is still one list of points at the top of the file — the same contract the
+procedural rider had, so deepening the crouch is moving points, not editing
+thirty elements.
+
+Two things came out of building it that are not obvious and are written down in
+the file so nobody measures them twice:
+
+- A metaball's `radius` is where its **influence** dies, not where the surface
+  is. At the default stiffness of 2 a lone ball's surface sits at **0.574** of
+  it. Everything in the script is written in real centimetres and converted.
+- A **capsule**'s `size_x` is a length in object units; an **ellipsoid**'s
+  `size_x/y/z` are *multipliers on its radius*. The two helpers convert
+  differently for that reason, and both take real half-extents.
+
+### Colour is in the file, and it is the second half of the reason
+
+The landmark pipeline is geometry only: a mesh's name prefix picks a TSL
+material. That has no way to say "magenta ribbon fading across a black panel"
+without a texture or twenty meshes. The rider bakes colour into **COLOR_0**
+instead — one attribute, one `vertexColors` material in `Ship.tsx`, linear in
+the file and linear in the shader (glTF says COLOR_0 is linear and three uses it
+as-is, so the sRGB conversion happens once, in Blender).
+
+The suit is one scalar field sampled per vertex, and the bands are **ramps
+between stops rather than thresholds**: a hard threshold on a mesh this coarse
+gives a zigzag edge a centimetre deep, because the only place colour can change
+is at a vertex. Ramps put two or three vertices in each transition and read as
+airbrushed panels, which is what the reference has anyway.
+
+### The face is geometry, because paint could not hold it
+
+The first pass painted eyes and a smile as vertex colour and got two white stars
+and a smear — the skin around an eye is about a centimetre a vertex. Eyes,
+irises, brows, nose and a smile with teeth in it are now five small ellipsoids
+each **aimed** rather than positioned: a ray from the head centre along the
+feature's direction, and the feature sits where it comes out of the skin. That
+was not a nicety — guessing the depth put the smile *inside* the jaw, because a
+head with a jaw hung off the front of it is not a sphere and its surface is not
+at a radius you can write down.
+
+Curls are a second metaball field, so they pile on each other without inflating
+the head to meet them. None of them crosses the face; the first pass grew a
+fringe over both eyes.
+
+### What changed in `Ship.tsx`
+
+- `Surfer` keeps the board, the stringer, the fin and the wake. It gains a
+  **traction pad** — a grid laid on `deckY`, not a slab on the deck, because the
+  deck curves both ways and a flat box either floats at the middle or sinks at
+  the corners — and the board is now lime with a magenta stringer, the
+  reference's colours.
+- `deckY(x, z)` is new and is the board's own three steps in order: plan pinch,
+  ellipsoid, rocker. `tools/surfer.py` has the same function and uses it to put
+  the soles on the deck and to draw the board in its previews. **Change one and
+  change the other.**
+- `Bone`, `Joint` and the twenty-point pose list are gone. So are the suit, skin
+  and hair materials.
+- `<Rider />` loads `src/models/surfer.glb` through `useGLTF` and flattens it the
+  way `Landmarks.tsx` flattens a landmark. It is wrapped in `Suspense` on its
+  own, not with the craft: the board should be on the water the frame the surfer
+  is chosen, whether or not 420 kB of rider has landed yet.
+
+### Not verified
+
+- **Nothing has been seen in the browser.** The sandbox this was built in is
+  Linux/arm64 and `node_modules` here is a macOS install, so `oxlint` and
+  `react-router build` cannot run — both die on a native binding, not on
+  anything in the source. `tsc -b` passes. Running `npm run lint && npm run
+  build` on the Mac is the first thing to do.
+- **The colour under the world's own light.** The previews use a hard key from
+  the front; the scene's sun comes from behind and to the right of the rider,
+  which is exactly the half a visitor astern is looking at.
+- **The tri count against the frame budget.** 19k triangles, one draw call, one
+  material — in the same order as `mine.glb` at 381 kB, but that one does not
+  move.
+
+### Needs Seb
+
+- **Whether the face is worth it at all.** The camera sits astern and never
+  yaws, so a visitor sees the back of this man's head for the whole session. The
+  face is about 900 triangles and it exists for the model, the previews, and any
+  future shot that is not from behind.
+- **Whether the crouch is deep enough.** It is deeper than the procedural
+  rider's and it was judged against a board drawn in Blender, not against a
+  board moving on real water.
+- **The board's new colours against this sea.** Lime and magenta were read off
+  the reference, not chosen for a golden-hour sun on blue water.
