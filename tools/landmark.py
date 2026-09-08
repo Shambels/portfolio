@@ -34,7 +34,9 @@ from mathutils import Matrix, Quaternion, Vector
 
 # The material keys `Landmarks.tsx` knows. A mesh whose name starts with
 # anything else is a black hole in the world, so it is caught here.
-KEYS = ("rock", "frame", "panel", "dark", "board")
+# `bark`, `frond` and `bush` are the isle's, shaded by `Isle.tsx` rather than by
+# `Landmarks.tsx` — the same convention, a second file reading it.
+KEYS = ("rock", "frame", "panel", "dark", "board", "bark", "frond", "bush")
 
 
 def T(x: float, y: float, z: float) -> Vector:
