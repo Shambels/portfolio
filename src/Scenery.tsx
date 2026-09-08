@@ -44,14 +44,32 @@ import type { Sea } from './WorldGate'
 // left of golden hour, and the fill was cut to buy the contrast back.
 const SUN = new THREE.Vector3(-0.66, 0.27, 0.7).normalize()
 
-const ZENITH = vec3(0.05, 0.13, 0.32)
-const HAZE_COOL = vec3(0.25, 0.35, 0.48)
-const HAZE_WARM = vec3(1.0, 0.72, 0.42)
-const SUN_TINT = vec3(1.0, 0.85, 0.62)
-const CLOUD_LIT = vec3(1.0, 0.86, 0.72)
-const CLOUD_DARK = vec3(0.36, 0.34, 0.44)
-const DEEP = vec3(0.012, 0.055, 0.085)
-const SHALLOW = vec3(0.03, 0.16, 0.19)
+// The palette, and it is the same one twice: these are the twelve stops of
+// `.landing, .stage` in `index.css` in linear space, so the gradient the
+// visitor sees before the canvas has a frame is the frame's own colour. Move
+// one and move the other — the whole point of the pair is that the button press
+// changes nothing. sRGB, for reading: #1a68a8 zenith, #6aa8bd and #ffb35c the
+// two ends of the horizon haze, #ffcf8c the sun, #ffe0cc and #9b7386 the lit
+// and shaded sides of a cloud, #06333d and #14b2b4 the deep water and the
+// turquoise on a crest.
+//
+// HAZE_COOL is the one stop that is not shared with the landing page, and the
+// sun swing is why: the sun sits behind the camera, so nearly every frame is
+// the anti-solar half of the sky and this is most of what the visitor sees.
+// The landing page's waterline is gold because there the glow is in front of
+// us. Carry that gold round to the back of the sky and the world goes flat and
+// foggy — so the cool end stays a saturated blue-cyan and the frame still runs
+// warm at the left edge to cool at the right.
+const ZENITH = vec3(0.0103, 0.1384, 0.3916)
+const HAZE_COOL = vec3(0.1441, 0.3916, 0.5089)
+const HAZE_WARM = vec3(1.0, 0.4508, 0.107)
+const SUN_TINT = vec3(1.0, 0.624, 0.2623)
+const CLOUD_LIT = vec3(1.0, 0.7454, 0.6038)
+// Pink, not grey. A cumulus at this sun angle is lit from underneath, and the
+// shaded side of one takes the horizon's warmth rather than the zenith's blue.
+const CLOUD_DARK = vec3(0.3278, 0.1714, 0.2384)
+const DEEP = vec3(0.0018, 0.0331, 0.0467)
+const SHALLOW = vec3(0.007, 0.4452, 0.4564)
 // The same white the spray is made of, so a whitecap and the foam the ship
 // tears off the same water are not two different whites.
 const FOAM = vec3(0.86, 0.93, 0.97)
