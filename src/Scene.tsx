@@ -3,6 +3,7 @@ import { Canvas, extend } from '@react-three/fiber'
 import { Ship } from './Ship'
 import { Scenery } from './Scenery'
 import { Islands } from './Islands'
+import { Isle } from './Isle'
 import { Landmarks } from './Landmarks'
 import { Particles } from './Particles'
 import { Sound } from './Sound'
@@ -62,6 +63,9 @@ export default function Scene({
       <color attach="background" args={['#106e80']} />
       <Scenery sea={sea} />
       <Islands />
+      {/* The isle carries no project, so nothing here is passed to it and
+          nothing is read back: it is ground, trees and a coastline. */}
+      <Isle />
       <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
       {/* Reads the ship's position, so it is mounted after it. */}
       <Particles />

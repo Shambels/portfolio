@@ -8,7 +8,7 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
 import { SUN, swell } from './Scenery'
-import { SPLASH, VIEW, landmarkAt, landmarkOf, offshore } from './world'
+import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
 
@@ -270,9 +270,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const near = useRef<string | null>(null)
   const alt = useRef(hover)
   const altVel = useRef(0)
-  // The boat's own vertical state. `hull` is a world Y, not an offset: it is
-  // the one value the buoyancy spring and gravity both write, and the one the
-  // camera follows.
+  // What the craft is standing on, as a world Y rather than an offset: the one
+  // value the camera follows for every craft. For a hull it is the buoyancy
+  // spring's, written by it and by gravity; for the saucer it is the ground
+  // under it, lagged by `FOLLOW`. One value and not two because it is the same
+  // question — how high is the thing the craft is riding — and the camera
+  // should not have to ask it twice.
   const hull = useRef(0)
   const hullVel = useRef(0)
   const lastSurface = useRef(0)
@@ -371,7 +374,17 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     }
     g.rotation.y = yaw.current
 
-    // Space climbs to hover + LIFT and holds there; releasing sinks back. One
+    /**
+ * How fast the saucer's altitude answers the ground under it. Ten metres of
+ * ridge arriving at cruise is a step as far as a hovercraft is concerned, and
+ * one that answered a step instantly would be a cut. At 3.2 the climb lags the
+ * beach by about a third of a second, which reads as a machine holding its
+ * height — and it is a lag and not a spring, because the one thing worse than
+ * flying through a hill is bouncing over it.
+ */
+const FOLLOW = 3.2
+
+// Space climbs to hover + LIFT and holds there; releasing sinks back. One
     // damped value, so there is no jump arc to time and nothing to land on.
     // The boat's is pinned to sea level: it floats, so there is nowhere to climb
     // to and nothing for Space to do. `WorldGate`'s hint stops naming the key
@@ -399,11 +412,32 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // on a slideshow it should still be gone in a second.
     if (SPLASH.age < 9) SPLASH.age += Math.min(delta, 0.25)
 
-    // Everything below is zero for the saucer, which is over the water, not in it.
+    // What the craft is riding: the sea for anything that floats, and for the
+    // saucer the land, which until the isle arrived was always sea level.
+    //
+    // `ground` is the isle's own height function — the same one its mesh is
+    // built from (`src/isles.ts`), so the saucer clears the geometry the visitor
+    // can see rather than a second island that nearly matches. Measured *above
+    // the plateau the three project islands sit on*, not above the water: the
+    // saucer has always flown `hover` over the sea and `hover - GROUND` over a
+    // landmark's flat top, and subtracting `GROUND` here is what keeps both of
+    // those frames exactly as they shipped. Only ground higher than a plateau
+    // moves it, and the only ground higher than a plateau is the ridge.
     let ride = 0
     let roll = 0
     let heel = 0
     let vertAccel = (climbVel - altVel.current) / dt
+    if (!floats) {
+      const land = Math.max(0, ground(g.position.x, g.position.z) - GROUND)
+      // A deep link, or the first frame: arrive at that height rather than
+      // climbing to it from the sea, exactly as a hull arrives floating.
+      if (reset.current) {
+        reset.current = false
+        hull.current = land
+      }
+      hull.current += (land - hull.current) * (REDUCED ? 1 : 1 - Math.exp(-FOLLOW * dt))
+      ride = hull.current
+    }
     if (floats) {
       const surface = s.y
       if (reset.current) {
@@ -529,7 +563,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // the horizon a tenth of the way down the frame instead of a quarter. The
     // craft is remembered between visits, so that was a different world every
     // time somebody who had once picked the boat came back to the landing page.
-    _cam.y += (floats ? camY.current : alt.current) - hover
+    // `alt` is the hover and the climb, `camY` the lagged copy of whatever the
+    // craft is riding — the sea for a hull, the ground for the saucer. A hull
+    // holds `alt` at zero and the saucer held `camY` at zero until the isle
+    // gave it a hill to climb, so this sum is what both of them always were.
+    _cam.y += alt.current + camY.current - hover
     if (snap.current) {
       snap.current = false
       camY.current = aimY.current = ride
@@ -537,7 +575,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     } else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
     state.camera.lookAt(
       g.position.x,
-      g.position.y + (floats ? aimY.current : alt.current) - AIM_DOWN,
+      g.position.y + alt.current + aimY.current - AIM_DOWN,
       g.position.z,
     )
   })

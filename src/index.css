@@ -1003,6 +1003,34 @@ canvas {
     radial-gradient(90% 150% at 50% 118%, #f2e2cd5e, #f2e2cd00 62%);
 }
 
+/*
+  The lounger and the board. The layer is the full width of the window and a
+  fixed 46dvh tall for one reason: a box whose edges are known in `dvh` has a
+  writable transform-origin, and the origin it needs is the sand's — see the
+  flight. Everything about where the figure actually sits is on `.lounger`
+  inside it, which is anchored bottom-right and so keeps its feet on the sand
+  at every size.
+*/
+.figures {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46dvh;
+}
+
+/* The colour is the palms' — the same distance from the sun, so the same
+   nothing comes back off it. Not quite opaque: a shadow on sand is still sand,
+   and 0.88 is enough sand through it to say so without softening the edge. */
+.lounger {
+  position: absolute;
+  right: 7vw;
+  bottom: 2.4dvh;
+  width: min(26vw, 18rem, 30dvh);
+  overflow: visible;
+  color: #14180d;
+  opacity: 0.88;
+}
+
 /* Not a mood: it is what stops the four corners competing with the headline.
    Teal rather than the brown it used to be — a warm vignette over this water
    greys it, which is the one thing the new palette cannot afford. */
@@ -1192,6 +1220,9 @@ canvas {
 .wash {
   transform-origin: 58vw calc(var(--horizon) - 84.4dvh);
 }
+.figures {
+  transform-origin: 50vw calc(var(--horizon) - 54dvh);
+}
 .palm-near {
   transform-origin: 55vw calc(var(--horizon) + 7dvh);
 }
@@ -1237,6 +1268,12 @@ canvas {
   --k: 2.7;
 }
 
+/* The beach's own rate, to the digit. The figure is standing on that sand and
+   nothing else, so any other number slides it off the beach on the way past. */
+.shore.leaving .figures {
+  --k: 2.7;
+}
+
 .shore.leaving .vignette {
   --k: 1.1;
   opacity: 0.75;
@@ -1279,6 +1316,14 @@ canvas {
   .palm-far.r {
     right: 10vw;
     transform-origin: calc(100% - 40vw) var(--horizon);
+  }
+
+  /* Bigger in `vw` for the same reason the crowns are, and further into the
+     corner: a third of the width is not much beach to lie on. */
+  .lounger {
+    width: 46vw;
+    right: 3vw;
+    bottom: 1.6dvh;
   }
 
   /* 15vw is 58px on a phone, and streaks 7px apart inside 58px are a barcode

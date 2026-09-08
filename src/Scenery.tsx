@@ -6,7 +6,7 @@ import {
   normalize, oneMinus, positionLocal, positionWorld, pow, reflect, sin, smoothstep, time,
   uniform, vec2, vec3,
 } from 'three/tsl'
-import { SHOAL, SHOALS, SPLASH, shoal } from './world'
+import { LAGOONS, SHOAL, SHOALS, SPLASH, shoal } from './world'
 import type { Sea } from './WorldGate'
 
 /**
@@ -86,6 +86,14 @@ const SHALLOW = vec3(0.007, 0.4452, 0.4564)
 // The same white the spray is made of, so a whitecap and the foam the ship
 // tears off the same water are not two different whites.
 const FOAM = vec3(0.86, 0.93, 0.97)
+// And the shallows. Water over sand is not water over four hundred metres of
+// nothing: it is the sand, lit through a metre of sea. The isle is 70 m across
+// with a shelf all the way round it, which is what a lagoon is and what the
+// turquoise in every photograph of one actually is — so it is worth two
+// colours and a distance, and the three project islands get the same fringe at
+// their own scale for the same reason.
+const LAGOON = vec3(0.09, 0.68, 0.62)
+const SHORE_WATER = vec3(0.34, 0.86, 0.76)
 
 // Invariant 6: nothing drifts, ripples or sparkles when motion is not wanted.
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -384,6 +392,27 @@ function shoalNode(p: Vec2) {
 }
 
 /**
+ * How shallow the water is at a point: 1 on a shoreline, 0 in open water.
+ *
+ * Measured from each island's own coastline (`LAGOONS`, not the wider circles
+ * the swell is sheltered inside) and ramped out by a third of its radius, so
+ * the turquoise starts on the sand rather than offshore. Proportional and not a
+ * fixed width, or a 9 m rock would wear the same skirt as a 70 m island and the
+ * world would lose its sense of scale in the one place it is trying to show it.
+ *
+ * `max` and not a product: two islands close enough to share a lagoon share
+ * one, they do not make it twice as shallow.
+ */
+function shallows(p: Vec2) {
+  let s: Float = float(0)
+  for (const c of LAGOONS) {
+    const d = length(vec2(p.x.sub(c.x), p.y.sub(c.z)))
+    s = max(s, oneMinus(smoothstep(c.r, c.r + c.r * 0.34, d)))
+  }
+  return s
+}
+
+/**
  * The three trains at a world XZ: height above the base sea, gradient, and how
  * much of a full crest that adds up to. Called from the vertex stage to
  * displace the water and from the fragment stage to shade it — one function
@@ -531,7 +560,11 @@ function useMaterials() {
     // Deep in the troughs, lighter on the crests. The normal's own tilt says
     // that for the chop; a roller's face is steep the whole way up, so its crest
     // height says it there instead, or a swell shades to one dark slab.
-    const body = mix(DEEP, SHALLOW, max(clamp(n.y.sub(0.965).mul(14), 0, 1), crest.mul(0.7)))
+    const open = mix(DEEP, SHALLOW, max(clamp(n.y.sub(0.965).mul(14), 0, 1), crest.mul(0.7)))
+    // Over a shelf the water's own colour wins over the trough-and-crest term
+    // entirely: a lagoon is turquoise in the troughs too.
+    const shal = shallows(positionWorld.xz)
+    const body = mix(open, mix(LAGOON, SHORE_WATER, smoothstep(0.55, 1, shal)), smoothstep(0.0, 0.85, shal))
     const glitter = pow(clamp(dot(bounce, sunDir), 0, 1), 420).mul(2.2)
 
     // Whitecaps, on the top of a roller and nowhere else — broken up by a noise
@@ -555,7 +588,15 @@ function useMaterials() {
     const flash = smoothstep(SPLASH_FLASH, 0, hit)
       .mul(oneMinus(clamp(uSplashAge.div(SPLASH_FLASH_LIFE), 0, 1)))
       .mul(uSplash.z).mul(torn)
-    const foam = max(caps, max(ring, flash))
+    // And the surf on the beach: the last few metres of every shore, breathing
+    // in and out on the same clock the chop runs on and torn up by the same
+    // noise as the whitecaps, so it is water breaking rather than a ring drawn
+    // round an island. It is in both sea states — a calm sea still breaks on
+    // sand — which is why it is not multiplied by `uRoll`.
+    const beat = sin(T.mul(0.7).add(positionWorld.x.mul(0.09)).add(positionWorld.z.mul(0.07)))
+    const surf = smoothstep(0.86, 1, shal.add(beat.mul(0.05)))
+      .mul(smoothstep(-0.3, 0.45, breakup))
+    const foam = max(max(caps, surf), max(ring, flash))
 
     // Fade into the horizon's own colour, or the plane ends in a visible edge.
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)
