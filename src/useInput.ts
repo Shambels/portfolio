@@ -11,8 +11,9 @@ import { stick } from './stick'
  */
 export type Input = {
   move: Vector2 // x = strafe, y = forward. Length <= 1.
-  look: Vector2 // ponytail: still unwired — the camera sits behind the ship, so
-  //             world-relative steering reads the same, on a thumb as on a key.
+  look: Vector2 // ponytail: still unwired. The camera comes round behind the
+  //             heading on its own, so nothing has asked to aim it by hand —
+  //             `move` is read against where it points, key or thumb alike.
   ascend: boolean // held: climb to the ceiling. Released: sink back to hover.
   boost: boolean // held: fly faster.
   interact: boolean
