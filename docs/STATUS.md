@@ -2083,3 +2083,84 @@ fringe over both eyes.
   board moving on real water.
 - **The board's new colours against this sea.** Lime and magenta were read off
   the reference, not chosen for a golden-hour sun on blue water.
+
+## The sky and the sea — the reference palette, and the cut into the world
+
+Two passes. The first repainted the landing page from a reference frame Seb
+supplied — a tropical evening, saturated — and carried the world's shader
+constants with it. The second brought the world's *sky* to the landing page's
+and took the step out of the cut between them.
+
+### The palette
+
+`--sky` and `--water` in `index.css` and the eight constants at the top of
+`Scenery.tsx` are the same three colours: **#1a68a8** overhead, a pale band
+under it, **#f9c884** on the waterline, over water that runs turquoise at the
+horizon. The shader's copies are those sRGB values pushed back through the
+ACES curve, which is why `HAZE_WARM` is 2.77 in red — gold that survives tone
+mapping has to go in hotter than it comes out.
+
+The sun did not move. It is still low and over the visitor's left shoulder, so
+the world's frame is still the anti-solar half of the sky, and the way the gold
+got round to it is `WARM_FLOOR = 0.92`: the horizon is warm everywhere and a
+hair warmer to port, rather than warm on one side and a fog bank on the other.
+`sky()` also stopped spending half its vertical travel above the top edge of the
+frame — `SKY_TOP` is the sine of the highest elevation the camera can see, 10.73
+degrees, and the whole gradient is compressed into it. That is what took the
+world from pale to the landing page's blue.
+
+### What it cost elsewhere
+
+- The world's water is much brighter than it was, and the HUD's pale cyan read
+  1.2:1 on it. The readout and the footer under it turn over to ink (`#04343a`),
+  the same move `.landing .foot` makes on the sand.
+- The hero: worst case across the block, measured off a rendered frame, is
+  **3.4:1 for the display size and 4.6:1 for the lede** — above AA for each, and
+  better than the 4.2:1 the lede had before. The `.hero` text-shadow is two
+  shadows now, for the glint crossing that band.
+
+### The cut
+
+Three things were moving that should not have been.
+
+1. **The camera swooped in.** `snap` was only set by the deep-link effect, so
+   entering `/{lang}/world` with no slug left the camera wherever `Scene` had
+   parked it — off to one side — chasing its mark with a lag of 3.5 for about a
+   second. It now starts true, and `Scene`'s initial camera is the settled
+   position, so frame one is the frame.
+2. **The horizon sat at a different height per craft.** `_cam.y` subtracted
+   `hover` for the saucer and not for anything that floats, so the camera was
+   1.5 over a saucer and 2.4 over a boat — 11.8 degrees of pitch against 18.4,
+   and the horizon a tenth of the way down the frame instead of a quarter. The
+   craft is remembered between visits, so anyone who had once picked the boat
+   got a different world every time. Subtracted for all three now. **This lowers
+   the boat's and the surfer's camera by 0.9 and is a framing change; it wants
+   Seb's eye on real water, particularly with the agitated sea's rollers.**
+3. **`--horizon` was a round 25dvh.** It is `atan(1.5 / 7.2)` against the 45
+   degree field of view — 24.85% — and the media query for `AIM_DOWN` is the
+   same sum, 5.57%. A dev assert beside `CAM_OFFSET` recomputes it and shouts if
+   the offset moves, since the other two copies live in another file and in CSS.
+
+The water layer is also drawn 1px taller than its gap so it runs up behind the
+sky. `--horizon` lands mid-pixel at most window heights, and without the overlap
+that fractional row is the sky at partial alpha over `--deep` — a dark hairline
+along the horizon.
+
+Measured on a headless render of the last frame of the flight against the first
+frame of the world: **identical from the waterline down to 40% of the water**,
+and within about 20 levels per channel in the sky above it.
+
+### Not verified
+
+- **Nothing has been seen in the browser**, and the world's frame has never been
+  rendered — the palette was fitted against an offline model of `sky()`, the
+  water and the ACES curve, validated by reproducing the gradient the original
+  was sampled from. It is a model, not a frame. `npm run lint && npm run build`
+  on the Mac is still the first thing to do.
+- **The foam and the spray against the brighter sea.** Both are near-white on
+  what is now bright turquoise rather than dark blue-grey.
+- **The bottom edge of the frame at the cut.** The two seas part below 40% by
+  design — the landing page's darkens for the headline, the world's opens out —
+  so the very bottom of the frame still steps, behind a vignette that is three
+  quarters closed and a shore flying past. Closing it means either a lighter
+  landing page or a darker world.
