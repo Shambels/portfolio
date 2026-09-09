@@ -293,7 +293,14 @@ a visitor can miss, which is why `?debug` names the backend.
 The surfer comes ashore. Riding onto the isle's beach brings the board up under
 his arm and puts him on foot; walking back into the sea puts him on it again.
 Space is a jump for him and for nothing else, on the water and on the sand
-alike. One ramped number, `RIDE.land`, drives the craft, the board and the man,
+alike. He walks or runs, and which one is the **duty factor** — the fraction of
+the cycle a foot is on the ground, 0.46 walking and 0.24 running. Step length is
+`stride / duty`, so a run covers more ground by spending *less time down* rather
+than by swinging further or cycling faster: the running step is 1.71 units where
+the walking one is 0.85, and the legs go round slower doing it. The rate is not
+chosen anywhere — it is whatever makes the planted foot travel backward at
+exactly the speed the body travels forward, which is what makes sliding
+impossible instead of merely capped. One ramped number, `RIDE.land`, drives the craft, the board and the man,
 and it runs both ways — putting the board down is picking it up backwards. It found two things while it was in
 there. The first: **the isle's summit was not a point.** Its gully term is
 angular and was at full strength at the axis, where `theta` flips by pi, so the

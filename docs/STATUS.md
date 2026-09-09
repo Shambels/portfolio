@@ -3232,3 +3232,116 @@ on its outer rail, re-measured on the rebuilt hierarchy.
 - **Whether bone heat holding is worth anything.** The weights are back to what
   `tools/surfer.py` asks for first, and the note under "The rider moves" about
   the diffuse fallback is now describing a geometry that no longer exists.
+
+## The gait — running is less time on the ground, not faster legs
+
+The walk had a cadence and a stride cap, and past walking speed everything went
+into the *rate*: at boost the legs span at five steps a second, the stride stayed
+at the 0.38 the reach allowed, and **the feet slid a third of the way** — a man
+running on a treadmill somebody else was pulling.
+
+The fix is not a bigger number. It is the **duty factor** — the fraction of the
+cycle a foot spends on the ground — and it replaces the cadence entirely.
+
+The body advances at the same speed the whole time, so a foot that is down for
+less of the cycle has to cover more ground between one footfall and the next.
+**Step length is `stride / duty`.** Lowering duty lengthens the step without
+moving a leg any further, which is not a trick: it is what running *is*. A walk
+keeps a foot down more than half the time — both are down through the overlap. A
+run keeps one down less than half, and the gap where neither is, is flight.
+
+So `WALK_DUTY` is 0.46 and `RUN_DUTY` is 0.24, and the stride barely moves
+between them: 0.39 to 0.41. That is the counterintuitive part and it is correct —
+**a runner's legs do not swing much further than a walker's.** What changes is
+how long they stay down.
+
+### The rate is no longer chosen
+
+It falls out of the one thing that has to be true:
+
+> the planted foot travels backward at exactly the speed the body travels forward
+
+which pins the cycle at `pace · duty / (2 · stride)`. Sliding is now impossible
+by construction rather than tolerable under a cap; `CYCLE_MAX` is a guard on a
+division and not a design. The foot trajectory changed with it — the stance is
+*linear* now where it was half a cosine, because a cosine's velocity varies
+across the stance and a planted foot's cannot.
+
+| | step | steps/s | feet |
+|---|---|---|---|
+| walk, was | 0.76 | 3.16 | planted |
+| walk, now | 0.85 | 3.18 | planted |
+| **run, was** | **0.76** | **5.00** | **sliding 34%** |
+| **run, now** | **1.71** | **3.79** | **planted** |
+
+A running step is **125% longer** and the legs go round **24% slower** than they
+used to at the same speed. `WALK_SPEED` went 0.32 → 0.36 on top of that, so he
+also covers 13% more ground: 70 m of island is 26 s walking and 11 s running.
+
+### The bob had to be re-phased, and that is the subtle part
+
+The pelvis oscillation used to be a plain twice-a-stride cosine, low at double
+support and high at mid-stance. That is right when duty is a half and **wrong the
+moment it is not**: at a run's 0.24 the cycle's high point lands *inside* the
+stance, near the back of it, and puts the hips up exactly where the leg is most
+stretched. The first version of this gait measured **114%** of leg length there,
+which is a solver clamp, which is a sliding foot.
+
+It is driven by the stance now, not by the cycle: **the pelvis vaults over
+whichever leg is carrying him.** Nothing at footfall and at toe-off, everything
+over the middle of the step, nothing through flight — `1.5·max(vault) − 0.5` of
+`BOB`. That is what a hip actually does, and it happens to be exactly where the
+reach needs it: the leg is longest when the foot is furthest out, and that is
+when the hips are lowest.
+
+`STAND` came down 0.16 → 0.12 to pay for it, because the vault now carries the
+height: the hips run from +0.06 at footfall to +0.20 over the stance.
+
+`BOB` is 6.5 cm walking and 8 running — a couple of centimetres more than a real
+person, and **a fifth of what the legs would happily spend.** The search said 14
+cm buys a 0.49 stride; it was capped by taste, because 21 cm of bounce on a
+1.5-unit figure is a cartoon.
+
+### The arms
+
+The free arm's swing grows 0.50 → 0.90 with the gait and its elbow folds another
+0.55 — measured on the rebuilt hierarchy, its hand travels **0.54 units fore and
+aft at a walk and 0.93 at a run**, and rises from hip height to mid-torso. A
+runner's bent elbow is the clearest single cue for the gait from directly behind,
+which is the only angle this world ever has on him. The other arm is holding a
+board and keeps a seventh of the swing, which is a body absorbing the stride
+rather than an arm doing nothing. The forward lean goes 0.10 → 0.36 rad with it.
+
+### Verified
+
+- `npx tsc -b`, `npm run check` — all five.
+- **Nothing clamps, swept whole**: peak leg extension 94% walking and 95%
+  running, mid-stance 86–88%, over the full cycle at five speeds from a creep to
+  full boost, with the terrain allowance on.
+- **The dev assert in `rigOf` now sweeps the run** rather than a worst case
+  picked by hand — 92.9% and 95.2% against its 97% threshold. It had to change:
+  with duty under a half the reach and the bob no longer peak together, and
+  assuming they do is exactly how the first attempt got 114%.
+- **Both gaits were rendered.** The legs are Blender's own IK on the shipped
+  trajectory, so the stride, the lift and the vault in those frames are the ones
+  in the code. The arms in them are *not* — the render drives local Euler where
+  `bend()` works in board space — so the arm swing above was measured on the
+  bone hierarchy instead, not judged from the picture.
+
+### Not verified
+
+- **Nothing has run in the browser**, still.
+- **The walk-to-run transition.** `gait` ramps between 1.15× and 2.1× cruise, and
+  the cadence peaks at 4.0/s in the middle of that band before settling back to
+  3.79 at full run. A real gait transition does something like that, but whether
+  this one reads as a change of gait or as a hitch is a thing only motion says.
+
+### Needs Seb
+
+- **`RUN_DUTY` = 0.24.** It is the single number that sets how far a running step
+  goes. A sprinter's is about 0.22 and a jogger's 0.35, so this is a fast run;
+  lower it and the steps get longer and the flight gaps get longer with them.
+- **`BOB` against the stride.** The one place taste was allowed to overrule the
+  search, and the trade is legible: more bounce is a longer step.
+- **The band `gait` ramps over**, and whether the mid-band cadence bump reads.
+- **`WALK_SPEED` = 0.36**, again — 26 s to cross the island on foot, 11 running.

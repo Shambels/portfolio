@@ -45,7 +45,7 @@ export const BEACH = 1.25
  * step is what makes it cover ground rather than the feet going round faster.
  * 70 m of island is half a minute, and boost is a run.
  */
-export const WALK_SPEED = 0.32
+export const WALK_SPEED = 0.36
 
 /**
  * How fast the sand under his feet *drops* away, and there is deliberately no

@@ -206,31 +206,52 @@ const JUMP = 5.2
  * high again, which is right: a board pops.
  */
 const HOP_G = 14
-/**
- * Steps a second, and the stride, and both of them are the model's numbers
- * rather than anybody's taste — they are just no longer the numbers of a defect.
+/* ------------------------------------------------------------------ the gait
  *
- * The rider used to have **two legs of different lengths** — 0.785 of reach at
- * the front and 0.511 at the back — which is why the first walk took a 30 cm
- * step in a crouch: the back leg had 13% of its reach left and every centimetre
- * the hips came down was reach it could spend going forward. `tools/surfer.py`
- * has the whole finding. Both legs are 0.68 now, so the walk is sized by what a
- * walk is instead: hips up, a 76 cm step, and both legs cycling 88% to 96% of
- * their reach, which is a leg. `STAND` is the other half of it.
+ * **The duty factor is where the distance comes from, and it is the whole idea
+ * here.** `duty` is the fraction of the cycle a foot spends on the ground. The
+ * body advances at the same speed the whole time, so a foot that is down for
+ * less of it has to cover more ground between one footfall and the next: the
+ * step is `stride / duty`, and *lowering duty lengthens the step without moving
+ * a leg any further*. That is not a trick, it is what running is — a walk keeps
+ * a foot down more than half the time (both are down at the overlap), a run
+ * keeps one down less than half (neither is, in between: that gap is flight).
  *
- * `CADENCE` is what speed buys second: the stride grows first and the rate does
- * not, which is what a person does and what a phase driven by time gets wrong
- * (time gives you a man jogging on the spot when he stops). Past the stride's
- * cap the rate rises instead, up to `CADENCE_MAX`, and past *that* the feet
- * slide — deliberately, because at boost he is 90 pixels of back and a foot
- * that skates is invisible where legs going round like a cartoon's are not.
+ * It replaces a cadence and a cap, which had the failure this is written
+ * against: the stride hit its ceiling at walking speed and everything past it
+ * went into the *rate*, so at boost the legs span at five steps a second and
+ * the feet slid a third of the way — a man running on a treadmill someone was
+ * pulling. Now the rate is not chosen at all. It falls out of the one thing
+ * that has to be true:
+ *
+ *     the planted foot travels backward at exactly the speed the body
+ *     travels forward
+ *
+ * which pins the cycle at `pace · duty / (2 · stride)` and makes sliding
+ * impossible by construction rather than acceptable under a cap. `CYCLE_MAX` is
+ * a guard on a division and not a design.
+ *
+ * So going faster is a longer step and a lower duty, and the legs go round
+ * *slower* at a sprint than they used to at a jog: 1.71 units a step at 3.8
+ * steps a second, against 0.76 at 5.0.
+ *
+ * The stride barely moves between the two — 0.39 to 0.41 — and that is right,
+ * and it is the part that reads as counterintuitive. A runner's legs do not
+ * swing much further than a walker's. What changes is how long they stay down.
  */
-const CADENCE = 3.0
-const CADENCE_MAX = 5
-const STRIDE_MIN = 0.08
-const STRIDE_MAX = 0.38
-/** How high the swinging foot lifts at a full stride, scaled down with it. */
-const STEP_LIFT = 0.12
+const WALK_DUTY = 0.46
+const RUN_DUTY = 0.24
+const WALK_STRIDE = 0.39
+const RUN_STRIDE = 0.41
+/** How high the swinging foot lifts at a full stride. A runner picks his knees
+ *  up and a walker does not, and it is most of what separates them from behind,
+ *  which is the only angle this world has on him. */
+const WALK_LIFT = 0.12
+const RUN_LIFT = 0.22
+/** Cycles a second, as a guard on the division above and nothing else — the
+ *  rate is derived, and this only ever catches a stride driven to nothing. */
+const CYCLE_MAX = 3.4
+const TAU = Math.PI * 2
 /**
  * How high the walking foot may be picked up or set down against the plane his
  * hips are on. Still asymmetric, and no longer for the old reason: with both
@@ -248,24 +269,33 @@ const TERRAIN_DOWN = -0.02
  */
 const PICK = 0.20
 /**
- * How much taller than the surf crouch he walks, and it is the whole of why the
- * legs stopped reading as knees.
+ * How much taller than the surf crouch he stands to walk, and it is the whole
+ * of why the legs stopped reading as knees. The model's stance is a deep crouch
+ * — that is what a surfer's is — and a man who gets off his board and keeps it
+ * is a man walking on his knees.
  *
- * The model's stance is a deep crouch — that is what a surfer's is — and a man
- * who gets off his board and keeps it is a man walking on his knees. The first
- * walk went *further* down rather than up, because the old back leg had nothing
- * left to give and the stride had to come from somewhere. With both legs at 0.68
- * it comes from here instead: 16 cm up puts the stance leg at 88% of its reach
- * at mid-stance and 96% at the end of a stride, which is a person walking.
+ * `BOB` is the other half and it is not decoration: **the pelvis vaults over
+ * the stance leg.** It is lowest at footfall and at toe-off, highest over the
+ * middle of the step, and low again through flight — which is what a hip does,
+ * and which is also exactly where the reach is needed. The leg is longest when
+ * the foot is furthest out, and that is when the hips are lowest; it is
+ * shortest when the foot is under him, and that is when they are highest, so
+ * the leg can be straight there without being over-extended anywhere else.
  *
- * `BOB` is what makes those two numbers possible at once. The pelvis rises and
- * falls twice a stride — highest at mid-stance where the leg is under him and
- * wants to be straight, lowest at double support where the legs are apart and
- * want the room. It is 6 cm, it is what a real walk does, and without it the
- * same stride either clamps at the extremes or crouches through the middle.
+ * That phasing is why it is driven by the *stance* rather than by the cycle. A
+ * plain twice-a-stride sinusoid is the same thing when duty is a half and is
+ * wrong the moment it is not: at a run's 0.24 the cycle's high point lands
+ * inside the stance, near the back of it, and puts the hips up exactly where
+ * the leg is stretched — 114% of its own length, which is a foot that slides.
+ *
+ * 6.5 cm at a walk and 8 at a run, which is a couple of centimetres more than
+ * a real person and a fifth of what the reach would happily spend. The number
+ * is capped by taste and not by the legs: at 14 cm the stride goes to 0.49 and
+ * he bounces like a cartoon.
  */
-const STAND = 0.16
-const BOB = 0.06
+const STAND = 0.12
+const WALK_BOB = 0.065
+const RUN_BOB = 0.08
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -448,7 +478,9 @@ const RIDE = {
   // before the beach, so the pose above is untouched by their arrival.
   land: 0,   // 0 on the board, 1 on foot, ramped over `BEACH` seconds
   step: 0,   // the walk cycle's phase, radians — advanced by distance, not time
-  stride: 0, // and its half-step in board units, which is speed's share of it
+  stride: 0, // and its swing, in board units, about the point under each hip
+  gait: 0,   // 0 walking, 1 running — see the gait block above `WALK_DUTY`
+  duty: 0,   // and the fraction of the cycle a foot is on the ground
   rise: 0,   // the ground's slope along his heading, and across it: what puts
   cant: 0,   // one foot higher than the other on a hillside
 }
@@ -925,9 +957,23 @@ const RISE = 10
     // these are not a body's answer to the hull, they are where his feet are.
     RIDE.land = afoot
     const pace = Math.hypot(vel.current.x, vel.current.z)
-    RIDE.stride = THREE.MathUtils.clamp(pace / (2 * CADENCE), STRIDE_MIN, STRIDE_MAX)
-    RIDE.step = (RIDE.step + Math.PI * dt * afoot * (1 - aloft) *
-      Math.min(pace / (2 * RIDE.stride), CADENCE_MAX)) % (Math.PI * 2)
+    // Walking or running, and everything about the gait follows from it. The
+    // band starts just above his own cruise and is done at twice it, which is
+    // most of the way into boost — so a visitor who never presses shift never
+    // sees the run, and one who holds it is running by the time he is up to
+    // speed rather than the moment he presses.
+    const cruise = SPEED * WALK_SPEED
+    RIDE.gait = THREE.MathUtils.smoothstep(pace, cruise * 1.15, cruise * 2.1)
+    RIDE.duty = WALK_DUTY + (RUN_DUTY - WALK_DUTY) * RIDE.gait
+    // The swing shrinks below cruise so a creep is short steps rather than slow
+    // giant ones; above it, it is the gait's.
+    RIDE.stride = Math.max(0.06, (WALK_STRIDE + (RUN_STRIDE - WALK_STRIDE) * RIDE.gait) *
+      Math.min(pace / cruise, 1))
+    // And the rate, which is derived and not chosen: this is the number that
+    // makes the planted foot travel backward at exactly the speed the body
+    // travels forward. See the gait block above `WALK_DUTY`.
+    RIDE.step = (RIDE.step + TAU * dt * afoot * (1 - aloft) *
+      Math.min((pace * RIDE.duty) / (2 * RIDE.stride), CYCLE_MAX)) % TAU
     // The hillside, in the hull's own frame: the ground a stride ahead against
     // the ground a stride behind, and the same across him. It is what puts the
     // uphill foot higher instead of both of them in the slope, and it is four
@@ -1769,34 +1815,49 @@ function rigOf(scene: THREE.Object3D): Rig {
      * And the second claim, which is the walk's: every foot the solver is ever
      * handed on land has to be somewhere the leg can actually reach.
      *
-     * It is a real check and not a formality, because the two legs are not the
-     * same length — see `CADENCE` — so `STRIDE_MAX`, `STEP_LIFT` and
-     * `TERRAIN_DOWN` are sized against a measurement of *this* file. Re-sculpt
-     * the pose, fix the back thigh, move a knee, and the number that was 89%
-     * moves with it. Past `reach`'s own clamp the leg simply goes straight and
-     * the foot stops where it is told to stop, which on screen is a man
-     * skating — a thing that reads as a bug in the walk rather than as a limit
-     * of the rig, and so is exactly the kind of wrong nobody diagnoses.
+     * It is a real check and not a formality. Both legs are the same length now
+     * (`tools/surfer.py` has that story), but `RUN_STRIDE`, `RUN_DUTY`,
+     * `RUN_LIFT`, the bob and `TERRAIN_DOWN` are still sized against a
+     * measurement of *this* file: re-sculpt the pose, move a knee, change a
+     * bone, and the number that was 95% moves with it. Past `reach`'s own clamp
+     * the leg simply goes straight and the foot stops where it is told to stop,
+     * which on screen is a man skating — a thing that reads as a bug in the
+     * walk rather than as a limit of the rig, and so is exactly the kind of
+     * wrong nobody diagnoses.
+     *
+     * It sweeps the *run*, which is the harder of the two gaits: the longest
+     * stride, the lowest duty, and the hips wherever the vault has them at that
+     * moment rather than at some worst case picked by hand — because with a
+     * duty under a half the reach and the bob no longer peak together, and
+     * assuming they do is how the first version of this got 114%.
      *
      * The threshold leaves 3% for what this sweep does not model: the pelvis
-     * turning with the stride, and the sway and the bob under it, which
-     * together move a hip joint by about a centimetre.
+     * turning with the stride and the sway under it, which together move a hip
+     * joint by about a centimetre.
      */
     for (const l of rig.legs) {
       const hip = new THREE.Vector3().setFromMatrixPosition(restOf(l.thigh, scene, _mat))
       let worst = 0
-      for (let k = 0; k < 180; k++) {
-        const ph = (k / 180) * Math.PI * 2
+      for (let k = 0; k < 360; k++) {
+        const u = k / 360
+        const other = (u + 0.5) % 1
+        const swung = u < RUN_DUTY ? 0 : (u - RUN_DUTY) / (1 - RUN_DUTY)
+        const vault = (v: number) =>
+          v < RUN_DUTY ? Math.sin((Math.PI * v) / RUN_DUTY) : 0
         worst = Math.max(worst, _v.set(
           l.ankle.x,
-          l.ankle.y + Math.max(0, -Math.sin(ph)) * STEP_LIFT + TERRAIN_DOWN,
-          l.sweep + STRIDE_MAX * Math.cos(ph),
-        ).distanceTo(_hip.copy(hip).setY(hip.y + STAND - BOB)) / (l.up + l.low))
+          l.ankle.y +
+            (u < RUN_DUTY ? TERRAIN_DOWN : Math.sin(Math.PI * swung) * RUN_LIFT),
+          u < RUN_DUTY
+            ? l.sweep + RUN_STRIDE - 2 * RUN_STRIDE * (u / RUN_DUTY)
+            : l.sweep - RUN_STRIDE + 2 * RUN_STRIDE * (swung * swung * (3 - 2 * swung)),
+        ).distanceTo(_hip.copy(hip).setY(hip.y + STAND +
+          RUN_BOB * (1.5 * Math.max(vault(u), vault(other)) - 0.5))) / (l.up + l.low))
       }
       console.assert(worst < 0.97,
         `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
-        'own length walking — the stride is longer than the leg, and the foot will slide. ' +
-        'Shorten STRIDE_MAX, or give the model two legs the same length.')
+        'own length at a run — the stride is longer than the leg, and the foot will slide. ' +
+        'Shorten RUN_STRIDE, deepen RUN_BOB, or raise RUN_DUTY.')
     }
   }
   return rig
@@ -1913,6 +1974,13 @@ function ride(r: Rig, t: number): void {
   const afloat = 1 - onFoot
   const pick = Math.sin(Math.PI * onFoot)
   const step = RIDE.step
+  const gait = RIDE.gait
+  const duty = RIDE.duty
+  /** Where a foot is in its own cycle, 0 at footfall. */
+  const place = (i: number) => (step / TAU + i * 0.5) % 1
+  /** The hip vaulting over that foot: nothing at footfall and at toe-off,
+   *  everything over the middle of the step, nothing through flight. */
+  const vault = (u: number) => (u < duty ? Math.sin((Math.PI * u) / duty) : 0)
   const swing = Math.cos(step) * onFoot  // +1 with his left foot forward
   const wobble = Math.sin(step) * onFoot // +1 at his left foot's mid-swing
   const s = Math.min(RIDE.speed, 1)
@@ -1947,8 +2015,9 @@ function ride(r: Rig, t: number): void {
   // this joint does that is a decision rather than a reflex.
   bend(r.hips,
     -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath
-      // Bending over the board, and then the forward lean of a man moving.
-      + 0.55 * pick + 0.10 * onFoot * s,
+      // Bending over the board, and then the forward lean of a man moving —
+      // which a runner does a good deal more of than a walker.
+      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s,
     // The pelvis turns with the stride: the hip on the forward leg goes
     // forward, which is a negative rotation about y for his left.
     0.10 * c - 0.10 * swing,
@@ -1961,11 +2030,14 @@ function ride(r: Rig, t: number): void {
     0.060 * c + 0.012 * sway - 0.025 * wobble,
     -0.075 * heave - 0.100 * slam - 0.050 * Math.abs(tilt) - 0.045 * s * Math.abs(c)
       - 0.020 * s + 0.030 * air + 0.006 * breath
-      // Settling under the board — which is where the stride comes from, see
-      // `CROUCH` — dipping further through the middle of the change to reach
-      // it, and then the walk's own rise and fall, twice a stride and lowest at
-      // double support, which is where a real one is lowest.
-      + STAND * onFoot - PICK * pick - BOB * Math.cos(2 * step) * onFoot,
+      // Standing up out of the crouch, dipping through the middle of the
+      // change to reach the board, and the pelvis vaulting over whichever leg
+      // is carrying him — see `STAND`. The 1.5 and the 0.5 put the low point
+      // at footfall and the high point over the stance, which is where the
+      // reach wants them.
+      + STAND * onFoot - PICK * pick
+      + (WALK_BOB + (RUN_BOB - WALK_BOB) * gait) * onFoot *
+        (1.5 * Math.max(vault(place(0)), vault(place(1))) - 0.5),
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 
@@ -2065,7 +2137,13 @@ function ride(r: Rig, t: number): void {
         // rest pose puts the leading hand 0.40 forward of its own shoulder,
         // out over the rail, which is a surfer's arm and not a walker's: it
         // comes back and in before it starts swinging at all.
-        + (led ? 0.50 * swing + 0.30 * onFoot : -0.08 * swing) - 0.65 * pick,
+        // The free arm's swing is the one thing here that grows most with the
+        // gait: a walker's hand travels a hand's breadth and a runner's goes
+        // from hip to chest. The other arm is holding a board and keeps a tenth
+        // of it, which is a body absorbing the stride rather than an arm doing
+        // nothing.
+        + (led ? (0.50 + 0.40 * gait) * swing + 0.30 * onFoot
+               : -(0.08 + 0.06 * gait) * swing) - 0.65 * pick,
       0.05 * c * a.side - 0.10 * up * a.side,
       -0.10 * c - 0.08 * tilt
         + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter)
@@ -2080,7 +2158,11 @@ function ride(r: Rig, t: number): void {
         + onFoot * (led ? -0.30 : 0.20))
     fold(a.fore, a.elbow,
       0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter
-        + 0.45 * pick + onFoot * (led ? 0.30 + 0.14 * Math.abs(swing) : 0.18))
+        // And a runner's elbow is bent where a walker's hangs. It is the
+        // clearest single cue that this is a run, from directly behind, which
+        // is the only angle this world ever has on him.
+        + 0.45 * pick + onFoot * (led ? 0.30 + 0.14 * Math.abs(swing) + 0.55 * gait
+                                      : 0.18 + 0.30 * gait))
     fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam + 0.20 * pick)
   }
 
@@ -2119,13 +2201,23 @@ function ride(r: Rig, t: number): void {
        * the riding pose bit-for-bit what it was, since at `onFoot` 0 none of
        * this runs at all.
        */
-      const ph = step + i * Math.PI
+      const u = place(i)
       const a = RIDE.stride
-      const z = l.sweep + a * Math.cos(ph)
+      // Stance, then swing. The stance is *linear* and that is the whole of
+      // why nothing slides: the foot crosses 2a of board space in `duty` of a
+      // cycle, and the cycle was set above to make that exactly the distance
+      // the body covers in the same time. The swing is a smoothstep back to
+      // the front with the knee coming up, and it is the only half of this
+      // that is a curve somebody drew.
+      const swung = u < duty ? 0 : (u - duty) / (1 - duty)
+      const z = u < duty
+        ? l.sweep + a - 2 * a * (u / duty)
+        : l.sweep - a + 2 * a * (swung * swung * (3 - 2 * swung))
       target = _foot.set(
         l.ankle.x,
         l.ankle.y +
-          Math.max(0, -Math.sin(ph)) * STEP_LIFT * (a / STRIDE_MAX) +
+          (u < duty ? 0 : Math.sin(Math.PI * swung) *
+            (WALK_LIFT + (RUN_LIFT - WALK_LIFT) * gait)) +
           // Both feet come up in a jump. Nothing else has to happen for it to
           // read: the hips are already rising with `air` above, so this is the
           // difference between a man jumping and a man being lifted.
