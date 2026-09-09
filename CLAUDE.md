@@ -282,9 +282,16 @@ acceleration, which he meets by getting shorter. Both ankles are fixed to the
 deck, so none of that can happen without one leg extending and the other
 folding — which is the absorption, and is why the legs have a solver and the
 arms do not. A deck heeled 17 degrees leaves his torso 2.5 degrees off vertical.
-`docs/STATUS.md`, "The rider moves", has the gains and the four numbers that
-want a second opinion. It cost 62 kB gz on the model and nothing measurable a
-frame.
+The arms hang low and near him by default, both elbows folding forward the way
+an elbow does — the wide pose the model first shipped with was a photograph, and
+a photograph held forever is a man stuck mid-gesture. Width comes back on every change of direction instead: the arm on
+the *outside* of the turn goes up, so turning right raises his left and turning
+left raises his right. Moving those four points broke Blender's bone heat, which
+cannot separate a forearm from the thigh it hangs beside; weights are `diffuse`
+now — nearest bone, then blurred along the mesh's own edges, which is the one
+method whose blind spot is exactly this shape. `docs/STATUS.md`, "The rider
+moves", has the gains and the numbers that want a second opinion. It cost 79 kB
+gz on the model and nothing measurable a frame.
 
 Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
 (`src/stick.ts`) read into `useInput`'s `move`, boost is the same push further,

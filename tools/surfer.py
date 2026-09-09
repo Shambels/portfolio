@@ -131,14 +131,41 @@ CHEST: P3 = (0.06, 0.92, 0.11)
 NECK: P3 = (0.07, 1.04, 0.15)
 HEAD: P3 = (0.08, 1.17, 0.19)
 
+# Arms down, and this is the second pose the file has had. The first put them
+# out wide — the leading one low over the rail, the trailing one high — which is
+# a *photograph* of a surfer: the frame a photographer waits for, held forever.
+# Rigged and in motion it read as a man stuck mid-gesture, because that is what
+# it was. A rider between turns has his hands low and near him, and raising one
+# is then something that happens rather than something he is doing already.
+#
+# The constraint that shapes them is the crouch. Both thighs are folded up and
+# forward, so an arm that simply hangs runs straight through one: both elbows
+# sit well outboard of the knees, and the clearance is not generous — about five
+# centimetres of field at the leading elbow — so anything that brings these
+# points inboard will weld an arm to a thigh.
+#
+# **Both elbows fold forward.** An elbow has one direction and this is it: the
+# forearm swings toward the front of the body, never behind the line of the
+# upper arm. The first arms-down pass sent the trailing forearm aft — it was
+# aiming the hand past the back knee, which is where a trailing hand belongs —
+# and the result was a joint bending the wrong way, which is the one anatomical
+# error a viewer spots without knowing why. It comes forward instead, down past
+# the hip and just ahead of it, at about fifty degrees off straight. The leading
+# arm was already right at sixty.
+#
+# It costs the silhouette. Hands at |x| 0.46-0.49 rather than 0.70-0.78 take the
+# figure from 1.39 units across to about 1.0, and the old note here was right
+# that a body this size head-on is a post. The answer is no longer width held
+# permanently; it is `ride()` in `Ship.tsx` throwing one arm up on every change
+# of direction.
 SHOULDER_F: P3 = (0.22, 0.92, 0.16)
-ELBOW_F: P3 = (0.50, 0.79, 0.40)
-WRIST_F: P3 = (0.70, 0.64, 0.55)
-HAND_F: P3 = (0.78, 0.58, 0.61)
+ELBOW_F: P3 = (0.46, 0.62, 0.28)
+WRIST_F: P3 = (0.46, 0.532, 0.560)
+HAND_F: P3 = (0.46, 0.497, 0.672)
 SHOULDER_B: P3 = (-0.09, 0.94, 0.04)
-ELBOW_B: P3 = (-0.40, 1.01, -0.18)
-WRIST_B: P3 = (-0.62, 1.12, -0.38)
-HAND_B: P3 = (-0.70, 1.16, -0.45)
+ELBOW_B: P3 = (-0.352, 0.663, -0.029)
+WRIST_B: P3 = (-0.453, 0.418, 0.141)
+HAND_B: P3 = (-0.489, 0.330, 0.202)
 
 # Where the face points. Forward and a shade to his open side, which is the only
 # way any of the face survives a camera that sits astern and never yaws.
@@ -626,9 +653,11 @@ def build() -> None:
 
     taper(NECK, (NECK[0], NECK[1] + 0.07, NECK[2] + 0.01), 0.052, 0.056, 2)
 
-    # Arms. Neither is symmetrical: the leading one down over the rail into the
-    # face of the wave, the trailing one high and back. It is the pose in the
-    # reference and it is also the one that still reads from directly behind.
+    # Arms. Neither is symmetrical: the leading one hangs down and carries on
+    # forward past the front knee, the trailing one down and aft past the back
+    # one. See the pose points for why they are no longer out wide, and for the
+    # five centimetres of clearance that is the only thing keeping each forearm
+    # from welding itself to the thigh it passes.
     for shoulder, elbow, wrist, palm in ((SHOULDER_F, ELBOW_F, WRIST_F, HAND_F),
                                          (SHOULDER_B, ELBOW_B, WRIST_B, HAND_B)):
         upper = (V(elbow) - V(shoulder)).normalized()
@@ -914,25 +943,31 @@ def join_all() -> bpy.types.Object:
 def rig(body: bpy.types.Object, extras: list[bpy.types.Object]) -> bpy.types.Object:
     """The armature, and the weights that tie the skin to it.
 
-    Automatic weights, and the reason they work here is the pipeline above:
-    bone heat wants a closed shell with no slivers in it, and by this point
-    `weld` has thrown away every stray and Quadriflow has re-laid the whole
-    surface at one honest density. It is the only method that gets the boundary
-    between a deltoid and a pec right without somebody painting it, and it is
-    the difference between a shoulder that rotates and a shoulder that shears.
+    Bone heat first, because when it works it is better than anything written
+    here: it is the only method that gets the boundary between a deltoid and a
+    pec right without somebody painting it, and it is the difference between a
+    shoulder that rotates and a shoulder that shears. With the arms out wide it
+    worked on the first try and left nothing unweighted.
+
+    With the arms *down* it refuses, and the refusal is instructive rather than
+    a bug. Bone heat works by shooting rays from each bone and taking what it
+    can see; a forearm five centimetres off the thigh it is hanging beside can
+    see the thigh, the thigh can see the forearm, and the solver cannot separate
+    them. It says so as a *warning* on one bone and a cancelled operator — never
+    an exception — and leaves most of the mesh with no group at all. A vertex
+    with no group does not stay where it is when the rig moves; it stays at the
+    origin, which at runtime is a spike out of the model to the waterline.
+
+    So the count is the test, not the return code, and anything more than a
+    stray vertex throws the whole result away and runs `diffuse` instead. Half a
+    mesh weighted one way and half the other is a seam down the middle, which is
+    worse than either method alone.
 
     The hair and the face are deliberately not part of that shell and are not
-    weighted by it. A curl and an eyeball belong wholly to the head, and the way
-    to say so is one group at weight 1 — not a solver's opinion about a sphere
-    floating inside a skull, which is a question bone heat answers badly and
-    slowly.
-
-    Last, `orphans`. Bone heat reports a refusal as a warning on one bone and
-    leaves the vertices it could not reach with no group at all, and a vertex
-    with no group does not stay where it is when the rig moves — it stays at the
-    *origin*, which at runtime is a spike out of the model to the waterline.
-    That is the one failure worth a hard fallback, so whatever is left over is
-    given to the bone it is nearest and the count is printed."""
+    weighted by either. A curl and an eyeball belong wholly to the head, and the
+    way to say so is one group at weight 1 — not a solver's opinion about a
+    sphere floating inside a skull, which is a question bone heat answers badly
+    and slowly."""
     amt = bpy.data.armatures.new("rig")
     rig_obj = bpy.data.objects.new("rig", amt)
     bpy.context.collection.objects.link(rig_obj)
@@ -958,12 +993,17 @@ def rig(body: bpy.types.Object, extras: list[bpy.types.Object]) -> bpy.types.Obj
     try:
         bpy.ops.object.parent_set(type="ARMATURE_AUTO")
     except RuntimeError as e:
-        print(f"[surfer] bone heat declined ({e}) — nearest bone for the whole skin")
+        print(f"[surfer] bone heat raised ({e})")
         bpy.ops.object.parent_set(type="ARMATURE_NAME")
 
-    left = orphans(body)
-    print(f"[surfer] rig: {len(BONES)} bones, "
-          f"{len(body.vertex_groups)} groups, {left} verts filled by nearest")
+    loose = sum(1 for v in body.data.vertices if not any(g.weight > 1e-4 for g in v.groups))
+    if loose > len(body.data.vertices) // 200:
+        print(f"[surfer] bone heat left {loose} of {len(body.data.vertices)} "
+              f"verts unweighted — discarding it, diffusing instead")
+        diffuse(body)
+    else:
+        print(f"[surfer] rig: bone heat, {loose} verts unweighted")
+    print(f"[surfer] rig: {len(BONES)} bones, {len(body.vertex_groups)} groups")
 
     for ob in extras:
         g = ob.vertex_groups.new(name="head")
@@ -973,31 +1013,87 @@ def rig(body: bpy.types.Object, extras: list[bpy.types.Object]) -> bpy.types.Obj
     return rig_obj
 
 
-def orphans(obj: bpy.types.Object) -> int:
-    """Every vertex the solver left with no weight, given to the bone whose
-    segment it is closest to. Distance to the segment and not to the head:
-    a point beside the middle of a thigh is nearer the knee than the hip and
-    nearer both than either endpoint suggests."""
-    segments = [(name, T(*head), T(*tail)) for name, _, head, tail in BONES]
-    groups = {g.name: g for g in obj.vertex_groups}
-    for name, *_ in segments:
-        if name not in groups:
-            groups[name] = obj.vertex_groups.new(name=name)
+def diffuse(obj: bpy.types.Object, rounds: int = 26, keep: int = 4) -> None:
+    """Weights without a solver: claim, then blur along the surface.
 
-    n = 0
-    for v in obj.data.vertices:
-        if any(g.weight > 1e-4 for g in v.groups):
-            continue
-        best, near = segments[0][0], 1e9
-        for name, a, b in segments:
-            d = b - a
-            t = max(0.0, min(1.0, (v.co - a).dot(d) / max(d.length_squared, 1e-9)))
-            gap = (v.co - (a + d * t)).length
-            if gap < near:
-                best, near = name, gap
-        groups[best].add([v.index], 1.0, "REPLACE")
-        n += 1
-    return n
+    Two steps and the second one is the whole idea.
+
+    *Claim.* Every vertex goes to the bone whose segment it is nearest, at
+    weight 1. Segment and not head, because a point beside the middle of a thigh
+    is nearer the knee than the hip and nearer both than either endpoint
+    suggests. What comes out is correct and completely unusable: hard regions
+    with a crease at every boundary, which is a paper doll.
+
+    *Blur.* Then the weights are averaged with their neighbours', over and over,
+    along the mesh's own edges. A boundary that was a step becomes a ramp as
+    wide as the diffusion reaches, which is what a skin weight is; twenty-six
+    rounds on a 1.5 cm quad grid spreads about five edges, or eight centimetres,
+    which is a shoulder.
+
+    And the reason it is done along *edges* rather than through space is the
+    thing that defeated bone heat. A forearm hanging beside a thigh is five
+    centimetres from it and half a metre away *across the surface* — up the arm,
+    over the shoulder, down the torso and along the leg. Diffusion cannot cross
+    that gap, so the arm keeps its weights and the thigh keeps its, with no
+    solver having to decide which is which. It is the one method whose weakness
+    is exactly this model's shape.
+
+    `keep` is glTF's limit and not a choice: four influences a vertex, which is
+    also all a body this simple needs. The rest are dropped and what is left is
+    renormalised, so every vertex still sums to one."""
+    import numpy as np  # noqa: PLC0415 — bpy ships it; nothing else here wants it
+
+    me = obj.data
+    segments = [(name, T(*head), T(*tail)) for name, _, head, tail in BONES]
+    n, m = len(me.vertices), len(segments)
+
+    co = np.empty(n * 3, dtype=np.float64)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(n, 3)
+
+    # Distance from every vertex to every bone segment, in one pass each.
+    gap = np.empty((n, m))
+    for i, (_, a, b) in enumerate(segments):
+        a = np.array(a)
+        d = np.array(b) - a
+        t = np.clip(((co - a) @ d) / max(float(d @ d), 1e-9), 0.0, 1.0)
+        gap[:, i] = np.linalg.norm(co - (a + t[:, None] * d), axis=1)
+
+    w = np.zeros((n, m))
+    w[np.arange(n), gap.argmin(axis=1)] = 1.0
+
+    edges = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", edges)
+    edges = edges.reshape(-1, 2)
+    lo, hi = edges[:, 0], edges[:, 1]
+    # One umbrella average a round: a vertex, plus each of its neighbours, over
+    # the count. The vertex's own weight is in the sum, which is what keeps the
+    # thing from washing out to grey over twenty-six passes.
+    for _ in range(rounds):
+        acc = w.copy()
+        cnt = np.ones(n)
+        np.add.at(acc, lo, w[hi])
+        np.add.at(acc, hi, w[lo])
+        np.add.at(cnt, lo, 1.0)
+        np.add.at(cnt, hi, 1.0)
+        w = acc / cnt[:, None]
+
+    order = np.argsort(-w, axis=1)[:, :keep]
+    trimmed = np.zeros_like(w)
+    rows = np.arange(n)[:, None]
+    trimmed[rows, order] = w[rows, order]
+    w = trimmed / np.maximum(trimmed.sum(axis=1, keepdims=True), 1e-12)
+
+    for g in list(obj.vertex_groups):
+        obj.vertex_groups.remove(g)
+    spread = 0
+    for i, (name, *_) in enumerate(segments):
+        g = obj.vertex_groups.new(name=name)
+        idx = np.nonzero(w[:, i] > 1e-4)[0]
+        spread += len(idx)
+        for v in idx:  # `add` takes one weight, so one call per distinct value
+            g.add([int(v)], float(w[v, i]), "REPLACE")
+    print(f"[surfer] diffuse: {rounds} rounds, {spread / n:.2f} bones a vertex")
 
 
 def flex() -> None:
