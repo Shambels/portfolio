@@ -272,12 +272,19 @@ The particles are WebGPU only and there is deliberately no WebGL2 version —
 `docs/STATUS.md` has the argument. That makes them the first thing in the world
 a visitor can miss, which is why `?debug` names the backend.
 
-The rider is rigged. Nothing about the model changed — same triangles, same
-COLOR_0, same rest pose to the vertex — but he now leans into a carve, absorbs a
-landing in his knees and opens up in the air, out of a sum of five numbers the
-controller already had rather than out of a clip. `docs/STATUS.md`, "The rider
-moves", has the two mechanisms and the four amplitudes that want a second
-opinion. It cost 62 kB gz on the model and nothing measurable a frame.
+The rider is rigged, and the point of the rig is that the legs do the work.
+Nothing about the model changed — same triangles, same COLOR_0, same rest pose
+to the vertex — but the hull's attitude now arrives at him split three ways:
+what the *water* is doing to the deck, which he stands up against (95% of it,
+subtracted back out through the hips and the spine); what the *craft* is doing,
+which he mostly goes with (a third resisted); and the deck's vertical
+acceleration, which he meets by getting shorter. Both ankles are fixed to the
+deck, so none of that can happen without one leg extending and the other
+folding — which is the absorption, and is why the legs have a solver and the
+arms do not. A deck heeled 17 degrees leaves his torso 2.5 degrees off vertical.
+`docs/STATUS.md`, "The rider moves", has the gains and the four numbers that
+want a second opinion. It cost 62 kB gz on the model and nothing measurable a
+frame.
 
 Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
 (`src/stick.ts`) read into `useInput`'s `move`, boost is the same push further,
