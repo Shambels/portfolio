@@ -264,11 +264,30 @@ export const SHIP_XZ = uniform(new THREE.Vector2())
  *
  * They are the whole interface between the physics and the man on the board.
  * There is no clip, no state machine and no animation graph: every joint below
- * is a sum of these five, so the rider is *reacting* rather than playing back,
+ * is a sum of these eight, so the rider is *reacting* rather than playing back,
  * and a jump he has never taken before still lands.
  *
- * `turn` is signed and the rest are not. All five are smoothed here rather than
- * at the joints, because a body's own lag is one lag and not seventeen.
+ * The last three are the important ones and they are the reason the first pass
+ * read as a figurine with joints. The rider is a child of `body`, so the hull's
+ * bank and its pitch are *already* applied to him by the scene graph — which
+ * means a board heeled thirty degrees to a wave face rolled the man thirty
+ * degrees with it, head and all. That is not what a person does. A person keeps
+ * his head where the horizon is and spends the difference in his ankles, his
+ * knees and his hips.
+ *
+ * So the hull's attitude arrives split in two. `tilt` and `slope` are the
+ * water's share and `ride` takes nearly all of it back out; `bank` is the
+ * craft's own lean into a turn, which is a decision the visitor made and which
+ * he should mostly *go with* — a rider who stood upright through a carve would
+ * read as a passenger. Nearly all of one and a third of the other, out of the
+ * same joints. `heave` is the same idea one derivative up: the sea pushing the
+ * deck at him, which a standing person meets by getting shorter.
+ *
+ * `turn`, `push`, `tilt`, `slope` and `heave` are signed; the rest are not. All
+ * eight are smoothed here rather than at the joints, because a body's own lag is
+ * one lag and not seventeen — and here that lag is doing real work: the board
+ * snaps to the wave and the man arrives a tenth of a second later, which is
+ * most of what absorbing a shock looks like from outside.
  */
 const RIDE = {
   speed: 0, // 0 at rest, 1 at cruise. Boost pushes it past 1; nothing clamps it down.
@@ -276,7 +295,14 @@ const RIDE = {
   air: 0,   // 1 with the board clear of the water
   slam: 0,  // a landing, decaying. Set by the impact, spent over about a third of a second.
   push: 0,  // -1 to 1: leaning back under acceleration, forward under the brake
+  tilt: 0,  // radians: how far the water has the deck heeled across, the turn's bank excluded
+  slope: 0, // radians: and how far it has it pitched fore and aft
+  bank: 0,  // radians: and how far the *craft's* own lean into a turn has it over
+  heave: 0, // -1 to 1: the deck's vertical acceleration, over `SHOCK`
 }
+/** What `RIDE.heave` is 1 at, units/sec^2. A hull settling onto calm water runs
+ *  a few of these; a roller taken at full sail is well over it and clamps. */
+const SHOCK = 25
 /** The yaw rate a full carve reaches, radians/sec — what `RIDE.turn` is 1 at. */
 const CARVE = 2.2
 /** How fast the body answers a change in any of the five. A person is not a
@@ -605,7 +631,16 @@ const FOLLOW = 3.2
     const lateral = spring.current.x * cy - spring.current.z * sy
     const along = spring.current.x * sy + spring.current.z * cy
 
-    // And the rider's five, read off the same frame the hull was just built
+    // The hull's attitude is two things added together and the rider owes them
+    // different answers, so they are named here and summed a few lines down
+    // rather than written straight into the rotation. `bank` and `nose` are
+    // what the *craft* is doing — the bounce spring's lean, which is a decision
+    // the visitor made — and `roll` and `heel` are what the *water* is doing to
+    // it. He leans with the first and stands up against the second.
+    const bank = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK)
+    const nose = THREE.MathUtils.clamp(-along * LEAN, -PITCH, PITCH)
+
+    // And the rider's eight, read off the same frame the hull was just built
     // from. Written for every craft rather than only for the surfer: they are
     // facts about the hull, the branch would save four multiplies, and a value
     // that only updates while you are looking at it is a value that jumps the
@@ -621,9 +656,13 @@ const FOLLOW = 3.2
     // Spent over about a third of a second, and linearly: a landing is a thing
     // that finishes, where an exponential leaves the knees half bent forever.
     RIDE.slam = Math.max(0, RIDE.slam - dt * 3.2)
+    RIDE.tilt += (roll - RIDE.tilt) * react
+    RIDE.slope += (heel - RIDE.slope) * react
+    RIDE.bank += (bank - RIDE.bank) * react
+    RIDE.heave += (THREE.MathUtils.clamp(vertAccel / SHOCK, -1, 1) - RIDE.heave) * react
 
-    body.current.rotation.z = THREE.MathUtils.clamp(-lateral * LEAN, -BANK, BANK) + roll
-    body.current.rotation.x = THREE.MathUtils.clamp(-along * LEAN, -PITCH, PITCH) + heel
+    body.current.rotation.z = bank + roll
+    body.current.rotation.x = nose + heel
     body.current.position.y =
       alt.current + ride - spring.current.y * SQUASH +
       // The saucer's idle hover. The boat already has one and it is the sea's.
@@ -895,14 +934,14 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  *
  * The stance is read off what the camera can see. It sits astern and never
  * yaws, so the visitor spends the whole session looking at this thing's back:
- * the rider is crouched with both arms out, the leading one low over the rail
- * and the trailing one high, which is the one surfing pose that is still a pose
- * from directly behind. Arms wide also buy the silhouette its width — a figure
- * this size head-on is a post.
+ * the rider is crouched, hands low and near him, one carried on forward of the
+ * front knee and one aft of the back one — the trim a surfer holds between
+ * turns, and a shape that still reads from directly behind.
  *
- * That is the *rest* pose, and since the rig it is only where he starts: the
- * bones bend from the physics every frame — see "the rider moves" below — and
- * the same three sentences still describe the shape he keeps coming back to.
+ * That is the *rest* pose and since the rig it is only where he starts, which
+ * is also why the arms came down out of the wide pose the model first shipped
+ * with. Width held permanently is a photograph; width that arrives when the
+ * board changes direction is a rider. `ride()` below is where it arrives.
  *
  * The waterline is this group's y = 0, same as the boat, so `Ship` puts the
  * group on the swell and the board's own numbers decide what is wet. What the
@@ -1424,14 +1463,37 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion): void {
  * The pose, and every number in it is an amplitude rather than an angle: what
  * arrives is `RIDE`, and what leaves is seventeen sums.
  *
- * The shape of it is one idea. A person on a moving board is a stack of
- * counter-rotations — the hips go with the turn, the chest goes less far, the
- * head goes further and levels itself, and the arms go the other way to pay for
- * all of it. Rotate them by the same amount and you get a plank on a turntable;
- * the graduation *is* the humanity, and it is why `spine`, `chest` and `head`
- * each get their own fraction of `turn` rather than sharing one.
+ * The shape of it is two ideas, and the first one is the load-bearing one.
  *
- * The idle layer is the other half and it is smaller than it looks: breath, a
+ * **The legs work and the torso does not.** A surfer is a suspension unit with
+ * a person balanced on top: the board goes where the water sends it, the head
+ * stays where the horizon is, and everything between them is spent. The rider
+ * is a child of `body`, so the hull's heel to a wave face is applied to him by
+ * the scene graph before a single bone moves — the whole man, head included,
+ * which is exactly the figurine the rig was supposed to stop being. The `tilt`
+ * and `slope` terms below rotate that straight back *out* of him, most of it at
+ * the hips and a diminishing share at each joint up the spine, so a rider
+ * standing upright over a heeled board is not a pose. It is a subtraction.
+ *
+ * And it pays for itself twice, because both ankles are nailed to the deck: the
+ * pelvis cannot rotate without one hip rising and the other dropping, which is
+ * one leg extending and one folding, with no line of code saying so. That is
+ * the whole reason the legs are worth a solver.
+ *
+ * `heave` is the same idea one derivative up — a deck accelerating upward at a
+ * standing man makes him shorter — and it is what keeps the knees working in
+ * ordinary chop instead of only on a landing.
+ *
+ * **The second idea is that what is left is graduated.** What the rider
+ * *chooses* — leaning into a carve, looking through it — is a stack of
+ * counter-rotations: the hips go with the turn, the chest goes less far, the
+ * head goes further and rolls back to level the eyes, and the arms go the other
+ * way to pay for all of it. Rotate them by the same amount and you get a plank
+ * on a turntable. These are about half the first pass's amplitudes: with the
+ * legs carrying the sea, a torso that also swings reads as loose rather than as
+ * balanced.
+ *
+ * The idle layer is the last of it and it is smaller than it looks: breath, a
  * weight shift, a drift of the head, the hands riding the air. Four sines at
  * rates that share no common multiple, so a visitor parked on flat water never
  * sees it repeat. Invariant 6 switches all four off — `idle` is the only place
@@ -1443,52 +1505,113 @@ function ride(r: Rig, t: number): void {
   const c = RIDE.turn
   const air = RIDE.air
   const slam = RIDE.slam
+  // What the sea is doing to the deck, and what the rider is about to undo. On
+  // the water only: airborne there is nothing to brace against, and a man
+  // holding himself level against a board that is no longer on anything is a
+  // man doing arithmetic.
+  const grip = 1 - air
+  const tilt = RIDE.tilt * grip
+  const slope = RIDE.slope * grip
+  const heave = RIDE.heave * grip
+  // The craft's own lean gets the opposite treatment and a third of the gain:
+  // enough that he is visibly more upright than his board through a carve,
+  // nowhere near enough to look like he is not in it.
+  const bank = RIDE.bank * grip
   const idle = REDUCED ? 0 : 1
   const breath = Math.sin(t * 1.7) * idle
   const sway = Math.sin(t * 1.19) * idle
   const drift = Math.sin(t * 0.71) * idle
   const flutter = Math.sin(t * 1.43) * idle
 
-  // The hips, and they carry the stance. The drop is the sum of everything that
-  // asks a person to get low: a landing most of all, then a hard carve, then
-  // just going fast. Airborne it gives some of it back, because there is
-  // nothing left to brace against.
-  bend(r.hips, 0.10 * slam + 0.03 * breath, 0.12 * c, -0.16 * c)
+  // The hips, and they carry the ride. Two thirds of the wave's heel comes back
+  // out here — the joint with the most travel under it and the one a person
+  // actually uses — and the rest is spread up the spine below. What is left of
+  // `turn` is small on purpose: the lean into a carve is now the only thing
+  // this joint does that is a decision rather than a reflex.
+  bend(r.hips,
+    -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath,
+    0.10 * c,
+    -0.58 * tilt - 0.18 * bank)
+  // And the drop, which is everything that asks a person to get low: the deck
+  // coming up at him, a landing, the wave's heel (which costs the legs slack
+  // before it costs them anything else), a hard carve, then just going fast.
   r.hips.bone.position.copy(r.hipsHome).add(_v.set(
-    0.085 * c + 0.012 * sway,
-    -0.075 * slam - 0.045 * s * Math.abs(c) - 0.020 * s + 0.030 * air + 0.006 * breath,
+    0.060 * c + 0.012 * sway,
+    -0.075 * heave - 0.100 * slam - 0.050 * Math.abs(tilt) - 0.045 * s * Math.abs(c)
+      - 0.020 * s + 0.030 * air + 0.006 * breath,
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 
-  // Up the spine, each one turning a little further into the wave than the one
-  // below it and rolling a little less far over the rail.
-  bend(r.spine, 0.12 * slam + 0.05 * s - 0.06 * air + 0.030 * breath, 0.14 * c, -0.14 * c)
-  bend(r.chest, 0.08 * slam - 0.05 * air + 0.040 * breath, 0.16 * c, -0.10 * c)
-  bend(r.neck, 0.04 * slam - 0.05 * air, 0.10 * c, 0.04 * c)
-  // The head leads. It is the one joint that turns further than the turn, and
-  // the roll is *against* the body's, which is a person keeping their eyes
-  // level — the single cue that most reliably reads as alive at this size.
+  // The rest of the subtraction, thinning as it goes up. By the head it sums to
+  // 0.58 + 0.18 + 0.11 + 0.03 + 0.05 = 0.95 of the *water's* heel taken back out
+  // — most of it and not all of it. A rider who cancelled the deck exactly would
+  // be a gimbal, and one who cancelled more than it would be falling off the
+  // high rail; the twentieth left over is the wave still reaching him. Against
+  // `bank` the same joints sum to 0.34, which is the other half of the idea: a
+  // third of the carve resisted, two thirds ridden.
+  bend(r.spine,
+    -0.18 * slope + 0.05 * heave + 0.10 * slam + 0.05 * s + 0.030 * breath,
+    0.07 * c,
+    -0.18 * tilt - 0.07 * bank)
+  bend(r.chest,
+    -0.11 * slope + 0.06 * slam + 0.040 * breath,
+    0.08 * c,
+    -0.11 * tilt - 0.05 * bank)
+  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air, 0.06 * c, -0.03 * tilt - 0.02 * bank)
+  // The head leads the turn and levels itself against everything else. It is
+  // the cue that most reliably reads as alive at this size, and it is the one
+  // joint whose share of `turn` was not cut.
   bend(r.head,
-    0.06 * slam - 0.10 * air + 0.04 * drift,
-    0.24 * c + 0.05 * drift,
-    0.10 * c + 0.03 * sway)
+    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift,
+    0.22 * c + 0.05 * drift,
+    -0.05 * tilt - 0.02 * bank + 0.03 * sway)
 
   for (const a of r.arms) {
-    // One roll, both arms, opposite ends of it: `-0.30 * c` drops the leading
-    // hand toward the water on the inside of a turn and lifts the trailing one,
-    // which is a counterweight rather than two poses. What is per-arm is what
-    // is symmetrical — both come up in the air, both drop on a landing — and
-    // that is the term carrying `side`.
-    // The x term is negated against the other two and that is not a typo: one
-    // arm reaches forward and the other back, so a pitch about the deck's own
-    // x axis raises one and drops the other, and it has to be the mirror of
-    // the roll beside it or airborne comes out as one arm up and one arm down.
+    /**
+     * One arm goes up in a turn, and which one is the whole point.
+     *
+     * It is the arm on the *outside* of the circle. Turning to the visitor's
+     * right, the rider throws up his left; turning left, his right. That is not
+     * a stylistic choice — it is where the counterweight has to be, out over
+     * the water the board is turning away from, while the inside hand drops
+     * toward the face.
+     *
+     * `side` is +1 for the leading arm, which is his left, because the model
+     * faces its open side. The camera sits astern looking down +z, so the
+     * visitor's right is the world's -x, and a turn that way runs the heading
+     * negative — which makes `-c * side` positive for exactly the arm that
+     * should rise, on both sides, with one expression and no branch. Clamped at
+     * zero so the other arm gets nothing from it and is left to the small
+     * shared roll below, which drops it.
+     *
+     * The rest pose is arms-down now (see `tools/surfer.py`), so this is a
+     * gesture rather than a nudge to a pose that was already up: 0.55 is about
+     * thirty-five degrees of shoulder, with the elbow folding and the arm
+     * swinging forward as it goes, which is the difference between throwing an
+     * arm up and levitating one.
+     *
+     * What carries `side` on its own is what is symmetrical — both arms rise in
+     * the air, both drop on a landing. The `tilt` and `slope` terms do not:
+     * they are the arms' own small share of the levelling, on top of what they
+     * have already inherited from the chest. There is deliberately no `bank`
+     * term; the chest has already handed them two thirds of the carve, and a
+     * fourth counter-rotation on the end of the longest lever in the silhouette
+     * was the single thing that read as flailing.
+     *
+     * The x term is negated against the other two and that is not a typo: one
+     * arm reaches forward and the other aft, so a pitch about the deck's own x
+     * axis raises one and drops the other, and it has to be the mirror of the
+     * roll beside it or airborne comes out as one arm up and one arm down.
+     */
+    const up = Math.max(0, -c * a.side)
     bend(a.upper,
-      -0.10 * air * a.side + 0.06 * RIDE.push,
-      0.08 * c * a.side,
-      -0.30 * c + a.side * (0.22 * air - 0.16 * slam + 0.05 * flutter))
-    fold(a.fore, a.elbow, 0.22 * Math.abs(c) + 0.35 * slam + 0.18 * air + 0.03 * flutter)
-    fold(a.hand, a.wrist, 0.12 * Math.abs(c) + 0.20 * slam)
+      -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope,
+      0.05 * c * a.side - 0.10 * up * a.side,
+      -0.10 * c - 0.08 * tilt
+        + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter))
+    fold(a.fore, a.elbow,
+      0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter)
+    fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam)
   }
 
   // And the legs answer wherever the hips ended up. `hipsFrom` is constant —

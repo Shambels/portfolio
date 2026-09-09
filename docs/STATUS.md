@@ -2420,31 +2420,54 @@ there.
 
 ### The rest pose is the shipped model, to the vertex
 
-`tools/surfer.py` grew an armature and skin weights; it did not grow a pose.
-Every bone is two points that were already in the pose list the metaballs were
-laid along — `HIP_F` to `KNEE_F`, `CHEST` to `NECK` — so the rig is that list
-read a second time rather than an anatomy invented beside it. Deepening the
-crouch is still moving a point.
+`tools/surfer.py` grew an armature and skin weights. Every bone is two points
+that were already in the pose list the metaballs were laid along — `HIP_F` to
+`KNEE_F`, `CHEST` to `NECK` — so the rig is that list read a second time rather
+than an anatomy invented beside it. Deepening the crouch is still moving a
+point, and the rig follows it.
 
-Which means the rest pose is exactly the model that shipped before this. The
-runtime writes rotations *relative* to rest, so with no input every sum is zero
-and every vertex is where Blender put it. That is not a coincidence to be
-grateful for; it is the property that made this safe to do at all.
+The runtime writes rotations *relative* to rest, so with no input every sum is
+zero and every vertex is where Blender put it. That is the property that made
+this safe to do at all, and it is also what made the arms fixable later by
+moving four points rather than by fighting the runtime.
 
 Seventeen bones: hips, spine, chest, neck, head, three a side in the arms and
 three a side in the legs. No clavicle, no forearm twist, no toe. A figure whose
 whole screen presence is ninety pixels of back does not spend a joint on a
 collarbone.
 
-Weights are Blender's bone heat, and it worked first time because of the
-pipeline already in front of it — `weld` throws away every stray shell and
-Quadriflow re-lays the surface at one honest density, which is exactly the input
-the solver wants. It left zero vertices unweighted (`orphans` is the fallback
-for the day it does not, and it printed 0). The hair and the seven face parts
-are *not* given to the solver: a curl and an eyeball belong wholly to the head,
-and one group at weight 1 says so faster and better than an opinion about a
-sphere floating inside a skull. Rigged before the join, so joining merges the
-groups by name and what comes out is one skin with one set of weights.
+Weights were Blender's bone heat and are not any more, and the reason is the
+arms. With them out wide, heat worked on the first try and left nothing
+unweighted. With them **down**, hanging five centimetres off the thighs they
+pass, it refuses outright: heat shoots rays from each bone and takes what it can
+see, and a forearm and a thigh that close can each see the other. It reports
+that as a *warning* on one bone and a cancelled operator — never an exception —
+and leaves the whole mesh with no group at all, which at runtime is not a soft
+failure but every unweighted vertex pinned to the origin.
+
+So the count is the test rather than the return code, and more than a stray
+vertex throws the result away and runs `diffuse` instead. Half a mesh weighted
+one way and half the other is a seam down the middle.
+
+`diffuse` is two steps. Every vertex claims the bone whose *segment* it is
+nearest, at weight 1 — correct and completely unusable, a paper doll with a
+crease at every boundary. Then those weights are averaged with their neighbours'
+along the mesh's own edges, twenty-six times, which turns every step into a ramp
+about eight centimetres wide. It comes out at 2.87 bones a vertex, trimmed to
+glTF's four and renormalised.
+
+Diffusing along *edges* rather than through space is the whole point, and it is
+exactly the thing that defeated heat: a forearm is five centimetres from the
+thigh beside it and half a metre away across the surface — up the arm, over the
+shoulder, down the torso, along the leg. Weights cannot cross that gap, so the
+arm keeps its own and no solver has to decide. Its weakness is this model's
+shape.
+
+The hair and the seven face parts are given to neither: a curl and an eyeball
+belong wholly to the head, and one group at weight 1 says so faster and better
+than an opinion about a sphere floating inside a skull. Rigged before the join,
+so joining merges the groups by name and what comes out is one skin with one set
+of weights.
 
 `python3 tools/surfer.py --render out.png --flex` is new: it renders a stress
 pose rather than the rest pose, because the rest pose is the one pose that
@@ -2520,14 +2543,53 @@ arms are told how far to rotate about board space's own axes, and their children
 come with them. That is right for a limb whose end is in the air.
 
 What is left after the subtraction is deliberately quiet — about a third of the
-first pass's `turn` amplitudes in the spine and chest, and the arms' shared roll
-went 0.30 -> 0.10. With the legs carrying the sea, a torso that also swings reads
-as loose rather than as balanced. The two exceptions are the head, which still
-leads the turn at 0.22 because it is the cue that most reliably reads as alive
-at this size, and the arms, which get no `bank` term at all: the chest has
-already handed them two thirds of the carve, and a fourth counter-rotation on
-the end of the longest lever in the silhouette was the single thing that still
-read as flailing.
+first pass's `turn` amplitudes in the spine and chest. With the legs carrying
+the sea, a torso that also swings reads as loose rather than as balanced. The
+head is the exception and still leads the turn at 0.22, because it is the cue
+that most reliably reads as alive at this size.
+
+### The arms came down, and the raise became a gesture
+
+The first two passes left the arms out wide, because that is how the model was
+sculpted: leading one low over the rail, trailing one high. That is a
+*photograph* of a surfer — the frame a photographer waits for — and held
+permanently by a figure that now moves, it read as a man stuck mid-gesture,
+which is what it was. No amplitude fixes a rest pose.
+
+So the arm points moved in `tools/surfer.py`: both arms hang, elbows well
+outboard of the knees, the leading hand carrying on forward past the front knee
+and the trailing one down past the hip. Hands went from |x| 0.70-0.78 to
+0.46-0.49 and the figure from 1.39 units across to 1.01. The old note in that
+file was right that a body this size head-on is a post — the answer is just no
+longer width held forever. It is width that arrives when the board changes
+direction.
+
+**Both elbows fold forward,** and that took a second pass. The first arms-down
+attempt sent the trailing forearm *aft*, chasing the idea that a trailing hand
+belongs past the back knee — which is a joint bending the wrong way, and the one
+anatomical error a viewer spots instantly without being able to name it. An
+elbow has one direction. The forearm now comes forward and down past the hip at
+about fifty degrees off straight, matching the leading arm's sixty, and the
+clearances that keep each forearm from welding itself to the thigh it passes are
+written out beside the points: nothing closer than 25 cm, against about 20 cm of
+metaball field.
+
+Which arm rises is the part worth stating precisely, because it is the request
+and it is easy to get backwards. **It is the arm on the outside of the circle**:
+turning to the visitor's right the rider throws up his left, turning left his
+right, while the inside hand drops toward the face. `side` is +1 for the leading
+arm, which is his left because the model faces its open side; the camera sits
+astern looking down +z, so the visitor's right is the world's -x and a turn that
+way runs the heading negative. `Math.max(0, -c * side)` is therefore positive
+for exactly the arm that should rise, on both sides, with one expression and no
+branch — and zero for the other, which is left to a small shared roll that drops
+it.
+
+0.55 of shoulder, about thirty-five degrees, with the elbow folding 0.30 and the
+arm swinging forward as it goes: an arm thrown up rather than levitated. There
+is still no `bank` term on the arms — the chest has already handed them two
+thirds of the carve, and a fourth counter-rotation on the end of the longest
+lever in the silhouette was the single thing that read as flailing.
 
 **The legs are inverse kinematics,** because a foot is not in the air. `Ship.tsx`
 builds the board and `tools/surfer.py` puts the soles against it, so both ankles
@@ -2574,8 +2636,9 @@ who ignores the wave.
 
 ### Cost
 
-- **`src/models/surfer.glb`: 264 kB gz -> 326 kB gz.** All of it is `JOINTS_0`
-  and `WEIGHTS_0` on 10,341 vertices. The joints are already `UNSIGNED_BYTE`;
+- **`src/models/surfer.glb`: 264 kB gz -> 343 kB gz.** All of it is `JOINTS_0`
+  and `WEIGHTS_0`. The last 20 kB of that is `diffuse` rather than bone heat:
+  2.87 bones a vertex is more non-zero weights, and they compress less well. The joints are already `UNSIGNED_BYTE`;
   the weights are `FLOAT` and Blender's exporter has no option to quantise them,
   so halving that would mean a post-process or meshopt — **a dependency, which
   is Seb's call and has not been taken.** Triangles, vertices and the whole
@@ -2593,10 +2656,16 @@ who ignores the wave.
   form's own identity, so a failure is a real one — a renamed chain, a bone that
   stopped being connected to its parent, a scale in the export. Measured
   0.019deg and 0.008deg against a 0.057deg threshold.
-- **The soles do not move.** Seven drive states rendered in a headless Chromium
-  in the container — rest, chop, a wave face, two carves, airborne, a landing,
-  each with the deck actually heeled — and each foot bone measured in board
-  space afterwards. 0.00 mm in every one.
+- **The soles do not move.** Eight drive states rendered in a headless Chromium
+  in the container — rest, chop, a wave face, a turn each way, an easy turn,
+  airborne, a landing, each with the deck actually heeled — and each foot bone
+  measured in board space afterwards. 0.00 mm in every one.
+- **The right arm goes up.** The same pass reports which hand is higher in
+  world space: turning left it is his right (0.91 against 0.14), turning right
+  it is his left (0.63 against 0.12). At rest they are 0.53 and 0.42, both at
+  hip height. The two directions are now within five centimetres of being each
+  other's mirror, which they were not before the elbow was fixed — the trailing
+  arm's bad fold was worth 28 cm of asymmetry.
 - **The absorption is real, not a look.** The neck-axis numbers above, against
   what a rigid rider would give in the same state.
 - **The skinning holds at the extremes.** `--flex` renders every joint bent well
@@ -2625,4 +2694,7 @@ who ignores the wave.
   sign and it is a screenshot question, not an arithmetic one.
 - **Whether the idle layer is felt or noticed.** It is meant to be the first and
   never the second.
-- **The 62 kB gz**, and whether it is worth a quantisation dependency.
+- **The lift at 0.55, and the rest pose it lifts from.** The arms are down now
+  and the gesture is the only thing putting width back in the silhouette, so
+  these two numbers trade against each other and only motion can settle them.
+- **The 82 kB gz**, and whether it is worth a quantisation dependency.
