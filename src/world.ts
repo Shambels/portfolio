@@ -212,13 +212,21 @@ const MOOR_REACH = 0.6
  * game projects instead of blocking. The circles do not overlap (asserted
  * below), so one pass is enough: nothing this pushes out of one island can
  * land inside another.
+ *
+ * `isles` is the one exception the world has, and it is the surfer's: a man
+ * standing on a plank he can pick up is the only craft here whose vehicle is
+ * portable, so he crosses the isle's coast and walks up the beach instead of
+ * being held off it. The landmark islands are not his to walk on — arriving
+ * alongside one is what opens its panel, and their mooring circles are nearly
+ * twice the radius that does it — so they are still a push for every craft
+ * that floats. See `WALK_IN` in `Ship.tsx`.
  */
-export function offshore(p: { x: number; z: number }): void {
+export function offshore(p: { x: number; z: number }, isles = true): void {
   // The isles first: they are the big ones, and their coast is a radius at an
   // angle rather than a circle. `isleRim` is star-convex, so the push is the
   // same one line of arithmetic — out along the bearing the hull is already on,
   // onto the coast in that direction and not onto some average of it.
-  for (const i of ISLES) {
+  if (isles) for (const i of ISLES) {
     const dx = p.x - i.pos[0]
     const dz = p.z - i.pos[1]
     const d = Math.hypot(dx, dz)
