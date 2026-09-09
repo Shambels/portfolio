@@ -140,7 +140,37 @@ export function isleHeight(i: Isle, x: number, z: number): number {
   // Gullies. A multiplier and not an addend, so it is nothing at the waterline
   // and deepest where the island is highest — which is where water running off
   // one cuts them.
-  h *= 1 + 0.075 * Math.sin(4.3 * theta + i.seed * 1.7) * S(1, 0.45, u)
+  //
+  // And nothing at the *axis* either, which is the second fade and was missing.
+  // `theta` is undefined at r = 0 and flips by pi across it, so an angular term
+  // that is still at full strength there is a discontinuity in the height
+  // field: this island's summit was a four-lobed crown 2.1 m tall with a step
+  // down the middle of it, at every radius in to a millimetre of the centre.
+  // Nothing had shown it. The mesh draws the crown and the saucer flies 1.4 m
+  // over it behind a third of a second of lag, so it reads as shape; the
+  // surfer's own feet are what put a man on top of it, and `beach.check.ts`
+  // found the 2.1 m step the first time it walked one over the peak.
+  //
+  // Water running off a peak cuts gullies down the flanks and not across the
+  // summit, so the fix is also the more honest island.
+  // It is also subtractive now where it used to be signed, and that is the same
+  // fix and not a second one: a term that *adds* height on some bearings makes
+  // the profile rise on the way out of the axis fade, which is the terrace
+  // `isles.check.ts` refuses. A gully is a cut. Cutting only ever takes the
+  // island down, the summit is whatever is left when nothing is cut, and the
+  // climb to it is monotonic on every bearing by construction.
+  //
+  // **This is a change to the isle's committed look and it is small.** The old
+  // multiplier ran 0.925 to 1.075 and this one runs 0.925 to 1.0: the gullies
+  // are exactly as deep as they were and the spurs between them are gone,
+  // flattened to the profile they were standing proud of. The island is about
+  // 4% lower on average and its summit is 14.00 m where it read 13.15 — because
+  // the peak is no longer whichever side of a crown `theta` 0 happened to land
+  // on. It cannot go back up to 0.15 without the terrace: `isles.check.ts`
+  // rejects 0.10 and passes 0.075, and the flat spot it catches is at u 0.62,
+  // where the apron's smoothstep runs out of slope.
+  h *= 1 - 0.075 * (0.5 + 0.5 * Math.sin(4.3 * theta + i.seed * 1.7)) *
+    S(1, 0.45, u) * S(0.02, 0.2, u)
 
   // And the shelf under the sea. Wide and shallow first — that is the lagoon,
   // and it is why the water round the island is turquoise rather than navy —
