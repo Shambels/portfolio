@@ -2930,3 +2930,176 @@ slope.
 - **Whether the walk reads at all at this size**, given the back leg. It may be
   that the bob, the arm and the lean carry it and nobody looks at the knees,
   which is what these amplitudes are betting on.
+
+## The beach, second pass — the clip, the step and the jump
+
+Three things asked for, and the first of them turned into four.
+
+### He was walking through the island, and the fix is a floor
+
+Riding onto the beach put the surfer *under* the sand for the whole change of
+mode, and popped him out on top when the animation finished. The cause is one
+line: the altitude was blended from the swell to the ground **weighted by the
+ramp**, so the height arrived in step with the choreography — and the
+choreography is 1.25 s long while the approach is nine units a second up a beach
+that climbs 1.25 m in three.
+
+It is a floor now and not a fade. The ground wins the frame it is higher,
+which is the first frame of the change and not the last, and the ramp that is
+left only ever runs the other way — walking back down into a sea that is by then
+the higher of the two, where a quarter-second hand-off keeps him from being
+dropped onto the water. Two asymmetries and both of them one-directional,
+because the two directions are not the same problem.
+
+The sand under his feet stopped being lagged upward at the same time. The
+saucer's ground following is a pair of rates because it is a machine two metres
+across holding a height over a hill; a sole is on the ground, the height field
+is smooth already, and any lag going up is a foot inside it. Up exactly, down
+lagged. The clipping is now zero by construction rather than small by tuning.
+
+### `src/beach.ts` and `src/beach.check.ts`
+
+The vertical came out of `Ship.tsx` into a module of its own, for exactly the
+reason `isles.ts` is a module of its own: `Ship.tsx` imports three and TSL, node
+can load neither, and this was a bug that *arithmetic could have caught and a
+screenshot could not*. What moved is the ramp, the ground follow, the altitude
+floor and the constants they read. What stayed is everything a check in node
+could have no opinion about — the speed, the pose, the board and the walk cycle.
+
+`beach.check.ts` rides a real approach onto the real isle: eight bearings, 120
+Hz, from open water over the summit and out the far side, at a flat nine units a
+second the whole way in — harsher than the craft, which is decelerating from the
+moment the ramp starts. It asserts that the board's keel is never under the
+sand, that the altitude never moves more than 25 cm in a frame (so that "never
+under" is not bought with a jump cut), and that the mode change takes the 1.25 s
+it says it does. It reports **0.0 cm into the sand, 8.7 cm the biggest step**.
+
+### And then it found the isle's summit
+
+The first run of that check failed at 44 cm — on the peak, at r = 0.0, with the
+ground rising at 87 units a second.
+
+The isle's gullies are an angular term: `0.075 · sin(4.3θ) · S(1, 0.45, u)`,
+faded out at the waterline and at **full strength at the axis**. But `theta` is
+undefined at r = 0 and flips by π across it, so the summit was not a summit — it
+was **a four-lobed crown 2.1 m tall with a step down the middle of it**, at every
+radius in to a millimetre of the centre. `Isle.tsx` draws its mesh from the same
+function, so it has been drawing that crown; the saucer flies 1.4 m over it
+behind a third of a second of lag, so it read as shape. Putting a man's own feet
+on the ridge is what turned it into a 2.1 m teleport.
+
+**This is a change to the isle's committed look, and it is small.** The gully
+term now fades at the axis as well as at the coast, and it is subtractive where
+it used to be signed — a term that *adds* height on some bearings makes the
+profile rise on the way out of the axis fade, which is the terrace
+`isles.check.ts` already refuses. So:
+
+- The multiplier ran 0.925 to 1.075 and now runs 0.925 to 1.0. **The gullies are
+  exactly as deep as they were; the spurs between them are gone**, flattened to
+  the profile they were standing proud of.
+- The island is about 4% lower on the flanks. Its summit *reads* 14.00 m where
+  it read 13.15, because the peak is no longer whichever side of a crown θ = 0
+  landed on.
+- 0.075 is the most it can be. `isles.check.ts` rejects 0.10 and passes 0.075,
+  and the flat spot it catches is at u 0.62, where the apron's smoothstep runs
+  out of slope. That is a measured ceiling and not a taste.
+- Every existing isle assert still passes, including the two this could have
+  broken: the profile climbs the whole way in on every bearing, and the summit
+  is at or under its own stated peak — 14.000 against 14.
+
+Water running off a peak cuts gullies down the flanks and not across the summit,
+so the fix is also the more honest island. **But it is Seb's isle and this
+changes what it looks like, so it is called out rather than buried.**
+
+### `npm run check` was running one check out of four
+
+`camera.check.ts`, `isles.check.ts` and `stick.check.ts` have been in the tree
+and out of the script. All three pass; all five run now. Nothing was wrong with
+them — they simply were not being asked.
+
+### The step is twice as long, and it came out of the crouch
+
+`STRIDE_MAX` went 0.15 → 0.30, a 60 cm step against 30, and the cadence went
+3.6 → 2.8 steps a second with it — because the stride is derived from speed and
+raising the ceiling alone would have kept the same step and made him faster. At
+`WALK_SPEED` he now runs 0.30 of stride at 3.0 steps a second, planted, no slide.
+
+What paid for it is `CROUCH` = 0.09: nine centimetres lower than the surf
+stance. That is not a mood. The back leg is the one with 13% of its reach left
+(see the first pass), and every centimetre the hips come down is reach it can
+spend going forward instead of going up. Nine centimetres doubles the step and
+still leaves that leg at **89%** at the end of its swing, measured by the same
+sweep the dev assert runs. There is still no rise: he goes *further* into the
+crouch to get off the board, which is what carrying something three metres long
+does to a person anyway. `CARRY_POS.y` came down 9 cm with him so the board's
+top rail stays at the armpit.
+
+### The jump — space, on the water and on the sand
+
+The surfer alone, and the argument is not that he is the newest craft: **a person
+can jump and a hull cannot.** He is the one craft in this world that is a body
+rather than a boat, so he is the one that gets it. The boat's Space still does
+nothing and its hint still does not name it.
+
+- **On the water** the launch is added to the buoyancy spring's own velocity
+  rather than replacing it, so a jump taken off the face of a roller is a bigger
+  jump than one taken in a trough and nothing had to say so — the sea is already
+  moving him. `flew` is set with it so `POP` does not compound it on the next
+  frame: that kick is what a *crest* gives you and this is what his legs do.
+  Everything downstream is the machinery that was already there — the arc, the
+  ring of foam, the burst of spray, the compression on landing.
+- **On land** it is the only place in this world that integrates gravity for
+  something that is not water: 5.2 up against a stylised 14 down is 0.97 units
+  of air, about three quarters of his own height, and 0.74 s of it. The same
+  launch into the water's own gravity of 9 goes half as high again, which is
+  right — a board pops. Landing is spent in the same currency as the hull's:
+  into the bounce spring, and into his knees.
+- **It is an edge and not a hold.** The saucer's Space is a held climb to a
+  ceiling; this is a press. One `held` ref is what tells them apart, and on a
+  phone the second finger is already Space, so the jump is on touch for free.
+- `RIDE.air` now measures both — the hull off the surface, or the hop off the
+  sand — because what the rider does about it is the same thing. Both feet come
+  up 14 cm, the arms go where they went, and the walk cycle freezes in the air
+  instead of running in it.
+
+### Cost
+
+- **`src/beach.ts`: 131 lines**, of which about 90 are the argument.
+  `src/beach.check.ts`: 100. `src/Ship.tsx`: net about 100 lines added and 30
+  moved out. `src/isles.ts`: one term. `package.json`: one line.
+- **No new dependency, no new asset, no change to the model.**
+- **Runtime: unchanged for every craft but the surfer**, and for him one extra
+  height query a frame and a two-line ballistic integration while he is on sand.
+
+### Verified
+
+- `npx tsc -b`, and `npm run check` — which now means all five.
+- **The clip is gone, measured**: 0.0 cm at worst over eight bearings at nine
+  units a second, against 44 cm before the fix and 80 cm before that.
+- **The summit is a point**: the height around a circle at r = 0.001, 0.05 and
+  0.2 spans 0.000 m, against 2.100 m before.
+- **The stride fits the legs**: the dev assert in `rigOf`, re-measured with the
+  crouch — front leg 57%, back leg 90%, against the solver's clamp at 99.8%.
+- **The jump's numbers are arithmetic**, not judgement: 0.97 units and 0.74 s
+  fall straight out of 5.2 and 14.
+
+### Not verified
+
+- **Still nothing has been rendered.** Everything above is measurement and
+  reasoning; none of it says the shot reads.
+- **The isle's new summit has not been looked at.** The mesh loses a 2.1 m crown
+  and gains a point. It should look better and it is a change to a committed
+  frame, so it wants an eye before it wants agreement.
+
+### Needs Seb
+
+- **The isle's gullies at 0.075.** They are half the spread they were and the
+  ceiling is a measurement, so if the flanks now read as smooth the fix is a
+  different shape of gully rather than a bigger number.
+- **`CROUCH` = 0.09 against the stride it buys.** They trade directly: less
+  crouch is a shorter step, and there is no third option until the back thigh is
+  fixed.
+- **`JUMP` = 5.2.** Three quarters of his own height on land and half again as
+  much off the water. It is the one number here chosen for how it should feel.
+- **The three surfer hint strings**, EN, FR and NL, which now name Space.
+  The FR and NL are mine and unreviewed, like the eight already on that list.

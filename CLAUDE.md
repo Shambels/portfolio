@@ -14,7 +14,7 @@ starting work.
 ```
 npm run dev        # react-router dev
 npm run typecheck  # react-router typegen && tsc -b
-npm run check      # the assert-based checks
+npm run check      # the assert-based checks — all five of them
 npm run build      # typecheck, prerender every route, copy the root 404.html
 npm run preview    # serve build/client/
 ```
@@ -29,8 +29,9 @@ platform binding directory and cannot delete them afterwards, which breaks the
 build for everyone. Recovery is `rm -rf node_modules package-lock.json && npm
 install`, run by Seb on macOS.
 
-Claude verifies with `npx tsc -b` and `node src/i18n/locales.check.ts` — pure
-JS, safe from either side. `react-router typegen` and `oxlint` are *not* safe:
+Claude verifies with `npx tsc -b` and `npm run check` — pure JS, safe from
+either side. That script ran one check out of four for a while; it runs
+`locales`, `camera`, `isles`, `stick` and `beach` now, and all five pass. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -111,7 +112,12 @@ Breaking one is allowed. Doing it without saying so is not.
   a circle-vs-circle push out of each island's shoreline — still no engine. No ground following over flat terrain — only where the land stands higher than a plateau.
   The surfer is the exception to that shoreline, and it is the only one: he
   crosses the isle's coast, picks the board up and walks, following the same
-  `ground()` the saucer does with his soles on it instead of a metre above it.
+  `ground()` the saucer does with his soles on it instead of a metre above it —
+  and jumps, on the sand and on the water alike, because he is the one craft
+  here that is a body rather than a boat. His vertical is `src/beach.ts`, which
+  is pure arithmetic so that `beach.check.ts` can walk him onto the real island
+  in node; it is a *floor* and not a fade, and the difference between those two
+  words is a man on the beach against a man inside it.
   The three project islands are still a wall for him — arriving *alongside* one
   is what opens its panel — so `offshore` takes an argument rather than growing
   a craft check.
@@ -189,6 +195,10 @@ src/Post.tsx            the render pipeline — FXAA, and bloom off emissive onl
 src/Particles.tsx       the spray under the ship — GPU compute, WebGPU only
 src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by default
 src/Islands.tsx         the ground under each landmark — lathed, no assets
+src/beach.ts            coming ashore: the ramp between riding and walking, the
+                        sand under his feet and the altitude floor over it —
+                        pure arithmetic, no three, so the check runs in node
+src/beach.check.ts      that, ridden onto the real isle on eight bearings
 src/isles.ts            the isle: an island that is a place and not a project,
                         and the height function that is its shape — pure
                         arithmetic, no content import, so the check runs in node
@@ -282,10 +292,18 @@ a visitor can miss, which is why `?debug` names the backend.
 
 The surfer comes ashore. Riding onto the isle's beach brings the board up under
 his arm and puts him on foot; walking back into the sea puts him on it again.
-One ramped number, `RIDE.land`, drives the craft, the board and the man, and it
-runs both ways — putting the board down is picking it up backwards. It found
-something while it was in there: **the rider's two legs are not the same
-length** — 0.785 of reach at the front and 0.511 at the back, the back thigh a
+Space is a jump for him and for nothing else, on the water and on the sand
+alike. One ramped number, `RIDE.land`, drives the craft, the board and the man,
+and it runs both ways — putting the board down is picking it up backwards. It found two things while it was in
+there. The first: **the isle's summit was not a point.** Its gully term is
+angular and was at full strength at the axis, where `theta` flips by pi, so the
+peak was a four-lobed crown 2.1 m tall with a step down the middle — drawn by
+the mesh, flown over by the saucer, and only visible once a man's own feet stood
+on it. Fixed, and **that is a change to the isle's committed look**: the gullies
+are as deep as they were and the spurs between them are gone. `docs/STATUS.md`,
+"The beach, second pass", has the numbers and the ceiling.
+
+The second: **the rider's two legs are not the same length** — 0.785 of reach at the front and 0.511 at the back, the back thigh a
 shade under half the front one — which nothing on a board ever exposes and which
 a stride exposes immediately. Every cramped number in the walk is sized around
 it, there is a dev assert holding them, and the one-point fix in

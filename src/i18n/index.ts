@@ -58,12 +58,13 @@ const en = {
   // the second finger do nothing and are not named. Shorter on purpose.
   worldControlsBoat: 'WASD or arrows to sail · shift for full sail',
   worldControlsBoatTouch: 'Drag to sail',
-  // And the surfer's, which floats like the boat and so has no rise either.
-  // "Charge" rather than "boost" or "full sail": it is the word for taking a
-  // wave hard, and it is what shift does to a craft this light — the third
-  // craft exists because it leaves the water, and the hint says which key does.
-  worldControlsSurfer: 'WASD or arrows to surf · shift to charge',
-  worldControlsSurferTouch: 'Drag to surf',
+  // And the surfer's, which is the only one of the three back to naming Space.
+  // Not the saucer's rise — a held climb to a ceiling — but a jump, because he
+  // is a person and not a hull, and he does it on the water and on the sand
+  // alike. "Charge" rather than "boost" or "full sail": it is the word for
+  // taking a wave hard, and it is what shift does to a craft this light.
+  worldControlsSurfer: 'WASD or arrows to surf · space to jump · shift to charge',
+  worldControlsSurferTouch: 'Drag to surf · two fingers to jump',
   // A toggle button's label stays put and `aria-pressed` carries the state, so
   // this is one word rather than an on and an off in three languages.
   // The map's accessible name. It replaced the world's project list, so it
@@ -124,8 +125,8 @@ const fr: Strings = {
   worldControlsTouch: 'Glissez pour voler · deux doigts pour monter',
   worldControlsBoat: 'ZQSD ou flèches pour naviguer · maj pour toute la voile',
   worldControlsBoatTouch: 'Glissez pour naviguer',
-  worldControlsSurfer: 'ZQSD ou flèches pour surfer · maj pour foncer',
-  worldControlsSurferTouch: 'Glissez pour surfer',
+  worldControlsSurfer: 'ZQSD ou flèches pour surfer · espace pour sauter · maj pour foncer',
+  worldControlsSurferTouch: 'Glissez pour surfer · deux doigts pour sauter',
   worldMap: 'Carte du monde',
   sound: 'Son',
   sea: 'Mer',
@@ -174,8 +175,8 @@ const nl: Strings = {
   worldControlsTouch: 'Sleep om te vliegen · twee vingers om te stijgen',
   worldControlsBoat: 'WASD of pijltjes om te varen · shift voor volle zeilen',
   worldControlsBoatTouch: 'Sleep om te varen',
-  worldControlsSurfer: 'WASD of pijltjes om te surfen · shift om te knallen',
-  worldControlsSurferTouch: 'Sleep om te surfen',
+  worldControlsSurfer: 'WASD of pijltjes om te surfen · spatie om te springen · shift om te knallen',
+  worldControlsSurferTouch: 'Sleep om te surfen · twee vingers om te springen',
   worldMap: 'Kaart van de wereld',
   sound: 'Geluid',
   sea: 'Zee',

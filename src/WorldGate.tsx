@@ -256,9 +256,10 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
       {active && (
         <p className="hud">
-          {/* Six sentences: two per craft, because neither floating craft has a
-              rise and the phone has no shift. Naming a key that does nothing is
-              worse than a shorter hint. */}
+          {/* Six sentences: two per craft, because the phone has no shift and
+              the boat has nothing for Space to do. Naming a key that does
+              nothing is worse than a shorter hint — which is why the surfer's
+              two grew Space back the moment he had a jump to put on it. */}
           {model === 'saucer'
             ? touch ? STRINGS[locale].worldControlsTouch : STRINGS[locale].worldControls
             : model === 'boat'
