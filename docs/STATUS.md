@@ -2410,7 +2410,7 @@ steering against a camera that no longer agrees with the ship.
   the frame round to face an empty sea and an anti-solar sky, which is a view of
   this world nobody has ever had.
 
-## The rider moves — seventeen bones, and no animation in the file
+## The rider moves — seventeen bones, and the legs do the work
 
 The skin was finished and the man was still a figurine. Everything under him
 already moved — the swell, the bank, the three metres of air off a roller — and
@@ -2437,68 +2437,104 @@ whole screen presence is ninety pixels of back does not spend a joint on a
 collarbone.
 
 Weights are Blender's bone heat, and it worked first time because of the
-pipeline that was already in front of it — `weld` throws away every stray shell
-and Quadriflow re-lays the surface at one honest density, which is exactly the
-input the solver wants. It left zero vertices unweighted (`orphans` is the
-fallback for the day it does not, and it printed 0). The hair and the seven face
-parts are *not* given to the solver: a curl and an eyeball belong wholly to the
-head, and one group at weight 1 says so faster and better than an opinion about
-a sphere floating inside a skull. Rigged before the join, so joining merges the
+pipeline already in front of it — `weld` throws away every stray shell and
+Quadriflow re-lays the surface at one honest density, which is exactly the input
+the solver wants. It left zero vertices unweighted (`orphans` is the fallback
+for the day it does not, and it printed 0). The hair and the seven face parts
+are *not* given to the solver: a curl and an eyeball belong wholly to the head,
+and one group at weight 1 says so faster and better than an opinion about a
+sphere floating inside a skull. Rigged before the join, so joining merges the
 groups by name and what comes out is one skin with one set of weights.
 
 `python3 tools/surfer.py --render out.png --flex` is new: it renders a stress
 pose rather than the rest pose, because the rest pose is the one pose that
 cannot tell you whether the skinning works.
 
+### The hull's attitude arrives split in three, and that is the whole design
+
+The first pass rigged him and he was still stiff, and the reason was structural
+rather than a matter of amplitudes. The rider is a child of `body` — the group
+that carries the hull's bank, its pitch and the swell — so a board heeled thirty
+degrees to a wave face rolled the whole man thirty degrees with it, head
+included, before a single bone moved. Bones on top of that are a figurine with
+joints.
+
+A surfer is a suspension unit with a person balanced on top. So the frame loop
+now names the three things that make up `body.rotation` instead of writing them
+straight in, and the rider owes each one a different answer:
+
+| | | |
+|---|---|---|
+| `tilt`, `slope` | what the **water** is doing to the deck (`roll`, `heel`) | stand up against it |
+| `bank` | what the **craft** is doing — the bounce spring's lean into a turn | mostly go with it |
+| `heave` | the deck's vertical acceleration, over `SHOCK` = 25 | get shorter |
+
+Against `tilt` the joints sum to **0.95** — 0.58 at the hips, then 0.18, 0.11,
+0.03, 0.05 up the spine — so nearly all of the wave's heel is subtracted back
+out and the torso stands where the horizon is. Not all of it: a rider who
+cancelled the deck exactly would be a gimbal, and the twentieth left over is the
+wave still reaching him. Against `bank` the same joints sum to **0.34**, which
+is the other half of the idea — a third of the carve resisted, two thirds
+ridden, because a rider who stood upright through a turn would read as a
+passenger.
+
+And it pays for itself twice, because both ankles are nailed to the deck. The
+pelvis cannot rotate without one hip rising and the other dropping, which is one
+leg extending and one folding, with no line of code saying so. That is the whole
+reason the legs are worth a solver, and it is what "the legs absorb the wave"
+actually is here.
+
+`heave` is the same idea one derivative up and it is what keeps the knees
+working in ordinary chop rather than only on a landing. All five of the
+attitude terms are multiplied by `1 - air`: off the water there is nothing to
+brace against, and a man holding himself level against a board that is no longer
+on anything is a man doing arithmetic.
+
+Measured, in the headless pass below: a deck heeled **17.2deg** in chop leaves the
+neck axis at **-2.5deg** off vertical, against **12.8deg** for a rigid rider. On a
+**37deg** face it is **-11.8deg** against **32.8deg**. Through a full carve he leans
+**less** than his own board.
+
 ### No clip, no mixer, no animation in the glb
 
-`export_animations` is still `False`. What the rider does is a sum of five
-numbers written by the flight controller every frame:
+`export_animations` is still `False`. What the rider does is a sum of eight
+numbers the flight controller writes every frame — the four attitude terms
+above, plus `speed`, `turn` (the heading's rate over `CARVE` = 2.2 rad/s), `air`
+and `slam` (the landing impact, spent linearly over about a third of a second).
 
-| | |
-|---|---|
-| `speed` | 0 at rest, 1 at cruise |
-| `turn` | -1 to 1 — the heading's own rate, over `CARVE` = 2.2 rad/s |
-| `air` | 1 with the board clear of the water — `wet` inverted |
-| `slam` | the landing impact, spent linearly over about a third of a second |
-| `push` | the bounce spring along the heading: leaning back under power, forward under the brake |
-
-So he is *reacting* and not playing back. He leans into a carve because the
-heading is turning, folds on a landing because the hull just took an impact, and
-a wave nobody has ridden before is ridden correctly the first time. It is the
-same argument the shaders make about generic noise: the motion derives from what
-the thing does.
+So he is *reacting* and not playing back. He folds on a landing because the hull
+just took an impact, and a wave nobody has ridden before is ridden correctly the
+first time. It is the same argument the shaders make about generic noise: the
+motion derives from what the thing does.
 
 They are smoothed once, where they are written, at `REACT` = 9 — about 110 ms,
-which is a person's reaction time. A body's lag is one lag and not seventeen.
+which is a person's reaction time. A body's lag is one lag and not seventeen,
+and here that lag is doing real work: the board snaps to the wave and the man
+arrives a tenth of a second later, which is most of what absorbing a shock looks
+like from outside.
 
 ### Two mechanisms, because a foot is not a hand
 
 **The upper body is forward kinematics.** Hips, spine, chest, neck, head and both
 arms are told how far to rotate about board space's own axes, and their children
-come with them. That is right for a limb whose end is in the air: an arm
-counterweighting a turn has a swing, not a target.
+come with them. That is right for a limb whose end is in the air.
 
-The shape of it is one idea — a person on a moving board is a stack of
-counter-rotations. The hips go with the turn, the chest goes less far, the head
-goes *further* and rolls back against the body to keep the eyes level, and the
-arms go the other way to pay for all of it. Rotate them equally and you get a
-plank on a turntable; the graduation is the humanity, which is why `spine`,
-`chest` and `head` each get their own fraction of `turn` rather than sharing one.
-
-The arms are one number, not two poses: a single roll drops the leading hand
-toward the water on the inside of a turn and lifts the trailing one. Only what
-is symmetrical carries a per-arm sign — both come up in the air, both drop on a
-landing. At a full carve the leading hand reaches y 0.17, which is the
-waterline: he touches the face of the wave, and that was not aimed for.
+What is left after the subtraction is deliberately quiet — about a third of the
+first pass's `turn` amplitudes in the spine and chest, and the arms' shared roll
+went 0.30 -> 0.10. With the legs carrying the sea, a torso that also swings reads
+as loose rather than as balanced. The two exceptions are the head, which still
+leads the turn at 0.22 because it is the cue that most reliably reads as alive
+at this size, and the arms, which get no `bank` term at all: the chest has
+already handed them two thirds of the carve, and a fourth counter-rotation on
+the end of the longest lever in the silhouette was the single thing that still
+read as flailing.
 
 **The legs are inverse kinematics,** because a foot is not in the air. `Ship.tsx`
 builds the board and `tools/surfer.py` puts the soles against it, so both ankles
 are *constants in board space* and the only honest way to move the hips is to
 solve the knees for them. Two bones to a fixed target has a closed form — one
-triangle, no iteration, no solver — and what it buys is that every drop of the
-hips, every lean over the rail and every landing compression comes out as a leg
-that bends rather than as a rider sliding through his own board.
+triangle, no iteration, no solver — and it is what turns every counter-rotation
+above into a leg that bends.
 
 The knee's plane comes from the rest pose's own knee offset, which is what makes
 the solve exact at rest, and the reach is clamped a millimetre short of straight
@@ -2508,14 +2544,18 @@ difference between a knee and the classic pop.
 `prefers-reduced-motion` switches off the idle layer — breath, a weight shift, a
 drift of the head, the hands riding the air, four sines at rates that share no
 common multiple — and nothing else. Everything else is a response to something
-the visitor did, and stopping *those* would be a rider who ignores the sea.
+the visitor did or something the sea did, and stopping *those* would be a rider
+who ignores the wave.
 
 ### What changed in `Ship.tsx`
 
 - `RIDE`, module-local beside `SHIP` and not exported, because only `Surfer`
   reads it. Written for every craft rather than only the surfer: they are facts
-  about the hull, the branch would save four multiplies, and a value that only
+  about the hull, the branch would save a few multiplies, and a value that only
   updates while you are looking at it jumps the moment you switch craft.
+- `bank` and `nose` are named before they are used, so `body.rotation.z` is now
+  `bank + roll` rather than a clamp inline. Same value, and the two halves are
+  separable, which is the only reason the rider can answer them differently.
 - `Rider` stopped flattening the model. Every landmark is flattened with its
   transform baked in; this one cannot be, because the hierarchy *is* the
   skeleton.
@@ -2540,7 +2580,7 @@ the visitor did, and stopping *those* would be a rider who ignores the sea.
   so halving that would mean a post-process or meshopt — **a dependency, which
   is Seb's call and has not been taken.** Triangles, vertices and the whole
   colour pipeline are unchanged.
-- **`src/Ship.tsx`: about 300 lines**, all of it below the material block.
+- **`src/Ship.tsx`: about 320 lines**, all of it below the material block.
 - **Runtime: seventeen bone quaternions and one 4x4 a frame**, and only while
   the surfer is the craft being drawn. No allocation in the loop.
 
@@ -2553,16 +2593,15 @@ the visitor did, and stopping *those* would be a rider who ignores the sea.
   form's own identity, so a failure is a real one — a renamed chain, a bone that
   stopped being connected to its parent, a scale in the export. Measured
   0.019deg and 0.008deg against a 0.057deg threshold.
-- **The soles do not move.** Rendered six drive states in a headless Chromium in
-  the container — rest, cruise, both carves, airborne, landing — and measured
-  where each foot bone ended up in board space. 0.00 mm in every one.
+- **The soles do not move.** Seven drive states rendered in a headless Chromium
+  in the container — rest, chop, a wave face, two carves, airborne, a landing,
+  each with the deck actually heeled — and each foot bone measured in board
+  space afterwards. 0.00 mm in every one.
+- **The absorption is real, not a look.** The neck-axis numbers above, against
+  what a rigid rider would give in the same state.
 - **The skinning holds at the extremes.** `--flex` renders every joint bent well
   past anything the runtime asks for: no shear at the shoulder, no collapse at
   the waist, hair and face riding the head.
-- **The poses are the poses.** In the same headless pass, at a full carve the
-  leading hand goes from y 0.64 to 0.17 and the trailing one from 1.12 to 1.45,
-  and the head shifts 31 cm into the turn. The mirror carve mirrors. Airborne
-  lifts both hands; a landing drops the head 18 cm and puts it forward.
 
 ### Not verified
 
@@ -2571,14 +2610,17 @@ the visitor did, and stopping *those* would be a rider who ignores the sea.
   it cannot see are whether the skinned outline really does track the pose in
   TSL — the reasoning above says it must — and what skinning costs the frame
   rate on real hardware.
+- **Nothing has run in motion.** Every number here was chosen against a still
+  frame, and absorption is a thing you judge by watching, not by looking.
 
 ### Needs Seb
 
-- **The amplitudes.** Every number in `ride()` was chosen against a still frame
-  and the thing they have to survive is motion. The two most likely to be wrong:
-  the arm roll at `-0.30`, which is dramatic at a full carve and may be a
-  quarter too much, and `CARVE` = 2.2, which decides how much of the range a
-  normal turn actually uses. Both are one line.
+- **The two gains, 0.95 and 0.34.** They are the whole design and they are two
+  lines' worth of constants spread over five joints. If he still reads as stiff
+  the first is too low; if he reads as a gyroscope on a stick it is too high.
+- **`SHOCK` = 25 and `CARVE` = 2.2.** They decide how much of the range ordinary
+  water and an ordinary turn actually use, which is a thing only sailing it can
+  say.
 - **The sign of `push`.** Leaning back under power is the guess; it is one minus
   sign and it is a screenshot question, not an arithmetic one.
 - **Whether the idle layer is felt or noticed.** It is meant to be the first and

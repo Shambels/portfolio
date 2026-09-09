@@ -1479,8 +1479,12 @@ function ride(r: Rig, t: number): void {
     // which is a counterweight rather than two poses. What is per-arm is what
     // is symmetrical — both come up in the air, both drop on a landing — and
     // that is the term carrying `side`.
+    // The x term is negated against the other two and that is not a typo: one
+    // arm reaches forward and the other back, so a pitch about the deck's own
+    // x axis raises one and drops the other, and it has to be the mirror of
+    // the roll beside it or airborne comes out as one arm up and one arm down.
     bend(a.upper,
-      0.10 * air * a.side + 0.06 * RIDE.push,
+      -0.10 * air * a.side + 0.06 * RIDE.push,
       0.08 * c * a.side,
       -0.30 * c + a.side * (0.22 * air - 0.16 * slam + 0.05 * flutter))
     fold(a.fore, a.elbow, 0.22 * Math.abs(c) + 0.35 * slam + 0.18 * air + 0.03 * flutter)
