@@ -165,6 +165,95 @@ const CRAFT_WATER = {
   },
 }
 
+/* ----------------------------------------------------------- coming ashore
+ *
+ * Every other craft in this world stops at a coastline. `offshore` pushes a
+ * hull back onto the water, which is right for a boat — it has nowhere to go
+ * once the water runs out — and which made the isle a wall with a beach
+ * painted on it. The surfer is the one craft that is wrong for: a man standing
+ * on a plank he can pick up is the only vehicle here that is portable.
+ *
+ * So he crosses. The board comes up under his arm, he walks, and walking back
+ * into the sea puts him on it again. `RIDE.land` is the whole of it — 0 riding,
+ * 1 on foot — and it is a straight ramp rather than an exponential, because a
+ * change of mode is a thing that finishes.
+ *
+ * What drives it is the ground under him, and `ground()` is sea level
+ * everywhere but the isle: every frame the boat, the saucer and the open sea
+ * have ever had reads this and gets zero. The band is the first metre of sand
+ * above the waterline, so the trigger is the water's edge itself and not a
+ * circle drawn near it.
+ */
+const WALK_IN = 0.06   // ground height where he starts getting off
+const WALK_FULL = 0.34 // and where he is walking
+const BEACH = 1.25     // seconds the change takes, and it is the same both ways
+/**
+ * His speed on foot, against `AGILITY.surfer.speed` on the board — a fifth of
+ * it. Fast enough that 70 m of island is a walk and not a chore, slow enough
+ * that stepping off the board is a decision with a cost, and it is also very
+ * nearly the speed at which the stride below comes out exact: at 1.8 units a
+ * second his feet are planted, and only boost slides them.
+ */
+const WALK_SPEED = 0.24
+/** How fast his feet answer the ground. Not the saucer's `FOLLOW`, which is a
+ *  machine holding its height over a hill — this is a sole on it. */
+const WALK_FOLLOW = 14
+/**
+ * Steps a second, and the stride, and both of them are the model's numbers
+ * rather than anybody's taste. **The two legs are not the same length.**
+ * `tools/surfer.py` sculpts the front one at 0.785 of reach and the back one at
+ * 0.511 — the back thigh is half the front's — and the back leg is already at
+ * 87% of its own reach standing in the surf crouch. Nothing on a board ever
+ * straightens either, which is why it has never shown; a stride is the first
+ * thing that asks.
+ *
+ * So the walk is sized by the leg that has 13% left. `STRIDE_MAX` at 0.15 puts
+ * the back leg at 93% at the end of its swing, under `reach`'s own clamp at
+ * 99.8% — and a clamped leg is a foot that slides. It is a short step, and it
+ * is the longest one this rig can take. `docs/STATUS.md` has the fix, which is
+ * one point in `tools/surfer.py` and a rebuilt model, and is Seb's call.
+ *
+ * `CADENCE` is what speed buys first: the stride grows and the rate does not,
+ * which is what a person does and what a phase driven by time gets wrong (time
+ * gives you a man jogging on the spot when he stops). Past the stride's cap the
+ * rate rises instead, up to `CADENCE_MAX`, and past *that* the feet slide —
+ * deliberately, because at boost he is 90 pixels of back and a foot that skates
+ * is invisible where legs going round like a cartoon's are not.
+ */
+const CADENCE = 3.6
+const CADENCE_MAX = 5
+const STRIDE_MIN = 0.04
+const STRIDE_MAX = 0.15
+/** How high the swinging foot lifts at a full stride, scaled down with it. */
+const STEP_LIFT = 0.09
+/**
+ * How far he drops when the board stops being under him. The deck is `deckY`
+ * above this group's origin — about 16 cm under his soles — and the sand is at
+ * the origin, so this is that measurement and not a taste number.
+ *
+ * Applied to the *group* and not to the ankles, which is the whole difference
+ * between a walk this rig can do and one it cannot: moving the feet down 16 cm
+ * in board space asks the back leg for 0.56 against the 0.51 it has, and it
+ * clamps every frame. Dropping what they stand on asks nothing of either leg.
+ */
+const FOOT_DROP = 0.16
+/**
+ * How high the walking foot may be picked up or set down against the plane his
+ * hips are on. Asymmetric, and the asymmetry is the same short leg: he can lift
+ * a foot onto a step, and he cannot reach down into a hollow, because the leg
+ * that would have to reach is already nearly straight.
+ */
+const TERRAIN_UP = 0.18
+const TERRAIN_DOWN = -0.04
+/**
+ * And the dip through the middle of the change, where he is bent over the board
+ * with both hands on it. There is deliberately no matching *rise*: he does not
+ * stand up out of the crouch when he gets off, because the back leg has 13% of
+ * its reach left and standing spends all of it. He walks in the stance he
+ * surfs in, which is the honest thing this model can do.
+ */
+const PICK = 0.20
+
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
  * and `hover - GROUND` over a landmark's flat top — the frames that shipped —
@@ -297,14 +386,17 @@ export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0
 export const SHIP_XZ = uniform(new THREE.Vector2())
 
 /**
- * What the rider is riding, as five numbers a frame. `Surfer` reads them and
- * nothing else does, which is why they are module-local where `SHIP` above is
+ * What the rider is riding, as thirteen numbers a frame — eight about the hull
+ * under him and five about not being on it. `Surfer` reads them and nothing
+ * else does, which is why they are module-local where `SHIP` above is
  * exported — same reason, one file smaller.
  *
  * They are the whole interface between the physics and the man on the board.
  * There is no clip, no state machine and no animation graph: every joint below
- * is a sum of these eight, so the rider is *reacting* rather than playing back,
- * and a jump he has never taken before still lands.
+ * is a sum of these, so the rider is *reacting* rather than playing back, and a
+ * jump he has never taken before still lands. The walk is the same claim on
+ * land: the phase is distance travelled, not a clip, so he cannot walk faster
+ * than he is moving and he cannot moonwalk out of a stop.
  *
  * The last three are the important ones and they are the reason the first pass
  * read as a figurine with joints. The rider is a child of `body`, so the hull's
@@ -322,7 +414,7 @@ export const SHIP_XZ = uniform(new THREE.Vector2())
  * same joints. `heave` is the same idea one derivative up: the sea pushing the
  * deck at him, which a standing person meets by getting shorter.
  *
- * `turn`, `push`, `tilt`, `slope` and `heave` are signed; the rest are not. All
+ * `turn`, `push`, `tilt`, `slope` and `heave` are signed; the rest are not. The
  * eight are smoothed here rather than at the joints, because a body's own lag is
  * one lag and not seventeen — and here that lag is doing real work: the board
  * snaps to the wave and the man arrives a tenth of a second later, which is
@@ -338,13 +430,21 @@ const RIDE = {
   slope: 0, // radians: and how far it has it pitched fore and aft
   bank: 0,  // radians: and how far the *craft's* own lean into a turn has it over
   heave: 0, // -1 to 1: the deck's vertical acceleration, over `SHOCK`
+  // And the five that are only about being off it — see `WALK_IN`. They are
+  // zero on every frame he is riding, which is every frame the world had
+  // before the beach, so the pose above is untouched by their arrival.
+  land: 0,   // 0 on the board, 1 on foot, ramped over `BEACH` seconds
+  step: 0,   // the walk cycle's phase, radians — advanced by distance, not time
+  stride: 0, // and its half-step in board units, which is speed's share of it
+  rise: 0,   // the ground's slope along his heading, and across it: what puts
+  cant: 0,   // one foot higher than the other on a hillside
 }
 /** What `RIDE.heave` is 1 at, units/sec^2. A hull settling onto calm water runs
  *  a few of these; a roller taken at full sail is well over it and clamps. */
 const SHOCK = 25
 /** The yaw rate a full carve reaches, radians/sec — what `RIDE.turn` is 1 at. */
 const CARVE = 2.2
-/** How fast the body answers a change in any of the five. A person is not a
+/** How fast the body answers a change in any of the eight. A person is not a
  *  spring here: this is reaction time, and 9 is about 110 ms of it. */
 const REACT = 9
 
@@ -422,6 +522,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
+  const beached = useRef(0)  // 0 riding, 1 walking — see `WALK_IN`
+  const groundY = useRef(0)  // the sand under his feet, lagged by `WALK_FOLLOW`
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
@@ -471,6 +573,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     spring.current.set(0, 0, 0)
     springVel.current.set(0, 0, 0)
     reset.current = true
+    // A deep link is a teleport and not a walk: every waypoint is out at sea,
+    // so arriving at one is arriving on the board, however he left.
+    beached.current = 0
     near.current = l.slug
     snap.current = true
     // `floats` is read above and is deliberately not a dependency — see the
@@ -485,6 +590,21 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // divides by, and one NaN frame hides the ship for the rest of the session.
     const dt = THREE.MathUtils.clamp(delta, 1 / 240, 0.05)
     const g = rig.current
+
+    // Coming ashore, and it is read before anything else because it decides how
+    // fast he is going: the speed below is his on the board or his on foot, and
+    // this is the ramp between them. Last frame's position, deliberately —
+    // nothing here is worth reordering the frame for.
+    const walks = model === 'surfer'
+    const want = walks
+      ? THREE.MathUtils.smoothstep(ground(g.position.x, g.position.z), WALK_IN, WALK_FULL)
+      : 0
+    // Invariant 6: a visitor who asked for less motion gets the change of mode
+    // and not the second and a quarter of choreography in front of it.
+    beached.current = REDUCED
+      ? want
+      : beached.current + THREE.MathUtils.clamp(want - beached.current, -dt / BEACH, dt / BEACH)
+    const ashore = beached.current
 
     // Movement is measured against where the camera points, not against the
     // world: forward is into the screen and right is right, at every heading,
@@ -503,13 +623,17 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // the loop above with the lag taken out of it.
     steer(input.move.x, input.move.y, camYaw.current, _target)
     _target.y = 0
-    _target.multiplyScalar((input.boost ? SPEED * BOOST : SPEED) * agile.speed)
+    _target.multiplyScalar((input.boost ? SPEED * BOOST : SPEED) *
+      (agile.speed + (WALK_SPEED - agile.speed) * ashore))
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
     // A hull cannot climb a beach. Pushed back onto the mooring circle rather
     // than stopped dead, so a boat leaning on a coast keeps whatever part of its
     // motion runs along it and slides round the island instead of sticking.
-    if (floats) offshore(g.position)
+    // The isles are not a wall for the surfer — he walks up them — and they are
+    // for everything else. The landmark islands still are for both: see the
+    // note on `offshore`.
+    if (floats) offshore(g.position, !walks)
 
     if (vel.current.lengthSq() > 0.0025) {
       const want = Math.atan2(vel.current.x, vel.current.z)
@@ -600,6 +724,7 @@ const RISE = 10
         // not falling from wherever the last one was.
         reset.current = false
         hull.current = surface
+        groundY.current = ground(g.position.x, g.position.z)
         hullVel.current = 0
         lastSurface.current = surface
         wet.current = 1
@@ -620,7 +745,7 @@ const RISE = 10
       // And back into it. The impact is last frame's fall, before the spring
       // has had a chance to answer it — which is the number a splash is the
       // size of, and the number the hull compresses by.
-      if (!flying && flew.current && -hullVel.current > SPLASH_MIN) {
+      if (!flying && flew.current && -hullVel.current > SPLASH_MIN && ashore < 0.5) {
         const impact = Math.min(-hullVel.current, water.launch)
         SPLASH.x = g.position.x
         SPLASH.z = g.position.z
@@ -661,6 +786,26 @@ const RISE = 10
       // painted water, the other is a thirty-degree face you can see.
       roll = soft((s.dx * cy - s.dz * sy) * water.tilt + (s.rx * cy - s.rz * sy), water.heel) * wet.current
       heel = soft(-((s.dx * sy + s.dz * cy) * water.tilt + (s.rx * sy + s.rz * cy)), water.heel) * wet.current
+
+      // And the beach. The buoyancy above keeps running underneath — the water
+      // is still there and he is going back to it — so this is a blend and not
+      // a branch, and coming off it needs no state at all. Crossing the
+      // waterline is not a step because both sides of it are near zero there:
+      // the ground is zero at the coast by construction (`isles.check.ts`
+      // asserts it) and the swell is damped to the chop by `shoal`.
+      if (ashore > 0) {
+        groundY.current += (ground(g.position.x, g.position.z) - groundY.current) *
+          (1 - Math.exp(-WALK_FOLLOW * dt))
+        // `FOOT_DROP` is the deck coming out from under his soles — see the
+        // note on it. It is a translation of the whole craft and not of his
+        // feet, which is what keeps both legs inside their own reach.
+        ride += (groundY.current - FOOT_DROP - ride) * ashore
+        // A man walking does not heel to a wave, and the deck is not throwing
+        // him anywhere: what is left of the water fades out of all three.
+        roll *= 1 - ashore
+        heel *= 1 - ashore
+        vertAccel *= 1 - ashore
+      }
     }
 
     // Acceleration this frame, all three axes at once — so a diagonal that also
@@ -710,6 +855,30 @@ const RISE = 10
     RIDE.slope += (heel - RIDE.slope) * react
     RIDE.bank += (bank - RIDE.bank) * react
     RIDE.heave += (THREE.MathUtils.clamp(vertAccel / SHOCK, -1, 1) - RIDE.heave) * react
+
+    // And the walk's five. The phase is advanced by *distance* and not by time,
+    // so a rider who stops stops mid-step, and boost is a longer stride at the
+    // same cadence — which is the one thing about a run that a fixed frequency
+    // always gets wrong. Not smoothed through `react` like the eight above:
+    // these are not a body's answer to the hull, they are where his feet are.
+    RIDE.land = ashore
+    const pace = Math.hypot(vel.current.x, vel.current.z)
+    RIDE.stride = THREE.MathUtils.clamp(pace / (2 * CADENCE), STRIDE_MIN, STRIDE_MAX)
+    RIDE.step = (RIDE.step + Math.PI * dt * ashore *
+      Math.min(pace / (2 * RIDE.stride), CADENCE_MAX)) % (Math.PI * 2)
+    // The hillside, in the hull's own frame: the ground a stride ahead against
+    // the ground a stride behind, and the same across him. It is what puts the
+    // uphill foot higher instead of both of them in the slope, and it is four
+    // height queries that only happen while he is on one.
+    if (ashore > 0.01) {
+      const e = 0.6
+      const gx = g.position.x
+      const gz = g.position.z
+      RIDE.rise = (ashore * (ground(gx + sy * e, gz + cy * e) -
+        ground(gx - sy * e, gz - cy * e))) / (2 * e)
+      RIDE.cant = (ashore * (ground(gx + cy * e, gz - sy * e) -
+        ground(gx - cy * e, gz + sy * e))) / (2 * e)
+    } else RIDE.rise = RIDE.cant = 0
 
     body.current.rotation.z = bank + roll
     body.current.rotation.x = nose + heel
@@ -997,7 +1166,40 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * group on the swell and the board's own numbers decide what is wet. What the
  * rider stands on is `deckY`, and his soles are placed against it in Blender.
  */
+/**
+ * Where the board goes when nobody is standing on it: on its rail against his
+ * right side, its top rail at the armpit, its nose swung out and up.
+ *
+ * The swing is not decoration and it is the only number here chosen against the
+ * camera rather than against the man. The camera sits astern and never yaws, so
+ * a board carried along the heading is a board seen end-on — 2.3 units of it
+ * reduced to an ellipse hidden behind its own rider. A quarter of a radian of
+ * yaw and an eighth of pitch put it diagonally across the frame, which is both
+ * where it reads and how anybody actually carries one.
+ *
+ * His right is -x: the model faces +z (`GAZE` in `tools/surfer.py`), so the
+ * trailing arm at x -0.09 is his right one, and the arms-down rest pose already
+ * hangs it exactly where a carried board wants it — elbow at the outer rail,
+ * hand below it. That is why the carry costs the arms almost no pose of their
+ * own down in `ride()`: the pose was already the pose, and it only had to be
+ * given something to hold.
+ *
+ * The roll is exactly a quarter turn, and its sign is the one that puts the
+ * deck against his ribs and the fin outboard, clear of his leg.
+ */
+const CARRY_POS = new THREE.Vector3(-0.30, 0.50, 0.02)
+const CARRY_ROT = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(-0.20, -0.44, -Math.PI / 2, 'YXZ'))
+const CARRY_REST = new THREE.Quaternion()
+/** A hand's width of arc through the middle of the lift, so the board leaves
+ *  the sand rather than sliding up out of it. */
+const LIFT_ARC = 0.12
+
 function Surfer({ visible }: { visible: boolean }) {
+  // The board alone, so it can be picked up. The rider is its sibling and not
+  // its child: he is what walks away with it, and a man parented to the thing
+  // he is carrying is a man who cannot put it down.
+  const board = useRef<THREE.Group>(null!)
   const kit = useMemo(() => {
     // The board. The same trick as the hull — an ellipsoid, pinched in plan —
     // except that this one keeps its top half, because a board is a board from
@@ -1067,29 +1269,51 @@ function Surfer({ visible }: { visible: boolean }) {
   // you are actually going now that the plume belongs to the saucer.
   useFrame(() => {
     if (!visible) return
-    WAKE_SPEED.value += (Math.min(SHIP.vel.length() / SPEED, 1) - WAKE_SPEED.value) * 0.12
+    // The wake goes before the board does, and that ordering is the point: it
+    // is water the board left behind, so it has to be gone by the time the
+    // board is in the air. It fades over the first sand rather than over the
+    // whole change of mode.
+    WAKE_SPEED.value += (Math.min(SHIP.vel.length() / SPEED, 1) *
+      (1 - THREE.MathUtils.smoothstep(RIDE.land, 0.02, 0.28)) - WAKE_SPEED.value) * 0.12
+
+    // And the board comes up with him. It lags the crouch deliberately — the
+    // dip in `ride()` is him reaching for it, and a board that started rising
+    // with his hips would be one he never touched. One eased number for the
+    // whole of it, so the reverse is the same movement backwards: he sets it
+    // down, steps on, and rides away.
+    const t = THREE.MathUtils.smoothstep(RIDE.land, 0.32, 0.94)
+    board.current.position.copy(CARRY_POS).multiplyScalar(t)
+    board.current.position.y += LIFT_ARC * Math.sin(Math.PI * t)
+    board.current.quaternion.slerpQuaternions(CARRY_REST, CARRY_ROT, t)
   })
 
   return (
     <group visible={visible}>
-      <mesh geometry={kit.boardGeo} material={kit.deck} />
-      <mesh geometry={kit.stripeGeo} material={kit.stripe} />
+      {/* Everything the board is, in one group, because all of it is picked
+          up together — deck, stringer, fin and pad. */}
+      <group ref={board}>
+        <mesh geometry={kit.boardGeo} material={kit.deck} />
+        <mesh geometry={kit.stripeGeo} material={kit.stripe} />
 
-      {/* The fin. Three radial segments squashed to a blade: a cone is the
-          cheapest thing in the library that is already a triangle. */}
-      <mesh material={kit.deck} position={[0, -0.11, -0.78]} rotation-x={Math.PI} scale={[0.13, 1, 1]}>
-        <coneGeometry args={[0.14, 0.3, 3]} />
-      </mesh>
+        {/* The fin. Three radial segments squashed to a blade: a cone is the
+            cheapest thing in the library that is already a triangle. */}
+        <mesh material={kit.deck} position={[0, -0.11, -0.78]} rotation-x={Math.PI} scale={[0.13, 1, 1]}>
+          <coneGeometry args={[0.14, 0.3, 3]} />
+        </mesh>
 
-      {/* The pad, and then the man standing on it. `Suspense` around him and
-          not around the craft: the board is geometry this file builds and it
-          should be on the water the frame the surfer is chosen, whether or not
-          423 kB of rider has landed yet. */}
-      <mesh geometry={kit.padGeo} material={kit.grip} />
+        <mesh geometry={kit.padGeo} material={kit.grip} />
+      </group>
+
+      {/* And the man. `Suspense` around him and not around the craft: the
+          board is geometry this file builds and it should be on the water the
+          frame the surfer is chosen, whether or not 423 kB of rider has landed
+          yet. Outside the group above, because he is the one who carries it. */}
       <Suspense fallback={null}>
         <Rider visible={visible} />
       </Suspense>
 
+      {/* The wake stays on the water, where it belongs: it is the sea's mark
+          and not a thing the board wears. */}
       <mesh geometry={kit.wakeGeo} material={FOAM} position-y={0.015} />
     </group>
   )
@@ -1203,8 +1427,8 @@ OUTLINE.positionNode = positionLocal.add(normalLocal.mul(0.011))
  * water got.
  *
  * What it is not: there is no clip and no animation mixer in the file, and the
- * glb carries no animation either. Every angle below is a sum of the five
- * numbers in `RIDE`, so what the rider does is a response and not a playback —
+ * glb carries no animation either. Every angle below is a sum of the numbers
+ * in `RIDE`, so what the rider does is a response and not a playback —
  * he leans into a carve because the heading is turning, he folds on a landing
  * because the hull just took an impact, and a wave nobody has ridden before is
  * ridden correctly the first time. It also means the rest pose is the shipped
@@ -1234,6 +1458,12 @@ const _hip = new THREE.Vector3()
 const _to = new THREE.Vector3()
 const _pole = new THREE.Vector3()
 const _knee = new THREE.Vector3()
+const _foot = new THREE.Vector3()
+const _aim = new THREE.Vector3()
+/** Where a walking knee points, against the outward one a surf crouch has. See
+ *  `aim` in `reach`. Straight ahead: the solver re-squares it against the leg's
+ *  own line every frame, so it does not have to be perpendicular here. */
+const WALK_POLE = new THREE.Vector3(0, 0, 1)
 const _dir = new THREE.Vector3()
 const _q = new THREE.Quaternion()
 const _qt = new THREE.Quaternion()
@@ -1352,6 +1582,15 @@ type Leg = {
   up: number            // thigh length
   low: number           // shin length
   pole: THREE.Vector3   // which way the knee points, in board space
+  /**
+   * Where this foot swings about when he is walking: the point under its own
+   * hip. Read off the model rather than written down, and it is also the place
+   * along the board where the leg is asking least — which is what makes a
+   * stride possible at all on the short one. The two hips are 12 cm apart along
+   * the board, so the feet come out staggered by that much, which is what a
+   * walking stance is.
+   */
+  sweep: number
   d1: THREE.Vector3     // hip -> knee at rest, normalised
   d2: THREE.Vector3     // knee -> ankle at rest, normalised
   q1: THREE.Quaternion  // and the three rest orientations, in board space
@@ -1420,7 +1659,7 @@ function rigOf(scene: THREE.Object3D): Rig {
     return {
       thigh: bone(`${tag}_thigh`), shin: bone(`${tag}_shin`), foot: bone(`${tag}_foot`),
       at: bone(`${tag}_thigh`).position.clone(),
-      ankle, pole,
+      ankle, pole, sweep: hip.z,
       up: hip.distanceTo(knee),
       low: knee.distanceTo(ankle),
       d1: new THREE.Vector3().subVectors(knee, hip).normalize(),
@@ -1464,6 +1703,39 @@ function rigOf(scene: THREE.Object3D): Rig {
         `${(off * 180 / Math.PI).toFixed(2)}deg off its own rest pose`)
       ;[l.thigh, l.shin, l.foot].forEach((b, i) => b.quaternion.copy(was[i]))
     }
+    /**
+     * And the second claim, which is the walk's: every foot the solver is ever
+     * handed on land has to be somewhere the leg can actually reach.
+     *
+     * It is a real check and not a formality, because the two legs are not the
+     * same length — see `CADENCE` — so `STRIDE_MAX`, `STEP_LIFT` and
+     * `TERRAIN_DOWN` are sized against a measurement of *this* file. Re-sculpt
+     * the pose, fix the back thigh, move a knee, and the number that was 89%
+     * moves with it. Past `reach`'s own clamp the leg simply goes straight and
+     * the foot stops where it is told to stop, which on screen is a man
+     * skating — a thing that reads as a bug in the walk rather than as a limit
+     * of the rig, and so is exactly the kind of wrong nobody diagnoses.
+     *
+     * The threshold leaves 3% for what this sweep does not model: the pelvis
+     * turning with the stride, and the sway and the bob under it, which
+     * together move a hip joint by about a centimetre.
+     */
+    for (const l of rig.legs) {
+      const hip = new THREE.Vector3().setFromMatrixPosition(restOf(l.thigh, scene, _mat))
+      let worst = 0
+      for (let k = 0; k < 180; k++) {
+        const ph = (k / 180) * Math.PI * 2
+        worst = Math.max(worst, _v.set(
+          l.ankle.x,
+          l.ankle.y + Math.max(0, -Math.sin(ph)) * STEP_LIFT + TERRAIN_DOWN,
+          l.sweep + STRIDE_MAX * Math.cos(ph),
+        ).distanceTo(hip) / (l.up + l.low))
+      }
+      console.assert(worst < 0.97,
+        `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
+        'own length walking — the stride is longer than the leg, and the foot will slide. ' +
+        'Shorten STRIDE_MAX, or give the model two legs the same length.')
+    }
   }
   return rig
 }
@@ -1482,17 +1754,32 @@ function rigOf(scene: THREE.Object3D): Rig {
  * left to bend in and the knee snaps to wherever the pole happens to point,
  * which is the classic pop; a millimetre of slack costs nothing and there is no
  * pop.
+ *
+ * `ankle` defaults to the sole on the deck, which is the constraint the whole
+ * thing exists to honour and the only one it had until the beach: on the board
+ * a foot does not move. Walking, it does — and it is still a fixed target, just
+ * a different one each frame, so the solver did not change and neither did what
+ * it guarantees. The foot is wherever `ride()` puts it and the knees are what
+ * pay for it.
+ *
+ * `aim` is the other half of that, and without it the walk was bow-legged. Both
+ * knees in the sculpted stance point *outward* — a surf crouch is a wide
+ * stance, and taking the rest knee's own offset as the pole is what makes the
+ * riding solve exact. A walking knee points forward. So the pole is swung round
+ * with him, and the exactness is kept where it matters: on the board, `aim` is
+ * `leg.pole` to the last decimal.
  */
-function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion): void {
+function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
+  ankle: THREE.Vector3 = leg.ankle, aim: THREE.Vector3 = leg.pole): void {
   const hip = _hip.copy(leg.at).applyMatrix4(from)
-  const to = _to.subVectors(leg.ankle, hip)
+  const to = _to.subVectors(ankle, hip)
   const span = THREE.MathUtils.clamp(
     to.length(), Math.abs(leg.up - leg.low) + 1e-3, leg.up + leg.low - 1e-3)
   to.normalize()
 
   const along = (span * span + leg.up * leg.up - leg.low * leg.low) / (2 * span)
   const out = Math.sqrt(Math.max(leg.up * leg.up - along * along, 0))
-  const pole = _pole.copy(leg.pole)
+  const pole = _pole.copy(aim)
   pole.addScaledVector(to, -pole.dot(to))
   if (pole.lengthSq() < 1e-8) pole.set(0, 1, 0).addScaledVector(to, -to.y)
   pole.normalize()
@@ -1502,7 +1789,7 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion): void {
   // on its rest orientation, then expressed in whatever its parent now is.
   _qa.setFromUnitVectors(leg.d1, _dir.subVectors(knee, hip).normalize()).multiply(leg.q1)
   leg.thigh.quaternion.copy(_qa).premultiply(_qi.copy(turn).invert())
-  _qb.setFromUnitVectors(leg.d2, _dir.subVectors(leg.ankle, knee).normalize()).multiply(leg.q2)
+  _qb.setFromUnitVectors(leg.d2, _dir.subVectors(ankle, knee).normalize()).multiply(leg.q2)
   leg.shin.quaternion.copy(_qb).premultiply(_qi.copy(_qa).invert())
   // And the foot keeps the board-space orientation it was sculpted with, which
   // is flat on the deck. Everything above it has moved; a sole has not.
@@ -1551,15 +1838,30 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion): void {
  * the visitor did and stopping *those* would be a rider who ignores the sea.
  */
 function ride(r: Rig, t: number): void {
+  // On foot none of the sea reaches him: the board is under his arm and what is
+  // under his feet is sand. `afloat` scales out every term the water drives and
+  // `onFoot` scales in the walk, so the pose above is arithmetically the pose
+  // that shipped on every frame he is riding.
+  //
+  // `pick` is the dip through the middle of the change — one sine over the
+  // whole ramp, which is why putting the board down needed no code of its own:
+  // it is picking it up, backwards. `swing` and `wobble` are the walk cycle's
+  // two phases, and everything below reads one or the other.
+  const onFoot = RIDE.land
+  const afloat = 1 - onFoot
+  const pick = Math.sin(Math.PI * onFoot)
+  const step = RIDE.step
+  const swing = Math.cos(step) * onFoot  // +1 with his left foot forward
+  const wobble = Math.sin(step) * onFoot // +1 at his left foot's mid-swing
   const s = Math.min(RIDE.speed, 1)
   const c = RIDE.turn
-  const air = RIDE.air
-  const slam = RIDE.slam
+  const air = RIDE.air * afloat
+  const slam = RIDE.slam * afloat
   // What the sea is doing to the deck, and what the rider is about to undo. On
   // the water only: airborne there is nothing to brace against, and a man
   // holding himself level against a board that is no longer on anything is a
   // man doing arithmetic.
-  const grip = 1 - air
+  const grip = (1 - RIDE.air) * afloat
   const tilt = RIDE.tilt * grip
   const slope = RIDE.slope * grip
   const heave = RIDE.heave * grip
@@ -1579,16 +1881,26 @@ function ride(r: Rig, t: number): void {
   // `turn` is small on purpose: the lean into a carve is now the only thing
   // this joint does that is a decision rather than a reflex.
   bend(r.hips,
-    -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath,
-    0.10 * c,
-    -0.58 * tilt - 0.18 * bank)
+    -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath
+      // Bending over the board, and then the forward lean of a man moving.
+      + 0.55 * pick + 0.10 * onFoot * s,
+    // The pelvis turns with the stride: the hip on the forward leg goes
+    // forward, which is a negative rotation about y for his left.
+    0.10 * c - 0.10 * swing,
+    -0.58 * tilt - 0.18 * bank - 0.04 * wobble)
   // And the drop, which is everything that asks a person to get low: the deck
   // coming up at him, a landing, the wave's heel (which costs the legs slack
   // before it costs them anything else), a hard carve, then just going fast.
   r.hips.bone.position.copy(r.hipsHome).add(_v.set(
-    0.060 * c + 0.012 * sway,
+    // And on foot, the weight shifting over the standing leg.
+    0.060 * c + 0.012 * sway - 0.025 * wobble,
     -0.075 * heave - 0.100 * slam - 0.050 * Math.abs(tilt) - 0.045 * s * Math.abs(c)
-      - 0.020 * s + 0.030 * air + 0.006 * breath,
+      - 0.020 * s + 0.030 * air + 0.006 * breath
+      // Dipping through the middle of the change to reach the board, and then
+      // the walk's own rise and fall — twice a stride, lowest at double
+      // support, which is where a real one is lowest. No standing up out of
+      // the crouch: see `PICK`.
+      - PICK * pick - 0.012 * Math.cos(2 * step) * onFoot,
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 
@@ -1599,20 +1911,27 @@ function ride(r: Rig, t: number): void {
   // high rail; the twentieth left over is the wave still reaching him. Against
   // `bank` the same joints sum to 0.34, which is the other half of the idea: a
   // third of the carve resisted, two thirds ridden.
+  // The walk's own share up the spine is the counter-rotation: the shoulders
+  // turn against the pelvis, which turned with the stride. Same graduation as
+  // everything else here — and it is the difference between a man walking and a
+  // man being slid along the ground.
   bend(r.spine,
-    -0.18 * slope + 0.05 * heave + 0.10 * slam + 0.05 * s + 0.030 * breath,
-    0.07 * c,
+    -0.18 * slope + 0.05 * heave + 0.10 * slam + 0.05 * s + 0.030 * breath + 0.28 * pick,
+    0.07 * c + 0.06 * swing,
     -0.18 * tilt - 0.07 * bank)
   bend(r.chest,
-    -0.11 * slope + 0.06 * slam + 0.040 * breath,
-    0.08 * c,
+    -0.11 * slope + 0.06 * slam + 0.040 * breath + 0.16 * pick,
+    0.08 * c + 0.10 * swing,
     -0.11 * tilt - 0.05 * bank)
-  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air, 0.06 * c, -0.03 * tilt - 0.02 * bank)
+  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick,
+    0.06 * c, -0.03 * tilt - 0.02 * bank)
   // The head leads the turn and levels itself against everything else. It is
   // the cue that most reliably reads as alive at this size, and it is the one
   // joint whose share of `turn` was not cut.
   bend(r.head,
-    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift,
+    // He looks at the board he is reaching for, and nowhere else does his gaze
+    // leave the horizon: that is the whole of what `pick` buys up here.
+    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick,
     0.22 * c + 0.05 * drift,
     -0.05 * tilt - 0.02 * bank + 0.03 * sway)
 
@@ -1653,15 +1972,51 @@ function ride(r: Rig, t: number): void {
      * axis raises one and drops the other, and it has to be the mirror of the
      * roll beside it or airborne comes out as one arm up and one arm down.
      */
-    const up = Math.max(0, -c * a.side)
+    const up = Math.max(0, -c * a.side) * afloat
+    /**
+     * And on foot the two arms stop being a pair, which is the one place the
+     * walk needed a branch.
+     *
+     * The leading arm is his left, and so is the leading leg — `armF` at x 0.22
+     * and `legF` at x 0.05, both on the +x side, because the model faces +z and
+     * his right is -x. So it swings *against* its own leg: forward when that
+     * foot is back. A positive rotation about the deck's x takes a hanging arm
+     * aft, and `swing` is +1 with his left foot forward, so the sign is right
+     * with no minus in front of it.
+     *
+     * The trailing arm is holding a board. It does not swing — 8% of it, which
+     * is a body absorbing the stride rather than an arm doing nothing — and it
+     * needs no pose of its own for the carry: the rest pose already hangs the
+     * elbow at the board's outer rail. See `CARRY_POS`.
+     *
+     * `pick` is the one thing both arms do together, and it is the move the
+     * whole transition exists to show: both hands reach down and forward, to
+     * the board on the ground in front of his feet.
+     */
+    const led = a.side > 0
     bend(a.upper,
-      -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope,
+      -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope
+        // The swing, and under it the bias that makes the swing a walk's. The
+        // rest pose puts the leading hand 0.40 forward of its own shoulder,
+        // out over the rail, which is a surfer's arm and not a walker's: it
+        // comes back and in before it starts swinging at all.
+        + (led ? 0.50 * swing + 0.30 * onFoot : -0.08 * swing) - 0.65 * pick,
       0.05 * c * a.side - 0.10 * up * a.side,
       -0.10 * c - 0.08 * tilt
-        + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter))
+        + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter)
+        // And inward: the leading arm to his side, the trailing one down onto
+        // the board's outer rail. Both are toward +x, which is why the sign is
+        // the same for the two of them where every other term here mirrors.
+        //
+        // The 0.20 is measured and not chosen: it puts his right hand 4.6 cm
+        // outboard of the board's outer face and his elbow on it, with the
+        // board's inner face against his hip, which is a carry. Move
+        // `CARRY_POS.x` and this moves with it.
+        + onFoot * (led ? -0.30 : 0.20))
     fold(a.fore, a.elbow,
-      0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter)
-    fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam)
+      0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter
+        + 0.45 * pick + onFoot * (led ? 0.30 + 0.14 * Math.abs(swing) : 0.18))
+    fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam + 0.20 * pick)
   }
 
   // And the legs answer wherever the hips ended up. `hipsFrom` is constant —
@@ -1670,7 +2025,50 @@ function ride(r: Rig, t: number): void {
   _mat.multiplyMatrices(r.hipsFrom,
     _step.compose(r.hips.bone.position, r.hips.bone.quaternion, _ONE))
   _qt.copy(r.hipsTurn).multiply(r.hips.bone.quaternion)
-  for (const l of r.legs) reach(l, _mat, _qt)
+  for (let i = 0; i < r.legs.length; i++) {
+    const l = r.legs[i]
+    let target = l.ankle
+    let aim = l.pole
+    if (onFoot > 0) {
+      /**
+       * The walk, and it is the same mechanism the riding legs already were: a
+       * fixed ankle and a solver. The only thing that changed is that the fixed
+       * point moves — the sole is still exactly where it is told, and every
+       * consequence of putting it there still comes out as a knee.
+       *
+       * Three terms and none of them is a curve anybody drew. The stride is a
+       * cosine, half a cycle out of phase between the two feet, about the point
+       * under that foot's own hip (`sweep`). The lift is the half of the cycle
+       * where the foot is travelling forward, scaled down with the stride so a
+       * creep does not high-step. And the slope is the hillside `Ship` read,
+       * which is what puts the uphill foot higher instead of both feet in the
+       * ground — clamped hard downhill, because the short leg has nothing left
+       * to reach down with.
+       *
+       * There is no vertical drop here and that is the load-bearing decision:
+       * the 16 cm of board that stopped being under him is taken out of the
+       * craft's altitude instead. See `FOOT_DROP`.
+       *
+       * Then all of it is lerped back to the deck stance, which is what makes
+       * stepping off the board a movement rather than a swap — and what makes
+       * the riding pose bit-for-bit what it was, since at `onFoot` 0 none of
+       * this runs at all.
+       */
+      const ph = step + i * Math.PI
+      const a = RIDE.stride
+      const z = l.sweep + a * Math.cos(ph)
+      target = _foot.set(
+        l.ankle.x,
+        l.ankle.y +
+          Math.max(0, -Math.sin(ph)) * STEP_LIFT * (a / STRIDE_MAX) +
+          THREE.MathUtils.clamp(RIDE.rise * z + RIDE.cant * l.ankle.x,
+            TERRAIN_DOWN, TERRAIN_UP),
+        z,
+      ).lerp(l.ankle, afloat)
+      aim = _aim.copy(l.pole).lerp(WALK_POLE, onFoot)
+    }
+    reach(l, _mat, _qt, target, aim)
+  }
 }
 
 function Rider({ visible }: { visible: boolean }) {

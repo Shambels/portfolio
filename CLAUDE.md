@@ -109,6 +109,12 @@ Breaking one is allowed. Doing it without saying so is not.
   every frame the sea and the plateaus already had is unchanged. The boat is the same controller with its altitude pinned to the
   swell (`swell()` in `Scenery.tsx`, the CPU twin of the water's own waves) and
   a circle-vs-circle push out of each island's shoreline — still no engine. No ground following over flat terrain — only where the land stands higher than a plateau.
+  The surfer is the exception to that shoreline, and it is the only one: he
+  crosses the isle's coast, picks the board up and walks, following the same
+  `ground()` the saucer does with his soles on it instead of a metre above it.
+  The three project islands are still a wall for him — arriving *alongside* one
+  is what opens its panel — so `offshore` takes an argument rather than growing
+  a craft check.
 - The character stays procedural — both hulls, and the surfer's board with its
   pad, fin and wake. The **rider** is the one exception, and `tools/surfer.py`
   is where it says why: a hull is a solid of revolution with things bolted to
@@ -273,6 +279,18 @@ before that click.
 The particles are WebGPU only and there is deliberately no WebGL2 version —
 `docs/STATUS.md` has the argument. That makes them the first thing in the world
 a visitor can miss, which is why `?debug` names the backend.
+
+The surfer comes ashore. Riding onto the isle's beach brings the board up under
+his arm and puts him on foot; walking back into the sea puts him on it again.
+One ramped number, `RIDE.land`, drives the craft, the board and the man, and it
+runs both ways — putting the board down is picking it up backwards. It found
+something while it was in there: **the rider's two legs are not the same
+length** — 0.785 of reach at the front and 0.511 at the back, the back thigh a
+shade under half the front one — which nothing on a board ever exposes and which
+a stride exposes immediately. Every cramped number in the walk is sized around
+it, there is a dev assert holding them, and the one-point fix in
+`tools/surfer.py` is written up in `docs/STATUS.md`, "The beach", **for Seb to
+take or leave.**
 
 The rider is rigged, and the point of the rig is that the legs do the work.
 Nothing about the model changed — same triangles, same COLOR_0, same rest pose
