@@ -500,21 +500,32 @@ const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
 /**
  * How the camera comes round behind the hull.
  *
- * It chases `yaw` — the heading, not the roll — with a lag, so a turn reads as
- * the world swinging round rather than as a cut. The cap is the part that
- * matters: steering is measured against where the camera points, so a held
- * sideways push turns the ship, which turns the camera, which re-aims the push.
- * That loop is real and it is what a sustained sideways hold is *for* — it
- * carves a circle rather than sliding across the frame. `CAM_SWING_MAX` is what
- * keeps the circle a carve instead of a spin: 0.9 rad/s is seven seconds a
- * revolution, about 8 units of radius at cruise and 20 at full boost.
+ * It chases `yaw` — the heading, not the roll — and it spends the chase out of
+ * *distance travelled* rather than out of the clock. Changing direction is not
+ * by itself a reason to move the camera: the hull swings round under it and
+ * the frame holds still, and the camera only comes round as the craft actually
+ * gets somewhere in the new direction. Turn on the spot, lean on a coastline,
+ * slide off a roller — the view stays where it was.
+ *
+ * The cap is still the part that matters, and it is per unit now: steering is
+ * measured against where the camera points, so a held sideways push turns the
+ * ship, which turns the camera, which re-aims the push. That loop is what a
+ * sustained sideways hold is *for* — it carves a circle rather than sliding
+ * across the frame — and 0.09 rad a unit makes that circle 11 units in radius
+ * at *every* speed, cruise and boost alike, where a per-second cap made it 8
+ * at cruise and 20 under boost.
+ *
+ * `CAM_SWING_SPIN` is the one number still in seconds and it is a ceiling, not
+ * a lag. 0.09 a unit at full boost is 1.6 rad/s, which is a world revolving
+ * about the hull; below cruise speed it never binds.
  *
  * Invariant 6: a rotating world is the one thing on this page that can make
  * somebody ill, so a visitor who asked for less motion gets a camera that still
  * ends up astern and takes four times as long about it.
  */
-const CAM_SWING = REDUCED ? 0.7 : 2.6
-const CAM_SWING_MAX = REDUCED ? 0.22 : 0.9
+const CAM_SWING = REDUCED ? 0.048 : 0.18     // per unit advanced: e-folds over 5.6
+const CAM_SWING_MAX = REDUCED ? 0.022 : 0.09 // rad per unit advanced
+const CAM_SWING_SPIN = REDUCED ? 0.22 : 0.9  // rad/sec, whatever the speed
 
 const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
@@ -1025,9 +1036,15 @@ const RISE = 10
     // Round behind the heading, capped so the loop steering closes cannot spin.
     // On a snap it is simply astern already: a deep link arrives facing the
     // landmark it named, and the camera has no swing to make.
+    // How far the craft advanced *along its heading* this frame, which is what
+    // the swing is spent out of — see `CAM_SWING`. Projected rather than the
+    // raw speed, and floored at zero, so being pushed sideways out of a
+    // shoreline or sliding down a roller does not turn the frame.
+    const ds = Math.max(0,
+      vel.current.x * Math.sin(yaw.current) + vel.current.z * Math.cos(yaw.current)) * dt
     camYaw.current = snap.current
       ? yaw.current
-      : swing(camYaw.current, yaw.current, dt, CAM_SWING, CAM_SWING_MAX)
+      : swing(camYaw.current, yaw.current, ds, dt, CAM_SWING, CAM_SWING_MAX, CAM_SWING_SPIN)
     // `CAM_OFFSET.z` is a distance astern of the hull's heading rather than a
     // world +z, and `.x` is zero — see the note on it. The height is the same
     // number it always was, so the pitch and the horizon do not move.

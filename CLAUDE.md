@@ -95,8 +95,10 @@ Breaking one is allowed. Doing it without saying so is not.
   dependencies. No abstraction before its third use — except invariant 8.
 - New dependency needs a one-line justification and its gzipped cost.
 - The camera is a follow camera that turns: 7.2 astern of the *heading* and 1.5
-  up, swinging round the hull with a lagged, rate-capped chase, and `move` is
-  read against where it points. The bearing changes and the two distances do
+  up, swinging round the hull with a lagged, capped chase that is spent out of
+  *distance travelled* rather than out of the clock — a change of direction on
+  its own moves nothing, and the camera comes round as the craft gets somewhere
+  in the new direction. `move` is read against where it points. The bearing changes and the two distances do
   not, so the pitch — and `--horizon`, `SKY_TOP` and the assert that ties them
   together — is the same at every heading. `src/camera.ts` is the arithmetic
   and `src/camera.check.ts` is what holds it.
