@@ -165,6 +165,45 @@ const CRAFT_WATER = {
   },
 }
 
+/**
+ * And the land's, which is the saucer's alone. It flies `hover` over the water
+ * and `hover - GROUND` over a landmark's flat top — the frames that shipped —
+ * and this much more over anything standing higher than a plateau, which is the
+ * isle and nothing else. Ramped in over the first `CLEAR_IN` metres of it, so
+ * the beach is a climb rather than a step, and worth having at all because a
+ * ridge is steeper than the hull is wide: 90 cm of clearance measured under the
+ * centre of a disc two metres across is no clearance whatever on the uphill
+ * side, which is what flying over the isle had been showing.
+ */
+const CLEAR = 1.4
+const CLEAR_IN = 2.5
+/**
+ * And where the ground is read. Not one sample under the middle of the hull but
+ * five: four at arm's length round it, which is the rim the ridge was coming up
+ * through, and one a third of a second along the ship's own velocity — the same
+ * third of a second the follow below lags by, so the climb starts as the slope
+ * arrives instead of once it is already inside it.
+ */
+const FEEL = 2.2
+const FEELERS = 4
+const LOOK = 0.35
+
+/**
+ * How high the saucer wants to be above the plateau datum at an XZ, given the
+ * velocity it is carrying. Zero at sea and zero over a landmark's flat top:
+ * `ground()` is sea level everywhere but the isle, so every frame those two
+ * ever had is arithmetically unchanged.
+ */
+function clearance(x: number, z: number, vx: number, vz: number) {
+  let land = Math.max(0, ground(x, z) - GROUND)
+  for (let i = 0; i < FEELERS; i++) {
+    const a = (i / FEELERS) * Math.PI * 2
+    land = Math.max(land, ground(x + Math.cos(a) * FEEL, z + Math.sin(a) * FEEL) - GROUND)
+  }
+  land = Math.max(land, ground(x + vx * LOOK, z + vz * LOOK) - GROUND)
+  return land + CLEAR * THREE.MathUtils.smoothstep(land, 0, CLEAR_IN)
+}
+
 /** Saturating limit: `soft(v, m)` is v for small v and never leaves ±m. */
 // The camera's two lags. Its height follows slowly, so the chop never moves it;
 // its aim follows quickly, so a hull that has just been thrown three metres in
@@ -489,6 +528,16 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
  */
 const FOLLOW = 3.2
 
+/**
+ * Except upward, where a third of a second is three metres. A slope met at boost
+ * is ten metres a second of terrain arriving, and a lag that answered it at
+ * `FOLLOW` put the hull inside the hill and let it out again on the far side.
+ * So: up quickly, down at its own pace. Still a lag and not a spring, and still
+ * nothing to bounce on — the asymmetry only ever removes overshoot, because the
+ * fast direction is the one that runs away from the ground.
+ */
+const RISE = 10
+
 // Space climbs to hover + LIFT and holds there; releasing sinks back. One
     // damped value, so there is no jump arc to time and nothing to land on.
     // The boat's is pinned to sea level: it floats, so there is nowhere to climb
@@ -520,27 +569,28 @@ const FOLLOW = 3.2
     // What the craft is riding: the sea for anything that floats, and for the
     // saucer the land, which until the isle arrived was always sea level.
     //
-    // `ground` is the isle's own height function — the same one its mesh is
-    // built from (`src/isles.ts`), so the saucer clears the geometry the visitor
-    // can see rather than a second island that nearly matches. Measured *above
-    // the plateau the three project islands sit on*, not above the water: the
-    // saucer has always flown `hover` over the sea and `hover - GROUND` over a
-    // landmark's flat top, and subtracting `GROUND` here is what keeps both of
-    // those frames exactly as they shipped. Only ground higher than a plateau
-    // moves it, and the only ground higher than a plateau is the ridge.
+    // `clearance` is built on the isle's own height function — the same one its
+    // mesh is built from (`src/isles.ts`), so the saucer clears the geometry the
+    // visitor can see rather than a second island that nearly matches. Measured
+    // *above the plateau the three project islands sit on*, not above the water,
+    // which is what keeps the sea and a landmark's flat top exactly as they
+    // shipped. Only ground higher than a plateau moves it, and the only ground
+    // higher than a plateau is the isle — where it now buys the extra `CLEAR`
+    // as well, read over the hull's rim and a little way ahead of it.
     let ride = 0
     let roll = 0
     let heel = 0
     let vertAccel = (climbVel - altVel.current) / dt
     if (!floats) {
-      const land = Math.max(0, ground(g.position.x, g.position.z) - GROUND)
+      const land = clearance(g.position.x, g.position.z, vel.current.x, vel.current.z)
       // A deep link, or the first frame: arrive at that height rather than
       // climbing to it from the sea, exactly as a hull arrives floating.
       if (reset.current) {
         reset.current = false
         hull.current = land
       }
-      hull.current += (land - hull.current) * (REDUCED ? 1 : 1 - Math.exp(-FOLLOW * dt))
+      hull.current += (land - hull.current) *
+        (REDUCED ? 1 : 1 - Math.exp(-(land > hull.current ? RISE : FOLLOW) * dt))
       ride = hull.current
     }
     if (floats) {
