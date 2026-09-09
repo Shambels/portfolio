@@ -101,10 +101,12 @@ Breaking one is allowed. Doing it without saying so is not.
   and `src/camera.check.ts` is what holds it.
 - No physics engine until the world needs slopes or stacking. The character
   hovers: XZ translation, sine bob, bank on turn, circle-vs-circle landmark
-  collision — and, since the isle, one height query a frame under the saucer so
-  it rides the ridge instead of flying through it. Still no engine: a lagged
-  read of `ground()`, measured above the plateau the landmark islands sit on, so
-  every frame those already had is unchanged. The boat is the same controller with its altitude pinned to the
+  collision — and, since the isle, a handful of height queries a frame under the
+  saucer so it rides the ridge instead of flying through it. Still no engine: a
+  lagged read of `ground()` over the hull's rim and a little way ahead of it,
+  measured above the plateau the landmark islands sit on, quick to rise and slow
+  to sink, plus a metre and a bit of clearance that only exists over land — so
+  every frame the sea and the plateaus already had is unchanged. The boat is the same controller with its altitude pinned to the
   swell (`swell()` in `Scenery.tsx`, the CPU twin of the water's own waves) and
   a circle-vs-circle push out of each island's shoreline — still no engine. No ground following over flat terrain — only where the land stands higher than a plateau.
 - The character stays procedural — both hulls, and the surfer's board with its

@@ -2244,6 +2244,41 @@ details make it a change nobody can see anywhere except on the isle:
 A lag and not a spring, deliberately: the one thing worse than flying through a
 hill is bouncing over it. Reduced motion snaps instead of lagging.
 
+### And it flies over the ridge rather than through it
+
+One height query a frame under the centre of the hull was not enough of one, and
+flying the isle showed it: the saucer clipped into the island, worst on the
+jungle slope and the ridge, worst again under boost. Three things were wrong,
+and each is one number or one line in `Ship.tsx`:
+
+1. **One sample, for a disc two metres across.** A ridge flank is steeper than
+   1:1, so 90 cm of clearance under the centre is the uphill rim already buried.
+   `clearance()` now reads the ground at five points — four at `FEEL` (2.2 m)
+   round the hull, one at `LOOK` (0.35 s) along its own velocity — and takes the
+   highest. The look-ahead is deliberately the same third of a second `FOLLOW`
+   lags by: the climb starts as the slope arrives instead of once it is inside.
+2. **The lag was symmetric.** A slope met at boost is ~10 m/s of terrain coming
+   up, and a third of a second of that is three metres of hull inside the hill.
+   Rising now uses `RISE` (10, about a tenth of a second) and sinking still uses
+   `FOLLOW`. Still a lag, still nothing to bounce on — the fast direction is the
+   one that moves *away* from the ground, so the asymmetry can only remove
+   overshoot.
+3. **The clearance itself was a plateau's.** Over land the saucer now flies
+   `CLEAR` (1.4 m) higher than the ground it is reading, smoothstepped in over
+   the first `CLEAR_IN` (2.5 m) of land so the beach is a climb and not a step.
+
+Measured by simulating the controller over `ground()` — straight passes on 36
+headings across every offset of the island, at cruise and at boost, checking the
+whole rim of the hull rather than its centre. Worst clearance under the hull was
+**-4.1 m at cruise and -6.2 m at boost** (that is 6 m of saucer inside the
+island); it is now **+0.45 m** at both. Over the summit the saucer sits 2.2 m up
+instead of 0.45 m.
+
+Sea level and the three plateaus are untouched by construction: `ground()` is
+sea level everywhere but the isle, `clearance()` is measured above `GROUND`, and
+every term of it is zero when there is no land — so the frames that shipped are
+still arithmetically the frames that shipped.
+
 ### The lagoon, and the surf on the beach
 
 The water gained two terms, and they apply to **all four islands**, so this is a
