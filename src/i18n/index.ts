@@ -96,8 +96,8 @@ export type Strings = { -readonly [K in keyof typeof en]: string }
 
 const fr: Strings = {
   name: 'Seb Pinchetti',
-  role: 'Développeur web & SaaS',
-  bio: "Développeur d'applications web et SaaS à Bruxelles. J'aime les problèmes dont la bonne réponse existe et que personne n'a pris la peine de chercher.",
+  role: 'Développeur web',
+  bio: "Développeur web",
 
   skipToContent: 'Aller aux études de cas',
   navHome: 'Accueil',
@@ -146,8 +146,8 @@ const fr: Strings = {
 
 const nl: Strings = {
   name: 'Seb Pinchetti',
-  role: 'Web- & SaaS-ontwikkelaar',
-  bio: 'Web- en SaaS-ontwikkelaar in Brussel. Ik hou van problemen waarvan het juiste antwoord te vinden is en waar niemand de moeite heeft genomen om te kijken.',
+  role: 'Web developer',
+  bio: 'Web developer.',
 
   skipToContent: 'Ga naar de casestudy’s',
   navHome: 'Home',
