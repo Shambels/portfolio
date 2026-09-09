@@ -208,57 +208,64 @@ const JUMP = 5.2
 const HOP_G = 14
 /**
  * Steps a second, and the stride, and both of them are the model's numbers
- * rather than anybody's taste. **The two legs are not the same length.**
- * `tools/surfer.py` sculpts the front one at 0.785 of reach and the back one at
- * 0.511 — the back thigh is half the front's — and the back leg is already at
- * 87% of its own reach standing in the surf crouch. Nothing on a board ever
- * straightens either, which is why it has never shown; a stride is the first
- * thing that asks.
+ * rather than anybody's taste — they are just no longer the numbers of a defect.
  *
- * So the walk is sized by the leg that has 13% left. `STRIDE_MAX` at 0.15 puts
- * the back leg at 93% at the end of its swing, under `reach`'s own clamp at
- * 99.8% — and a clamped leg is a foot that slides. It is a short step, and it
- * is the longest one this rig can take. `docs/STATUS.md` has the fix, which is
- * one point in `tools/surfer.py` and a rebuilt model, and is Seb's call.
+ * The rider used to have **two legs of different lengths** — 0.785 of reach at
+ * the front and 0.511 at the back — which is why the first walk took a 30 cm
+ * step in a crouch: the back leg had 13% of its reach left and every centimetre
+ * the hips came down was reach it could spend going forward. `tools/surfer.py`
+ * has the whole finding. Both legs are 0.68 now, so the walk is sized by what a
+ * walk is instead: hips up, a 76 cm step, and both legs cycling 88% to 96% of
+ * their reach, which is a leg. `STAND` is the other half of it.
  *
- * `CADENCE` is what speed buys first: the stride grows and the rate does not,
- * which is what a person does and what a phase driven by time gets wrong (time
- * gives you a man jogging on the spot when he stops). Past the stride's cap the
- * rate rises instead, up to `CADENCE_MAX`, and past *that* the feet slide —
- * deliberately, because at boost he is 90 pixels of back and a foot that skates
- * is invisible where legs going round like a cartoon's are not.
+ * `CADENCE` is what speed buys second: the stride grows first and the rate does
+ * not, which is what a person does and what a phase driven by time gets wrong
+ * (time gives you a man jogging on the spot when he stops). Past the stride's
+ * cap the rate rises instead, up to `CADENCE_MAX`, and past *that* the feet
+ * slide — deliberately, because at boost he is 90 pixels of back and a foot
+ * that skates is invisible where legs going round like a cartoon's are not.
  */
-const CADENCE = 2.8
+const CADENCE = 3.0
 const CADENCE_MAX = 5
-const STRIDE_MIN = 0.06
-const STRIDE_MAX = 0.30
+const STRIDE_MIN = 0.08
+const STRIDE_MAX = 0.38
 /** How high the swinging foot lifts at a full stride, scaled down with it. */
 const STEP_LIFT = 0.12
 /**
  * How high the walking foot may be picked up or set down against the plane his
- * hips are on. Asymmetric, and the asymmetry is the same short leg: he can lift
- * a foot onto a step, and he cannot reach down into a hollow, because the leg
- * that would have to reach is already nearly straight.
+ * hips are on. Still asymmetric, and no longer for the old reason: with both
+ * legs the same length he *could* reach further down, but a walk already runs
+ * its legs at 96% at the end of a stride and a hollow met there is the one
+ * place the solver would clamp. Two centimetres down and eighteen up, and the
+ * cost of the small number is a foot that floats a little on a steep descent —
+ * which is the one nobody sees, because the whole body is descending with it.
  */
 const TERRAIN_UP = 0.18
-const TERRAIN_DOWN = -0.04
+const TERRAIN_DOWN = -0.02
 /**
  * And the dip through the middle of the change, where he is bent over the board
  * with both hands on it.
  */
 const PICK = 0.20
 /**
- * How much *lower* than the surf crouch he walks, and it is not a mood — it is
- * where the stride comes from. The back leg is the one with 13% of its reach
- * left, and every centimetre the hips come down is reach it can spend going
- * forward instead of going up: 9 cm of settle doubles the step, 0.30 against
- * the 0.15 the upright version could take, and still leaves the leg at 89%.
+ * How much taller than the surf crouch he walks, and it is the whole of why the
+ * legs stopped reading as knees.
  *
- * There is deliberately no *rise*. He does not stand up out of the crouch when
- * he gets off the board — he goes further into it, which is also what a person
- * carrying something three metres long actually does.
+ * The model's stance is a deep crouch — that is what a surfer's is — and a man
+ * who gets off his board and keeps it is a man walking on his knees. The first
+ * walk went *further* down rather than up, because the old back leg had nothing
+ * left to give and the stride had to come from somewhere. With both legs at 0.68
+ * it comes from here instead: 16 cm up puts the stance leg at 88% of its reach
+ * at mid-stance and 96% at the end of a stride, which is a person walking.
+ *
+ * `BOB` is what makes those two numbers possible at once. The pelvis rises and
+ * falls twice a stride — highest at mid-stance where the leg is under him and
+ * wants to be straight, lowest at double support where the legs are apart and
+ * want the room. It is 6 cm, it is what a real walk does, and without it the
+ * same stride either clamps at the extremes or crouches through the middle.
  */
-const CROUCH = 0.09
+const STAND = 0.16
+const BOB = 0.06
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -1242,7 +1249,7 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * The roll is exactly a quarter turn, and its sign is the one that puts the
  * deck against his ribs and the fin outboard, clear of his leg.
  */
-const CARRY_POS = new THREE.Vector3(-0.30, 0.41, 0.02)
+const CARRY_POS = new THREE.Vector3(-0.30, 0.66, 0.02)
 const CARRY_ROT = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.20, -0.44, -Math.PI / 2, 'YXZ'))
 const CARRY_REST = new THREE.Quaternion()
@@ -1784,7 +1791,7 @@ function rigOf(scene: THREE.Object3D): Rig {
           l.ankle.x,
           l.ankle.y + Math.max(0, -Math.sin(ph)) * STEP_LIFT + TERRAIN_DOWN,
           l.sweep + STRIDE_MAX * Math.cos(ph),
-        ).distanceTo(_hip.copy(hip).setY(hip.y - CROUCH)) / (l.up + l.low))
+        ).distanceTo(_hip.copy(hip).setY(hip.y + STAND - BOB)) / (l.up + l.low))
       }
       console.assert(worst < 0.97,
         `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
@@ -1958,7 +1965,7 @@ function ride(r: Rig, t: number): void {
       // `CROUCH` — dipping further through the middle of the change to reach
       // it, and then the walk's own rise and fall, twice a stride and lowest at
       // double support, which is where a real one is lowest.
-      - CROUCH * onFoot - PICK * pick - 0.012 * Math.cos(2 * step) * onFoot,
+      + STAND * onFoot - PICK * pick - BOB * Math.cos(2 * step) * onFoot,
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 

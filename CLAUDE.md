@@ -303,12 +303,17 @@ on it. Fixed, and **that is a change to the isle's committed look**: the gullies
 are as deep as they were and the spurs between them are gone. `docs/STATUS.md`,
 "The beach, second pass", has the numbers and the ceiling.
 
-The second: **the rider's two legs are not the same length** — 0.785 of reach at the front and 0.511 at the back, the back thigh a
+The second: **the rider's two legs were not the same length** — 0.785 of reach at the front and 0.511 at the back, the back thigh a
 shade under half the front one — which nothing on a board ever exposes and which
 a stride exposes immediately. Every cramped number in the walk is sized around
-it, there is a dev assert holding them, and the one-point fix in
-`tools/surfer.py` is written up in `docs/STATUS.md`, "The beach", **for Seb to
-take or leave.**
+it — 0.785 of reach at the front and 0.511 at the back, the back thigh a shade
+under half the front. Two legs of different lengths have no hip height in common,
+so the first walk had to crouch to find stride and the long leg folded to 57%,
+which is a man walking on his knees. **Fixed in the model**: both legs are one
+anatomy now, a 0.43 thigh on a 0.25 shin, only the two knees moved, and the walk
+stands up 16 cm instead of crouching 9. **It changes the stance on the board** —
+the back knee is lower and further outboard — and `docs/STATUS.md`, "The legs",
+has the before-and-after and the one lever left if the new stance reads badly.
 
 The rider is rigged, and the point of the rig is that the legs do the work.
 Nothing about the model changed — same triangles, same COLOR_0, same rest pose
