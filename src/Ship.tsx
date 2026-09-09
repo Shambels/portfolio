@@ -9,6 +9,9 @@ import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
 import { steer, swing } from './camera'
 import { SUN, swell } from './Scenery'
+import {
+  FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
+} from './beach'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
@@ -169,35 +172,40 @@ const CRAFT_WATER = {
  *
  * Every other craft in this world stops at a coastline. `offshore` pushes a
  * hull back onto the water, which is right for a boat — it has nowhere to go
- * once the water runs out — and which made the isle a wall with a beach
- * painted on it. The surfer is the one craft that is wrong for: a man standing
- * on a plank he can pick up is the only vehicle here that is portable.
+ * once the water runs out — and which made the isle a wall with a beach painted
+ * on it. The surfer is the one craft that is wrong for: a man standing on a
+ * plank he can pick up is the only vehicle here that is portable.
  *
  * So he crosses. The board comes up under his arm, he walks, and walking back
  * into the sea puts him on it again. `RIDE.land` is the whole of it — 0 riding,
- * 1 on foot — and it is a straight ramp rather than an exponential, because a
- * change of mode is a thing that finishes.
+ * 1 on foot — and it runs both ways, so putting the board down is picking it up
+ * backwards and the return needed no code of its own.
  *
- * What drives it is the ground under him, and `ground()` is sea level
- * everywhere but the isle: every frame the boat, the saucer and the open sea
- * have ever had reads this and gets zero. The band is the first metre of sand
- * above the waterline, so the trigger is the water's edge itself and not a
- * circle drawn near it.
+ * **The vertical of it lives in `src/beach.ts`**, with the constants it reads,
+ * because `beach.check.ts` walks a real approach over the real isle with it and
+ * node cannot load this file. What stays here is everything a check could have
+ * no opinion about: the speed, the pose, the board and the walk cycle. The
+ * split earned itself the first time it ran — see `isles.ts`.
  */
-const WALK_IN = 0.06   // ground height where he starts getting off
-const WALK_FULL = 0.34 // and where he is walking
-const BEACH = 1.25     // seconds the change takes, and it is the same both ways
 /**
- * His speed on foot, against `AGILITY.surfer.speed` on the board — a fifth of
- * it. Fast enough that 70 m of island is a walk and not a chore, slow enough
- * that stepping off the board is a decision with a cost, and it is also very
- * nearly the speed at which the stride below comes out exact: at 1.8 units a
- * second his feet are planted, and only boost slides them.
+ * How high he jumps, in units a second of launch — the same number in the water
+ * and on the sand, because it is the same pair of legs.
+ *
+ * In the water it is added to the buoyancy spring's own velocity, so a jump
+ * taken off a crest is a bigger jump than one taken in a trough and neither
+ * needed a rule: the sea is already moving him. It is capped by the craft's
+ * `launch` like everything else that throws a hull upward.
  */
-const WALK_SPEED = 0.24
-/** How fast his feet answer the ground. Not the saucer's `FOLLOW`, which is a
- *  machine holding its height over a hill — this is a sole on it. */
-const WALK_FOLLOW = 14
+const JUMP = 5.2
+/**
+ * And the gravity the land hop falls under. Stylised like `GRAV` and a shade
+ * heavier, because a hop with no water under it has nothing to catch it and the
+ * failure mode here is a float that reads as a moon jump: 5.2 up against 14
+ * down is 0.97 units of air — about three quarters of his own height — and
+ * 0.74 s of it. The same launch into the water's own `GRAV` of 9 goes half as
+ * high again, which is right: a board pops.
+ */
+const HOP_G = 14
 /**
  * Steps a second, and the stride, and both of them are the model's numbers
  * rather than anybody's taste. **The two legs are not the same length.**
@@ -220,23 +228,12 @@ const WALK_FOLLOW = 14
  * deliberately, because at boost he is 90 pixels of back and a foot that skates
  * is invisible where legs going round like a cartoon's are not.
  */
-const CADENCE = 3.6
+const CADENCE = 2.8
 const CADENCE_MAX = 5
-const STRIDE_MIN = 0.04
-const STRIDE_MAX = 0.15
+const STRIDE_MIN = 0.06
+const STRIDE_MAX = 0.30
 /** How high the swinging foot lifts at a full stride, scaled down with it. */
-const STEP_LIFT = 0.09
-/**
- * How far he drops when the board stops being under him. The deck is `deckY`
- * above this group's origin — about 16 cm under his soles — and the sand is at
- * the origin, so this is that measurement and not a taste number.
- *
- * Applied to the *group* and not to the ankles, which is the whole difference
- * between a walk this rig can do and one it cannot: moving the feet down 16 cm
- * in board space asks the back leg for 0.56 against the 0.51 it has, and it
- * clamps every frame. Dropping what they stand on asks nothing of either leg.
- */
-const FOOT_DROP = 0.16
+const STEP_LIFT = 0.12
 /**
  * How high the walking foot may be picked up or set down against the plane his
  * hips are on. Asymmetric, and the asymmetry is the same short leg: he can lift
@@ -247,12 +244,21 @@ const TERRAIN_UP = 0.18
 const TERRAIN_DOWN = -0.04
 /**
  * And the dip through the middle of the change, where he is bent over the board
- * with both hands on it. There is deliberately no matching *rise*: he does not
- * stand up out of the crouch when he gets off, because the back leg has 13% of
- * its reach left and standing spends all of it. He walks in the stance he
- * surfs in, which is the honest thing this model can do.
+ * with both hands on it.
  */
 const PICK = 0.20
+/**
+ * How much *lower* than the surf crouch he walks, and it is not a mood — it is
+ * where the stride comes from. The back leg is the one with 13% of its reach
+ * left, and every centimetre the hips come down is reach it can spend going
+ * forward instead of going up: 9 cm of settle doubles the step, 0.30 against
+ * the 0.15 the upright version could take, and still leaves the leg at 89%.
+ *
+ * There is deliberately no *rise*. He does not stand up out of the crouch when
+ * he gets off the board — he goes further into it, which is also what a person
+ * carrying something three metres long actually does.
+ */
+const CROUCH = 0.09
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -430,7 +436,7 @@ const RIDE = {
   slope: 0, // radians: and how far it has it pitched fore and aft
   bank: 0,  // radians: and how far the *craft's* own lean into a turn has it over
   heave: 0, // -1 to 1: the deck's vertical acceleration, over `SHOCK`
-  // And the five that are only about being off it — see `WALK_IN`. They are
+  // And the five that are only about being off it — see `beach.ts`. They are
   // zero on every frame he is riding, which is every frame the world had
   // before the beach, so the pose above is untouched by their arrival.
   land: 0,   // 0 on the board, 1 on foot, ramped over `BEACH` seconds
@@ -522,8 +528,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
-  const beached = useRef(0)  // 0 riding, 1 walking — see `WALK_IN`
-  const groundY = useRef(0)  // the sand under his feet, lagged by `WALK_FOLLOW`
+  const beached = useRef(0)  // 0 riding, 1 walking — `ashore` in `beach.ts`
+  const groundY = useRef(0)  // the sand under his feet — `follow` in `beach.ts`
+  const hop = useRef(0)      // how far off the sand a jump has him, and how fast
+  const hopVel = useRef(0)
+  const held = useRef(false) // last frame's Space, so a jump is a press
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
@@ -596,15 +605,21 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // this is the ramp between them. Last frame's position, deliberately —
     // nothing here is worth reordering the frame for.
     const walks = model === 'surfer'
-    const want = walks
-      ? THREE.MathUtils.smoothstep(ground(g.position.x, g.position.z), WALK_IN, WALK_FULL)
+    beached.current = walks
+      ? ashore(beached.current, ground(g.position.x, g.position.z), dt, REDUCED)
       : 0
-    // Invariant 6: a visitor who asked for less motion gets the change of mode
-    // and not the second and a quarter of choreography in front of it.
-    beached.current = REDUCED
-      ? want
-      : beached.current + THREE.MathUtils.clamp(want - beached.current, -dt / BEACH, dt / BEACH)
-    const ashore = beached.current
+    const afoot = beached.current
+
+    // Space. The saucer's is a *held* climb to a ceiling — one damped value,
+    // nothing to time and nothing to land on — and this is the opposite: an
+    // edge, once, and then a ballistic arc. So they read the same key and only
+    // one of them reads it this way, which is what `held` is for.
+    //
+    // The surfer alone, and the argument is not that he is the newest craft: a
+    // person can jump and a hull cannot. It is the one craft in this world that
+    // is a body rather than a boat.
+    const jump = walks && input.ascend && !held.current
+    held.current = input.ascend
 
     // Movement is measured against where the camera points, not against the
     // world: forward is into the screen and right is right, at every heading,
@@ -624,7 +639,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     steer(input.move.x, input.move.y, camYaw.current, _target)
     _target.y = 0
     _target.multiplyScalar((input.boost ? SPEED * BOOST : SPEED) *
-      (agile.speed + (WALK_SPEED - agile.speed) * ashore))
+      (agile.speed + (WALK_SPEED - agile.speed) * afoot))
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
     // A hull cannot climb a beach. Pushed back onto the mooring circle rather
@@ -725,6 +740,7 @@ const RISE = 10
         reset.current = false
         hull.current = surface
         groundY.current = ground(g.position.x, g.position.z)
+        hop.current = hopVel.current = 0
         hullVel.current = 0
         lastSurface.current = surface
         wet.current = 1
@@ -745,7 +761,7 @@ const RISE = 10
       // And back into it. The impact is last frame's fall, before the spring
       // has had a chance to answer it — which is the number a splash is the
       // size of, and the number the hull compresses by.
-      if (!flying && flew.current && -hullVel.current > SPLASH_MIN && ashore < 0.5) {
+      if (!flying && flew.current && -hullVel.current > SPLASH_MIN && afoot < 0.5) {
         const impact = Math.min(-hullVel.current, water.launch)
         SPLASH.x = g.position.x
         SPLASH.z = g.position.z
@@ -758,6 +774,16 @@ const RISE = 10
         RIDE.slam = SPLASH.force
       }
       flew.current = flying
+
+      // And the jump. Added to the spring's own velocity rather than replacing
+      // it, so one taken off the face of a roller is a bigger jump than one
+      // taken in a trough and nothing had to say so — the sea is already moving
+      // him. `flew` goes with it so `POP` does not compound it next frame:
+      // that kick is what a *crest* gives you, and this is what his legs do.
+      if (jump && !flying && afoot < 0.5) {
+        hullVel.current = Math.min(hullVel.current + JUMP, water.launch)
+        flew.current = true
+      }
 
       const wasVel = hullVel.current
       hullVel.current += dt * (flying
@@ -793,18 +819,43 @@ const RISE = 10
       // waterline is not a step because both sides of it are near zero there:
       // the ground is zero at the coast by construction (`isles.check.ts`
       // asserts it) and the swell is damped to the chop by `shoal`.
-      if (ashore > 0) {
-        groundY.current += (ground(g.position.x, g.position.z) - groundY.current) *
-          (1 - Math.exp(-WALK_FOLLOW * dt))
-        // `FOOT_DROP` is the deck coming out from under his soles — see the
-        // note on it. It is a translation of the whole craft and not of his
-        // feet, which is what keeps both legs inside their own reach.
-        ride += (groundY.current - FOOT_DROP - ride) * ashore
+      if (afoot > 0) {
+        groundY.current = follow(groundY.current, ground(g.position.x, g.position.z), dt)
+
+        // The hop, and this is the only place in the world that integrates
+        // gravity for something that is not water. Landing is spent the way the
+        // hull's is — into the bounce spring, and into his knees — because it
+        // is the same landing and the rider should not have to know which
+        // surface he came down on.
+        if (jump && afoot > 0.5 && hop.current <= 0) hopVel.current = JUMP
+        if (hop.current > 0 || hopVel.current !== 0) {
+          hopVel.current -= HOP_G * dt
+          hop.current += hopVel.current * dt
+          if (hop.current <= 0) {
+            springVel.current.y += -hopVel.current * water.squash
+            RIDE.slam = Math.min(-hopVel.current / SPLASH_FULL, 1)
+            hop.current = 0
+            hopVel.current = 0
+          }
+        }
+
+        // And the altitude. A floor and not a fade — see `WALK_LAND` — so the
+        // ground wins the frame it is higher, which is the first frame of the
+        // change and not the last. The ramp beside it only ever runs the other
+        // way, walking back down into a sea that is by then the higher of the
+        // two, and it is what hands him to the swell over a quarter of a second
+        // instead of dropping him onto it.
+        //
+        // `FOOT_DROP` follows the *board* and not `ashore`: his soles are on
+        // the deck while the deck is on the sand, and on the sand once the
+        // board is in his arms. Same curve as the board's own lift, or he walks
+        // 16 cm above the thing he is standing on.
+        ride = altitude(ride, groundY.current - FOOT_DROP * carried(afoot) + hop.current, afoot)
         // A man walking does not heel to a wave, and the deck is not throwing
         // him anywhere: what is left of the water fades out of all three.
-        roll *= 1 - ashore
-        heel *= 1 - ashore
-        vertAccel *= 1 - ashore
+        roll *= 1 - afoot
+        heel *= 1 - afoot
+        vertAccel *= 1 - afoot
       }
     }
 
@@ -847,7 +898,11 @@ const RISE = 10
     RIDE.turn += (THREE.MathUtils.clamp(spin / CARVE, -1, 1) - RIDE.turn) * react
     RIDE.speed += (vel.current.length() / SPEED - RIDE.speed) * react
     RIDE.push += (THREE.MathUtils.clamp(-along * 2.2, -1, 1) - RIDE.push) * react
-    RIDE.air += ((1 - wet.current) - RIDE.air) * react
+    // Airborne, and the two modes measure it differently — the hull off the
+    // surface, or the hop off the sand. One number out of it, because what the
+    // rider does about it is the same thing.
+    const aloft = Math.min(hop.current / 0.3, 1)
+    RIDE.air += ((1 - wet.current) * (1 - afoot) + aloft * afoot - RIDE.air) * react
     // Spent over about a third of a second, and linearly: a landing is a thing
     // that finishes, where an exponential leaves the knees half bent forever.
     RIDE.slam = Math.max(0, RIDE.slam - dt * 3.2)
@@ -861,22 +916,22 @@ const RISE = 10
     // same cadence — which is the one thing about a run that a fixed frequency
     // always gets wrong. Not smoothed through `react` like the eight above:
     // these are not a body's answer to the hull, they are where his feet are.
-    RIDE.land = ashore
+    RIDE.land = afoot
     const pace = Math.hypot(vel.current.x, vel.current.z)
     RIDE.stride = THREE.MathUtils.clamp(pace / (2 * CADENCE), STRIDE_MIN, STRIDE_MAX)
-    RIDE.step = (RIDE.step + Math.PI * dt * ashore *
+    RIDE.step = (RIDE.step + Math.PI * dt * afoot * (1 - aloft) *
       Math.min(pace / (2 * RIDE.stride), CADENCE_MAX)) % (Math.PI * 2)
     // The hillside, in the hull's own frame: the ground a stride ahead against
     // the ground a stride behind, and the same across him. It is what puts the
     // uphill foot higher instead of both of them in the slope, and it is four
     // height queries that only happen while he is on one.
-    if (ashore > 0.01) {
+    if (afoot > 0.01) {
       const e = 0.6
       const gx = g.position.x
       const gz = g.position.z
-      RIDE.rise = (ashore * (ground(gx + sy * e, gz + cy * e) -
+      RIDE.rise = (afoot * (ground(gx + sy * e, gz + cy * e) -
         ground(gx - sy * e, gz - cy * e))) / (2 * e)
-      RIDE.cant = (ashore * (ground(gx + cy * e, gz - sy * e) -
+      RIDE.cant = (afoot * (ground(gx + cy * e, gz - sy * e) -
         ground(gx - cy * e, gz + sy * e))) / (2 * e)
     } else RIDE.rise = RIDE.cant = 0
 
@@ -1187,7 +1242,7 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * The roll is exactly a quarter turn, and its sign is the one that puts the
  * deck against his ribs and the fin outboard, clear of his leg.
  */
-const CARRY_POS = new THREE.Vector3(-0.30, 0.50, 0.02)
+const CARRY_POS = new THREE.Vector3(-0.30, 0.41, 0.02)
 const CARRY_ROT = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.20, -0.44, -Math.PI / 2, 'YXZ'))
 const CARRY_REST = new THREE.Quaternion()
@@ -1281,7 +1336,7 @@ function Surfer({ visible }: { visible: boolean }) {
     // with his hips would be one he never touched. One eased number for the
     // whole of it, so the reverse is the same movement backwards: he sets it
     // down, steps on, and rides away.
-    const t = THREE.MathUtils.smoothstep(RIDE.land, 0.32, 0.94)
+    const t = carried(RIDE.land)
     board.current.position.copy(CARRY_POS).multiplyScalar(t)
     board.current.position.y += LIFT_ARC * Math.sin(Math.PI * t)
     board.current.quaternion.slerpQuaternions(CARRY_REST, CARRY_ROT, t)
@@ -1729,7 +1784,7 @@ function rigOf(scene: THREE.Object3D): Rig {
           l.ankle.x,
           l.ankle.y + Math.max(0, -Math.sin(ph)) * STEP_LIFT + TERRAIN_DOWN,
           l.sweep + STRIDE_MAX * Math.cos(ph),
-        ).distanceTo(hip) / (l.up + l.low))
+        ).distanceTo(_hip.copy(hip).setY(hip.y - CROUCH)) / (l.up + l.low))
       }
       console.assert(worst < 0.97,
         `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
@@ -1855,8 +1910,11 @@ function ride(r: Rig, t: number): void {
   const wobble = Math.sin(step) * onFoot // +1 at his left foot's mid-swing
   const s = Math.min(RIDE.speed, 1)
   const c = RIDE.turn
-  const air = RIDE.air * afloat
-  const slam = RIDE.slam * afloat
+  // Not scaled by `afloat`, unlike everything else the sea drives: since the
+  // hop, being off the ground is something that happens on land too, and
+  // `RIDE.air` already knows which one it is measuring.
+  const air = RIDE.air
+  const slam = RIDE.slam
   // What the sea is doing to the deck, and what the rider is about to undo. On
   // the water only: airborne there is nothing to brace against, and a man
   // holding himself level against a board that is no longer on anything is a
@@ -1896,11 +1954,11 @@ function ride(r: Rig, t: number): void {
     0.060 * c + 0.012 * sway - 0.025 * wobble,
     -0.075 * heave - 0.100 * slam - 0.050 * Math.abs(tilt) - 0.045 * s * Math.abs(c)
       - 0.020 * s + 0.030 * air + 0.006 * breath
-      // Dipping through the middle of the change to reach the board, and then
-      // the walk's own rise and fall — twice a stride, lowest at double
-      // support, which is where a real one is lowest. No standing up out of
-      // the crouch: see `PICK`.
-      - PICK * pick - 0.012 * Math.cos(2 * step) * onFoot,
+      // Settling under the board — which is where the stride comes from, see
+      // `CROUCH` — dipping further through the middle of the change to reach
+      // it, and then the walk's own rise and fall, twice a stride and lowest at
+      // double support, which is where a real one is lowest.
+      - CROUCH * onFoot - PICK * pick - 0.012 * Math.cos(2 * step) * onFoot,
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 
@@ -2061,6 +2119,10 @@ function ride(r: Rig, t: number): void {
         l.ankle.x,
         l.ankle.y +
           Math.max(0, -Math.sin(ph)) * STEP_LIFT * (a / STRIDE_MAX) +
+          // Both feet come up in a jump. Nothing else has to happen for it to
+          // read: the hips are already rising with `air` above, so this is the
+          // difference between a man jumping and a man being lifted.
+          0.14 * air +
           THREE.MathUtils.clamp(RIDE.rise * z + RIDE.cant * l.ankle.x,
             TERRAIN_DOWN, TERRAIN_UP),
         z,
