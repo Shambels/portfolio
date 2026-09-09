@@ -2733,3 +2733,200 @@ who ignores the wave.
   and the gesture is the only thing putting width back in the silhouette, so
   these two numbers trade against each other and only motion can settle them.
 - **The 82 kB gz**, and whether it is worth a quantisation dependency.
+
+## The beach — the surfer gets off and walks
+
+The isle was a wall with a beach painted on it. `offshore` pushes anything that
+floats back onto the water at the coastline, which is right for a boat — it has
+nowhere to go once the water runs out — and which meant the one craft in this
+world whose vehicle is *portable* was stopped at the sand like the others.
+
+He crosses now. Ride onto the beach and the board comes up under his arm and he
+walks; walk back into the sea and he is riding again. It is one number,
+`RIDE.land`, 0 on the board and 1 on foot, ramped over 1.25 s at a constant
+rate rather than eased — a change of mode is a thing that finishes — and it runs
+both ways, so **putting the board down is picking it up backwards** and the
+return transition is not a second piece of code.
+
+### What decides it is the ground, and that is why nothing else moved
+
+The trigger is `ground(x, z)` between 6 cm and 34 cm, which is the first metre
+of sand above the waterline. `ground()` is sea level everywhere but the isle, so
+the boat, the saucer and every frame in open water read this and get zero: the
+whole feature is arithmetically invisible to the two craft and the three
+islands it does not concern. It is also why the crossing is not a step —
+`isles.check.ts` already asserts the ground is zero at the coastline to a
+millionth, and `shoal()` already damps the rollers to nothing there, so both
+sides of the blend are near zero at the moment it starts.
+
+The landmark islands are *not* his to walk on, and `offshore` grew one optional
+argument to say so. Arriving alongside one is what opens its panel, and their
+mooring circles are nearly twice the radius that does it, so walking up the mine
+would be a hull inside a trigger the world was laid out to keep it outside of.
+
+### Three things happen at once, and none of them is a state machine
+
+- **The craft.** Speed blends from 1.18 to 0.24 of `SPEED`, `offshore` stops
+  pushing him off the isle, the buoyancy spring keeps running underneath (he is
+  going back to it) and the altitude blends from the swell to `ground()` minus
+  16 cm. The water's heel, its pitch and its vertical throw fade out with the
+  same number; the splash stops firing.
+- **The board.** Its four meshes moved into a group of their own and the rider
+  came out of it — a man parented to the thing he is carrying is a man who
+  cannot put it down. The group lerps to `CARRY_POS` on a curve that *lags the
+  crouch*, so the dip is him reaching for it rather than a board that rose on
+  its own, with a hand's width of arc through the middle so it leaves the sand.
+- **The man.** `pick`, one sine over the whole ramp, folds him over it — hips,
+  spine, chest, neck, head and both arms — and the walk fades in behind it.
+
+`CARRY_ROT` is the one number chosen against the camera rather than against the
+model. The camera sits astern and never yaws, so a board carried along the
+heading is 2.3 units of board seen end-on, hidden behind its own rider. A
+quarter radian of yaw and an eighth of pitch put it diagonally across the frame,
+which is where it reads and is also how anybody carries one.
+
+The carry cost the arms very little pose of their own, and that is luck worth
+recording: the model faces +z, so `armB` at x -0.09 is his **right** arm, and
+the arms-down rest pose already hangs that elbow at very nearly the height and
+the offset a board's outer rail wants. It took one number — 0.20 of inward
+roll — to put the elbow *on* the rail rather than 12 cm outboard of it. The
+pose was almost the pose; it mostly had to be given something to hold.
+
+Both carry numbers were then measured rather than guessed, by replaying the
+bone math on the glb's own hierarchy: the board's inner face lands at x -0.160,
+against his hip, its outer face at -0.295, his elbow at -0.292 — on it — and his
+hand 4.6 cm outboard of it. Move `CARRY_POS.x` and the 0.20 moves with it.
+
+The leading arm needed the opposite. Its rest pose puts the hand 0.40 forward of
+its own shoulder and 0.24 outboard, which is an arm reaching over the rail — a
+surfer's arm, and on a walking man an arm held out at nothing. It comes back and
+in (0.30 each) before it starts swinging at all.
+
+### The finding: the two legs are not the same length
+
+This is the important paragraph and it is not about the beach.
+
+`tools/surfer.py` sculpts the front leg with a 0.498 thigh and a 0.287 shin —
+0.785 of reach — and the back leg with a **0.238 thigh** and a 0.273 shin, which
+is 0.511. The back thigh is a little under half the front one. Standing in the
+surf crouch the back leg is already at **87% of its own reach**; the front one
+is at 68%.
+
+Nothing on a board ever straightens either leg, which is why it has never shown
+in a screenshot or in the `--flex` render. A stride is the first thing that
+asks, and it asks immediately: the first pass dropped both soles 16 cm to put
+them on the sand, which needs 0.56 out of a leg that has 0.51, and the solver
+clamped every frame — which on screen is a man skating.
+
+What the walk does about it:
+
+- **The 16 cm comes out of the craft's altitude, not out of his feet.** Dropping
+  what he stands on asks nothing of either leg. This is the load-bearing
+  decision and everything else is sized after it.
+- **Each foot swings about the point under its own hip** (`Leg.sweep`, read off
+  the model). That is the cheapest place along the board for each leg, and
+  because the two hips are 12 cm apart it also produces the stagger a walking
+  stance has, without a number for it.
+- **`STRIDE_MAX` is 0.15**, a 30 cm step, which puts the back leg at 89% at the
+  end of its swing against `reach`'s own clamp at 99.8%. It is a short step and
+  it is the longest one this rig can take.
+- **He does not stand up out of the crouch.** There is no `STAND` term, because
+  the back leg has 13% of its reach left and standing spends all of it. He walks
+  in the stance he surfs in.
+- **`TERRAIN_DOWN` is 4 cm against `TERRAIN_UP`'s 18.** He can lift a foot onto
+  a step and he cannot reach down into a hollow, for the same reason.
+
+A dev assert in `rigOf` sweeps the whole cycle at `STRIDE_MAX`, with the lift
+and the downhill clamp on, and requires both legs to stay under 97% — measured
+55% and 89%. It exists because all five numbers above are measurements of *this
+file*: fix the model and they are wrong in the safe direction, but a re-sculpt
+that shortens something is a foot that slides, and a sliding foot reads as a bug
+in the walk rather than as a limit of the rig.
+
+**The fix is one point in `tools/surfer.py`.** `KNEE_B` at `(-0.21, 0.42,
+-0.20)` is 0.238 from `HIP_B`; moving it to about 0.44 from the hip along the
+same line gives the back leg a 0.72 reach and lets the stride roughly double,
+the crouch stand up, and the walk stop being sized by an accident. It changes
+the sculpted riding silhouette and it means rebuilding the model, so **it is
+Seb's call and it has not been taken.**
+
+### The knees needed one more thing
+
+Both knees in the sculpted stance point *outward* — a surf crouch is a wide
+stance, and `reach` takes the rest knee's own offset as its pole vector, which
+is what makes the riding solve exact to the last decimal. Walking with an
+outward pole is bow-legged. So `reach` grew a second optional argument and the
+pole swings round to straight ahead with `RIDE.land`; at 0 it is `leg.pole`
+unchanged, so nothing about riding moved.
+
+### The walk itself
+
+Distance drives the phase, not time — so a rider who stops stops mid-step, and
+there is no way to moonwalk out of a halt. Speed buys stride first at a held
+3.6 steps/s; past the stride's cap the rate rises instead, to `CADENCE_MAX` = 5;
+past *that* the feet slide, which only happens under boost and is invisible at
+90 pixels of back where legs going round like a cartoon's would not be.
+
+On top of the feet: the pelvis turns with the stride and the shoulders
+counter-rotate against it, the hips rise and fall twice a stride (lowest at
+double support, where a real one is lowest) and sway over the standing leg, the
+leading arm swings against its own leg — his left arm and his left leg, both on
+the +x side — and the trailing arm keeps 8% of the swing because it is holding a
+board. The hillside is read as two finite differences in the hull's own frame
+and put into the feet, so the uphill foot is higher instead of both feet in the
+slope.
+
+### Cost
+
+- **`src/Ship.tsx`: about 260 lines**, and `src/world.ts`: one optional
+  argument and an `if`.
+- **No new dependency, no new asset, no change to the model.**
+- **Runtime: five height queries a frame, and only while he is on sand.** The
+  four for the hillside plus the one for his altitude; `ground()`'s cheap reject
+  is a squared distance against one circle. Nothing new is allocated.
+- **Every other craft and every other frame is arithmetically unchanged** —
+  `RIDE.land` is zero and every term it scales is a multiply by one or a branch
+  not taken.
+
+### Verified
+
+- `npx tsc -b`, `npm run check`.
+- **The walk fits inside the legs.** The dev assert above, and the same sweep
+  run standalone against the bone positions read out of `surfer.glb` itself
+  (not out of `tools/surfer.py`): front leg 17%–55%, back leg 30%–89%.
+- **The bone lengths above are measured from the shipped `surfer.glb`**, by
+  composing the node hierarchy out of the glTF JSON — not from the script that
+  generated it.
+- **The carry was measured the same way**, by replaying `bend()`'s arithmetic on
+  that hierarchy and comparing the arm to the board's rotated volume. The four
+  numbers are in the section above. It is geometry and not a render: it says the
+  arm is on the board, not that the shot reads.
+- **Invariant 6.** `prefers-reduced-motion` snaps the mode change instead of
+  ramping it, which is the existing rule for transitions; the walk cycle itself
+  is a response to movement the visitor asked for, so it stays.
+
+### Not verified
+
+- **Nothing has been looked at.** Not one frame of this has been rendered. Every
+  number that is not a measurement of the model is reasoning about a shape, and
+  the four that are pure judgement are `CARRY_POS`, `CARRY_ROT`, the 1.25 s and
+  `WALK_SPEED`.
+- **Nothing has run under WebGPU**, same as the rig.
+
+### Needs Seb
+
+- **Whether to fix the back thigh.** Everything cramped about the walk is
+  downstream of it, and it is one point in a file. See the finding above.
+- **`CARRY_POS` and `CARRY_ROT`.** Whether the board sits under the arm or
+  through his hip, and whether a quarter radian of yaw is enough to read it as a
+  board from astern. This is a screenshot question and it is the first one.
+- **1.25 s, and where the crouch sits inside it.** The board starts rising at
+  0.32 of the ramp and is settled at 0.94; if the pickup reads as him lifting a
+  board that is already floating, the first number goes up.
+- **`WALK_SPEED` = 0.24.** 70 m of island is about 40 seconds on foot and 16
+  under boost. The isle carries no project, so walking it is a thing to enjoy
+  rather than a thing to get through — but only sailing it says whether 40
+  seconds is exploring or waiting.
+- **Whether the walk reads at all at this size**, given the back leg. It may be
+  that the bob, the arm and the lean carry it and nobody looks at the knees,
+  which is what these amplitudes are betting on.
