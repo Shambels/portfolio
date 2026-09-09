@@ -116,13 +116,45 @@ VOXEL = 0.007
 # procedural rider had, and the reason `bone()` takes two points.
 P3 = tuple[float, float, float]
 
+# The two knees are the one pair of points in this pose that were not chosen —
+# they were measured, after the fact, from what the legs could not do.
+#
+# The rider shipped with **legs of two different lengths.** The front one ran a
+# 0.498 thigh on a 0.287 shin, 0.785 of reach; the back one a *0.238* thigh on a
+# 0.273 shin, 0.511. The back thigh was a shade under half the front. Nothing on
+# a board ever straightens either leg, so it never showed — not in a render, not
+# in `--flex`, and not in the rig's own rest-pose assert, which only ever checks
+# that the solver reproduces whatever is written here.
+#
+# What showed it was walking. Two legs of different lengths have no hip height in
+# common: raise the pelvis until the long one straightens and the short one
+# cannot reach the ground, lower it until the short one has stride to spend and
+# the long one is folded to 57% and the man is walking on his knees. There is no
+# tuning out of that, in `Ship.tsx` or anywhere else, because it is not a pose
+# problem. It is a skeleton problem.
+#
+# So both legs are one anatomy now: **a 0.43 thigh on a 0.25 shin, 0.68 of
+# reach**, in the front leg's own 63/37 proportions. The length is set by what a
+# walk needs rather than by either leg's history — hips 16 cm up out of this
+# crouch, a 76 cm step, and both legs cycling between 88% of their reach at
+# mid-stance and 96% at the end of a stride, which is what a leg does. Both
+# ankles, both hips and every other point in this file are untouched: only the
+# knees moved, onto the circle those bone lengths put them on, along the
+# direction each knee was already pointing.
+#
+# **It changes the stance on the board, and that is not a side effect to hide.**
+# The front leg goes from 68% of its reach to 78% — a little straighter. The back
+# leg goes from 87% to 65% — a good deal more bent, its knee 10 cm further
+# outboard and 14 cm lower, out over the rail. A surfer's back leg *is* the bent
+# one, so this is the more honest stance as well as the workable one, but it is a
+# change to a silhouette that was reviewed. `docs/STATUS.md` has the argument.
 FOOT_F: P3 = (0.05, 0.14, 0.42)
 ANKLE_F: P3 = (0.08, 0.20, 0.40)
-KNEE_F: P3 = (0.30, 0.38, 0.44)
+KNEE_F: P3 = (0.248, 0.384, 0.383)
 HIP_F: P3 = (0.10, 0.58, 0.03)
 FOOT_B: P3 = (-0.05, 0.14, -0.30)
 ANKLE_B: P3 = (-0.07, 0.20, -0.28)
-KNEE_B: P3 = (-0.21, 0.42, -0.20)
+KNEE_B: P3 = (-0.307, 0.279, -0.288)
 HIP_B: P3 = (-0.10, 0.60, -0.09)
 
 PELVIS: P3 = (0.0, 0.60, -0.03)

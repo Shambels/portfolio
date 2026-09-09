@@ -38,10 +38,14 @@ export const WALK_FULL = 0.34
  *  finishes. */
 export const BEACH = 1.25
 
-/** His speed on foot, as a multiple of `SPEED`, against `AGILITY.surfer.speed`
- *  on the board. Fast enough that 70 m of island is a walk and not a chore,
- *  slow enough that stepping off the board is a decision with a cost. */
-export const WALK_SPEED = 0.24
+/**
+ * His speed on foot, as a multiple of `SPEED`, against `AGILITY.surfer.speed` on
+ * the board. It went up with the stride and not instead of it: 2.4 units a
+ * second against a 76 cm step is three paces a second, which is a walk, and the
+ * step is what makes it cover ground rather than the feet going round faster.
+ * 70 m of island is half a minute, and boost is a run.
+ */
+export const WALK_SPEED = 0.32
 
 /**
  * How fast the sand under his feet *drops* away, and there is deliberately no
@@ -77,16 +81,21 @@ export const WALK_FOLLOW = 14
 export const WALK_LAND = 0.2
 
 /**
- * How far he drops when the board stops being under him. The deck is `deckY`
- * above the craft group's origin — about 16 cm under his soles — and the sand
- * is at the origin, so this is that measurement and not a taste number.
+ * How far he drops when the board stops being under him, and it is the model's
+ * own measurement rather than the deck's.
  *
- * Applied to the *craft* and not to his ankles, which is the whole difference
- * between a walk this rig can do and one it cannot: moving the feet down 16 cm
- * in board space asks his back leg for 0.56 against the 0.51 it has, and it
- * clamps every frame. Dropping what they stand on asks nothing of either leg.
+ * It was `deckY`, about 16 cm, on the reasoning that his soles sit on the deck.
+ * They do — but the *lowest* thing on him is the underside of a foot, and
+ * `tools/surfer.py` reports that at y 0.11 in board space. Dropping the craft by
+ * the deck's 16 put five centimetres of foot through the sand, which is exactly
+ * what it looked like. So: 0.11 measured, less a centimetre so that a sole on a
+ * downhill step still clears, which is 0.10.
+ *
+ * Applied to the *craft* and not to his ankles, and that part has not changed:
+ * moving his feet down in board space is a thing his legs have to pay for, and
+ * dropping what they stand on is free.
  */
-export const FOOT_DROP = 0.16
+export const FOOT_DROP = 0.10
 
 /**
  * How far the board is out of his hands — 0 under his feet, 1 under his arm.

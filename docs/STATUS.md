@@ -3103,3 +3103,132 @@ nothing and its hint still does not name it.
   much off the water. It is the one number here chosen for how it should feel.
 - **The three surfer hint strings**, EN, FR and NL, which now name Space.
   The FR and NL are mine and unreviewed, like the eight already on that list.
+
+## The legs — the model was wrong, and the walk is what asked
+
+Three adjustments were asked for: a bigger stride, legs that stop looking like
+he is walking on his knees, and feet that stop sinking into the sand. The first
+two are the same defect pulling in opposite directions, and neither could be
+won in `Ship.tsx`.
+
+### The finding, confirmed and fixed
+
+The rider shipped with **two legs of different lengths.** The front one ran a
+0.498 thigh on a 0.287 shin — 0.785 of reach. The back one ran a **0.238** thigh
+on a 0.273 shin — 0.511. The back thigh was a shade under half the front.
+
+It was called out in "The beach", first pass, as the thing capping the stride.
+What it actually caused is worse than a short step: two legs of different lengths
+have **no hip height in common.** Raise the pelvis until the long leg straightens
+and the short one cannot reach the ground. Lower it until the short one has
+stride to spend — which is exactly what the 9 cm `CROUCH` did to buy the last
+step — and the long leg folds to 57% of its reach, which on screen is a man
+walking on his knees. There is no tuning out of it. It is not a pose problem, it
+is a skeleton problem, and the first pass's numbers were all measurements of the
+defect.
+
+Both legs are one anatomy now: **a 0.43 thigh on a 0.25 shin, 0.68 of reach**, in
+the front leg's own 63/37 proportions. The length is set by what a walk needs
+rather than by either leg's history. Both ankles, both hips and every other point
+in `tools/surfer.py` are untouched — only the two knees moved, onto the circle
+those bone lengths put them on, along the direction each knee was already
+pointing:
+
+| | thigh | shin | reach | on the board |
+|---|---|---|---|---|
+| front, was | 0.498 | 0.287 | 0.785 | 68% |
+| front, now | 0.430 | 0.250 | 0.680 | 78% |
+| back, was | 0.238 | 0.273 | 0.511 | 87% |
+| back, now | 0.430 | 0.250 | 0.680 | 65% |
+
+### It changes the stance on the board
+
+**This is a change to a silhouette that was reviewed, and it is not small.** The
+front leg straightens a little, 68% to 78%. The back leg goes the other way, 87%
+to 65% — its knee 10 cm further outboard and 14 cm lower, out over the rail. A
+surfer's back leg *is* the bent one, so the new stance is the more honest one as
+well as the workable one, but it is a change and it wants an eye. Renders of both
+are in the conversation and in `Claude outputs/`.
+
+The model itself is otherwise unmoved: 17,222 triangles against the old count,
+same COLOR_0 pipeline, same seventeen bones, same names. Bone heat found every
+vertex this time (`0 verts unweighted`), which the old geometry did not manage —
+the diffuse fallback `docs/STATUS.md` describes under "The rider moves" was
+needed because a forearm hung beside a thigh, and the thigh moved.
+
+### The walk that came out of it
+
+With the legs equal there is a hip height that suits both, so the crouch inverted:
+
+- **`STAND` = +0.16** where `CROUCH` was −0.09. He stands *up* out of the surf
+  crouch to walk, which is what the first pass could not afford.
+- **`BOB` = 0.06**, up from 0.012, and it is what makes two numbers possible at
+  once. The pelvis rises and falls twice a stride — highest at mid-stance where
+  the leg is under him and wants to be straight, lowest at double support where
+  the legs are apart and want the room. It is what a real walk does; without it
+  the same stride either clamps at the extremes or crouches through the middle.
+- **`STRIDE_MAX` = 0.38**, a 76 cm step against 60, and `WALK_SPEED` = 0.32
+  against 0.24. **He covers 33% more ground and takes 27% longer steps**, at
+  3.16 paces a second, planted — the step is what makes it faster, not the feet
+  going round quicker.
+- Measured over the whole cycle, both legs now run **45%–92%** and **48%–95%**
+  of their reach, at **88%** and **91%** at mid-stance. The low end is the swing
+  leg with its knee up, which is a leg swinging. Before, the front leg never left
+  the 45–57% band, which is a leg kneeling.
+
+`TERRAIN_DOWN` came in from −0.04 to −0.02: with a walk running at 96% at the end
+of a stride, a hollow met there is the one place the solver would clamp. The cost
+is a foot that floats slightly on a steep descent, which nobody sees because the
+whole body is descending with it.
+
+### The feet were sinking, and it was a wrong measurement
+
+`FOOT_DROP` was 16 cm, taken from `deckY` — the deck his soles stand on. But the
+*lowest* thing on the rider is the underside of a foot, and `tools/surfer.py`
+reports that at **y 0.11**. Dropping the craft by the deck's 16 put five
+centimetres of foot through the sand, which is exactly what it looked like.
+
+It is 0.10 now: the model's own 0.11, less a centimetre so a sole still clears.
+On flat ground he stands 1 cm proud of it; on a slope the terrain term only ever
+floats a foot, never buries it, because it clamps at 2 cm against real slopes
+that drop further.
+
+`CARRY_POS.y` went 0.41 → 0.66, which is the 16 cm he stands up plus the 9 cm he
+no longer crouches: the board's top rail stays at his armpit and his elbow stays
+on its outer rail, re-measured on the rebuilt hierarchy.
+
+### Verified
+
+- `npx tsc -b`, `npm run check` — all five.
+- **The bone lengths are read back out of the shipped `surfer.glb`**, not out of
+  the script: both legs 0.430 / 0.250 / 0.680.
+- **The walk fits**: the dev assert in `rigOf`, re-measured — 92% and 95%
+  against its 97% threshold, and against the solver's own clamp at 99.8%.
+- **It was rendered, and this is the first thing in this whole line of work that
+  was.** `bpy==4.5.13` in the container, the rig posed by Blender's own IK into
+  the walk at `STAND`/`BOB`/`STRIDE_MAX`, from the side and from astern, at full
+  stride and at mid-stance. The legs are long, the stance leg is straight, the
+  swing knee is up. It is a walk.
+- The build's own asserts passed, including `lo.z > 0.05` — the rider's feet are
+  not through the deck.
+
+### Not verified
+
+- **Nothing has run in the browser.** The renders are Blender's, in a flat
+  material, with no toon shading, no outline and no rim.
+- **The new riding stance has been rendered but not judged in the world**, where
+  it is 90 px of back under a golden-hour sun.
+
+### Needs Seb
+
+- **The back knee.** It is the whole visible cost of the fix and it is a change
+  to a committed frame. If the wider, lower back leg reads badly on the board,
+  the lever is the pole direction in `tools/surfer.py` — the knee can go anywhere
+  on a circle without changing a single bone length or anything about the walk.
+- **`STAND` = 0.16 against the crouch he came from.** He is visibly taller on
+  foot than on the board now, which is correct and is also a bigger change than
+  it sounds.
+- **`WALK_SPEED` = 0.32.** 70 m of island is half a minute on foot, 13 s at boost.
+- **Whether bone heat holding is worth anything.** The weights are back to what
+  `tools/surfer.py` asks for first, and the note under "The rider moves" about
+  the diffuse fallback is now describing a geometry that no longer exists.
