@@ -2390,6 +2390,10 @@ flight constants, a full-right hold settles 77 degrees off the camera's bearing
 and comes round at exactly the cap; W holds the camera dead astern. Tapped, it turns and settles;
 `CAM_SWING` is 2.6, about a third of a second of lag.
 
+*(Both of those numbers are per **second** here, and they are not any more —
+the swing is spent out of distance travelled now. See "The camera waits for the
+craft to get somewhere" at the end of this file.)*
+
 The arithmetic — the screen-to-world basis and the capped swing — is `src/camera.ts`,
 its own module importing nothing, and `node src/camera.check.ts` asserts the
 things a screenshot cannot show: that forward is the camera's own bearing and
@@ -3345,3 +3349,70 @@ rather than an arm doing nothing. The forward lean goes 0.10 → 0.36 rad with i
   search, and the trade is legible: more bounce is a longer step.
 - **The band `gait` ramps over**, and whether the mid-band cadence bump reads.
 - **`WALK_SPEED` = 0.36**, again — 26 s to cross the island on foot, 11 running.
+
+## The camera waits for the craft to get somewhere
+
+The swing was driven by the clock: the heading moved, and from that instant the
+camera came round at up to 0.9 rad/s whether or not the craft had gone anywhere.
+Turning is nearly free — `AGILITY.turn` is 9 for a hull and 16 for a board — so
+a change of direction was, in practice, an immediate camera move. Flicking left
+and right on the spot swung the world about; leaning on a coastline that the
+hull was sliding along swung it too.
+
+It is spent out of **distance advanced along the heading** now. `swing` takes
+`ds` instead of reading `dt` for its lag, and both of its numbers are per unit
+travelled rather than per second:
+
+| | was (per second) | now (per unit) | at cruise |
+|---|---|---|---|
+| `CAM_SWING` (lag) | 2.6 | 0.18 | e-folds over 5.6 units ≈ 0.74 s |
+| `CAM_SWING_MAX` (cap) | 0.9 rad/s | 0.09 rad/unit | 0.675 rad/s |
+| `CAM_SWING_SPIN` | — | 0.9 rad/s | never binds |
+
+`ds` is the velocity **projected onto the heading**, floored at zero, times
+`dt`. Projected rather than the raw speed so that the three ways this world
+moves a craft sideways — `offshore` pushing a hull off a shoreline, a roller
+sliding it down its own back, and the lag between the heading and the velocity
+during a turn — do not turn the frame. Floored at zero so that going backwards
+does not turn it the other way.
+
+### What it changes about the feel
+
+- **A direction change on its own does nothing.** The hull swings round under a
+  camera that holds still, and the view follows as the craft actually covers
+  ground in the new direction. This is the whole request and the rest is
+  consequence.
+- **The carve is one radius at every speed.** `speed / (max · speed)` is
+  `1 / max` — **11.1 units**, cruise and boost alike, where the per-second cap
+  gave 8.3 at cruise and 20 under boost. A held sideways push draws the same
+  circle however hard you are pushing forward, which is what a lean *is*.
+- **Boost is the exception, and that is what `CAM_SWING_SPIN` is for.** 0.09 a
+  unit at 18 units a second is 1.6 rad/s, a world revolving about the hull. The
+  old 0.9 rad/s survives as a ceiling rather than a lag; it binds above 10 units
+  a second and nowhere below.
+- **Reduced motion keeps its ratio** — 0.048 and 0.022, the same quarter of the
+  full numbers it always had, and the 0.22 rad/s ceiling unchanged (invariant 6).
+- **A stationary craft can now hold the camera off its heading indefinitely.**
+  That is deliberate, and it is bounded by the fact that `yaw` itself only moves
+  while `vel` is above 0.05 — so nothing can wind the two apart without moving.
+
+### Verified
+
+- `npm run check` (all five) and `npx tsc -b`. `camera.check.ts` gained the
+  assertion the change exists for — ten seconds of a quarter-turn error with
+  `ds` at zero leaves `camYaw` bit-identical — plus the carve radius at cruise
+  and the ceiling binding under boost.
+
+### Not verified — Seb's eye
+
+- **0.18 and 0.09.** They are a reading of "gradually", not a measurement. The
+  lag is about twice as slow as the old one at cruise and the carve is a third
+  wider. If the camera now feels like it is dragging behind a turn rather than
+  waiting for it, `CAM_SWING` is the number; if the circle is too lazy,
+  `CAM_SWING_MAX` is.
+- **The surfer, who turns at 16.** He is the craft that can put the biggest gap
+  between hull and camera before the camera answers, and he is the one to judge
+  it on.
+- **Coming to a stop mid-turn.** The camera stays wherever the last metre of
+  travel left it, which is new, and whether that reads as a held frame or as an
+  unfinished one is a thumb's judgement.
