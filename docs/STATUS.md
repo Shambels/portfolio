@@ -3416,3 +3416,166 @@ does not turn it the other way.
 - **Coming to a stop mid-turn.** The camera stays wherever the last metre of
   travel left it, which is new, and whether that reads as a held frame or as an
   unfinished one is a thumb's judgement.
+
+## The rider, second pass — an athlete, a haircut and a sewn suit
+
+Seb asked for the surfer to look more like a person: athletic proportions,
+curly hair, a wetsuit and a board that read as made of something. Nothing about
+how he moves changed — same seventeen bones, same names, same pose list to the
+point, same solver — and everything about what he is made of did. Both are in
+`tools/surfer.py`, and the board's half is in `Ship.tsx`.
+
+### The body
+
+The first body was right in its parts and soft in all of them: every limb a
+tube of one radius, a chest as deep as it was wide, and nothing between one
+muscle and the next but blend. What reads as *athletic* is not bigger muscles
+but the ratios between them and the grooves that separate them, so the second
+pass thins every joint and widens the top of the frame:
+
+| | was | now |
+|---|---|---|
+| wrist / elbow / shoulder radius | 3.8 / 5.0 / 7.2 cm | 3.1 / 4.9 / 6.6 cm |
+| ankle / knee / hip radius | 5.2 / 7.6 / 11.2 cm | 4.4 / 6.4 / 9.8 cm |
+| chest half-width × depth | 18.5 × 11.8 cm | 18.0 × 10.8, plus a 19.8 cm shelf under the clavicles |
+| waist half-width | 11.8 cm | 10.0 cm, carved deeper at the flanks |
+| head radius | 9.8 cm | 9.4 cm, on a skull that is longer than it is wide |
+
+And it carves: the sternum, the fold under each pec, a spinal groove from the
+neck to the pelvis with a shoulder blade either side of it, the line where the
+deltoid tucks into the arm, and the temples. The calf is two heads and the quad
+is three, the forearm is a club that is widest a third of the way down, and the
+jaw has corners. All of it is negative elements and short spindles on the same
+metaball field, at the same resolution, and none of it moved a bone.
+
+### The hair
+
+Thirty arcs were a felt cap. It is eighty-four **helices** now on a scalp cap of
+their own — each curl a short corkscrew around an axis that tips away from the
+scalp the way weight takes it — long on the crown, cropped at the sides and
+nape, stopping above the ears and at the hairline `head_colour` paints, which
+was extended down the back of the skull because from astern the first pass had
+a bald band between the curls and the collar. Because the cap makes the hair one
+shell, it goes through Quadriflow like the body instead of a decimate, and the
+triangles land on the scallops between curls, which is where the silhouette is.
+
+### The suit
+
+A wetsuit is panels of neoprene sewn together, and what says so is the
+stitching. These are all **regions in `region()`** — the same function the
+ribbons come from, so `crisp()` cuts the mesh along every one of them and the
+boundary is a real edge:
+
+- **Flatlock seams**, 8 mm and a grey a shade up from the rubber: down the
+  outside and inside of each sleeve and each leg (`on_seam` — one plane through
+  the limb's axis, which is where a sleeve's two seams actually are), down both
+  flanks, and once round the trunk under the pecs. Seams stop short of the
+  joints and stay off the ribbons, which have their own edge.
+- **The ribbons are inked**: a 6 mm band of the suit's own black either side of
+  each neon panel, which is what turns two neons butted together into two sewn
+  panels.
+- **Knee pads**: a disc of darker, textured neoprene on the front of each knee
+  with its own seam round it.
+- **Cuffs and collar**: the hem at each wrist and ankle, and a collar that is a
+  *height* on the neck — two centimetres above the shoulders — rather than the
+  sphere the first pass used, which put it on the collarbones.
+- **A back zip** from the collar to the small of the back, painted, with a
+  stitched flap either side, and a slider and pull tab as geometry, found the way
+  the eyes are — a ray out of the chest through the back — because the back
+  under the collar is traps blended into a chest blob and its depth is not a
+  number anyone can write down.
+
+`crisp()` had to change to hold this. An 8 mm seam on a 12 mm edge can start and
+end inside the edge with both ends the same colour, and the old end-to-end test
+never saw it — the seams came out dashed. It walks each edge in sixteen samples
+now, and from the second round on it **triangulates any face that still has two
+colours at its corners** before cutting again: `connect_verts` declines a quad
+the band enters and leaves through the same edge, and a triangle has no such
+case. Five rounds instead of two; the ribbons' edges, which were always a little
+stepped, came out clean for the first time as a side effect.
+
+### The board, and what it is made of
+
+- **Glassed resin**: the hull and the stripe are `MeshPhysicalNodeMaterial` with
+  a clearcoat, the canopy's material without its transmission.
+- **A pinline** along the rail, where the deck lamination overlaps the bottom's.
+- **Wax** on the deck forward of the pad: the colour lifts toward chalk, the
+  roughness goes up and the clearcoat goes out under a wax mask, combed in a
+  crosshatch of two sines crossed at 45 degrees — a wax comb's mark, not noise.
+- **A timber stringer** the width of a finger down the middle of the magenta
+  inlay.
+- **A pad that is diced foam**: grooves both ways at 15 mm, matte, with a kick
+  at the tail end raised 22 mm out of the deck grid.
+- **Three fins** — a thruster — as extruded foils with a fin's proportions, canted
+  and toed in a few degrees, in smoked fibreglass. The first cut of these was
+  a stick and the headless walk is what showed it.
+- **A leash** from a plug at the tail to a lime cuff round the back shin. Both
+  ends are constants because the ankle is fixed to the deck, so the curve is
+  built once, with its slack lying on the deck. It is hidden while the board is
+  carried.
+
+And the neoprene itself, at runtime: a toon material has no specular, and a
+wetsuit's whole look is specular. `RIDER.emissiveNode` gains a **Blinn
+half-vector glint** at a high exponent, masked by COLOR_0's brightness the way
+the neon is masked by its chroma — everything darker than a sixth is rubber or
+hair and takes it, everything lighter is skin, teeth or neon and does not.
+
+### Cost
+
+- **Triangles: 17.2k → 32.5k**, and `TRIS_MAX` is 38k to absorb Quadriflow's
+  variance (it returns 8.1k–10.2k quads for the same 10k target run to run). That
+  is over CLAUDE.md's 25k *landmark* budget on purpose — Seb raised it for the
+  rider, the one model in the world that is looked at rather than walked past —
+  and it is still one draw call, drawn twice for the outline.
+- **`surfer.glb`: 326 kB gz → 547 kB gz.** It would have been 630: the new
+  `squeeze()` rewrites `WEIGHTS_0` and `COLOR_0` as normalised unsigned bytes
+  after export, which glTF allows without an extension and Blender will not do.
+  Positions and normals stay float; they are 60% of what is left, and the lever
+  on them is meshopt — a decoder, a dependency, **Seb's call, not taken**.
+- **Canvas chunk 465.1 kB gz**, budget 600. Lint: the same 14 pre-existing
+  warnings, none new.
+- **Runtime: nothing measurable in the loop** — one more `visible` write a frame
+  for the leash, four more materials at rest.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b`, `npm run check` (all five), `oxlint` with no new warnings,
+  `react-router build` clean.
+- **The rig still solves back to its own rest pose** and **both soles stay on
+  the deck**: the dev asserts in `rigOf` are silent through a headless WebGL2
+  walk at rest, through a held turn and through a straight run, with a clean
+  console — no missing bone, no missing COLOR_0, no scale on a joint.
+- **The quantised file loads** — the byte-normalised weights and colours come
+  through `GLTFLoader` as the same skin and the same bands.
+- **`--flex` holds**: every joint bent past anything the runtime asks, no shear
+  at the shoulder, no collapse at the waist, hair and face and zip pull riding
+  the head and the back. `Claude outputs/surfer-v2-flex.png`.
+- **In the world, from the camera's real distance**, the curls, the suit's
+  construction, the zip and the fins all read.
+  `Claude outputs/surfer-v2-in-world.png`; the model on its own in
+  `surfer-v2-{astern,front,quarter,face}.png` and before/after in
+  `surfer-v2-before-after.png`.
+
+### Not verified
+
+- **WebGPU.** The container's Chromium loses the WebGPU device ("a valid
+  external Instance reference no longer exists") before it draws a frame — on
+  this change *and on HEAD without it*, which is how it was told apart from
+  the work. The `clearcoatNode`, the `smoothstep`/`fract`/`step` TSL and the
+  `unorm8x4` vertex formats for the two quantised attributes are all standard,
+  but the first WebGPU frame with them is Seb's.
+- **Frame rate** at 32.5k triangles drawn twice, on the 2022 laptop. It should
+  not be measurable; it has not been measured.
+
+### Needs Seb
+
+- **The look under the golden hour**, from astern, on real hardware — in
+  particular whether the neoprene glint reads as wet rubber or as noise, and
+  whether the seams survive the toon quantisation at all. The glint's strength
+  is the `0.5` on the last line of `RIDER.emissiveNode`; the seams' colour is
+  `SEAM` in `tools/surfer.py`.
+- **The file size.** 547 kB gz for the one model that moves, against 300 for a
+  landmark. Meshopt would roughly third it and costs a 20 kB decoder.
+- **The wax.** It is the deck's most visible material change and the camera
+  sees the deck at a grazing angle from astern; it may only ever show when he
+  jumps.

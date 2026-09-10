@@ -162,6 +162,7 @@ Breaking one is allowed. Doing it without saying so is not.
 | First-route JS | ≤ 200 kB gz, excluding canvas chunk |
 | Canvas chunk | ≤ 600 kB gz |
 | Per landmark model | ≤ 300 kB compressed, ≤ 25k triangles |
+| The rider, `surfer.glb` | ≤ 38k triangles, ≤ 600 kB compressed — its own row since the second pass, raised by Seb: it is the one model that is looked at rather than walked past. Meshopt is the lever if it has to come down |
 | Whole world, compressed | ≤ 3 MB, loaded progressively |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
@@ -390,6 +391,18 @@ island a lagoon and a line of surf on its beach, which is a change to the
 committed look of the three that were there already. `docs/STATUS.md`, "The
 isle", has the whole of it, including the three numbers that were found by
 rendering rather than by thinking.
+
+The rider had a second pass: athletic proportions on the same skeleton, a
+head of helical curls on a scalp cap, a suit that is *sewn* — flatlock seams,
+inked ribbon edges, knee pads, cuffs, a collar on the neck and a back zip with a
+pull tab — and a board that is made of something: clearcoat resin, a rail
+pinline, combed wax on the deck, a timber stringer, a diced pad with a kick,
+three foil fins and a leash to a cuff on his shin. `crisp()` walks each edge in
+samples and triangulates holdout faces now, which is what let an 8 mm seam
+survive a 12 mm grid, and `squeeze()` rewrites the exporter's float weights and
+16-bit colours as bytes, which is the only reason the file is 547 kB gz and not
+630. Nothing about how he moves changed. `docs/STATUS.md`, "The rider, second
+pass", has the numbers, and the WebGPU frame nobody has seen yet.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the eight unreviewed
