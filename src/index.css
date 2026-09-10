@@ -158,15 +158,33 @@ a:hover {
   the language switcher survives there.
 */
 
-.menu {
+/* The top right of every route. It was the menu alone; it is a row now, because
+   a case study opened from the world puts its cross beside the square and a
+   number for how wide that square is would be a number to keep in step with the
+   locale code inside it. `stretch` is the two of them agreeing on a height the
+   same way. */
+.topbar {
   position: fixed;
   z-index: 3; /* over the world's panel, under the skip link */
   top: 0.85rem;
   right: clamp(1.25rem, 5vw, 3rem);
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
 }
 
+/* Pinned by the row above now. `relative` for the reason it was `fixed`: `nav`
+   below hangs off it. */
+.menu {
+  position: relative;
+}
+
+/* `height: 100%` is the cross beside it: the row is `align-items: stretch`, so
+   `<details>` takes the row's height, and without this line the box inside it
+   keeps its own and stands a pixel short of the square next to it. */
 .menu summary {
   display: flex;
+  height: 100%;
   align-items: center;
   gap: 0.55rem;
   padding: 0.5rem 0.65rem;
@@ -289,6 +307,49 @@ a:hover {
 
 .menu .sound:hover {
   color: var(--gold);
+}
+
+/* --- leaving a case study ------------------------------------------------ */
+
+/*
+  The two ways out of a case study that the world opened: a cross in the row
+  above and an arrow in the opposite corner. Same glass, same border and same
+  radius as the menu square and the landing page's button — a third look in the
+  same corner would be a third thing to explain.
+
+  The cross takes its height from the row, so it is the menu square's height
+  whatever is written inside that one. The arrow has no row to stand in and is
+  given the number, which is the only place it appears.
+*/
+.leave {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  min-height: 2rem;
+  border: 1px solid #ffffff2e;
+  border-radius: 10px;
+  background: #0b0c0f8c;
+  backdrop-filter: blur(14px);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.leave:hover,
+.leave:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* The other end of the same edge. Fixed on its own: the only other thing at
+   this corner is the skip link, and that one is not on the screen until it is
+   focused. */
+.leave.prev {
+  position: fixed;
+  z-index: 3;
+  top: 0.85rem;
+  left: clamp(1.25rem, 5vw, 3rem);
+  height: 2rem;
 }
 
 /* --- frame, continued --------------------------------------------------- */
@@ -735,6 +796,88 @@ canvas {
      the same trade is made against the pointer rather than the width. */
   .world:not(.roam) .map {
     display: none;
+  }
+}
+
+/* --- the panel opening -------------------------------------------------- */
+
+/*
+  "Read the case study" is not a page arriving, it is this one growing. `<main>`
+  is the panel down the left with the world showing and the document itself
+  without it — the same element on both sides of the navigation — so one name on
+  it is the whole animation: the browser snapshots it twice and morphs the box
+  between them. The links ask for it with React Router's `viewTransition`, so
+  every other navigation on the site is untouched, and a browser with no View
+  Transitions gets exactly the navigation it always had. No measuring, no FLIP,
+  no library, and nothing in the bundle.
+*/
+main {
+  view-transition-name: study;
+}
+
+::view-transition-group(root),
+::view-transition-group(study) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+/* The ocean going out and the reading page coming in, on the panel's own clock
+   rather than the browser's 250ms. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 420ms;
+}
+
+/*
+  Both snapshots fill the travelling box and are cropped to it, rather than being
+  drawn at their own aspect ratio, which is what the browser does by default.
+  The panel is four lines and the case study is a metre of prose; letting an
+  image that tall scale into a box that short is what makes an expanding card
+  look like a rubber sheet. Cropped from the top, because the top is what the two
+  states have in common — the same line of metadata, the same title, the same
+  summary, in that order and at nearly the same measure.
+*/
+::view-transition-old(study),
+::view-transition-new(study) {
+  block-size: 100%;
+  inline-size: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* The panel's four lines leave early and the prose arrives late, so the middle
+   of the animation is one box travelling rather than two documents lying on top
+   of each other. */
+::view-transition-old(study) {
+  animation: panel-out 150ms ease-out both;
+}
+
+::view-transition-new(study) {
+  animation: panel-in 300ms ease-in 120ms both;
+}
+
+@keyframes panel-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Invariant 6. The rule at the foot of this file cannot reach these: they are
+   pseudo-elements that exist only while the transition runs, and `*` does not
+   match them. `none` rather than a duration, because one of them has a delay
+   and a transition ends when its animations do. What is left is the swap the
+   site made before there was an animation on it. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 
