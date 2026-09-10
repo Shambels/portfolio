@@ -44,9 +44,9 @@ Vite 8 · React 19 + TypeScript · React Router 8, framework mode, `ssr: false`
 with `prerender` · `three` (WebGPURenderer + TSL) · `@react-three/fiber` ·
 `@react-three/drei`. Content as MDX (`@mdx-js/rollup` + `remark-frontmatter`),
 locale in the route. Deploy: static build → rsync → nginx on Seb's own Ubuntu
-box at 167.233.245.42. No Node and no runtime on the server; `/var/www/pinchs.be`
-is exactly `build/client/`. Root redirect and 404 live in `deploy/nginx.conf`,
-not in a `_redirects` file.
+box. No Node and no runtime on the server; `/var/www/pinchs.be` is exactly
+`build/client/`. Root redirect and 404 live in `deploy/nginx.conf`, not in a
+`_redirects` file.
 
 The plan says "React Router 7"; v8 is what shipped. Same `react-router.config.ts`,
 same `routes.ts`, same `root.tsx`, and v7 would have meant starting a new project

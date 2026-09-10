@@ -26,3 +26,13 @@ dist-ssr
 # React Router
 .react-router
 build
+
+# Secrets. This repo is public, and anything committed once stays reachable
+# from history whether or not it is deleted afterwards.
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.claude/settings.local.json

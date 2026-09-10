@@ -124,9 +124,9 @@ src/world.ts    landmark layout + proximity, read from the content
 
 ## Deploy
 
-Self-hosted on an Ubuntu box at `167.233.245.42`. The build is static files, so
-the server needs nginx and nothing else — no Node, no runtime, no process to keep
-alive. `deploy.sh` builds locally and rsyncs the result.
+Self-hosted on an Ubuntu box. The build is static files, so the server needs
+nginx and nothing else — no Node, no runtime, no process to keep alive.
+`deploy.sh` builds locally and rsyncs the result.
 
 ### First-time server setup
 
@@ -135,17 +135,31 @@ root. That is why the web root gets handed to `deploy` in step 2: deploying is
 then a plain `rsync` with no sudo and no password prompt, and `sudo` appears only
 in this one-time setup.
 
+The server's address is not written down in this repo — `deploy.sh` defaults to
+the domain and takes an override from `DEPLOY_HOST`. Set it once for the
+commands below; before DNS resolves, use the IP your host gave you:
+
+```sh
+export SERVER=deploy@pinchs.be     # or deploy@<your server's IPv4>, pre-DNS
+```
+
+Keeping it out of the repo is not because an IP is a secret — `dig pinchs.be`
+returns it, and that is what an A record is for. It is so that a public README
+is not also a checklist of *which* box, *which* user and *which* ports to try.
+What actually protects the box is key-only SSH and an `AllowUsers` allowlist,
+not the absence of an address.
+
 **1. Key first**, so nothing later asks for a password:
 
 ```sh
-ssh-copy-id deploy@167.233.245.42
+ssh-copy-id "$SERVER"
 ```
 
 **2. On the server** — nginx, and a web root owned by the user that will write to
 it:
 
 ```sh
-ssh deploy@167.233.245.42
+ssh "$SERVER"
 sudo apt update && sudo apt install -y nginx rsync
 sudo mkdir -p /var/www/pinchs.be
 sudo chown -R "$USER:$USER" /var/www/pinchs.be
@@ -157,13 +171,13 @@ and cannot sudo, so pipe the file through `ssh` into `sudo tee` instead — from
 your Mac, in the repo:
 
 ```sh
-ssh deploy@167.233.245.42 'sudo tee /etc/nginx/sites-available/pinchs.be >/dev/null' < deploy/nginx.conf
+ssh "$SERVER" 'sudo tee /etc/nginx/sites-available/pinchs.be >/dev/null' < deploy/nginx.conf
 ```
 
 **4. Enable it** and drop nginx's placeholder:
 
 ```sh
-ssh deploy@167.233.245.42
+ssh "$SERVER"
 sudo ln -sf /etc/nginx/sites-available/pinchs.be /etc/nginx/sites-enabled/pinchs.be
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
@@ -185,7 +199,7 @@ That is enough to serve over HTTP. Two things are still open:
 
 | Type | Name | Value | TTL |
 |---|---|---|---|
-| `A` | `@` | `167.233.245.42` | 600 while testing, 1 hour after |
+| `A` | `@` | your server's IPv4 | 600 while testing, 1 hour after |
 | `CNAME` | `www` | `@` | 1 hour |
 
 Delete everything else pointing at the web: GoDaddy parks new domains on
@@ -236,7 +250,7 @@ HTTPS off. After certbot has run once, pull the live file back down so the repo
 matches what is serving:
 
 ```sh
-ssh deploy@167.233.245.42 'sudo cat /etc/nginx/sites-available/pinchs.be' > deploy/nginx.conf
+ssh "$SERVER" 'sudo cat /etc/nginx/sites-available/pinchs.be' > deploy/nginx.conf
 ```
 
 ### Deploying a new version

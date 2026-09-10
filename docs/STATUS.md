@@ -63,7 +63,7 @@ Needed to run Track B's exit test, so built before Phase 2.
 - [x] Deploy tooling — `deploy.sh` (build + rsync + smoke test) and
       `deploy/nginx.conf`, self-hosted instead of Cloudflare Pages
 - [ ] First deploy run: `./deploy.sh` *(Seb — server setup steps in README)*
-- [ ] DNS A records for `pinchs.be` and `www` → 167.233.245.42
+- [ ] DNS A records for `pinchs.be` and `www` → the server
 - [ ] TLS via `certbot --nginx`
 - [ ] Exit: Lighthouse 100, usable with JS off, live in three languages
 
