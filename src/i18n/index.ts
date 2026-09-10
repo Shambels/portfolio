@@ -33,6 +33,12 @@ const en = {
   workDescription: 'Case studies: a VS Code extension that reads data schemas without running your code, a trilingual site for an artist, and a Scrabble analysis board.',
 
   readCaseStudy: 'Read the case study',
+  // The two ways out of a case study opened from the world, and both of them
+  // are the same door. Two labels rather than one written twice: a cross and an
+  // arrow at opposite ends of the same edge are a choice, and a screen reader
+  // reading one name for both would announce a duplicate instead.
+  closeStudy: 'Close the case study',
+  backToWorld: 'Back to the world',
   backToWork: 'All work',
   labelYear: 'Year',
   labelStack: 'Stack',
@@ -114,6 +120,8 @@ const fr: Strings = {
   workDescription: "Études de cas : une extension VS Code qui lit les schémas de données sans exécuter votre code, un site trilingue pour une artiste, et un analyseur de parties de Scrabble.",
 
   readCaseStudy: "Lire l'étude de cas",
+  closeStudy: "Fermer l'étude de cas",
+  backToWorld: 'Retour au monde',
   backToWork: 'Tous les projets',
   labelYear: 'Année',
   labelStack: 'Stack',
@@ -164,6 +172,8 @@ const nl: Strings = {
   workDescription: 'Casestudy’s: een VS Code-extensie die dataschema’s leest zonder je code uit te voeren, een drietalige site voor een kunstenares, en een Scrabble-analysebord.',
 
   readCaseStudy: 'Lees de casestudy',
+  closeStudy: 'Sluit de casestudy',
+  backToWorld: 'Terug naar de wereld',
   backToWork: 'Al het werk',
   labelYear: 'Jaar',
   labelStack: 'Stack',

@@ -174,17 +174,22 @@ Breaking one is allowed. Doing it without saying so is not.
 src/root.tsx            the HTML document — <html lang>, stylesheet, Scripts
 src/routes.ts           the route table
 src/routes/locale.tsx   :lang layout — validates the locale, chrome, hreflang
-src/Menu.tsx            the site's only top chrome — a <details> in the top right:
-                        home, work, the three languages, and the world's three
-                        settings: which craft you steer, how rough its sea is,
-                        and its sound
+src/Menu.tsx            the top chrome — a <details> in the top right of the
+                        `.topbar` row: home, work, the three languages, and the
+                        world's three settings: which craft you steer, how rough
+                        its sea is, and its sound. The only other thing that ever
+                        stands in that row is the cross that closes a case study
+                        the world opened — `locale.tsx` renders it, and the
+                        matching arrow in the other corner
 src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shore
                         over it (palms, cloud, sand — one SVG path and gradients),
                         one button, and the dolly that flies all of it past the
                         camera on the way into the world
 src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
 src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it
-src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose without
+src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
+                        without, and one `view-transition-name` on <main> that
+                        grows the first into the second
 src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
 src/content.ts          every MDX file, keyed by slug and locale
 src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check
@@ -405,9 +410,10 @@ survive a 12 mm grid, and `squeeze()` rewrites the exporter's float weights and
 pass", has the numbers, and the WebGPU frame nobody has seen yet.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
-*is traversal interesting or a chore* judgement, reviewing the eight unreviewed
+*is traversal interesting or a chore* judgement, reviewing the ten unreviewed
 FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
-control hints and the three craft labels), and judging
+control hints, the three craft labels and the reading view's `closeStudy` and
+`backToWorld`), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over
 its ridge, on real hardware — swiftshader has no opinion about frame rate, a null audio sink

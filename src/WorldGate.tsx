@@ -36,6 +36,11 @@ export type Sea = 'calm' | 'agitated'
  *  is showing, and the three settings it has. */
 export type World = {
   active: boolean
+  /** The slug of a case study being read full screen that the panel is what
+   *  opened — null everywhere else, including the same document reached from
+   *  the flat index or from a shared URL. The two ways back into the world are
+   *  chrome, and chrome is the layout's. */
+  reading: string | null
   sound: boolean
   toggleSound: () => void
   model: ShipModel
@@ -45,8 +50,8 @@ export type World = {
 }
 
 const WorldContext = createContext<World>({
-  active: false, sound: false, toggleSound: () => {}, model: 'surfer', setModel: () => {},
-  sea: 'agitated', setSea: () => {},
+  active: false, reading: null, sound: false, toggleSound: () => {},
+  model: 'surfer', setModel: () => {}, sea: 'agitated', setSea: () => {},
 })
 
 /** Where the two remembered choices live. Namespaced, because this origin is
@@ -82,7 +87,7 @@ function canRenderWorld(): boolean {
 }
 
 export function WorldGate({ children }: { children: ReactNode }) {
-  const { pathname, search } = useLocation()
+  const { pathname, search, state } = useLocation()
   const navigate = useNavigate()
 
   // Detected after mount, never during prerender: the server has no GPU and no
@@ -139,6 +144,20 @@ export function WorldGate({ children }: { children: ReactNode }) {
   const locale = localeOf(pathname) ?? SOURCE_LOCALE
   const slug = active ? slugOf(pathname) : null
   const debug = new URLSearchParams(search).has('debug')
+
+  // The case study the panel grew into. `?read` is what turns the world off
+  // (`isWorldPath`), so this is never true at the same time as `active` — it is
+  // the one state that has a world to go back to and no world showing.
+  //
+  // A flag in the history entry rather than a guess about where the visitor came
+  // from. The flat index's links carry `?read` too, and a document reached from
+  // there, or from a URL somebody sent, is a page: nothing to close, and no
+  // panel behind it to shrink into. History state survives a reload, the back
+  // button and a restored tab, which is exactly as long as the claim stays true.
+  const reading =
+    detected && !active && (state as { world?: boolean } | null)?.world === true
+      ? slugOf(pathname)
+      : null
 
   // Sticky. Routes with no world hide the canvas and stop its frame loop; they
   // do not unmount it, so flying, altitude and camera survive a round trip
@@ -206,10 +225,10 @@ export function WorldGate({ children }: { children: ReactNode }) {
 
   const world = useMemo<World>(
     () => ({
-      active, sound, toggleSound: () => setSound((s) => !s),
+      active, reading, sound, toggleSound: () => setSound((s) => !s),
       model, setModel: chooseModel, sea, setSea: chooseSea,
     }),
-    [active, sound, model, chooseModel, sea, chooseSea],
+    [active, reading, sound, model, chooseModel, sea, chooseSea],
   )
 
   return (
