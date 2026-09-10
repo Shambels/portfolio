@@ -11,7 +11,7 @@ import NotFound from './not-found'
 export default function LocaleLayout() {
   const { lang } = useParams()
   const pathname = canonicalPath(useLocation().pathname)
-  const { active: world } = useWorld()
+  const { active: world, reading } = useWorld()
   if (!isLocale(lang)) return <NotFound />
   const t = STRINGS[lang]
 
@@ -38,10 +38,64 @@ export default function LocaleLayout() {
         </a>
       )}
 
+      {/* The two ways out of a case study the world opened, and the only chrome
+          on this site that exists for one state rather than for every route.
+          They do the same thing and say so differently — an arrow in one corner
+          of the top edge, a cross in the other.
+
+          `replace`, not a push: `reading` is only ever set by the panel's own
+          link, so the world is one entry back and returning to it should not
+          leave a third. `viewTransition` runs the same animation the other way
+          — the same `<main>`, the same name, the box travelling back into the
+          corner it came out of. */}
+      {reading && (
+        <Link
+          className="leave prev"
+          to={`/${lang}/work/${reading}`}
+          replace
+          viewTransition
+          aria-label={t.backToWorld}
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+            <path
+              d="M13 8H3.5m0 0L8 3.5M3.5 8 8 12.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Link>
+      )}
+
       {/* What is left of the header, and second in the tab order where the
           header was: one button in the top right, and the wordmark's link, the
-          work index, the languages and the world's sound behind it. */}
-      <Menu />
+          work index, the languages and the world's sound behind it. The row
+          around it is what lets the cross stand beside the square without
+          either of them being told how wide the other one is. */}
+      <div className="topbar">
+        {reading && (
+          <Link
+            className="leave"
+            to={`/${lang}/work/${reading}`}
+            replace
+            viewTransition
+            aria-label={t.closeStudy}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+              <path
+                d="M4 4 12 12M12 4 4 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </Link>
+        )}
+        <Menu />
+      </div>
 
       <main id="content">
         <Outlet context={lang} />

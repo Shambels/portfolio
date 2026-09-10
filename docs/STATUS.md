@@ -3579,3 +3579,139 @@ hair and takes it, everything lighter is skin, teeth or neon and does not.
 - **The wax.** It is the deck's most visible material change and the camera
   sees the deck at a grazing angle from astern; it may only ever show when he
   jumps.
+
+
+## The panel opens — the case study is the same box, grown
+
+"Read the case study" used to be a navigation and looks like a movement now. It
+is the same navigation: `?read` still turns the world off, the document is still
+the prerendered one, and a browser with no View Transitions still gets exactly
+what it always got. What changed is that `<main>` is the glass panel down the
+left with the world showing and the document itself without it — the **same
+element on both sides of the navigation** — so one `view-transition-name: study`
+on it is the whole animation. The browser snapshots that element before and
+after and morphs the box between them; React Router's `viewTransition` on the
+three links that cross the boundary is what asks for it. No FLIP, no measuring,
+no library, and nothing in the bundle: 60 lines of CSS and a prop.
+
+### What the snapshots had to be told
+
+By default each snapshot is drawn at its own aspect ratio, and the two states
+here are a four-line card and a metre of prose. Scaling an image that tall into
+a box that short is what makes an expanding card look like a rubber sheet — so
+both are given `block-size: 100%` and `object-fit: cover`, cropped from the top,
+which is the part the two states have in common: the same line of metadata, the
+same title, the same summary, in that order and at nearly the same measure. The
+panel's copy leaves over 150ms and the prose arrives over 300 after a 120ms
+delay, so the middle of the animation is one box travelling rather than two
+documents lying on top of each other. 420ms and one easing for the box, for the
+ocean going out behind it, and for the whole thing run backwards on the way out.
+
+Invariant 6 needed its own rule. The blanket `prefers-reduced-motion` rule at the
+foot of `index.css` is written against `*`, and the view transition's
+pseudo-elements are not in the tree for `*` to match — so they are named and
+given `animation: none`, which is the swap the site made before there was an
+animation on it. `none` rather than a duration, because one of the four has a
+delay and a transition ends only when its animations do.
+
+### The way back is two controls, and they exist for one state
+
+The expanded view gets an arrow in the top left and a cross in the top right,
+and both do the same thing: back to the panel, with the same transition running
+the other way. They are rendered by the locale layout, not by the route, because
+they are chrome — which also keeps them out of the snapshot that is being
+stretched, and puts them after the skip link in the tab order. Walked with a
+keyboard the reading view is now **skip → back → close → menu → the prose**.
+
+They are not shown on every `?read`. `useWorld().reading` is set from a flag in
+the *history entry* that the panel's own link writes, so a case study reached
+from the flat index — whose links carry `?read` too — or from a URL somebody
+sent is a page with nothing to close and no panel to shrink back into. History
+state survives a reload, the back button and a restored tab, which is exactly as
+long as the claim stays true. Both controls navigate with `replace`: `reading`
+means the world is one entry back, and going back to it should not leave a third
+entry behind.
+
+The top right had one thing in it and has two now, so `.menu`'s `position:
+fixed` moved out to a `.topbar` row and `align-items: stretch` is what makes the
+cross and the menu square the same height — a number for how wide or tall that
+square is would have been a number to keep in step with the locale code inside
+it.
+
+### Off-site links open in a new tab
+
+`Visit the site` and `View the source` are `target="_blank"` now. In the panel
+that is the point: following one in the same tab tears down the world, the
+ship's position and the scene, to show somebody else's page. They are the same
+fragment on the flat case study, so the flat one changed with it — **that half
+is a choice, not a consequence**, and it is one line to undo if a new tab from a
+reading page reads as presumptuous. `rel="noreferrer"` was already there and
+implies `noopener`, which is what makes handing a tab over safe.
+
+### The cost, and the one trade
+
+- **First-route JS: unchanged to the byte on the animation** — it is CSS and a
+  prop. The two controls and the `reading` derivation add 0.4 kB gz across
+  `locale`, `WorldGate` and `i18n`; the stylesheet grows 1.1 kB raw.
+- **The trade: the navigation now waits for a frame.** A view transition
+  captures at the next rendering opportunity, so "Read the case study" opens one
+  frame later than it used to. At 60fps that is 16ms. It is worth writing down
+  because the click happens with a WebGL scene on the screen — the one moment
+  the site is not cheap — and because the container proved the pathological end
+  of it: swiftshader renders this world at about **2fps**, and there the browser
+  gave up on the capture and fell back to a plain navigation after its own
+  timeout. Chromium's fallback is the navigation, never a stuck page.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b` and `npm run check` (all five) on the working tree;
+  `react-router build` clean, all 21 routes prerendered.
+- **The transition runs and the right rules attach to it.** Driven in Chromium,
+  the transition's `ready` resolves listing exactly eight animations —
+  `::view-transition-group(root)` and `(study)` at 420ms, the root's fade pair,
+  and `panel-out` / `panel-in` on `::view-transition-old(study)` and
+  `::view-transition-new(study)` — and then `finished`.
+- **The `.world` class comes off before the new snapshot is taken.** This was
+  the one real risk: the panel's geometry is a class on `<html>` written by an
+  effect, and a snapshot taken before that effect runs would morph the panel
+  into the panel. React Router resolves its update promise from a `useEffect`
+  that is an *ancestor* of `WorldGate`'s, so the class is already off — and the
+  end state after a driven transition is `<html>` with no class, `article.prose`
+  rendered, and the canvas hidden.
+- **The controls are only there when the panel opened it**: from the panel,
+  `.leave` × 2 with `Back to the world` and `Close the case study`; from
+  `/en/work`'s own link to the same URL, zero.
+- **The cross closes it**: back to `/en/work/polarsense`, `<html class="world">`,
+  the panel showing, no controls.
+- **The row lines up**: arrow, cross and menu square all 32 × 32 at y 13.6 — the
+  1px the `<summary>` was short is what `height: 100%` on it fixed.
+- **Keyboard**: skip → back → close → menu → the prose, and the focus ring is the
+  site's gold on both new controls.
+- **`prefers-reduced-motion: reduce`**: the case study still arrives, with zero
+  animations left on the document.
+- Phone (390 × 780) and desktop (1280 × 800) both clear the controls with the
+  prose's own top padding. `Claude outputs/` has the frames.
+
+### Not verified
+
+- **What it looks like in flight.** The container renders this world at about
+  two frames a second, so a 420ms animation cannot be photographed here — the
+  browser's own timeout fires before a mid-flight frame exists. The crop, the
+  easing and the two fade windows are arithmetic and a guess about taste until
+  Seb watches one.
+- **Firefox and Safari.** Both ship View Transitions; neither was run. The
+  failure mode if one of them disagrees is a plain navigation, which is what the
+  site did last week.
+
+### Needs Seb
+
+- **Watch it once.** In particular whether the box should travel faster than
+  420ms, and whether cropping from the top is right at a window height where the
+  panel is nearly as tall as the page.
+- **The tap targets.** Both controls are 32px, which is the menu square's size
+  and under the 44px a thumb wants. Raising them raises the menu with them,
+  which is why it was not done quietly.
+- **Two unreviewed strings per locale** — `closeStudy` and `backToWorld` in
+  `fr` and `nl`. That makes ten unreviewed FR/NL UI strings, not eight.
+- **The flat case study's off-site links** now open in a new tab too. Say if
+  only the panel's should.

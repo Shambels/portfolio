@@ -36,15 +36,19 @@ export default function CaseStudy() {
     </p>
   )
 
+  // Off the site, so out of the site's way: a new tab leaves the panel open, the
+  // ship where it was parked and the scene running behind it, which a same-tab
+  // navigation to somebody else's server does not. `rel="noreferrer"` already
+  // implies `noopener`, which is what makes handing a tab over safe.
   const offsite = (
     <>
       {project.site && (
-        <a href={project.site} rel="noreferrer">
+        <a href={project.site} target="_blank" rel="noreferrer">
           {t.linkSite}
         </a>
       )}
       {project.repo && (
-        <a href={project.repo} rel="noreferrer">
+        <a href={project.repo} target="_blank" rel="noreferrer">
           {t.linkRepo}
         </a>
       )}
@@ -59,7 +63,22 @@ export default function CaseStudy() {
         <h1>{project.title}</h1>
         <p className="lede">{project.summary}</p>
         <p className="links">
-          <Link to={`/${locale}/work/${project.slug}?read`} className="more">
+          {/* The panel does not close and a page open in its place: it grows
+              into one. `<main>` is this glass box here and the document itself
+              on the other side of the navigation, so one `view-transition-name`
+              on it (`index.css`) is the whole animation — `viewTransition` is
+              what asks the browser for it.
+
+              `state` is the other half. It says this document was opened from
+              the world, which is what puts the cross and the arrow at the top
+              of it: the flat index links carry `?read` too, and a case study
+              reached from there has no panel to shrink back into. */}
+          <Link
+            to={`/${locale}/work/${project.slug}?read`}
+            className="more"
+            viewTransition
+            state={{ world: true }}
+          >
             {t.readCaseStudy}
           </Link>
           {offsite}
