@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOST="${DEPLOY_HOST:-deploy@167.233.245.42}"
+HOST="${DEPLOY_HOST:-deploy@pinchs.be}"
 DIR="${DEPLOY_DIR:-/var/www/pinchs.be}"
 BASE="${DEPLOY_URL:-https://pinchs.be}"
 
