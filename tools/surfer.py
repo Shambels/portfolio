@@ -91,13 +91,20 @@ VIEWS = {
     "face": ((0.55, 1.32, 1.15), (0.06, 1.16, 0.2)),
 }
 
-TRIS_MAX = 20_000
+# Raised from 20k when the rider got his second pass — the anatomy, the curls
+# and the seams below all live or die at the quad size, and a 1.3 cm quad grid
+# cannot hold an 8 mm seam. CLAUDE.md's 25k is a *landmark* budget, and the
+# rider is the one model in the world that is looked at rather than walked past;
+# Seb raised it for him. Still one draw call, drawn twice for the outline.
+TRIS_MAX = 38_000
 
-# What Quadriflow is asked for. Quads, so the triangle cost is twice this, and
-# it is the body only — the hair is a cloud of curls and a quad grid over it
-# would spend the whole budget bridging the gaps between them.
-BODY_QUADS = 5_800
-HAIR_TRIS = 2_200
+# What Quadriflow is asked for. Quads, so the triangle cost is twice this. The
+# hair gets its own grid now rather than a decimate: since the scalp cap under
+# the curls, it is one shell and not a cloud, and the thing that made a quad
+# grid wrong for it — bridging the gaps between separate curls — has no gaps to
+# bridge.
+BODY_QUADS = 8_500
+HAIR_QUADS = 2_300
 
 # See `retopo`. Quadriflow's manifold test is in absolute units and a rider a
 # metre and a bit tall falls under it.
@@ -371,11 +378,23 @@ def face_part(skin: bpy.types.Object, name: str, colour: Vector, aim: P3, size: 
     `size` is the semi-axes in the same frame, so an eye is wider than it is
     tall because it says so."""
     d = (RIGHT * aim[0] + HEAD_UP * aim[1] + GAZE * aim[2]).normalized()
-    hit, loc, *_ = skin.ray_cast(T(*HEAD), T(*d))
-    assert hit, f"{name}: no skin under the aim {aim}"
+    stud(skin, name, colour, V(HEAD), d, size, (RIGHT, HEAD_UP, GAZE), sink)
+
+
+def stud(skin: bpy.types.Object, name: str, colour: Vector, origin: Vector, toward: Vector,
+         size: P3, frame: tuple[Vector, Vector, Vector], sink: float = 0.0,
+         lift: Vector | None = None) -> None:
+    """The mechanism under `face_part`, and since the second pass the zip's
+    too: an ellipsoid set on the skin where a ray from `origin` along `toward`
+    comes out of it, `sink` metres under the surface and `lift` off it, with
+    its three semi-axes along `frame`. Anything small that has to sit *on* a
+    surface whose radius nobody can write down goes through here."""
+    d = toward.normalized()
+    hit, loc, *_ = skin.ray_cast(T(*origin), T(*d))
+    assert hit, f"{name}: no skin along {toward}"
     surface = Vector((loc.x, loc.z, -loc.y))  # Blender back to three
-    centre = surface - d * sink
-    basis = Matrix((T(*RIGHT), T(*HEAD_UP), T(*GAZE))).transposed().to_4x4()
+    centre = surface - d * sink + (lift or Vector((0, 0, 0)))
+    basis = Matrix((T(*frame[0]), T(*frame[1]), T(*frame[2]))).transposed().to_4x4()
     m = (Matrix.Translation(T(*centre)) @ basis
          @ Matrix.Diagonal(Vector((size[0], size[1], size[2], 1.0))))
     bm = bmesh.new()
@@ -415,6 +434,16 @@ TOOTH = srgb("#f4efe4")
 EYE = srgb("#181110")
 SCLERA = srgb("#efe9dc")
 
+# The suit's construction, which is the second pass's whole addition to the
+# colour: a wetsuit is not a body painted black, it is panels of neoprene sewn
+# together, and what tells you that at a glance is the stitching. Flatlock
+# seams are 8 mm wide and a shade lighter than the rubber; the knee pads are a
+# textured panel a step up from the suit; the back zip is metal.
+SEAM = srgb("#454b59")
+PAD = srgb("#1b1f27")
+ZIP = srgb("#7c8494")
+STITCH = 0.008
+
 # Wide black, narrow neon, and now with an edge on it. The bands are steps and
 # not ramps: `paint()` colours whole faces on the CORNER domain, so a boundary
 # is the edge between two faces and a hard threshold is exactly what is wanted.
@@ -431,13 +460,22 @@ SCLERA = srgb("#efe9dc")
 # Around zero the same wave is at its steepest and its gradient is nearly
 # constant, so a band of a given width in `w` is a ribbon of a given width in
 # centimetres, wherever on the body it lands.
+#
+# And each ribbon is *inked*: a 0.03 band of the suit's own black on either
+# side, which at the wave's gradient of about five per metre is a 6 mm line.
+# That is the seam a sewn-in panel has, and it is what separates a pink ribbon
+# from the lime one beside it — two neons butted together read as one printed
+# stripe, two neons with a stitched edge between them read as two panels.
 BANDS = (
     (-1.00, SUIT, SUIT),
-    (-0.30, SUIT_2, SUIT_2),
-    (-0.22, NEON_PINK, NEON_BLUE),
-    (-0.06, NEON_LIME, NEON_CYAN),
-    (0.10, SUIT_2, SUIT_2),
-    (0.18, SUIT, SUIT),
+    (-0.32, SUIT_2, SUIT_2),
+    (-0.235, SUIT, SUIT),
+    (-0.205, NEON_PINK, NEON_BLUE),
+    (-0.075, SUIT, SUIT),
+    (-0.045, NEON_LIME, NEON_CYAN),
+    (0.085, SUIT, SUIT),
+    (0.115, SUIT_2, SUIT_2),
+    (0.20, SUIT, SUIT),
 )
 
 
@@ -470,10 +508,12 @@ def head_colour(p: Vector) -> Vector:
     d = (p - V(HEAD)).normalized()
     f, u, s = d.dot(GAZE), d.dot(HEAD_UP), d.dot(RIGHT)
 
-    # Hairline: high in front, low at the back and the sides. The curls are
-    # their own geometry; this is the scalp underneath them, and getting it
-    # wrong is what put a fringe over both eyes on the first pass.
-    if u > 0.12 + 0.42 * max(f, 0.0):
+    # Hairline: high in front, above the ears at the sides, and down to the
+    # nape at the back — the second pass found a bald band between the curls
+    # and the collar from astern, which is the one view that matters. The
+    # curls are their own geometry; this is the scalp underneath them, and
+    # getting it wrong is what put a fringe over both eyes on the first pass.
+    if u > 0.12 + 0.42 * max(f, 0.0) - 0.42 * max(-f, 0.0) and not (abs(s) > 0.78 and u < 0.06):
         return HAIR
 
     # The beard: jaw and chin, up the sideburn, and a moustache under the nose.
@@ -492,25 +532,105 @@ def head_colour(p: Vector) -> Vector:
     return SKIN
 
 
+def _closest(p: Vector, a: Vector, b: Vector) -> tuple[Vector, float]:
+    """The nearest point on the segment ab to p, and how far along it lies."""
+    d = b - a
+    t = max(0.0, min(1.0, (p - a).dot(d) / max(d.length_squared, 1e-9)))
+    return a + d * t, t
+
+
+def on_seam(p: Vector, a: Vector, b: Vector, out: Vector,
+            reach: float, ends: tuple[float, float] = (0.0, 1.0)) -> bool:
+    """Is p on one of the two seams of a sleeve?
+
+    A sleeve or a leg is a tube of neoprene closed by two seams, one down the
+    outside and one down the inside, and both lie in one plane: the plane that
+    holds the limb's own axis and the direction `out` — away from the body. So
+    the test is a distance from a plane and not an angle: the component of p's
+    offset from the axis along the plane's normal, under half a stitch. `reach`
+    keeps it to points that are actually on this limb rather than on whatever
+    the plane goes on to cut half a metre away, and `ends` trims it short of the
+    joints, where a real seam turns into the next panel's."""
+    c, t = _closest(p, a, b)
+    r = p - c
+    if r.length > reach or not (ends[0] <= t <= ends[1]):
+        return False
+    axis = (b - a).normalized()
+    side = out - axis * out.dot(axis)
+    if side.length < 1e-6:
+        return False
+    n = axis.cross(side.normalized())
+    return abs(r.dot(n)) < STITCH / 2
+
+
 def region(p: Vector) -> Vector:
     """Which colour a point on the body is. Head first, then the bare skin at
-    the cuffs, then the suit — the order is the order of exceptions, and it is
-    one function so that `paint()` has one thing to ask and the boundaries
-    between all three land on face edges together."""
+    the cuffs, then the suit's construction — cuffs, collar, knee pads, the
+    zip, the seams — and the ribbons under all of it. The order is the order of
+    exceptions, and it is one function so that `paint()` has one thing to ask
+    and every boundary lands on a face edge together."""
     # 17.5 cm and not 23.5: the head's own surface is inside 16 cm of its
     # centre, and the extra 7 the first pass allowed reached down over the
     # collarbone. With a hard-edged paint that stopped being a soft mistake and
     # became a rectangle of beard on the chest.
     if (p - V(HEAD)).length < 0.175:
         return head_colour(p)
-    if p.y > NECK[1] - 0.02 and (p - V(NECK)).length < 0.080:
-        return SKIN
-    for a, b, r in SKIN_PARTS:
-        d = b - a
-        t = max(0.0, min(1.0, (p - a).dot(d) / max(d.length_squared, 1e-9)))
-        if (p - (a + d * t)).length < r:
+    # The collar: a steamer's is a band round the neck itself, a couple of
+    # centimetres above where it meets the shoulders, with the seam that binds
+    # its edge under it. It is a height and not a sphere, because that is what
+    # a collar is.
+    if (p - V(NECK)).length < 0.10:
+        if p.y > NECK[1] + 0.030:
             return SKIN
-    return suit_colour(p)
+        if p.y > NECK[1] + 0.030 - STITCH:
+            return SEAM
+    # The cuffs, the same way: skin, then the stitched hem around it.
+    for a, b, r in SKIN_PARTS:
+        c, _ = _closest(p, a, b)
+        d = (p - c).length
+        if d < r:
+            return SKIN
+        if d < r + STITCH:
+            return SEAM
+    # Knee pads: a disc of textured neoprene on the front of each knee, with
+    # its own seam round it. "Front" is the outside of the fold, the way
+    # `build()` places the kneecap.
+    for knee, out in KNEES:
+        r = p - V(knee)
+        if r.length < 0.070 + STITCH and r.dot(out) > 0.30 * r.length:
+            return PAD if r.length < 0.070 else SEAM
+
+    base = suit_colour(p)
+    if base is not SUIT and base is not SUIT_2:
+        return base  # the ribbons carry their own inked edges
+
+    # The torso, in the chest's frame: how far up the spine, how far to the
+    # side, and how far forward of it.
+    axis_a, axis_b = V(PELVIS), V(NECK)
+    c, _ = _closest(p, axis_a, axis_b)
+    r = p - c
+    s, f = r.dot(TORSO_R), r.dot(TORSO_F)
+    torso = r.length < 0.26 and PELVIS[1] < p.y < NECK[1] + 0.02
+    if torso:
+        # The back zip, from the collar to the small of the back, and the
+        # stitched flap on either side of it.
+        if f < -0.04 and 0.79 < p.y:
+            if abs(s) < 0.009:
+                return ZIP
+            if abs(s) < 0.009 + STITCH:
+                return SEAM
+        # The chest panel's lower edge — one seam round the whole trunk under
+        # the pecs, which is where every suit breaks its torso into two panels.
+        if abs(p.y - (CHEST[1] - 0.118)) < STITCH / 2 and r.length > 0.06:
+            return SEAM
+        # And the flank seams, from the armpit to the hip.
+        if 0.05 < p.y - PELVIS[1] < 0.28 and on_seam(p, axis_a, axis_b, TORSO_R, 0.26):
+            return SEAM
+
+    for a, b, out, reach, ends in LIMB_SEAMS:
+        if on_seam(p, a, b, out, reach, ends):
+            return SEAM
+    return base
 
 
 # Bare skin ends at the wrists, the ankles and the neck: this is a full steamer,
@@ -523,6 +643,37 @@ SKIN_PARTS = [
     (Vector((FOOT_B[0], FOOT_B[1], FOOT_B[2] - 0.08)),
      Vector((FOOT_B[0], FOOT_B[1] + 0.02, FOOT_B[2] + 0.17)), 0.100),
 ]
+
+
+def _bend_out(a: P3, joint: P3, b: P3) -> Vector:
+    """The outside of a fold: the bisector pointing away from the bend at
+    `joint`, which is where the kneecap sits and where the quad and the calf
+    are laid — `build()` uses the same line."""
+    lower = (V(joint) - V(a)).normalized()
+    upper = (V(b) - V(joint)).normalized()
+    return (lower - upper).normalized()
+
+
+KNEES = (
+    (KNEE_F, _bend_out(ANKLE_F, KNEE_F, HIP_F)),
+    (KNEE_B, _bend_out(ANKLE_B, KNEE_B, HIP_B)),
+)
+
+# Where the seams of each sleeve and each leg lie: the segment, the direction
+# that is "outward" for it — the shoulder away from the chest, the hip away
+# from the pelvis — how far off the axis a point can be and still count, and
+# how much of the segment to seam. Short of both joints on every one: the
+# shoulder is the deltoid's own panel and the knee is a pad.
+LIMB_SEAMS = (
+    (V(SHOULDER_F), V(ELBOW_F), V(SHOULDER_F) - V(CHEST), 0.11, (0.22, 1.0)),
+    (V(ELBOW_F), V(WRIST_F), V(SHOULDER_F) - V(CHEST), 0.09, (0.0, 0.92)),
+    (V(SHOULDER_B), V(ELBOW_B), V(SHOULDER_B) - V(CHEST), 0.11, (0.22, 1.0)),
+    (V(ELBOW_B), V(WRIST_B), V(SHOULDER_B) - V(CHEST), 0.09, (0.0, 0.92)),
+    (V(HIP_F), V(KNEE_F), V(HIP_F) - V(PELVIS), 0.15, (0.12, 0.80)),
+    (V(KNEE_F), V(ANKLE_F), V(HIP_F) - V(PELVIS), 0.11, (0.22, 0.92)),
+    (V(HIP_B), V(KNEE_B), V(HIP_B) - V(PELVIS), 0.15, (0.12, 0.80)),
+    (V(KNEE_B), V(ANKLE_B), V(HIP_B) - V(PELVIS), 0.11, (0.22, 0.92)),
+)
 
 
 # ------------------------------------------------------------------- the hands
@@ -597,12 +748,12 @@ def build() -> None:
     # thing it is meant to describe. Quadriflow throws the density away again
     # straight afterwards, so this costs build time and not budget.
     _body = bpy.data.metaballs.new("body")
-    _body.resolution = _body.render_resolution = 0.011
+    _body.resolution = _body.render_resolution = 0.010
     body_obj = bpy.data.objects.new("body", _body)
     bpy.context.collection.objects.link(body_obj)
 
     _hair = bpy.data.metaballs.new("hair")
-    _hair.resolution = _hair.render_resolution = 0.013
+    _hair.resolution = _hair.render_resolution = 0.009
     hair_obj = bpy.data.objects.new("hair", _hair)
     bpy.context.collection.objects.link(hair_obj)
 
@@ -612,12 +763,25 @@ def build() -> None:
         blob((f[0], f[1] + 0.005, f[2] + 0.03), (0.058, 0.034, 0.120))
         ball((f[0], f[1] + 0.03, f[2] - 0.05), 0.05)  # the heel, under the ankle
 
-    # Legs. A shin is not a cylinder — it has a calf — so both segments taper,
-    # and the knee is where two tapers meet rather than a ball hiding a corner.
-    taper(ANKLE_F, KNEE_F, 0.052, 0.076)
-    taper(KNEE_F, HIP_F, 0.078, 0.112)
-    taper(ANKLE_B, KNEE_B, 0.052, 0.076)
-    taper(KNEE_B, HIP_B, 0.078, 0.112)
+    # ---- the second pass: an athlete, not a balloon animal.
+    #
+    # The first body was correct in its parts and soft in all of them: every
+    # limb a tube of one generous radius, a chest as deep as it was wide, and
+    # nothing between a muscle and the next but blend. What reads as *athletic*
+    # is not bigger muscles, it is the ratios between them — a wrist half the
+    # forearm, a waist two thirds of the chest, a knee narrower than the calf
+    # above it — and the grooves that separate one from the next. So the second
+    # pass thins every joint, widens the top of the frame, narrows the middle,
+    # and carves: the spine, the sternum, under each pec, and the line between
+    # the deltoid and the arm. Every number below is a real half-thickness in
+    # metres on a man about 1.6 m tall.
+
+    # Legs. Thin at the ankle and the knee, thick where the muscle is, and the
+    # knee is where two tapers meet rather than a ball hiding a corner.
+    taper(ANKLE_F, KNEE_F, 0.044, 0.064)
+    taper(KNEE_F, HIP_F, 0.066, 0.098)
+    taper(ANKLE_B, KNEE_B, 0.044, 0.064)
+    taper(KNEE_B, HIP_B, 0.066, 0.098)
 
     for ankle, knee, hip in ((ANKLE_F, KNEE_F, HIP_F), (ANKLE_B, KNEE_B, HIP_B)):
         shin = (V(knee) - V(ankle)).normalized()
@@ -627,63 +791,99 @@ def build() -> None:
         # bend — the leg is folded, so the outside of the fold is where the
         # meat goes and it is the bisector that says which way that is.
         outward = (shin - thigh).normalized()
-        bulge(V(ankle).lerp(V(knee), 0.62) + outward * 0.028, shin, 0.070, 0.038)
-        bulge(V(knee).lerp(V(hip), 0.42) - outward * 0.030, thigh, 0.090, 0.052)
-        ball(V(knee) - outward * 0.012, 0.062)  # the cap, so the fold has a front
+        sideways = shin.cross(outward).normalized()
+        # The calf: one belly high and inboard, a smaller one outboard and a
+        # shade lower, which is the two heads of a gastrocnemius and the reason
+        # a calf seen from behind is a heart and not a bulb.
+        bulge(V(ankle).lerp(V(knee), 0.66) + outward * 0.030 + sideways * 0.012, shin, 0.070, 0.042)
+        bulge(V(ankle).lerp(V(knee), 0.60) + outward * 0.026 - sideways * 0.016, shin, 0.062, 0.034)
+        # The quad, as three: the big belly down the front, and the teardrop
+        # of the vastus medialis low and inboard just above the knee.
+        bulge(V(knee).lerp(V(hip), 0.45) - outward * 0.034, thigh, 0.100, 0.052)
+        bulge(V(knee).lerp(V(hip), 0.22) - outward * 0.026 + sideways * 0.028, thigh, 0.050, 0.032)
+        # The hamstring, on the inside of the fold, which in a crouch this deep
+        # is what the calf presses against.
+        bulge(V(knee).lerp(V(hip), 0.52) + outward * 0.030, thigh, 0.085, 0.040)
+        ball(V(knee) - outward * 0.014, 0.056)  # the cap, so the fold has a front
 
-    # Torso: pelvis, waist, chest. Deeper than wide at the hips and wider than
-    # deep at the shoulders, which is the whole difference between a person and
-    # a bollard at this size.
-    blob(PELVIS, (0.132, 0.100, 0.118))
-    blob(WAIST, (0.118, 0.115, 0.100))
-    blob(CHEST, (0.185, 0.140, 0.118))
+    # Torso: pelvis, waist, chest. The frame is a V — wide at the clavicles,
+    # narrow at the waist, the pelvis narrower than the ribcage — and each of
+    # the three is now shallower than it was, because a chest as deep as it is
+    # wide is a barrel and not a swimmer's.
+    blob(PELVIS, (0.118, 0.095, 0.108))
+    blob(WAIST, (0.100, 0.110, 0.088))
+    blob(CHEST, (0.180, 0.125, 0.108))
+    # The top of the ribcage, squared across under the collarbones. This is
+    # the width that reads from astern, and it is what makes the head the
+    # right size without touching the head.
+    blob(V(CHEST) + Vector((0, 0.058, 0)), (0.198, 0.058, 0.096))
 
     # And the waist is carved as well as narrowed. Two negative lobes at the
     # flanks, between the bottom rib and the hip, which is the one place a
     # metaball field will not give you a concavity by itself: every positive
     # element it blends with is convex and the sum of convex things is convex.
     for side in (-1, 1):
-        blob(V(WAIST) + TORSO_R * (0.145 * side) + Vector((0, 0.012, 0)),
-             (0.075, 0.085, 0.090), neg=True)
+        blob(V(WAIST) + TORSO_R * (0.135 * side) + Vector((0, 0.012, 0)),
+             (0.080, 0.090, 0.098), neg=True)
 
-    # Chest and back. A pec each side of the sternum, a lat sweeping from the
+    # Chest and back. A pec each side of the sternum, the groove down the
+    # sternum between them and the fold under each; a lat sweeping from the
     # armpit down to the waist — the lats are what make a swimmer's back a V
-    # from astern, which is the view this model is actually for.
+    # from astern, which is the view this model is actually for — and the two
+    # shoulder blades either side of a spinal groove, which is the other half
+    # of the same view.
     for side in (-1, 1):
-        bulge(V(CHEST) + TORSO_F * 0.072 + TORSO_R * (0.070 * side) + Vector((0, 0.012, 0)),
-              TORSO_R, 0.052, 0.052)
-        lat_top = V(CHEST) - TORSO_F * 0.030 + TORSO_R * (0.150 * side)
-        lat_low = V(WAIST) - TORSO_F * 0.020 + TORSO_R * (0.080 * side)
-        taper(lat_top, lat_low, 0.062, 0.040, 4)
+        bulge(V(CHEST) + TORSO_F * 0.074 + TORSO_R * (0.072 * side) + Vector((0, 0.012, 0)),
+              TORSO_R, 0.054, 0.046)
+        ball(V(CHEST) + TORSO_F * 0.126 + TORSO_R * (0.072 * side) - Vector((0, 0.058, 0)),
+             0.020, neg=True)
+        lat_top = V(CHEST) - TORSO_F * 0.030 + TORSO_R * (0.152 * side)
+        lat_low = V(WAIST) - TORSO_F * 0.020 + TORSO_R * (0.078 * side)
+        taper(lat_top, lat_low, 0.066, 0.040, 4)
+        bulge(V(CHEST) - TORSO_F * 0.092 + TORSO_R * (0.072 * side) + Vector((0, 0.030, 0)),
+              Vector((0, 1, 0)), 0.060, 0.034)
+    taper(V(CHEST) + TORSO_F * 0.138 + Vector((0, 0.050, 0)),
+          V(CHEST) + TORSO_F * 0.132 - Vector((0, 0.040, 0)), 0.020, 0.016, 3, neg=True)
+    taper(V(CHEST) - TORSO_F * 0.128 + Vector((0, 0.045, 0)),
+          V(PELVIS) - TORSO_F * 0.108 + Vector((0, 0.040, 0)), 0.020, 0.022, 5, neg=True)
+    # The abdomen: a shallow linea alba, which under neoprene is all of a
+    # six-pack that survives.
+    taper(V(WAIST) + TORSO_F * 0.098 + Vector((0, 0.10, 0)),
+          V(WAIST) + TORSO_F * 0.100 - Vector((0, 0.04, 0)), 0.013, 0.013, 3, neg=True)
 
     # The glutes, and the reason they are not one blob: a crouch this deep puts
     # the seat out behind the heels, and a single ellipsoid there reads as a
     # tail. Two, set apart, read as a person sitting into the turn.
     for side in (-1, 1):
-        blob(V(PELVIS) - TORSO_F * 0.072 + TORSO_R * (0.058 * side) - Vector((0, 0.012, 0)),
-             (0.078, 0.072, 0.070))
+        blob(V(PELVIS) - TORSO_F * 0.070 + TORSO_R * (0.058 * side) - Vector((0, 0.012, 0)),
+             (0.076, 0.072, 0.068))
 
     # Shoulders. The deltoid is a cap over the joint, not a sphere at it: it
     # runs from the collarbone round to the back, and its front edge is the line
-    # that tells you where the arm stops and the chest starts.
+    # that tells you where the arm stops and the chest starts. Bigger than the
+    # first pass's, on an arm that is thinner, which is the whole silhouette of
+    # a swimmer's shoulder.
     for shoulder, side in ((SHOULDER_F, 1), (SHOULDER_B, -1)):
         arm = (V(ELBOW_F if side > 0 else ELBOW_B) - V(shoulder)).normalized()
-        blob(shoulder, (0.082, 0.082, 0.082))
-        bulge(V(shoulder) + arm * 0.030, arm.cross(TORSO_F).normalized(), 0.048, 0.060)
+        blob(shoulder, (0.086, 0.084, 0.084))
+        bulge(V(shoulder) + arm * 0.034, arm.cross(TORSO_F).normalized(), 0.050, 0.064)
+        # The line under the deltoid, where it tucks into the arm.
+        ball(V(shoulder) + arm * 0.105, 0.030, neg=True)
         # The trapezius, filling the hollow between the neck and the shoulder.
         # Without it the neck is a post rising out of a plateau.
-        taper(V(NECK) - Vector((0, 0.020, 0)), V(shoulder) + Vector((0, 0.010, 0)),
-              0.058, 0.062, 4)
+        taper(V(NECK) - Vector((0, 0.016, 0)), V(shoulder) + Vector((0, 0.014, 0)),
+              0.062, 0.066, 4)
         # And the armpit, carved back out from under it.
-        ball(V(shoulder) + arm * 0.070 - TORSO_R.normalized() * 0.0 - Vector((0, 0.052, 0)),
-             0.048, neg=True)
+        ball(V(shoulder) + arm * 0.070 - Vector((0, 0.054, 0)), 0.050, neg=True)
 
     # The collarbone shelf: one shallow ridge across the top of the chest. It is
     # four millimetres of relief and it is the single thing that stops the front
     # of the torso reading as a beanbag under a wetsuit.
-    bulge(V(CHEST) + TORSO_F * 0.062 + Vector((0, 0.062, 0)), TORSO_R, 0.130, 0.030)
+    bulge(V(CHEST) + TORSO_F * 0.064 + Vector((0, 0.064, 0)), TORSO_R, 0.140, 0.030)
 
-    taper(NECK, (NECK[0], NECK[1] + 0.07, NECK[2] + 0.01), 0.052, 0.056, 2)
+    # A thicker neck than the first pass's, and it runs into the traps rather
+    # than standing on them.
+    taper(NECK, (NECK[0], NECK[1] + 0.07, NECK[2] + 0.01), 0.056, 0.058, 2)
 
     # Arms. Neither is symmetrical: the leading one hangs down and carries on
     # forward past the front knee, the trailing one down and aft past the back
@@ -694,57 +894,52 @@ def build() -> None:
                                          (SHOULDER_B, ELBOW_B, WRIST_B, HAND_B)):
         upper = (V(elbow) - V(shoulder)).normalized()
         fore = (V(wrist) - V(elbow)).normalized()
-        taper(shoulder, elbow, 0.072, 0.050)
-        taper(elbow, wrist, 0.050, 0.038)
+        # Thinner tubes than before at every point, and a wrist at 3 cm: the
+        # meat goes back on as muscle, where a muscle is.
+        taper(shoulder, elbow, 0.066, 0.049)
+        taper(elbow, wrist, 0.049, 0.031)
         # Biceps on the inside of the fold, triceps on the outside, and the
         # forearm's meat up by the elbow — the same bisector trick as the leg.
         outward = (upper - fore).normalized()
-        bulge(V(shoulder).lerp(V(elbow), 0.52) - outward * 0.020, upper, 0.055, 0.036)
-        bulge(V(shoulder).lerp(V(elbow), 0.55) + outward * 0.022, upper, 0.050, 0.032)
-        bulge(V(elbow).lerp(V(wrist), 0.30), fore, 0.048, 0.034)
+        bulge(V(shoulder).lerp(V(elbow), 0.54) - outward * 0.022, upper, 0.058, 0.040)
+        bulge(V(shoulder).lerp(V(elbow), 0.52) + outward * 0.024, upper, 0.056, 0.036)
+        # The forearm is a club: widest a third of the way down from the elbow
+        # and tapering hard to the wrist, with the extensors on the outside.
+        bulge(V(elbow).lerp(V(wrist), 0.28), fore, 0.060, 0.042)
+        bulge(V(elbow).lerp(V(wrist), 0.32) + outward * 0.016, fore, 0.050, 0.030)
+        ball(V(elbow) + outward * 0.010, 0.040)  # the point of the elbow
         hand(wrist, palm)
 
     # The head, the jaw hung off the front of it, and the nose that keeps the
     # profile from being an egg. Smaller than the first pass by a centimetre:
     # at 0.108 it was a fifth of the figure's height and the whole thing read as
-    # a bobblehead from astern, which is the only angle that matters.
-    ball(HEAD, 0.098)
+    # a bobblehead from astern, which is the only angle that matters. Second
+    # pass: a skull that is longer than it is wide, the occiput behind and
+    # above the centre, a brow ridge, and a jaw with corners on it.
+    ball(HEAD, 0.094)
+    ball(V(HEAD) - GAZE * 0.028 + HEAD_UP * 0.014, 0.088)
     jaw = V(HEAD) + GAZE * 0.038 - Vector((0, 0.050, 0))
-    ball(jaw, 0.068)
+    ball(jaw, 0.060)
     chin = V(HEAD) + GAZE * 0.062 - Vector((0, 0.066, 0))
-    ball(chin, 0.042)
-    nose = V(HEAD) + GAZE * 0.098 - Vector((0, 0.010, 0))
-    ball(nose, 0.026)
+    ball(chin, 0.040)
+    nose = V(HEAD) + GAZE * 0.096 - Vector((0, 0.010, 0))
+    ball(nose, 0.024)
+    bulge(V(HEAD) + GAZE * 0.080 + HEAD_UP * 0.032, RIGHT, 0.048, 0.020)
     for side in (-1, 1):
         # A cheekbone and an ear. The cheekbone is what gives the face a plane
         # to catch the key light on; without it the head is a ball with a chin.
-        ball(V(HEAD) + RIGHT * (0.062 * side) + GAZE * 0.050 + Vector((0, 0.006, 0)), 0.040)
-        ball(V(HEAD) + RIGHT * (0.096 * side) - Vector((0, 0.012, 0)), 0.028)
+        ball(V(HEAD) + RIGHT * (0.062 * side) + GAZE * 0.050 + Vector((0, 0.006, 0)), 0.038)
+        ball(V(HEAD) + RIGHT * (0.094 * side) - Vector((0, 0.012, 0)), 0.026)
+        # The angle of the jaw, which is what squares it.
+        ball(V(HEAD) + RIGHT * (0.054 * side) + GAZE * 0.006 - Vector((0, 0.062, 0)), 0.030)
     # Under the jaw, carved: a head and a neck that meet in a continuous bulge
     # is a snowman, and this is the cut that makes it a chin over a throat.
     ball(V(HEAD) + GAZE * 0.020 - Vector((0, 0.108, 0)), 0.052, neg=True)
+    # And the temples, so the skull is not a sphere across the brow.
+    for side in (-1, 1):
+        ball(V(HEAD) + RIGHT * (0.104 * side) + GAZE * 0.040 + HEAD_UP * 0.040, 0.030, neg=True)
 
-    # Curls. Each one is a short arc of three balls rather than a single ball —
-    # a clump with a direction, which is what a curl is, and which reads as hair
-    # instead of as gravel. They are a *separate* field from the body, so they
-    # pile on each other without the head inflating to meet them, and none of
-    # them crosses the face.
-    for i in range(30):
-        a = 2.399963 * i  # the golden angle — no seam, no clumping
-        lat = 0.10 + 0.86 * (i / 29)
-        rho = math.sqrt(max(1 - lat * lat, 0.0))
-        d = (HEAD_UP * lat + RIGHT * math.cos(a) * rho + GAZE * math.sin(a) * rho).normalized()
-        if d.dot(GAZE) > 0.05 and d.dot(HEAD_UP) < 0.55:
-            continue  # not over the face — a fringe hides both eyes
-        root = V(HEAD) + d * 0.086
-        # The curl sweeps away from the scalp and sideways, and the sideways
-        # part is what stops thirty of them looking like one felt cap.
-        side = d.cross(HEAD_UP).normalized() if abs(d.dot(HEAD_UP)) < 0.99 else RIGHT
-        r = 0.026 + 0.010 * (0.5 + 0.5 * math.cos(2.3 * i))
-        for k in range(3):
-            t = k / 2
-            c = root + d * (0.012 + 0.030 * t) + side * math.sin(t * 2.6 + i) * 0.026
-            ball(c, r * (1.0 - 0.18 * t), _hair)
+    hair()
 
     bpy.ops.object.select_all(action="DESELECT")
     for ob in (body_obj, hair_obj):
@@ -760,6 +955,79 @@ def build() -> None:
             ob.name = "hair" if ob.name.startswith("hair") else "body"
 
 
+def hair() -> None:
+    """Curls, second pass: a head of hair rather than a cap of lumps.
+
+    Three things a real head of curls has that thirty arcs did not. A *scalp*
+    under them — one thin cap of the hair field over the crown, so the curls
+    stand on hair and not on skin, and so the hair is one shell that `retopo`
+    can lay a grid over. A *direction*: every curl is a short helix around its
+    own axis, corkscrewing away from the scalp, which is what a curl is and
+    which reads as one at any distance because the silhouette is scalloped
+    rather than lumpy. And a *cut*: long on top and short at the sides and
+    nape, tapering off to nothing over the ears and above the neck, which is a
+    haircut and is the one thing that makes a head of hair look like it
+    belongs to a man rather than a wig stand.
+
+    The density is set by the golden angle over the scalp, as before, and the
+    count doubled. None of it crosses the face; the fringe stops at the
+    hairline `head_colour` paints, and a few curls at the front are allowed to
+    fall forward over it, which is what a fringe does."""
+    scalp = 0.085
+    # The cap: a ring of flattened balls around the crown, standing 6 mm proud
+    # of the skin, over the same region the curls cover.
+    for i in range(44):
+        a = 2.399963 * i
+        lat = -0.22 + 1.20 * (i / 43)
+        rho = math.sqrt(max(1 - lat * lat, 0.0))
+        d = (HEAD_UP * lat + RIGHT * math.cos(a) * rho + GAZE * math.sin(a) * rho).normalized()
+        f, u = d.dot(GAZE), d.dot(HEAD_UP)
+        if f > 0.20 and u < 0.62:
+            continue  # the face
+        if u < 0.28 and f > -0.30:
+            continue  # the ears; the cap only comes down at the nape
+        ball(V(HEAD) + d * (scalp - 0.004), 0.036 if u > 0.2 else 0.028, _hair)
+
+    for i in range(84):
+        a = 2.399963 * i  # the golden angle — no seam, no clumping
+        lat = -0.30 + 1.28 * (i / 83)
+        rho = math.sqrt(max(1 - lat * lat, 0.0))
+        d = (HEAD_UP * lat + RIGHT * math.cos(a) * rho + GAZE * math.sin(a) * rho).normalized()
+        f, u, s = d.dot(GAZE), d.dot(HEAD_UP), abs(d.dot(RIGHT))
+        # The hairline, matching `head_colour`: high in front, and nothing over
+        # the face; above the ears at the sides; and at the back it comes down
+        # to the nape, cropped close.
+        if f > 0.10 and u < 0.20 + 0.42 * f:
+            continue
+        if u < 0.06 and f > -0.40:
+            continue  # over the ears
+        if u < 0.12 - 0.42 * max(-f, 0.0):
+            continue  # below the nape
+        # The cut: full on the crown, fading to a close crop at the sides. `top`
+        # is 1 on the crown and 0 at the temple line.
+        top = max(0.0, min(1.0, (u - 0.10) / 0.55))
+        length = 0.014 + 0.036 * top
+        r = (0.011 + 0.010 * top) * (0.85 + 0.30 * (0.5 + 0.5 * math.cos(2.3 * i)))
+        root = V(HEAD) + d * (scalp - 0.006)
+        # The helix's own frame: sideways along the scalp and the other way.
+        e1 = d.cross(HEAD_UP).normalized() if abs(d.dot(HEAD_UP)) < 0.98 else RIGHT
+        e2 = d.cross(e1).normalized()
+        # A curl grows out and then over — the axis tips away from the scalp
+        # normal, back and down, the way weight takes it.
+        axis = (d + e2 * 0.35 * (1 if i % 2 else -1) - HEAD_UP * 0.25 * (1 - top)).normalized()
+        e1 = axis.cross(e1).cross(axis).normalized() if abs(axis.dot(e1)) < 0.98 else e2
+        e2 = axis.cross(e1).normalized()
+        turns = 1.4
+        n = 5 if top > 0.25 else 3
+        coil = 0.010 + 0.008 * top
+        for k in range(n):
+            t = k / max(n - 1, 1)
+            ang = t * turns * 2 * math.pi + i * 1.7
+            c = (root + axis * (length * t)
+                 + (e1 * math.cos(ang) + e2 * math.sin(ang)) * coil * (0.6 + 0.4 * t))
+            ball(c, r * (1.0 - 0.22 * t), _hair)
+
+
 def face(skin: bpy.types.Object) -> None:
     """Whites set into the sockets with an iris on each, a brow over them, a
     nose, and a smile with teeth in it. The reference's whole expression is that
@@ -773,8 +1041,21 @@ def face(skin: bpy.types.Object) -> None:
     face_part(skin, "mouth", LIP, (0.0, -0.44, 0.90), (0.044, 0.021, 0.015), 0.009)
     face_part(skin, "teeth", TOOTH, (0.0, -0.42, 0.91), (0.034, 0.011, 0.013), 0.004)
 
+    # Not the face, but the same trick: the zip's slider at the top of the back
+    # seam, and the pull tab standing up off it. Both are found by firing a ray
+    # out of the upper chest through the back, because the back under the
+    # collar is traps blended into a chest blob and its depth is not a number.
+    up = (Vector((0, 1, 0)) - TORSO_F * 0.55).normalized()
+    across = TORSO_R
+    out = across.cross(up).normalized()
+    back = -TORSO_F + Vector((0, 0.10, 0))
+    origin = V(CHEST) + Vector((0, 0.085, 0))
+    stud(skin, "zip", ZIP, origin, back, (0.011, 0.016, 0.007), (across, up, out), 0.004)
+    stud(skin, "pull", ZIP, origin, back, (0.009, 0.024, 0.004), (across, up, out), 0.0,
+         lift=up * 0.030 - out * 0.002)
 
-def weld(obj: bpy.types.Object) -> int:
+
+def weld(obj: bpy.types.Object, share: float = 1.0) -> int:
     """Make the marching-cubes output something Quadriflow will accept, and
     return how many non-manifold edges are left over.
 
@@ -783,8 +1064,10 @@ def weld(obj: bpy.types.Object) -> int:
     Shards: a negative element parked near the outside of a positive one can
     pinch a few square centimetres of surface off into its own closed shell, and
     a shell that is not the body is not wanted at any budget, so only the
-    largest connected run of faces survives. And inconsistent winding, which is
-    the one the operator names in its own error message."""
+    largest connected run of faces survives — or, for the hair, every shell at
+    least `share` of the largest, because a curl that did not quite touch the
+    cap is still hair. And inconsistent winding, which is the one the operator
+    names in its own error message."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
@@ -793,7 +1076,7 @@ def weld(obj: bpy.types.Object) -> int:
     # Flood-fill across shared edges: every face reachable from a seed is one
     # shell, and the biggest one is the rider.
     seen: set[int] = set()
-    best: list = []
+    shells: list[list] = []
     for seed in bm.faces:
         if seed.index in seen:
             continue
@@ -807,9 +1090,10 @@ def weld(obj: bpy.types.Object) -> int:
                     if nf.index not in seen:
                         seen.add(nf.index)
                         stack.append(nf)
-        if len(shell) > len(best):
-            best = shell
-    strays = [f for f in bm.faces if f not in set(best)]
+        shells.append(shell)
+    biggest = max(len(s) for s in shells)
+    kept = {f for s in shells if len(s) >= share * biggest for f in s}
+    strays = [f for f in bm.faces if f not in kept]
     if strays:
         bmesh.ops.delete(bm, geom=strays, context="FACES")
 
@@ -823,7 +1107,7 @@ def weld(obj: bpy.types.Object) -> int:
     return bad
 
 
-def retopo(obj: bpy.types.Object, quads: int) -> None:
+def retopo(obj: bpy.types.Object, quads: int, share: float = 1.0) -> None:
     """Quadriflow, not decimate. Marching cubes hands back a triangle soup whose
     density follows the sampling lattice and not the shape, and collapsing it to
     budget keeps that: the same triangles per square centimetre on a flat back
@@ -835,7 +1119,7 @@ def retopo(obj: bpy.types.Object, quads: int) -> None:
     faces, so a face is the size of the smallest patch of neon the suit can
     hold, and quads of a size chosen here beat triangles of whatever size the
     lattice happened to leave."""
-    bad = weld(obj)
+    bad = weld(obj, share)
     before = len(obj.data.polygons)
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
@@ -913,16 +1197,45 @@ def crisp(obj: bpy.types.Object) -> None:
         # Blender back to three: (x, -z, y) inverted is (x, z, -y).
         return region(Vector((v.x, v.z, -v.y)))
 
+    # An edge is walked in `steps` samples rather than tested at its two ends,
+    # since the seams: an 8 mm stitch on a 12 mm edge can begin and end inside
+    # it with both ends the same colour, and an end-to-end test never sees it —
+    # what came out was a dashed line. The first change along the edge is
+    # bisected and split; whatever the edge held beyond it is a new edge for
+    # the next round, which is why there are three rounds now and not two.
+    steps = 16
     total = 0
-    for _ in range(2):
+    for round_ in range(5):
+        # From the second round on, any face that still has two colours at its
+        # corners is one `connect_verts` declined last time — a quad the band
+        # entered and left through the same edge, or clipped at a corner. A
+        # triangle has no such case: two boundary vertices on a triangle are
+        # always on two different edges, so it is always cut. Triangulate the
+        # holdouts and go round again.
+        if round_:
+            held = []
+            for f in bm.faces:
+                # Sampled a little in from each corner, because a corner that
+                # *is* the boundary lands on whichever side the bisection
+                # stopped, and a face that was cut correctly is not a holdout.
+                mid = f.calc_center_median()
+                cs = [col(v.co.lerp(mid, 0.2)) for v in f.verts]
+                if any((c - cs[0]).length > 1e-9 for c in cs[1:]):
+                    held.append(f)
+            if held:
+                bmesh.ops.triangulate(bm, faces=held)
         cuts = []
         for e in bm.edges:
             a, b = e.verts[0].co.copy(), e.verts[1].co.copy()
             ca = col(a)
-            if (ca - col(b)).length < 1e-9:
+            lo = hi = None
+            for k in range(1, steps + 1):
+                if (col(a.lerp(b, k / steps)) - ca).length > 1e-9:
+                    lo, hi = (k - 1) / steps, k / steps
+                    break
+            if lo is None:
                 continue
-            lo, hi = 0.0, 1.0
-            for _step in range(10):
+            for _step in range(7):
                 mid = (lo + hi) / 2
                 if (col(a.lerp(b, mid)) - ca).length < 1e-9:
                     lo = mid
@@ -1245,7 +1558,88 @@ def export() -> None:
         export_morph=False,
         export_yup=True,
     )
+    squeeze(GLB)
     print(f"[surfer] wrote {GLB} and {BLEND}")
+
+
+def squeeze(path: str) -> None:
+    """Quantise what the exporter will not.
+
+    Blender writes `WEIGHTS_0` as four floats a vertex and `COLOR_0` as four
+    16-bit values, and has no option for less. glTF itself allows both as
+    normalised unsigned bytes — no extension, no decoder — and that is what
+    they are here: a weight to 1/255 is more than a skin needs, and the colour
+    is toon-shaded flat bands where a step of 1/255 in linear is a step nobody
+    can see. It takes the file from about 630 kB gz to under 450 at the second
+    pass's vertex count, and the whole of the saving is in those two
+    attributes; positions and normals stay float, because quantising those is
+    `KHR_mesh_quantization` and a scale on a skinned node, which is a bigger
+    conversation than a file size.
+
+    The GLB is one JSON chunk and one binary chunk; every attribute has its own
+    buffer view, so the binary is rebuilt view by view and the accessor's type
+    is rewritten beside it."""
+    import struct  # noqa: PLC0415
+    import json  # noqa: PLC0415
+    import numpy as np  # noqa: PLC0415
+
+    raw = open(path, "rb").read()
+    jl = struct.unpack_from("<I", raw, 12)[0]
+    doc = json.loads(raw[20:20 + jl])
+    bl = struct.unpack_from("<I", raw, 20 + jl)[0]
+    binary = raw[28 + jl:28 + jl + bl]
+
+    def view(i: int) -> bytes:
+        bv = doc["bufferViews"][i]
+        off = bv.get("byteOffset", 0)
+        return binary[off:off + bv["byteLength"]]
+
+    out: dict[int, bytes] = {}
+    for prim in doc["meshes"][0]["primitives"]:
+        for attr, kind in (("WEIGHTS_0", "w"), ("COLOR_0", "c")):
+            ai = prim["attributes"].get(attr)
+            if ai is None:
+                continue
+            acc = doc["accessors"][ai]
+            data = view(acc["bufferView"])
+            if acc["componentType"] == 5126:
+                v = np.frombuffer(data, dtype=np.float32).reshape(-1, 4).astype(np.float64)
+            elif acc["componentType"] == 5123:
+                v = np.frombuffer(data, dtype=np.uint16).reshape(-1, 4) / 65535.0
+            else:
+                continue
+            q = np.rint(v * 255.0).astype(np.int64)
+            if kind == "w":
+                # Weights have to sum to exactly one after rounding, or the
+                # skin scales; the largest weight takes the rounding error.
+                err = 255 - q.sum(axis=1)
+                q[np.arange(len(q)), q.argmax(axis=1)] += err
+            q = np.clip(q, 0, 255).astype(np.uint8)
+            out[acc["bufferView"]] = q.tobytes()
+            acc["componentType"] = 5121
+            acc["normalized"] = True
+            acc.pop("min", None)
+            acc.pop("max", None)
+
+    chunks, offset = [], 0
+    for i, bv in enumerate(doc["bufferViews"]):
+        data = out.get(i, view(i))
+        pad = (-len(data)) % 4
+        bv["byteOffset"], bv["byteLength"] = offset, len(data)
+        if i in out:
+            bv["byteStride"] = 4
+        chunks.append(data + b"\0" * pad)
+        offset += len(data) + pad
+    binary = b"".join(chunks)
+    doc["buffers"][0]["byteLength"] = len(binary)
+
+    js = json.dumps(doc, separators=(",", ":")).encode()
+    js += b" " * ((-len(js)) % 4)
+    body = (struct.pack("<II", len(js), 0x4E4F534A) + js
+            + struct.pack("<II", len(binary), 0x004E4942) + binary)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<III", 0x46546C67, 2, 12 + len(body)) + body)
+    print(f"[surfer] squeeze: {len(raw) // 1024} kB -> {(12 + len(body)) // 1024} kB")
 
 
 def preview(path: str) -> None:
@@ -1311,7 +1705,11 @@ if __name__ == "__main__":
     # across, and painting a mesh that is about to be replaced is free work.
     retopo(body, BODY_QUADS)
     crisp(body)
-    trim(hair, HAIR_TRIS)
+    # The hair too, since it became one shell: a decimate spent its triangles
+    # on the bumps and the grid spends them on the scallops between curls,
+    # which is where the silhouette is. `retopo` falls back to the decimate on
+    # its own if Quadriflow declines.
+    retopo(hair, HAIR_QUADS, share=0.002)
     face(body)
     paint(body)
     paint(hair, flat=HAIR)
