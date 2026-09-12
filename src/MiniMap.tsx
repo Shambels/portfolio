@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { PROJECTS } from './content'
-import { ISLAND_SPREAD, ISLES, VIEW, isleShore } from './world'
+import { ISLAND_SPREAD, ISLES, VIEW, isleShore, lagoonDist } from './world'
 import { SOURCE_LOCALE, STRINGS, type Locale } from './i18n'
 
 /**
@@ -67,6 +67,35 @@ const COAST = ISLES.map((i) => {
 })
 
 /**
+ * And the water inside an island that has any, because a coastline drawn round
+ * a crescent is a solid blob and the whole point of that island is that you can
+ * sail into the middle of it.
+ *
+ * Star-convex about the LAGOON's own centre even though the island is not
+ * star-convex about its: from in there, every bearing crosses from water to
+ * land exactly once, whether it leaves through the basin's wall or down the
+ * entrance. So it is the same walk `COAST` makes, from a different middle.
+ */
+const LAGOON = ISLES.filter((i) => i.lagoon).map((i) => {
+  const N = 96
+  const cx = i.pos[0] + Math.cos(i.lagoon!.bearing) * i.lagoon!.centre
+  const cz = i.pos[1] + Math.sin(i.lagoon!.bearing) * i.lagoon!.centre
+  let d = ''
+  for (let k = 0; k < N; k++) {
+    const t = (k / N) * Math.PI * 2
+    let r = i.lagoon!.radius
+    for (let q = 1; q < i.radius * 1.4; q += 0.25) {
+      if (lagoonDist(i, cx - i.pos[0] + Math.cos(t) * q, cz - i.pos[1] + Math.sin(t) * q) >= 0) {
+        r = q
+        break
+      }
+    }
+    d += `${k ? 'L' : 'M'}${(cx + Math.cos(t) * r).toFixed(2)} ${(cz + Math.sin(t) * r).toFixed(2)}`
+  }
+  return { id: i.id, d: d + 'Z' }
+})
+
+/**
  * Where a project's disc goes, as a fraction of the box from its centre —
  * which is the character. Exact while the whole disc fits; past that it is
  * held inside the edge *along the line from the character to it*, so a
@@ -123,6 +152,9 @@ export default function MiniMap({ locale, slug }: { locale: Locale; slug: string
       <svg ref={coast} className="coast" viewBox={box()} aria-hidden="true">
         {COAST.map((c) => (
           <path key={c.id} d={c.d} vectorEffect="non-scaling-stroke" />
+        ))}
+        {LAGOON.map((c) => (
+          <path key={`${c.id}-lagoon`} d={c.d} vectorEffect="non-scaling-stroke" />
         ))}
       </svg>
 

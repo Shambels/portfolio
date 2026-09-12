@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "react-router dev",
     "typecheck": "react-router typegen && tsc -b",
-    "check": "node src/i18n/locales.check.ts && node src/camera.check.ts && node src/isles.check.ts && node src/stick.check.ts && node src/beach.check.ts",
+    "check": "node src/i18n/locales.check.ts && node src/camera.check.ts && node src/isles.check.ts && node src/stick.check.ts && node src/beach.check.ts && node src/stairs.check.ts",
     "build": "npm run typecheck && react-router build && cp build/client/en/404/index.html build/client/404.html",
     "preview": "vite preview --outDir build/client",
     "lint": "oxlint"

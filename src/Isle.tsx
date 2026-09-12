@@ -6,6 +6,8 @@ import {
   sin, smoothstep, vec3,
 } from 'three/tsl'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
+import { STAIR, stairExit, stairMouth } from './stairs'
+import { Stair } from './Stair'
 import palmUrl from './models/palm.glb?url'
 
 /**
@@ -41,8 +43,31 @@ const RINGS = [
 ]
 const SEGMENTS = 152
 
+/**
+ * An isle with a lagoon gets the same rings and one more between each of them
+ * over the middle of the island, where the basin and its shore are.
+ *
+ * The list above is spaced for a cone: nearly flat across the apron, and doing
+ * everything interesting either side of the waterline. A crescent has a second
+ * waterline in the middle of it, and 1.4 m of ring spacing puts two and a half
+ * quads across a shore band 3.5 m wide. This is the cheapest honest fix — 18
+ * more rings on one island — and it is here rather than in `RINGS` so that
+ * `palm-isle` is the same mesh it was, vertex for vertex.
+ */
+function ringsFor(isle: IsleData) {
+  if (!isle.lagoon) return RINGS
+  const out: number[] = []
+  for (let i = 0; i < RINGS.length; i++) {
+    out.push(RINGS[i]!)
+    const next = RINGS[i + 1]
+    if (next !== undefined && RINGS[i]! < 0.86) out.push((RINGS[i]! + next) / 2)
+  }
+  return out
+}
+
 /** The isle as a mesh: `isleHeight` on that grid, and nothing else. */
 function terrain(isle: IsleData) {
+  const RINGS = ringsFor(isle)
   const g = new THREE.BufferGeometry()
   const pos = new Float32Array((RINGS.length * SEGMENTS + 1) * 3)
   let p = 0
@@ -101,6 +126,10 @@ const CANOPY = vec3(0.04, 0.17, 0.09)
 const ROCK = vec3(0.062, 0.068, 0.088)
 const CRAG = vec3(0.135, 0.142, 0.16)
 
+/** How wide a hole each doorway cuts in the mountain's shading — a little over
+ *  the passage's own half-width, so the frame of it is rock and not a seam. */
+const PORTAL = STAIR.half + 0.55
+
 const BARK = vec3(0.42, 0.33, 0.24)
 const BARK_DARK = vec3(0.2, 0.15, 0.11)
 const FROND = vec3(0.16, 0.42, 0.13)
@@ -138,6 +167,24 @@ function materials() {
   col = mix(col, ROCK, smoothstep(0.34, 0.6, slope).mul(smoothstep(0.4, 1.8, y)))
   col = mix(col, CRAG, smoothstep(9.5, 12.5, y).mul(smoothstep(0.16, 0.44, slope)))
   land.colorNode = col.mul(grain.mul(0.19).add(1))
+
+  // And the two holes in it.
+  //
+  // The passage inside the spire (`src/stair.ts`) has a doorway at each end,
+  // and a doorway needs the mountain to stop being there. A polar grid cannot
+  // easily have a hole cut in it, so this is a hole in the *shading*: a
+  // fragment within `PORTAL` of either door's centre is discarded, and what is
+  // behind it is the tunnel's own mesh.
+  //
+  // Cheaper than it looks and the cost is the honest part: `alphaTest` puts
+  // this material on the alpha-tested path for the whole island. It buys a
+  // hole that moves when the stair moves, which is the same bargain every
+  // other number on this island is made on.
+  const hole = (d: { x: number; y: number; z: number }) =>
+    smoothstep(PORTAL - 0.35, PORTAL,
+      positionWorld.distance(vec3(d.x, d.y + PORTAL * 0.35, d.z)))
+  land.opacityNode = hole(stairMouth()).mul(hole(stairExit()))
+  land.alphaTest = 0.5
 
   // Ring scars up the trunk. `positionLocal` and not world: every palm is the
   // same instanced geometry, so this is the tree's own height and the rings
@@ -351,6 +398,11 @@ export function Isle() {
               in world coordinates, because that is where the height function
               that chose each spot was asked. */}
           <mesh geometry={meshes[i]} material={m.land} position={[isle.pos[0], 0, isle.pos[1]]} />
+          {/* The passage inside the spire, for the isle that has one. Its
+              geometry is in world coordinates already — it is swept along the
+              same rail the walk is held to — so it is not inside the placed
+              group's transform, only inside its key. */}
+          {isle.id === STAIR.isle && <Stair />}
           <Suspense fallback={null}>
             <Planting plan={plans[i]!} m={m} />
           </Suspense>

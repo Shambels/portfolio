@@ -10,6 +10,7 @@ import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
 } from './beach'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, spawn } from './world'
+import { STAIR_LATERAL, atDoor, stairAt, stairLength } from './stairs'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
@@ -394,6 +395,34 @@ function clearance(x: number, z: number, vx: number, vz: number) {
 // its aim follows quickly, so a hull that has just been thrown three metres in
 // the air is still in the middle of the frame. The gap between them is the
 // tilt, and the tilt is what a jump looks like from behind.
+/* ------------------------------------------------------------------ the cave
+ *
+ * The stair up the inside of the crag isle's spire. `src/stair.ts` is the
+ * whole of it: a rail with a half-width, because a cave is two surfaces over
+ * one XZ and `ground()` has room for one.
+ *
+ * What is here is the three places the flight controller has to know about it,
+ * and there are deliberately only three. **Inside, the velocity is projected
+ * onto the rail and written back** — so the yaw, the gait, the stride, the
+ * step rate and the speed all come out of the code that was already there,
+ * reading a velocity that happens to point along a corridor. Nothing below
+ * knows he is underground except the altitude, the hillside read and the
+ * camera, and each of those is one line.
+ */
+
+/** How far behind him the camera rides, in metres along the rail. Shorter than
+ *  `CAM_OFFSET.z` by a lot: seven metres astern in a passage two and a half
+ *  wide is a camera inside a wall, and the corridor is what frames him here. */
+const CAVE_BACK = 3.4
+
+/** And how high above the floor, against `CAM_OFFSET.y`'s 2.4 over open water.
+ *  The ceiling is 2.35 up. */
+const CAVE_EYE = 1.45
+
+/** How much of the passage he may drift across, per second, per unit of
+ *  sideways push. He is on a rail; this is the width of it. */
+const CAVE_SWAY = 0.8
+
 const CAM_RISE = 1.8
 const CAM_AIM = 4
 
@@ -680,6 +709,17 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
+  /**
+   * Where he is on the stair, in metres of going from the doorway — or null,
+   * which is everywhere else in the world and almost always.
+   *
+   * A number and not a boolean because the rail is a length: his position, his
+   * heading, the floor under him and the camera behind him are all `stairAt`
+   * of this one value.
+   */
+  const caveS = useRef<number | null>(null)
+  /** And how far across the passage, in metres either side of the centreline. */
+  const caveLat = useRef(0)
   // 0 riding, 1 walking — `ashore` in `beach.ts`. 1 from the first frame on
   // the sand spawn, or the first second and a quarter of the world would be
   // him standing on his board on the beach, picking it up.
@@ -842,14 +882,70 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     _target.multiplyScalar((boost ? SPEED * BOOST : SPEED) *
       (agile.speed + (WALK_SPEED - agile.speed) * afoot))
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
-    g.position.addScaledVector(vel.current, dt)
-    // A hull cannot climb a beach. Pushed back onto the mooring circle rather
-    // than stopped dead, so a boat leaning on a coast keeps whatever part of its
-    // motion runs along it and slides round the island instead of sticking.
-    // The isles are not a wall for the surfer — he walks up them — and they are
-    // for everything else. The landmark islands still are for both: see the
-    // note on `offshore`.
-    if (floats) offshore(g.position, !walks)
+
+    if (caveS.current !== null) {
+      // Inside the stair. The wish is whatever the keys and the camera say it
+      // is; what he gets is its component along the rail, and a little of its
+      // component across. Then the rail's own direction is written BACK into
+      // `vel` — so the yaw below turns him up the passage, the gait reads the
+      // pace he is actually making, and none of it needed a second case.
+      const here = stairAt(caveS.current)
+      const fx = Math.sin(here.yaw)
+      const fz = Math.cos(here.yaw)
+      const along = vel.current.x * fx + vel.current.z * fz
+      const across = vel.current.x * fz - vel.current.z * fx
+      caveLat.current = THREE.MathUtils.clamp(
+        caveLat.current + across * CAVE_SWAY * dt, -STAIR_LATERAL, STAIR_LATERAL)
+      const want = caveS.current + along * dt
+      const len = stairLength()
+      if (want <= 0 && along < 0) {
+        // Back out onto the strand. He leaves facing out, a step clear of the
+        // door, and the ground he lands on is the sand the door opens onto —
+        // `stair.check.ts` asserts those are the same height, so there is no
+        // step to hand him down.
+        caveS.current = null
+        caveLat.current = 0
+        g.position.x = here.x - fx * 1.1
+        g.position.z = here.z - fz * 1.1
+      } else if (want >= len && along > 0) {
+        // And out of the top onto the flank, which is the same handover the
+        // other way up: the exit's floor is the flank's height by construction.
+        caveS.current = null
+        caveLat.current = 0
+        const top = stairAt(len)
+        g.position.x = top.x + Math.sin(top.yaw) * 1.1
+        g.position.z = top.z + Math.cos(top.yaw) * 1.1
+      } else {
+        caveS.current = THREE.MathUtils.clamp(want, 0, len)
+        const at = stairAt(caveS.current)
+        const ax = Math.sin(at.yaw)
+        const az = Math.cos(at.yaw)
+        g.position.x = at.x + az * caveLat.current
+        g.position.z = at.z - ax * caveLat.current
+        vel.current.set(ax * along, 0, az * along)
+      }
+    } else {
+      g.position.addScaledVector(vel.current, dt)
+      // A hull cannot climb a beach. Pushed back onto the mooring circle rather
+      // than stopped dead, so a boat leaning on a coast keeps whatever part of its
+      // motion runs along it and slides round the island instead of sticking.
+      // The isles are not a wall for the surfer — he walks up them — and they are
+      // for everything else. The landmark islands still are for both: see the
+      // note on `offshore`.
+      if (floats) offshore(g.position, !walks)
+      // And in through a door, if he is on his feet in front of one and facing
+      // it. On foot only — a board does not go up a staircase — and not in the
+      // air, because a man landing on a doorway is a man who did not choose to
+      // go in. `atDoor` is what refuses the wrong side: the mouth is on a
+      // beach, and a beach is a place a wave can put you.
+      if (walks && afoot > 0.9 && hop.current <= 0 && wet.current < 0.5) {
+        const door = atDoor(g.position.x, g.position.z, yaw.current)
+        if (door) {
+          caveS.current = door === 'mouth' ? 0 : stairLength()
+          caveLat.current = 0
+        }
+      }
+    }
 
     if (vel.current.lengthSq() > 0.0025) {
       const want = Math.atan2(vel.current.x, vel.current.z)
@@ -1021,7 +1117,14 @@ const RISE = 10
       // the ground is zero at the coast by construction (`isles.check.ts`
       // asserts it) and the swell is damped to the chop by `shoal`.
       if (afoot > 0) {
-        groundY.current = follow(groundY.current, ground(g.position.x, g.position.z), dt)
+        // The rail's floor when he is on it, and the island's when he is not.
+        // No `follow` inside: its lag exists because a beach met at riding
+        // speed is a step, and the stair has no steps in it — the treads are
+        // the mesh's, his feet are on the smooth line under them, and
+        // `stair.check.ts` holds that line to under 3 cm a frame at a walk.
+        groundY.current = caveS.current !== null
+          ? stairAt(caveS.current).y
+          : follow(groundY.current, ground(g.position.x, g.position.z), dt)
 
         // The hop, and this is the only place in the world that integrates
         // gravity for something that is not water. Landing is spent the way the
@@ -1155,7 +1258,10 @@ const RISE = 10
     // the ground a stride behind, and the same across him. It is what puts the
     // uphill foot higher instead of both of them in the slope, and it is four
     // height queries that only happen while he is on one.
-    if (afoot > 0.01) {
+    // ...and not on the stair, where `ground()` is the mountain's OUTSIDE, ten
+    // metres over his head. Reading a hillside through a hill is a man walking
+    // up a corridor leaning thirty degrees.
+    if (afoot > 0.01 && caveS.current === null) {
       const e = 0.6
       const gx = g.position.x
       const gz = g.position.z
@@ -1218,7 +1324,16 @@ const RISE = 10
     // `CAM_OFFSET.z` is a distance astern of the hull's heading rather than a
     // world +z, and `.x` is zero — see the note on it. The height is the same
     // number it always was, so the pitch and the horizon do not move.
-    _cam.set(
+    // Inside the stair the camera rides the rail too, because astern of a
+    // heading in a passage 2.3 m wide is inside a wall. `CAVE_BACK` metres
+    // back along the going and `CAVE_EYE` up off the floor, which is the same
+    // shot the follow camera makes outside — just measured along a corridor
+    // instead of across open water.
+    const rail = caveS.current
+    if (rail !== null) {
+      const back = stairAt(Math.max(0, rail - CAVE_BACK))
+      _cam.set(back.x, back.y + CAVE_EYE, back.z)
+    } else _cam.set(
       g.position.x - Math.sin(camYaw.current) * CAM_OFFSET.z,
       g.position.y + CAM_OFFSET.y,
       g.position.z - Math.cos(camYaw.current) * CAM_OFFSET.z,
@@ -1234,7 +1349,9 @@ const RISE = 10
     // craft is riding — the sea for a hull, the ground for the saucer. A hull
     // holds `alt` at zero and the saucer held `camY` at zero until the isle
     // gave it a hill to climb, so this sum is what both of them always were.
-    _cam.y += alt.current + camY.current - hover
+    // The hull's own altitude coming back out — and none of it on the rail,
+    // where `_cam` is already a world position off the stair's own floor.
+    if (rail === null) _cam.y += alt.current + camY.current - hover
     if (snap.current) {
       snap.current = false
       state.camera.position.copy(_cam)
@@ -1245,14 +1362,22 @@ const RISE = 10
     // and the aim goes ahead by that lift times the offset's run over its
     // rise, which is the run that keeps the pitch what `CAM_OFFSET` says.
     const cam = state.camera.position
-    cam.y = Math.max(cam.y, ground(cam.x, cam.z) + CAM_CLEAR)
-    const ahead = Math.min(Math.max(cam.y - _cam.y, 0), CAM_LIFT) *
-      (CAM_OFFSET.z / (CAM_OFFSET.y - hover))
-    state.camera.lookAt(
-      g.position.x + Math.sin(camYaw.current) * ahead,
-      g.position.y + alt.current + aimY.current - AIM_DOWN,
-      g.position.z + Math.cos(camYaw.current) * ahead,
-    )
+    if (rail !== null) {
+      // No floor and no lift: the floor is `ground()` + CAM_CLEAR, and under a
+      // mountain that is two metres above the summit. The aim is simply him,
+      // at head height, up the passage.
+      const look = stairAt(rail)
+      state.camera.lookAt(look.x, look.y + CAVE_EYE, look.z)
+    } else {
+      cam.y = Math.max(cam.y, ground(cam.x, cam.z) + CAM_CLEAR)
+      const ahead = Math.min(Math.max(cam.y - _cam.y, 0), CAM_LIFT) *
+        (CAM_OFFSET.z / (CAM_OFFSET.y - hover))
+      state.camera.lookAt(
+        g.position.x + Math.sin(camYaw.current) * ahead,
+        g.position.y + alt.current + aimY.current - AIM_DOWN,
+        g.position.z + Math.cos(camYaw.current) * ahead,
+      )
+    }
   })
 
   return (
