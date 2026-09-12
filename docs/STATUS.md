@@ -3715,3 +3715,160 @@ implies `noopener`, which is what makes handing a tab over safe.
   `fr` and `nl`. That makes ten unreviewed FR/NL UI strings, not eight.
 - **The flat case study's off-site links** now open in a new tab too. Say if
   only the panel's should.
+
+
+## The rider, third pass — a generated man, a generated board, and a rig laid over both
+
+Seb brought two AI-generated models in (Tripo): a man in an A-pose with a
+painted face and a 4096² basecolour, and a shortboard with two pads and a
+graphic, and asked for them to be the playable surfer. So the third rider is
+the first one that was not sculpted in `tools/surfer.py`, and the script is a
+different thing now: it rigs, poses, slims and exports somebody else's mesh.
+The sources are `tools/surfer-tripo.glb` and `tools/surfboard-tripo.glb`
+beside it, as CLAUDE.md asks; the metaball rider and the procedural board are
+in git.
+
+Four decisions were Seb's, asked before anything was built: the board is a
+file too (not only the man); he is **unlit** — texture and ink outline,
+no toon, no rim; fidelity over the ~600 kB guideline; and the originals move
+to `tools/` with `surfer.py` rewritten rather than a second script beside it.
+
+### The joints, then the rig, then the pose, then the rest pose
+
+A generated mesh arrives with no skeleton. `joints()` finds the seventeen
+joints on it: the *heights* are anthropometry — a hip at 0.51 of stature, a
+knee at 0.285, a shoulder at 0.815, an elbow at 0.60 — and only the across
+and fore-aft of each is read off the mesh, as the centre of the limb's own
+cross-section at that height, the arm told from the body by the largest gap
+in |x| across the slab. The first cut tried to find the heights on the mesh
+too (crotch, armpit, narrowest ring) and put the hip in the thigh and the
+shoulder in the armpit; the fractions are the same on every adult and the
+mesh has no opinion on them, so they are constants. Checked by drawing them
+on him.
+
+The rig is the same seventeen bones by name and parent, laid on the A-pose.
+**Bone heat worked** — 0 of 45.5k vertices unweighted — which is the A-pose's
+whole gift: the arms hang clear of the thighs, so the solver that could not
+separate a forearm from a leg on the crouched second rider has nothing to
+confuse. `diffuse` is still there as the fallback and was not needed.
+
+Then the second rider's stance, to the number, on the new man: the torso,
+head and arms are *aimed* along the old pose list's own bone directions with
+the new bone lengths (`aim()` builds a frame for each bone from its direction
+and a "front" — the elbow's tip, the kneecap — in the A-pose and in the
+target, and maps one to the other, so the twist of every limb is decided
+rather than left to the shortest rotation), and the legs are solved by the
+runtime's own two-bone closed form to the two ankles. Then `bake()`: the
+armature modifier is applied to the mesh, the pose is applied as the rest
+pose, and a fresh modifier ties them back together. **What ships is a
+crouching man whose skeleton has never known anything else**, which is the
+runtime contract, and `Ship.tsx` did not change a line of how he moves.
+
+The legs are longer — 0.383 thigh, 0.411 shin, 0.79 of reach against the old
+0.68 — so with the same hips and the same ankles the knees are further out
+(front knee at x 0.29, back at −0.38) and the reach fractions are the old
+ones exactly: 0.77 front, 0.63 back.
+
+### What moved: the stance is aft, on the pads
+
+The generator drew a board with a kick pad at the tail (z −0.95…−0.65 on the
+shipped board) and a second pad amidships (−0.20…+0.10), 0.73 apart, and the
+reviewed stance is 0.68 wide. `STANCE = −0.50` slides the whole man aft so
+that his back foot is on the kick pad and his front foot on the other, which
+is where a surfer's feet are. It is the one change to the reviewed pose, and
+it shows from astern: he is half a metre nearer the camera than he was, and
+the board's nose is what is ahead of him now rather than most of the board.
+`CARRY_POS.z` moved with him (0.02 → −0.48) so the carried board's centre
+still comes to his hip; the leash was re-laid from the plug over the pad's
+kick to the cuff, which is a short run now.
+
+### The board
+
+`fit_board()` turns it nose-forward (the generator laid it along x), scales it
+to **2.0 long** (the procedural one was 2.3 and read long against a 1.7 m
+man; this is a shortboard), and puts the *hull's* keel on the waterline —
+measured amidships, because the lowest point of the whole thing is a fin.
+Beam 0.63, deck at 0.10 under the front foot and 0.11 under the back, fins to
+−0.16. Decimated 94.6k → 10k triangles by collapse, UVs kept; 1024² texture.
+The wax comb, stringer, pinline, diced pad and foil fins that `Ship.tsx`
+built are gone with the geometry they dressed. The leash, the cuff and the
+wake stay: they run between the two files.
+
+`FOOT_DROP` is 0.09, re-measured: the lowest thing on him is 0.097 in board
+space now (a thinner deck), against the second rider's 0.11.
+
+### Unlit
+
+`MeshBasicNodeMaterial({ map })` for both, built from the loader's own
+material so the texture and its colour space come through, and the
+inverted-hull `OUTLINE` round each. The toon quantisation, the sunward
+fresnel, the neon chroma mask and the neoprene glint went with COLOR_0. What
+it costs is what the toon pass was fighting — the sun is ahead, the visitor
+gets his shadow side — and the outline is the edge that answers it. Seb chose
+the drawing over the lighting; the lever back is one material in `unlit()`.
+
+### Cost
+
+- **Triangles: 32.5k → 91k** on the rider, every one of the generator's,
+  drawn twice for the outline. The board is 10k, from 95k.
+- **`surfer.glb`: 547 kB gz → 964 kB (809 kB gz)**, of which 265 kB is the
+  2048² JPEG — the basecolour is flat colour and compresses to almost nothing
+  — and the rest is 60.8k vertices of position, normal, UV, joints and
+  weights. Blender wrote 3.98 MB of float32; **meshopt** (`gltfpack`, pinned
+  through `npx` at the end of the script, the lever the second pass named
+  and did not pull) is what made it 0.96. `-vpf -vtf`: float positions and
+  UVs, because integer positions put a dequantising scale on the mesh node —
+  in whose units the outline's centimetre is nothing — and quantised UVs come
+  with a texture transform; both cost ~1%. The decoder was already in the
+  bundle: drei's `useGLTF` sets `MeshoptDecoder` on every loader.
+- **`surfboard.glb`: 178 kB**, new. The procedural board was ~0 bytes of file
+  and a few hundred bytes of code.
+- **Canvas chunk 465.1 → 464.3 kB gz**: five node materials and their TSL
+  left. Lint: the same 14 pre-existing warnings, none new.
+- **`tools/surfer.blend`: 3.4 → 8.8 MB**, compressed on save; it carries both
+  meshes and both textures.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b`, `npm run check` (all five), `oxlint` with no new warnings,
+  `react-router build` clean.
+- **The world, headless WebGL2**, surfer chosen, calm sea: at rest, through a
+  straight run, through a held turn and off a jump, **with a clean console** —
+  the rig solves back to its rest pose, no missing bone, no scale on a joint,
+  the reach sweep passes (longer legs make it looser, not tighter), both
+  meshopt files load. `Claude outputs/surfer-v3-in-world.png`.
+- **`--flex` holds**: every joint bent past anything the runtime asks — no
+  shear at the shoulder, no collapse at the waist, the head's hair and face
+  riding the head. `Claude outputs/surfer-v3-flex-*.png`.
+- **The stance from astern**, and on the board's own pads, with the leash and
+  cuff where the ankle is: `Claude outputs/surfer-v3-{astern,front,quarter,face}.png`.
+
+### Not verified
+
+- **WebGPU**, as every pass before it: the container has no device. Nothing
+  here is exotic — `MeshBasicNodeMaterial` with a map and a skinned mesh — but
+  the first WebGPU frame is Seb's.
+- **The walk on the sand, by eye.** `beach.check` passes and the reach sweep
+  is looser, but the walk's numbers (`STAND`, the strides, the bob) were sized
+  against 0.68 m legs and these are 0.79: he will walk with a shade more knee
+  than before. If it reads crouched, `STAND` is the lever — 0.12 now.
+- **Frame rate** at 91k triangles skinned and drawn twice, on the 2022 laptop.
+  It is the one number this pass moved by 3× and it has not been measured.
+
+### Needs Seb
+
+- **The look, unlit, under the golden hour** — whether a man with no light
+  on him sits in a world that has one, and whether the outline is enough edge
+  from astern. `unlit()` is one line to change if not.
+- **The stance aft.** Half a metre is a composition change from the only
+  angle the visitor gets. `STANCE` in `tools/surfer.py`, and `CARRY_POS.z`
+  follows it by hand.
+- **The feet point forward.** They did on the second rider too and it did not
+  show on metaballs; on painted toes it may. There is no foot yaw in the pose
+  list — it would be one rotation in `pose()`.
+- **`gltfpack` via `npx`** is a new build-time tool (not a package.json
+  dependency). Pin it in `devDependencies` if you would rather not have npx
+  fetch it.
+- **`src/assets/`** is empty of models again: the two originals moved to
+  `tools/`, and `portfolio-src.tgz` in the root was Claude's transfer and can
+  go.
