@@ -101,7 +101,10 @@ Breaking one is allowed. Doing it without saying so is not.
   in the new direction. `move` is read against where it points. The bearing changes and the two distances do
   not, so the pitch — and `--horizon`, `SKY_TOP` and the assert that ties them
   together — is the same at every heading. `src/camera.ts` is the arithmetic
-  and `src/camera.check.ts` is what holds it.
+  and `src/camera.check.ts` is what holds it. Since the beach spawn it also
+  has a floor: never under `ground()` + `CAM_CLEAR`, and when the floor lifts
+  it the aim goes *ahead* by the offset's own run over rise, so the pitch and
+  the horizon hold at every lift too and the hull sits lower in the frame.
 - No physics engine until the world needs slopes or stacking. The character
   hovers: XZ translation, sine bob, bank on turn, circle-vs-circle landmark
   collision — and, since the isle, a handful of height queries a frame under the
@@ -231,8 +234,9 @@ src/beach.ts            coming ashore: the ramp between riding and walking, the
                         pure arithmetic, no three, so the check runs in node
 src/beach.check.ts      that, ridden onto the real isle on eight bearings
 src/isles.ts            the isle: an island that is a place and not a project,
-                        and the height function that is its shape — pure
-                        arithmetic, no content import, so the check runs in node
+                        the height function that is its shape, and `spawn()` —
+                        where the world begins, on its beach — pure arithmetic,
+                        no content import, so the check runs in node
 src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
@@ -450,6 +454,21 @@ lies along its underside with the palm on it (`hold()`, since the ninth
 look); and the two files are meshopt-packed.
 `docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
 Seb's eye.
+
+The world begins on the isle's beach. `spawn()` in `src/isles.ts` puts every
+craft on the bearing from the isle to the three islands, turned a hair to
+starboard into the one gap in the ferns: the surfer on the sand, on foot, with
+the board under his arm and the camera astern looking out to sea — the landing
+page's own shot — and the boat, the saucer and a reduced-motion visitor's
+surfer out on the lagoon shelf where his run ends. The run is `dash` in
+`Ship.tsx`: scripted `move` and `boost` written into the same values the keys
+write, started once the rider's file has arrived, boost dropped as the board
+goes down, over when he is riding or the moment the visitor touches anything.
+It is what gave the camera its floor over the ground (above), and it found
+that every floating hull had been spawning 0.9 m in the air and sinking.
+`docs/STATUS.md`, "The world begins on the beach", has the numbers and the
+one that no check holds: `SPAWN.bearing` was chosen against the isle's
+planting, replayed in node, and moves if the seed does.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the ten unreviewed

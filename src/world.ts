@@ -31,7 +31,7 @@ export const GROUND = 0.45
 
 /** The isles are their own module — pure arithmetic, no content import, so
  *  `node src/isle.check.ts` can run it. This is where the world is read from. */
-export { ISLES, ISLE_EXTENT, ground, isleHeight, isleShore, type Isle } from './isles'
+export { ISLES, ISLE_EXTENT, ground, isleHeight, isleShore, spawn, type Isle } from './isles'
 
 /**
  * Where the character is, in world XZ, and which way it is facing. Written once
@@ -114,9 +114,11 @@ export const moorRadius = (l: Landmark) => shoreOf(l) + BEAM
  *
  * Seven and not ten, which was the first guess: the three islands are close
  * enough together that three overlapping ten-unit fades multiplied out to a
- * quarter of the swell at the world's origin, which is where the visitor
- * arrives. At seven they are clear of each other and the sea is running where
- * the ship starts.
+ * quarter of the swell at the world's origin, where the three islands are
+ * and where the visitor used to arrive. At seven they are clear of each other
+ * and the sea is running there. The visitor arrives on the isle's beach now
+ * (`spawn` in `isles.ts`) and rides out into its sheltered water, which is
+ * the one place a first roller should not be.
  */
 export const SHOAL = 7
 
