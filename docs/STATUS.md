@@ -3968,6 +3968,36 @@ the trailing arm. `Claude outputs/surfer-v3-walk.png`.
   leg with the sole 6 mm short of the sand, the float on a descent the
   `TERRAIN_DOWN` note already accepts, and insuring against it cost 2.5% of
   the leg on every flat step. `Claude outputs/surfer-v3-walk.png`.
+- **And slightly straighter again**, at Seb's sixth look: `STAND` 0.45,
+  `WALK_BOB` 0.04, `RUN_BOB` 0.07, `HEEL_ON` 0.05, `HEEL_OFF` 0.10,
+  `STILL` 0.03. Both gaits sweep to 98.3% — 0.2% under the assert — with the
+  walking knee 12° off straight at mid-stance and the running knee 22°. This
+  is where the margin for the pelvis's sway runs out; past it the foot slides
+  at the ends of the stride.
+- **The board clipped the shoulder, and the arm did not hold it.** Seventh
+  look. `CARRY_POS` y 0.13 → 0.05 — the top rail a hand under the armpit
+  rather than in the deltoid — and the trailing forearm folds 0.60 on foot
+  (from 0.35), with the upper arm out 0.34 (from 0.38), so the elbow sits on
+  the board's outer face and the hand comes round the rail in front.
+- **Still clipping, eighth look — and two real bugs under it.** The board
+  hung off the *pelvis*, which turns with the stride, while the arm hangs off
+  the *chest*, which turns against it: a hand's width of relative motion
+  every step. The board hangs off the **chest** now, from the trailing
+  shoulder (`carryAt`, `carryRot` in `rigOf`; `CARRY_POS` is the centre from
+  that shoulder, stood up: 0.064 out, 0.54 down). And `bend()`'s axes are
+  board axes *in the parent's rest frame*, carried by whatever the parent has
+  done since — which was a few degrees until `stand` started un-yawing the
+  trunk by 66° on foot, after which "about z" below the hips was mostly
+  "about x": the abduction was a forward swing and the arm swing was partly
+  sideways. `bend` takes the trunk's motion (`carried`) now and turns its
+  axes back first, for every joint below the hips. Then the wrap: the
+  trailing arm's elbow hinge is set to point *outboard* in `hangUp` (the
+  leading arm's still points back), the upper arm is abducted 0.62 so it
+  passes the rail's outer corner with 2 cm to spare, and the forearm folds
+  0.82 in and down the outer face to a hand 8 cm outside it just below the
+  middle — measured on the standing rig, not eyeballed, because every side
+  camera on the isle ends up in a palm. The leading arm's swing is halved
+  (0.25 + 0.30·gait from 0.50 + 0.40·gait): it read as marching.
 - **Crossing the coast in the air pulled him down.** `altitude()` lerps the
   craft from the water's altitude to the sand over the first fifth of the
   ashore ramp, which is right for walking back into the sea and wrong when
@@ -3987,6 +4017,65 @@ the trailing arm. `Claude outputs/surfer-v3-walk.png`.
   `textarea`, `contenteditable`) owns every key; a link owns Enter, a button
   or `summary` owns Enter and Space, and every other key goes on flying the
   ship with the focus wherever the last click left it.
+
+### Seb's ninth look: the arm on the board
+
+- **The arm hung five centimetres off the board, bent 47°, palm aft.** The
+  eighth look's wrap was measured to *clear* the board, and it did — by a
+  hand's width all the way down, with the elbow 14 cm off the underside and
+  the forearm folding back in to a hand that hovered beside the face. Seb
+  asked for the arm against the board, less elbow, and the palm on it.
+- **What the board's thickness dictates.** The file's board is **0.095
+  thick** at the middle (the deck is "thinner" than the generator's, not
+  thin), its origin is on the *underside*, and the top rail sits a hand
+  under the armpit with the deck on his ribs. So the shoulder joint is
+  2.5 cm *inboard* of the underside's plane and a straight arm cannot lie
+  on it: the upper arm has to go out over the rail and the forearm come
+  back in, and the bend between them is the thickness. A straight arm was
+  tried — the board rolled to lie along it — and it takes 35° of roll, a
+  board hanging off the forearm rather than under the arm.
+- **The hold, three numbers and a solve.** `CARRY_POS` is (−0.13, −0.535):
+  the board 6.5 cm further out, the top rail where it was; **`CARRY_LEAN`
+  0.17** rolls the bottom rail 10° out from under his hip, which is what a
+  board pinned in an armpit does. **`HOLD_OUT` 0.49** abducts the upper arm
+  28° — the elbow 7.5 cm off the underside, its own radius — and
+  **`HOLD_FOLD` 0.40** bends it 23°, the wrist coming in to 5.5 cm, the
+  forearm pressing. The trailing arm's elbow tip now points down the
+  board's *tail* swung **`HOLD_SWING`** 42° toward outboard, so one fold
+  both comes in onto the face and runs along it toward the nose; it was
+  outboard, which folds across the face, and straight back would run a
+  forearm into a face that the yaw swings in to meet it. The palm is a new
+  `hold()`: the underside's normal is read off the chest each frame, the
+  hand is set to run on down the forearm's line bent **`HOLD_FLEX`** 0.45
+  toward the board with its palm square to the normal, and the 27° of
+  pronation that takes is split — **`HOLD_TWIST`** 0.5 — between the
+  forearm bone and the wrist, 13° each, which neither joint shows. A
+  runner's fold bonus (`0.15 * gait`) went: his free elbow bends, his
+  carrying one is holding a board.
+- **The carrying arm's swing runs along the face.** It swung fore and aft
+  with the stride, and against a board yawed a quarter radian that put the
+  hand 2 cm into the face at one end of a running stride and 3 cm off at
+  the other. It swings about the board's normal now (`HOLD_ALONG`: a z bend
+  of tan 0.44 per unit of x), and the clearance is the same number at every
+  phase of both gaits.
+- **Measured, not eyeballed.** The rig was stood up in a harness page in the
+  container — the real `Ship.tsx`, the real two files — and every arm vertex
+  was tested against a heightfield rasterised from the board's own
+  triangles (its vertices alone are too sparse on the flat underside; the
+  first version of the check measured the elbow against nothing). Standing,
+  walking and running at both ends of the stride: the upper arm 0–0.5 cm
+  *into* the rail (skin against a rounded edge), the forearm within 0.4 cm
+  either side of the surface, the closest point of the hand 1 cm off it,
+  and the palm within 30° of the normal — the flex tips the fingers onto
+  the board and leaves the heel of the hand up, because the wrist behind
+  it is 4 cm thick. Before and after from five angles: `Claude
+  outputs/surfer-v3-hold.png`.
+- **Still there, and older than this pass:** the top rail sits about 3 cm
+  into the soft skin behind the armpit — bone-heat weights give that strip
+  to the spine — and was 2.6 cm before. From astern it reads as a board
+  tucked under an arm. Moving the board out costs the arm what it just
+  gained; the honest fix is a rail-shaped dent in the skin, which is a
+  model change.
 
 ### Cost
 
@@ -4023,6 +4112,14 @@ the trailing arm. `Claude outputs/surfer-v3-walk.png`.
   riding the head. `Claude outputs/surfer-v3-flex-*.png`.
 - **The stance from astern**, and on the board's own pads, with the leash and
   cuff where the ankle is: `Claude outputs/surfer-v3-{astern,front,quarter,face}.png`.
+- **The hold, ninth look:** `npx tsc -b`, `npm run check` (all five) on
+  Seb's copy; `react-router typegen`, `tsc -b` and `oxlint` (clean) on a
+  throwaway install. The carry measured on the standing rig against the
+  board's mesh, standing, walking and running, and rendered from astern,
+  the side, low, the front and above — `Claude outputs/surfer-v3-hold.png`.
+  Not seen: the pickup itself at a real frame rate — `hold()` blends by
+  `RIDE.land`, so the hand turns to the board over the same ramp the board
+  rises on, but that has only been reasoned about.
 
 ### Not verified
 
