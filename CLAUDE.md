@@ -445,8 +445,9 @@ points and `FOOT_DROP` were re-measured; he and the board are lit like the
 world, texture plus outline, no toon, no rim; on foot he stands up — `STAND`
 0.37 out of a stance whose seat is at knee height, the whole rest orientation
 of the trunk, head, arms and feet read off the file and taken back out — the
-carried board hangs off his pelvis rather than off the craft; and the two
-files are meshopt-packed.
+carried board hangs off his chest rather than off the craft, on an arm that
+lies along its underside with the palm on it (`hold()`, since the ninth
+look); and the two files are meshopt-packed.
 `docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
 Seb's eye.
 
