@@ -117,10 +117,15 @@ export const carried = (land: number) => S(0.32, 0.94, land)
  * Invariant 6: a visitor who asked for less motion gets the change of mode and
  * not the second and a quarter of choreography in front of it.
  */
-export function ashore(was: number, groundH: number, dt: number, instant = false): number {
+export function ashore(was: number, groundH: number, dt: number, instant = false,
+  within = BEACH): number {
   const want = S(WALK_IN, WALK_FULL, groundH)
   if (instant) return want
-  return was + Math.min(Math.max(want - was, -dt / BEACH), dt / BEACH)
+  // `within` is how long he has: `BEACH` on his feet, and less than that when
+  // he is in the air over the sand and the ground is coming up at him — the
+  // whole change then fits inside the fall, and he lands already on foot.
+  const step = dt / Math.max(Math.min(within, BEACH), 1e-3)
+  return was + Math.min(Math.max(want - was, -step), step)
 }
 
 /** The sand under his feet: exactly the ground going up, lagged coming down. */
@@ -143,6 +148,11 @@ export function follow(was: number, groundH: number, dt: number): number {
  * higher and the ramp is what hands him to it over a quarter of a second
  * instead of dropping him onto it.
  */
-export function altitude(water: number, sand: number, land: number): number {
+export function altitude(water: number, sand: number, land: number, airborne = false): number {
+  // In the air there is nothing to hand him to: the arc is the arc, and the
+  // sand is a floor under it. Without this, a hull mid-jump crossing the
+  // coast was the "water" the ramp pulled him down out of — a man yanked out
+  // of the sky onto the beach over a fifth of a second.
+  if (airborne) return Math.max(sand, water)
   return Math.max(sand, water + (sand - water) * S(0, WALK_LAND, land))
 }

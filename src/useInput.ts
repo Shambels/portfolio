@@ -30,10 +30,23 @@ const BOOST = ['ShiftLeft', 'ShiftRight']
 const INTERACT = ['KeyE', 'Enter']
 const KEYS = [...ASCEND, ...BOOST, ...INTERACT]
 
-/** Anything that already does something with a key press. The world listens on
- *  `window`, so without this a focused link would fly the ship instead of
- *  following itself, and Space would never reach a button. */
-const INTERACTIVE = 'a[href],button,input,select,textarea,summary,[contenteditable],[tabindex]'
+/**
+ * Anything that already does something with a key press. The world listens on
+ * `window`, so without this Space would never reach a button and a letter
+ * would never reach a field.
+ *
+ * Two kinds, and the difference is what Seb ran into: after a click on a
+ * link or on the mini-map, that element keeps the focus, and every key was
+ * being left to it — so nothing steered until the world was clicked again.
+ * A field owns every key it is given. A link or a button owns only the keys
+ * that *do* something to it — Enter follows a link, Space and Enter press a
+ * button — and the arrows and the letters can go on flying the ship with the
+ * focus wherever the last click left it.
+ */
+const EDITABLE = 'input,select,textarea,[contenteditable]'
+const PRESSABLE = 'button,summary,[role="button"]'
+const FOLLOWABLE = 'a[href]'
+const ACTIVATES: Record<string, string> = { Enter: `${PRESSABLE},${FOLLOWABLE}`, Space: PRESSABLE }
 
 /**
  * The canvas layer, and the touch equivalent of the selector above: a drag is
@@ -97,7 +110,11 @@ export function useInput(enabled = true): Input {
 
     const down = (e: KeyboardEvent) => {
       if (!MOVE[e.code] && !KEYS.includes(e.code)) return
-      if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return
+      if (e.target instanceof Element) {
+        if (e.target.closest(EDITABLE)) return
+        const owner = ACTIVATES[e.code]
+        if (owner && e.target.closest(owner)) return
+      }
       e.preventDefault() // stop Space/arrows scrolling the page under the canvas
       held.add(e.code)
       apply()
