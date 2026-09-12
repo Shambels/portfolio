@@ -184,6 +184,51 @@ export function isleHeight(i: Isle, x: number, z: number): number {
 }
 
 /**
+ * Where the world begins: on the isle's beach, facing the three islands across
+ * the water, the ridge at his back — the landing page's shore, drawn in the
+ * world.
+ *
+ * On the bearing from the isle's centre to the origin, because that is the
+ * direction the three project islands are in, and a coast is only a place to
+ * start from if what you are meant to reach is in front of it — turned
+ * `bearing` to starboard of that line, which puts the origin 9deg left of
+ * centre with all three islands still in the frame, because that is where
+ * the gap in the undergrowth is: the camera stands on the slope behind him,
+ * and on the line itself it stood in a fern. Two distances
+ * along it, as fractions of the shore radius there: `sand` is up the beach,
+ * where the surfer stands with the board under his arm and runs from — 1.4 m
+ * up, four units of sand to the water, two running strides — and `sea` is
+ * where that run leaves him: seven units off the beach, on the edge of the
+ * lagoon shelf, in water the rollers are damped out of. A craft that cannot
+ * walk starts there, and so does a visitor who asked for less motion, instead
+ * of being made to watch the run.
+ *
+ * Checked in `isles.check.ts`: the sand is high enough to be on foot by
+ * `beach.ts`'s own numbers, the sea is over water, and the line between them
+ * runs downhill and crosses the coast once. What is *not* asserted is the
+ * planting: the palms and the ferns are `Isle.tsx`'s and need three, so the
+ * bearing was chosen by replaying its planting in node — the camera's way
+ * down the slope is clear of every fern, the nearest crown is eight units off
+ * the line of sight, and the one big palm is at the water's edge to the right
+ * of the frame. A change to the isle's seed, or to how it is planted, moves
+ * that, and this number has to be looked at again when one happens.
+ */
+export const SPAWN = { bearing: 0.15, sand: 0.85, sea: 1.25 }
+
+/** That, as a place and a heading. `yaw` is the ship's — atan2(x, z), so
+ *  forward is (sin, cos) — and it points straight out to sea. */
+export function spawn(ashore: boolean): { x: number; z: number; yaw: number } {
+  const i = ISLES[0]!
+  const theta = Math.atan2(-i.pos[1], -i.pos[0]) + SPAWN.bearing
+  const r = isleShore(i, theta) * (ashore ? SPAWN.sand : SPAWN.sea)
+  return {
+    x: i.pos[0] + Math.cos(theta) * r,
+    z: i.pos[1] + Math.sin(theta) * r,
+    yaw: Math.atan2(Math.cos(theta), Math.sin(theta)),
+  }
+}
+
+/**
  * Land height at a world XZ across every isle, sea level where there is none.
  * Read once a frame by the flight controller.
  */

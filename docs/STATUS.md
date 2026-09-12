@@ -4148,3 +4148,174 @@ the trailing arm. `Claude outputs/surfer-v3-walk.png`.
 - **`src/assets/`** is empty of models again: the two originals moved to
   `tools/`, and `portfolio-src.tgz` in the root was Claude's transfer and can
   go.
+
+## The world begins on the beach — the spawn, the opening run, and a camera that stays out of the sand
+
+Seb asked for the entrance to be a shot rather than a spawn: press *enter
+world*, and the surfer is standing on the isle's shore looking out to sea with
+the camera behind him, and the moment his file has arrived he sprints into the
+water on his own and is riding by the time the visitor touches a key. Every
+craft used to appear at the world's origin, on open water, facing −z.
+
+### Where: `spawn()` in `src/isles.ts`
+
+- [x] **`SPAWN = { bearing: 0.15, sand: 0.85, sea: 1.25 }`** and `spawn(ashore)`,
+  re-exported by `world.ts`. The bearing is the line from the isle's centre to
+  the origin — the direction the three islands are in — turned 0.15 rad to
+  starboard, and the two distances are fractions of the shore radius on it.
+  On the sand he stands 1.41 m up with four units of beach in front of him;
+  the sea point is seven units off the beach on the lagoon shelf, inside the
+  circle `shoal()` damps the rollers out of. The heading is straight out to
+  sea; the origin ends up 9° left of centre, all three islands in frame.
+- [x] **Who starts where.** The surfer starts on the sand, on foot
+  (`beached` is 1 from the first frame — or the first second and a quarter
+  of the world was him standing on his board on the beach, picking it up).
+  The boat and the saucer start at the sea point, and so does the surfer
+  under `prefers-reduced-motion`: invariant 6, the change of mode is already
+  instant for that visitor, and a sprint nobody pressed for is exactly the
+  choreography they asked not to watch. `model` is read once at mount, the
+  way the deep link reads it — the ship mounts once and this is its spawn,
+  not its state.
+- [x] **Why 0.15 to starboard.** On the line itself the camera stood in a
+  fern. The isle's slope is planted (`plant()` in `Isle.tsx`: 38 palms, 110
+  ferns, 26 boulders, from the isle's own seed), and the first render had the
+  beach seen through a fern's nine blades. The planting needs three, so the
+  bearing was chosen by *replaying* `plant()` in node and scoring every
+  bearing ±0.5 rad of the origin line: the camera's way down the slope clear
+  of every fern, palm crowns (as spheres) eight units off the line of sight,
+  and 0.15 is the one gap. The nearest crown is a young palm eight units to
+  the right of the camera; the one big leaning palm is at the water's edge,
+  right of frame. **This is the one number here that no check holds** — it
+  moves if the seed or the planting does — and `SPAWN`'s comment says so.
+- [x] Asserted in `isles.check.ts`: the sand point is a good stride above
+  `WALK_FULL` (on foot by `beach.ts`'s own numbers, with room to run from),
+  the sea point is over water, the two share a heading, and the line between
+  them runs downhill and crosses the coast exactly once.
+
+### The run: `dash` in `Ship.tsx`
+
+- [x] **Scripted input, nothing else.** While `dash` holds, the frame writes
+  `move = (0, 1)` and `boost` into the same two values the keys write, so the
+  run, the board going down and the ride out are the walk-in the visitor could
+  have done, and nothing in the controller knows it was not them. Boost — the
+  sprint, `RIDE.gait` 1 — comes off the moment the board starts going down
+  (`afoot < 1`), so the ride out is at the surfer's cruise rather than full
+  sail; then `afoot` reaching 0 is the board down and him on it, and the run
+  is over. He coasts to a stop the way a released key coasts.
+- [x] **It waits for the man.** `Rider` sits past its own `Suspense`; it
+  calls `onLoad` from a layout effect once the file is there, and the run does
+  not start before. Until then he is standing on the beach with the board
+  under his arm — or, on a slow link, the board is: the board is its own
+  `Suspense` too and arrives first, so for a moment there may be a board
+  hanging under an arm that is not there yet. Not fixed; noted below.
+- [x] **Anything ends it.** A key, a thumb, Space, Shift: the visitor takes
+  over from wherever he is, on foot or on the board, and the run never comes
+  back. A deep link (`useLayoutEffect` on `slug`) is a teleport to the water
+  and cancels it. A craft picked in the menu mid-run ends it too, because
+  `afoot` is 0 for anything that is not the surfer.
+- [x] **The timeline**, from `spawn()` through the real `ashore()` and the
+  controller's own numbers at 120 Hz: the ramp starts at 0.66 s (four units
+  of sand, two running strides), he is riding at 1.90 s, stopped at 2.63 s,
+  11.4 units from where he stood — `u` 1.24 of the shore, which is where the
+  sea spawn was then put.
+
+### The camera: `CAM_CLEAR` and `CAM_LIFT`
+
+Nothing in the camera needed this while the world was sea and plateaus; the
+isle's beach is steeper than the camera's pitch. 1.25 m over three units of
+sand is 23°, the camera looks down 11.8°, so a man walking down to the water
+had his camera inside the beach behind him from the first step — the first
+render of this pass was the surfer seen from inside the hill — and the opening
+shot *is* that step.
+
+- [x] **A floor.** After the lag, the camera is lifted to `ground() +
+  CAM_CLEAR` under its own position — where it is, not where it is going, so
+  the lag behind a run up a hill cannot put it under the hill. 2.0 m, because
+  the slope is planted: the ferns stand up to 2.4 m, and at 0.6 the beach was
+  seen through one. `ground()` is sea level everywhere but the isle, so
+  elsewhere this is one early reject a frame.
+- [x] **The pitch does not move.** Lifting the camera and still aiming at the
+  hull tips the frame down, and on the beach that is 31° — the horizon 23% off
+  the *top* of the frame, no sky, and the cut from the landing page (whose
+  gradient puts the horizon at `--horizon`, 24.85%) stepping by half a screen.
+  So the aim goes *ahead* instead, along the camera's bearing, by lift ×
+  `CAM_OFFSET.z / (CAM_OFFSET.y − hover)` = 4.8 per metre: the slope from the
+  camera to the aim point stays exactly what `CAM_OFFSET` makes it, the pitch
+  and the horizon stay where they were at every lift, and the hull sits lower
+  in the frame — the over-the-shoulder shot the landing page is drawn as, and
+  the same horizon. The "same pitch at every heading" note on `CAM_OFFSET` now
+  holds at every lift too, and the `HORIZON` assert is untouched.
+- [x] **Capped at 3 m of lift** (`CAM_LIFT`): past it the frame tips, which
+  is what it would have done anyway, and the man stays in it. The sand spawn
+  lifts it 2.84; the ridge's flanks can lift it more.
+- [x] **The opening frame, by the arithmetic and by the render**: horizon at
+  24.9%, his head at 66% of the frame, his feet at 92%. As he runs the camera
+  comes down the slope behind him, the lift shrinks to nothing at the
+  waterline, and he rises to the middle of the frame — a camera move, and the
+  one the shot is.
+
+### Two things it found
+
+- [x] **Every floating hull spawned 0.9 m in the air.** `alt` — the saucer's
+  hover — started at `hover` for every craft and decayed to zero at `CLIMB`,
+  so a boat or a board appeared 0.9 up and sank for most of a second, and the
+  camera (`+ alt − hover`) sank with it. Nearly invisible over open water;
+  on the sand it was a man lowered onto the beach. `alt` starts at 0 for
+  anything that floats now.
+- [x] **The first frame after a snap was a hull's altitude too low.** `camY`
+  and `aimY` were reset to `ride` *after* `_cam` had been built from their
+  old values, so the camera was placed at the old height and climbed into
+  position over the next third of a second. On a sea spawn `ride` is
+  centimetres; on the sand it is 1.4 m. Reset before `_cam` is built now.
+
+### Cost
+
+Nothing new in the bundle worth naming: one `ground()` call a frame that early
+rejects everywhere but the isle, one `useMemo`, two refs, a callback.
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b` and `npm run check` (all five) on Seb's copy; `react-router
+  typegen`, `tsc -b`, `oxlint` (no new warning — the first draft's ref-through-props
+  earned one, and became `onLoad`) and `react-router build` clean on the
+  throwaway.
+- **The world, headless WebGL2, surfer**: the opening frame on the beach with
+  the board under his arm, ferns either side, the mine and the easel across the
+  water, horizon a quarter down — `asset_history/opening-shore.png`. Then the
+  run and the board down, riding out through the surf line with the camera
+  coming down the beach behind him — `asset_history/opening-ride.png`. Clean
+  console.
+- **The boat** starts on the water at the sea point, facing the mine, no lift
+  — `asset_history/opening-boat.png`.
+- **A deep link** (`/en/work/polarsense`) still parks him at the mine on the
+  board with the panel open, and no run.
+
+### Not verified
+
+- **The run at a real frame rate.** swiftshader draws this world at under a
+  frame a second, so the run was seen as five stills, not as motion: whether
+  two strides and the pickup-in-reverse read as a sprint into the sea is Seb's.
+- **Taking over mid-run** — a key at 0.4 s should leave him on foot facing
+  wherever the key points; only reasoned about.
+- **WebGPU**, as every pass.
+
+### Needs Seb
+
+- **The cut.** The landing page's dolly flies its shore past the camera and
+  lands on — another shore, seen from behind a man. The horizon is the same
+  number, and the composition is the page's own, but whether the cut reads as
+  *the same beach* or as two beaches is a thing to look at.
+- **How low he sits in the opening frame.** Head at 66%, feet at 92%, under
+  the HUD's first line for the first frame. Raising him is `SPAWN.sand` up
+  the beach (less run) or `CAM_CLEAR` down (ferns in the bottom of the frame);
+  the camera cannot get lower without the ferns, and the man cannot stand
+  higher in the frame without the horizon moving.
+- **The board before the man**, on a slow connection: a board under nobody's
+  arm for as long as the 809 kB rider takes after the 180 kB board. One
+  `Suspense` round both would fix it and hold the leash and the wake with
+  them, which the note in `Surfer` argues against.
+- **`CAM_CLEAR` on the ridge.** The floor is not only for the beach: walking
+  down any slope of the isle, the camera now rides two metres over the
+  undergrowth behind him instead of inside the hill, and looks down the hill
+  past him. That is a change to how the isle is seen from on foot, and it has
+  only been seen on the beach.

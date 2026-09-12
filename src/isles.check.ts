@@ -6,7 +6,8 @@
  *   node src/isles.check.ts
  */
 import assert from 'node:assert/strict'
-import { ISLES, ISLE_EXTENT, RIM_MAX, ground, isleHeight, isleShore } from './isles.ts'
+import { ISLES, ISLE_EXTENT, RIM_MAX, ground, isleHeight, isleShore, spawn } from './isles.ts'
+import { WALK_FULL } from './beach.ts'
 
 const isle = ISLES[0]!
 const at = (r: number, theta: number) =>
@@ -60,6 +61,34 @@ for (let k = 0; k < 200; k++) {
   const theta = (k / 200) * Math.PI * 2
   const r = isle.radius * (1 + (k % 7) * 0.06)
   assert.ok(ground(isle.pos[0] + Math.cos(theta) * r, isle.pos[1] + Math.sin(theta) * r) >= 0, 'ground went under water')
+}
+
+// Where the world begins. The sand spawn has to be on foot by the beach's own
+// numbers — a man put down at `WALK_FULL` exactly is a man half on his board —
+// and a good stride above it, so the opening run has somewhere to run from. The
+// sea spawn is over water, and both face straight out from the island: the run
+// between them crosses the coast once, going out, and never comes back.
+const sand = spawn(true)
+const sea = spawn(false)
+assert.ok(ground(sand.x, sand.z) > WALK_FULL + 0.5,
+  `the sand spawn is ${ground(sand.x, sand.z).toFixed(2)} m up, which is not on foot`)
+assert.equal(ground(sea.x, sea.z), 0, 'the sea spawn is on land')
+assert.equal(sand.yaw, sea.yaw)
+{
+  const fx = Math.sin(sand.yaw)
+  const fz = Math.cos(sand.yaw)
+  let was = ground(sand.x, sand.z)
+  let crossings = 0
+  for (let d = 0; d < 60; d += 0.25) {
+    const h = ground(sand.x + fx * d, sand.z + fz * d)
+    if ((h > 0) !== (was > 0)) crossings++
+    assert.ok(h <= was + 1e-9, `the run to the sea climbs at ${d} units out`)
+    was = h
+  }
+  assert.equal(crossings, 1, 'the run out to sea does not cross the coast exactly once')
+  // And it ends in the water, not back on land — 60 units at a run is well
+  // past the sea spawn, and the isle is the only land on this bearing.
+  assert.ok(Math.hypot(sea.x - sand.x, sea.z - sand.z) < 60)
 }
 
 // The saucer's clearance: it flies `hover` over the water and the same over the

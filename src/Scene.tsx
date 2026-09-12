@@ -44,10 +44,11 @@ export default function Scene({
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
-      // Parked where `Ship` is about to put it — behind the hull's spawn and
-      // 1.5 above it — so the first frame is the settled frame. It used to
-      // start off to one side and lerp in, which read as a camera move over
-      // the cut from the landing page. See `CAM_OFFSET` in `Ship.tsx`.
+      // `Ship` snaps it into place on its first frame, astern of the spawn
+      // and before anything is drawn, so the first frame is the settled frame
+      // — it used to start off to one side and lerp in, which read as a
+      // camera move over the cut from the landing page. This is only the
+      // offset it will have; see `CAM_OFFSET` and `spawn` in `Ship.tsx`.
       camera={{ position: [0, 2.4, 7.2], fov: 45 }}
       gl={(props) => {
         const r = new THREE.WebGPURenderer(props as never)
