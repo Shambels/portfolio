@@ -1,4 +1,4 @@
-import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { color, normalLocal, positionLocal, sin, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
@@ -9,7 +9,7 @@ import { swell } from './Scenery'
 import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
 } from './beach'
-import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
+import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, spawn } from './world'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
@@ -436,6 +436,35 @@ if (import.meta.env.DEV) {
 const CAM_LAG = 3.5
 
 /**
+ * The camera is never under the ground. Nothing needed this while the world was
+ * sea and plateaus — the camera was 1.5 over anything the hull could be over —
+ * and the isle's beach is steeper than the camera's pitch: 1.25 m over three
+ * units of sand is 23deg, the camera looks down 11.8deg, so a man walking down
+ * to the water had his camera in the beach behind him from the first step, and
+ * the opening shot (see `spawn`) *is* that step. So: a floor, this far over the
+ * ground under the camera's own position. `ground()` is sea level everywhere
+ * but the isle, so away from it this costs one early reject a frame. Two
+ * metres because the slope is planted: the ferns stand up to 2.4 m, and a
+ * camera at 0.6 looked at the beach through one.
+ */
+const CAM_CLEAR = 2.0
+/**
+ * And what the floor does to the frame. Lifting the camera and still aiming at
+ * the hull would tip the frame down, and on the beach that is the horizon at the
+ * top edge and no sky — the cut from the landing page, whose gradient puts the
+ * horizon at `--horizon`, would step by a quarter of the screen. So the aim goes
+ * *ahead* instead, along the camera's bearing, by exactly the run that keeps the
+ * slope from the camera to the aim point what `CAM_OFFSET` makes it: the pitch
+ * does not move, the horizon stays where the landing page put it, and the hull
+ * sits lower in the frame — which is the over-the-shoulder beach shot the
+ * landing page is drawn as. Capped: 3 of lift is his feet on the bottom edge,
+ * and the ridge's flanks can lift the camera more than that. Past it the frame
+ * tips, which is what it would have done anyway, and the man stays in it. The
+ * sand spawn lifts it 2.75.
+ */
+const CAM_LIFT = 3
+
+/**
  * How far below the hull the camera aims, in world units. Zero everywhere the
  * panel is a column beside the world, and Phase 6's one change to the framing
  * where it is a sheet across the bottom of a phone: a ship the camera centres
@@ -591,16 +620,36 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const rig = useRef<THREE.Group>(null!)   // position + yaw
   const body = useRef<THREE.Group>(null!)  // bob + roll
   const vel = useRef(new THREE.Vector3())
+  /**
+   * Where the world begins, and it is read once: the isle's beach, facing the
+   * sea and the three islands across it, with the camera astern — the shot the
+   * landing page is drawn as, and what its dolly flies into. The surfer stands
+   * on the sand with the board under his arm and *runs*, on his own, into the
+   * water, and is riding by the time the visitor touches a key (`dash` below).
+   * A craft that cannot walk starts where that run ends, on the water, and so
+   * does the surfer for a visitor who asked for less motion — invariant 6: the
+   * change of mode is instant for them already, and a sprint nobody pressed
+   * for is the choreography they asked not to watch.
+   *
+   * `model` is read once, deliberately: the ship mounts once (invariant 3) and
+   * this is its spawn, not its state. Switching craft in the menu later does
+   * not move anything, the same as the deep link below.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const start = useMemo(() => spawn(model === 'surfer' && !REDUCED), [])
   // Pointed the way the camera looks, not the way it sits: the camera is astern
-  // of the heading now, so a hull spawned at yaw 0 would put the camera on the
-  // far side of the world, looking back at an empty sea. Pi is the heading the
-  // ship has held on every frame anyone has ever flown — forward is -z — so
-  // this is the frame the landing page already cuts to, with the stern of the
-  // craft in it rather than its bow, and the first press of W no longer spins
-  // the hull through 180deg to start moving.
-  const yaw = useRef(Math.PI)
+  // of the heading, so a hull spawned facing the island would put the camera on
+  // the far side of it, looking back at the sea over a hill. `spawn` faces the
+  // water, so the first press of W walks him into it rather than turning him
+  // round first.
+  const yaw = useRef(start.yaw)
   const near = useRef<string | null>(null)
-  const alt = useRef(hover)
+  // The saucer's hover, and nothing for anything that floats — it starts at
+  // its own altitude rather than decaying to it. It was `hover` for every
+  // craft, which put a hull 0.9 m in the air on its first frame and let it sink
+  // for most of a second, camera and all; on a sea spawn that was nearly
+  // invisible, and on the sand spawn it was a man lowered onto the beach.
+  const alt = useRef(model === 'saucer' ? hover : 0)
   const altVel = useRef(0)
   // What the craft is standing on, as a world Y rather than an offset: the one
   // value the camera follows for every craft. For a hull it is the buoyancy
@@ -616,12 +665,32 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   // Where the camera is round the hull, chasing `yaw` — see `CAM_SWING`. Its
   // own value rather than `yaw` read late, because the lag between the two *is*
   // the turn, and steering is measured against this one.
-  const camYaw = useRef(Math.PI)
-  const lastYaw = useRef(Math.PI) // last frame's heading, for `RIDE.turn`
+  const camYaw = useRef(start.yaw)
+  const lastYaw = useRef(start.yaw) // last frame's heading, for `RIDE.turn`
   const camY = useRef(0)  // the camera's lagged share of the hull's rise
   const aimY = useRef(0)  // and the faster one it points at
   const reset = useRef(true) // next frame: sit the hull on the water, do not fall to it
-  const beached = useRef(0)  // 0 riding, 1 walking — `ashore` in `beach.ts`
+  // 0 riding, 1 walking — `ashore` in `beach.ts`. 1 from the first frame on
+  // the sand spawn, or the first second and a quarter of the world would be
+  // him standing on his board on the beach, picking it up.
+  const beached = useRef(model === 'surfer' && !REDUCED ? 1 : 0)
+  /**
+   * The opening run: from the sand spawn, straight down the beach into the
+   * sea, at a sprint, until he is riding. Scripted input and nothing else —
+   * written into the same `move` and `boost` the keys write, so the run, the
+   * board going down and the ride out are the walk-in the visitor could have
+   * done, with nothing in the controller that knows it was not them.
+   *
+   * It waits for the man: the rider is a file with its own `Suspense`, and a
+   * run that started before he arrived would be a board sprinting down a
+   * beach on its own (`ready`). It ends the moment the board is down, or the
+   * moment the visitor touches anything — a key during the run takes over
+   * from wherever he is, on foot or on the board, and the run never comes
+   * back. A deep link is a teleport to the water and cancels it the same way.
+   */
+  const dash = useRef(beached.current > 0)
+  const ready = useRef(false) // the rider's file has arrived — `Rider` says so
+  const onRider = useCallback(() => { ready.current = true }, [])
   const groundY = useRef(0)  // the sand under his feet — `follow` in `beach.ts`
   const hop = useRef(0)      // how far off the sand a jump has him, and how fast
   const hopVel = useRef(0)
@@ -679,6 +748,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // A deep link is a teleport and not a walk: every waypoint is out at sea,
     // so arriving at one is arriving on the board, however he left.
     beached.current = 0
+    dash.current = false
     near.current = l.slug
     snap.current = true
     // `floats` is read above and is deliberately not a dependency — see the
@@ -735,12 +805,31 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     const sy = Math.sin(yaw.current) // `sin` is TSL's, imported above
     const cy = Math.cos(yaw.current)
 
+    // The opening run — see `dash`. Full ahead and boost, which on foot is the
+    // sprint; the boost comes off the moment the board starts going down, so
+    // the ride out is at cruise rather than at full sail. `afoot` reaching 0
+    // is the board down and him on it, which is the end of it; `afoot` 0 on
+    // any other craft is the first frame, which is why `dash` is never set for
+    // one — and a craft picked in the menu mid-run ends it the same way.
+    let moveX = input.move.x
+    let moveY = input.move.y
+    let boost = input.boost
+    if (dash.current) {
+      const taken = moveX !== 0 || moveY !== 0 || boost || input.ascend
+      if (taken || afoot <= 0) dash.current = false
+      else if (ready.current) {
+        moveX = 0
+        moveY = 1
+        boost = afoot >= 1
+      }
+    }
+
     // Last frame's bearing, deliberately: the camera has not turned yet this
     // frame, and steering against a camera that moves inside the same tick is
     // the loop above with the lag taken out of it.
-    steer(input.move.x, input.move.y, camYaw.current, _target)
+    steer(moveX, moveY, camYaw.current, _target)
     _target.y = 0
-    _target.multiplyScalar((input.boost ? SPEED * BOOST : SPEED) *
+    _target.multiplyScalar((boost ? SPEED * BOOST : SPEED) *
       (agile.speed + (WALK_SPEED - agile.speed) * afoot))
     vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
     g.position.addScaledVector(vel.current, dt)
@@ -1097,6 +1186,10 @@ const RISE = 10
     // lagged copy: a second of time constant filters the chop out entirely and
     // still keeps most of a jump in shot. Aim and position use the same value,
     // so the boat holds its place in the frame and the horizon is what moves.
+    // On a snap, both start where the craft is — before `_cam` is built from
+    // them, or the first frame after a cut is a camera a hull's altitude too
+    // low that then climbs into place, which on the sand spawn is a metre.
+    if (snap.current) camY.current = aimY.current = ride
     camY.current += (ride - camY.current) * (1 - Math.exp(-CAM_RISE * dt))
     aimY.current += (ride - aimY.current) * (1 - Math.exp(-CAM_AIM * dt))
 
@@ -1134,18 +1227,26 @@ const RISE = 10
     _cam.y += alt.current + camY.current - hover
     if (snap.current) {
       snap.current = false
-      camY.current = aimY.current = ride
       state.camera.position.copy(_cam)
     } else state.camera.position.lerp(_cam, 1 - Math.exp(-CAM_LAG * dt))
+    // The floor — see `CAM_CLEAR` — on the camera where it actually is rather
+    // than where it is going, so the lag behind a run up a hill cannot put it
+    // under the hill. `lift` is how far over its own offset that leaves it,
+    // and the aim goes ahead by that lift times the offset's run over its
+    // rise, which is the run that keeps the pitch what `CAM_OFFSET` says.
+    const cam = state.camera.position
+    cam.y = Math.max(cam.y, ground(cam.x, cam.z) + CAM_CLEAR)
+    const ahead = Math.min(Math.max(cam.y - _cam.y, 0), CAM_LIFT) *
+      (CAM_OFFSET.z / (CAM_OFFSET.y - hover))
     state.camera.lookAt(
-      g.position.x,
+      g.position.x + Math.sin(camYaw.current) * ahead,
       g.position.y + alt.current + aimY.current - AIM_DOWN,
-      g.position.z,
+      g.position.z + Math.cos(camYaw.current) * ahead,
     )
   })
 
   return (
-    <group ref={rig}>
+    <group ref={rig} position={[start.x, 0, start.z]} rotation-y={start.yaw}>
       <group ref={body} position-y={hover}>
         {/* All three stay mounted and one of them is drawn. Toggling
             `visible` costs a culled node; unmounting would hand back a
@@ -1153,7 +1254,7 @@ const RISE = 10
             for a tree that is two meshes deep. */}
         <Saucer visible={model === 'saucer'} />
         <Boat visible={model === 'boat'} />
-        <Surfer visible={model === 'surfer'} />
+        <Surfer visible={model === 'surfer'} onRider={onRider} />
       </group>
     </group>
   )
@@ -1425,7 +1526,7 @@ const CARRY_REST = new THREE.Quaternion()
  *  the sand rather than sliding up out of it. */
 const LIFT_ARC = 0.12
 
-function Surfer({ visible }: { visible: boolean }) {
+function Surfer({ visible, onRider }: { visible: boolean; onRider: () => void }) {
   // The board alone, so it can be picked up. The rider is its sibling and not
   // its child: he is what walks away with it, and a man parented to the thing
   // he is carrying is a man who cannot put it down.
@@ -1524,7 +1625,7 @@ function Surfer({ visible }: { visible: boolean }) {
       {/* And the man. Outside the group above, because he is the one who
           carries it. */}
       <Suspense fallback={null}>
-        <Rider visible={visible} />
+        <Rider visible={visible} onLoad={onRider} />
       </Suspense>
 
       {/* The wake stays on the water, where it belongs: it is the sea's mark
@@ -2636,8 +2737,11 @@ function ride(r: Rig, t: number): void {
   }
 }
 
-function Rider({ visible }: { visible: boolean }) {
+function Rider({ visible, onLoad }: { visible: boolean; onLoad: () => void }) {
   const { scene } = useGLTF(surferUrl)
+  // Past the `Suspense`, so the file is here: the opening run (`dash`) waits
+  // on this, and on nothing else in the file.
+  useLayoutEffect(onLoad, [onLoad])
   const rig = useMemo(() => {
     const mesh = scene.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh | undefined
     if (!mesh) throw new Error('surfer.glb: not skinned — rebuild it with tools/surfer.py')
