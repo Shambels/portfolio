@@ -218,17 +218,19 @@ const HOP_G = 14
  * a guard on a division and not a design.
  *
  * So going faster is a longer step and a lower duty, and the legs go round
- * *slower* at a sprint than they used to at a jog: 1.71 units a step at 3.8
- * steps a second, against 0.76 at 5.0.
+ * *slower* at a sprint than they used to at a jog: with the second rider's
+ * strides, 1.71 units a step at 3.8 steps a second, against 0.76 at 5.0; with
+ * the third's, 1.38 and 0.72 — see `STAND` for why they shortened.
  *
- * The stride barely moves between the two — 0.39 to 0.41 — and that is right,
- * and it is the part that reads as counterintuitive. A runner's legs do not
- * swing much further than a walker's. What changes is how long they stay down.
+ * The stride does not move between the two at all now — it barely did, 0.39
+ * to 0.41 — and that is right, and it is the part that reads as
+ * counterintuitive. A runner's legs do not swing much further than a
+ * walker's. What changes is how long they stay down.
  */
 const WALK_DUTY = 0.46
 const RUN_DUTY = 0.24
-const WALK_STRIDE = 0.39
-const RUN_STRIDE = 0.41
+const WALK_STRIDE = 0.33
+const RUN_STRIDE = 0.33
 /** How high the swinging foot lifts at a full stride. A runner picks his knees
  *  up and a walker does not, and it is most of what separates them from behind,
  *  which is the only angle this world has on him. */
@@ -274,20 +276,29 @@ const PICK = 0.20
  * inside the stance, near the back of it, and puts the hips up exactly where
  * the leg is stretched — 114% of its own length, which is a foot that slides.
  *
- * 6.5 cm at a walk and 8 at a run, which is a couple of centimetres more than
- * a real person and a fifth of what the reach would happily spend. The number
- * is capped by taste and not by the legs: at 14 cm the stride goes to 0.49 and
- * he bounces like a cartoon.
+ * 5 cm at both, since the third rider — it was 6.5 walking and 8 running, a
+ * couple of centimetres more than a real person, and the cut is what bought
+ * him height (below). At 14 cm the stride goes to 0.49 and he bounces like a
+ * cartoon.
  *
- * `STAND` doubled with the third rider, whose legs are 0.79 of reach against
- * the second's 0.68: the same 12 cm out of the same crouch left him walking
- * on bent knees, which Seb saw. 24 puts the run's worst reach at 95.9% —
- * the regime the second rider ran in — and 26 is where the sweep in `rigOf`
- * starts to fail.
+ * `STAND` more than doubled with the third rider, whose legs are 0.79 of
+ * reach against the second's 0.68: the same 12 cm out of the same crouch left
+ * him walking on bent knees, which Seb saw twice — the second time with the
+ * trunk still pitched into the surf crouch, which `ride()` now takes out on
+ * foot (`lean`). The height has a ceiling and this is at it: the sweep in
+ * `rigOf` runs the stance foot `TERRAIN_DOWN` under the hip plane and the
+ * hips `BOB` over it at mid-stance, and 0.44 + 0.28 + 0.05 is 97% of these
+ * legs with 1.5% left for the sway. What paid for the last 4 cm was the
+ * stride and the bob, not the stand: 0.33 for both gaits where the walk had
+ * 0.39 and the run 0.41, and 5 cm of bob where they had 6.5 and 8, because
+ * the leg is longest with the feet apart and at the top of the vault, and a
+ * taller man takes the same ground in shorter, quicker steps — the rate is
+ * derived, so it simply goes up. Walking step 0.72 where it was 0.85, running
+ * 1.38 where it was 1.71.
  */
-const STAND = 0.24
-const WALK_BOB = 0.065
-const RUN_BOB = 0.08
+const STAND = 0.28
+const WALK_BOB = 0.05
+const RUN_BOB = 0.05
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -1687,6 +1698,7 @@ type Rig = {
   hipsInto: THREE.Quaternion // board space -> that frame, for the offset below
   hipsFrom: THREE.Matrix4   // the hips bone's parent, in board space. Constant.
   hipsTurn: THREE.Quaternion // and that parent's rotation alone
+  lean: number              // the torso's forward pitch at rest, pelvis to neck
   spine: Joint
   chest: Joint
   neck: Joint
@@ -1755,6 +1767,10 @@ function rigOf(scene: THREE.Object3D): Rig {
     hips,
     hipsHome: hips.bone.position.clone(),
     hipsInto: hipsTurn.clone().invert(),
+    // How far the torso leans into the crouch, read off the file so the walk
+    // can take exactly that back out: the pitch of the line from the pelvis
+    // to the base of the neck, which is the trunk and not the head.
+    lean: Math.atan2(at('neck').z - at('hips').z, at('neck').y - at('hips').y),
     hipsFrom, hipsTurn,
     spine: jointOf(bone('spine'), scene),
     chest: jointOf(bone('chest'), scene),
@@ -1806,9 +1822,12 @@ function rigOf(scene: THREE.Object3D): Rig {
      * duty under a half the reach and the bob no longer peak together, and
      * assuming they do is how the first version of this got 114%.
      *
-     * The threshold leaves 3% for what this sweep does not model: the pelvis
+     * The threshold leaves 1.5% for what this sweep does not model: the pelvis
      * turning with the stride and the sway under it, which together move a hip
-     * joint by about a centimetre.
+     * joint by about a centimetre — 1.3% of these legs. It was 3% on the
+     * second rider and `STAND` was raised into it for the third; past the
+     * clamp `reach` straightens the leg and holds the foot, so the cost of
+     * a miss is a foot that slides a centimetre, not a fold.
      */
     for (const l of rig.legs) {
       const hip = new THREE.Vector3().setFromMatrixPosition(restOf(l.thigh, scene, _mat))
@@ -1829,7 +1848,7 @@ function rigOf(scene: THREE.Object3D): Rig {
         ).distanceTo(_hip.copy(hip).setY(hip.y + STAND +
           RUN_BOB * (1.5 * Math.max(vault(u), vault(other)) - 0.5))) / (l.up + l.low))
       }
-      console.assert(worst < 0.97,
+      console.assert(worst < 0.985,
         `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
         'own length at a run — the stride is longer than the leg, and the foot will slide. ' +
         'Shorten RUN_STRIDE, deepen RUN_BOB, or raise RUN_DUTY.')
@@ -1991,8 +2010,14 @@ function ride(r: Rig, t: number): void {
   bend(r.hips,
     -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath
       // Bending over the board, and then the forward lean of a man moving —
-      // which a runner does a good deal more of than a walker.
-      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s,
+      // which a runner does a good deal more of than a walker. Both are on top
+      // of standing up first: the rest pose is a surf crouch with the trunk
+      // pitched `lean` into it, and a man walking with his trunk still bent
+      // over a board he is carrying under his arm was the crouch Seb saw
+      // after `STAND` had already doubled. The whole of it comes out through
+      // the pelvis, and the neck and head below put the gaze back where it
+      // was, so he stands up and keeps looking at the horizon.
+      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s - r.lean * onFoot,
     // The pelvis turns with the stride: the hip on the forward leg goes
     // forward, which is a negative rotation about y for his left.
     0.10 * c - 0.10 * swing,
@@ -2035,7 +2060,7 @@ function ride(r: Rig, t: number): void {
     -0.11 * slope + 0.06 * slam + 0.040 * breath + 0.16 * pick,
     0.08 * c + 0.10 * swing,
     -0.11 * tilt - 0.05 * bank)
-  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick,
+  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick + 0.45 * r.lean * onFoot,
     0.06 * c, -0.03 * tilt - 0.02 * bank)
   // The head leads the turn and levels itself against everything else. It is
   // the cue that most reliably reads as alive at this size, and it is the one
@@ -2043,7 +2068,7 @@ function ride(r: Rig, t: number): void {
   bend(r.head,
     // He looks at the board he is reaching for, and nowhere else does his gaze
     // leave the horizon: that is the whole of what `pick` buys up here.
-    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick,
+    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick + 0.55 * r.lean * onFoot,
     0.22 * c + 0.05 * drift,
     -0.05 * tilt - 0.02 * bank + 0.03 * sway)
 
