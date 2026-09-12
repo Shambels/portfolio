@@ -3797,15 +3797,39 @@ wake stay: they run between the two files.
 `FOOT_DROP` is 0.09, re-measured: the lowest thing on him is 0.097 in board
 space now (a thinner deck), against the second rider's 0.11.
 
-### Unlit
+### Lit, after a pass unlit
 
-`MeshBasicNodeMaterial({ map })` for both, built from the loader's own
-material so the texture and its colour space come through, and the
-inverted-hull `OUTLINE` round each. The toon quantisation, the sunward
-fresnel, the neon chroma mask and the neoprene glint went with COLOR_0. What
-it costs is what the toon pass was fighting — the sun is ahead, the visitor
-gets his shadow side — and the outline is the edge that answers it. Seb chose
-the drawing over the lighting; the lever back is one material in `unlit()`.
+The first cut of this pass drew both files with `MeshBasicNodeMaterial` — the
+texture and nothing else, on the reasoning that a generator's basecolour has
+its shading painted in and lighting it would light a drawing twice. Seb's
+first look said what the reasoning missed: a black wetsuit with no light on it
+does not sit in a world that has one. So `lit()` — `MeshStandardNodeMaterial`
+with the texture, roughness 0.55 because neoprene is wet, under the same sun
+and fill as every hull — for the rider and the board, and the inverted-hull
+`OUTLINE` round each. The toon quantisation, sunward fresnel, neon chroma mask
+and neoprene glint of the second rider are still gone with COLOR_0.
+
+### Seb's first look, and the three other things it found
+
+- **He walked on bent knees.** `STAND` was sized for 0.68 m legs and these
+  are 0.79: the same 12 cm out of the same crouch is a lower stance on a
+  longer leg. **`STAND` 0.12 → 0.24.** The number was found by running the
+  reach sweep in `rigOf` offline against this rig: 0.24 puts the run's worst
+  reach at 95.9%, the regime the second rider ran in; 0.26 is 98.4% and the
+  assert fires; 0.30 is 103% and the foot slides.
+- **The back knee pointed out and back.** `KNEE_B` only sets the *direction*
+  the back leg bends in now, and the second rider's — level with its own
+  ankle, straight out over the rail — sent a longer leg out and aft.
+  `KNEE_B` is `(-0.25, 0.30, -0.10)`: the knee drives forward and out toward
+  the front knee, which is where a surfer's back knee goes. It lands at
+  z −0.49 against an ankle at −0.78, 29 cm forward of it, where it was 10.
+- **The seat split.** Bone heat gives the back of the pelvis to whichever
+  thigh is nearer, which is right for a thigh and wrong for a buttock: spread
+  the legs into a surf stance and the two cheeks went with the two femurs.
+  `seat()` hands thigh weight to `hips` over the band from where the legs
+  part up to a little above the hip joint, on the back half of the body, on a
+  smooth ramp — 3,326 vertices — so the seat rides the pelvis as one piece
+  and the fold where a leg meets it is where a leg actually meets it.
 
 ### Cost
 
@@ -3848,18 +3872,19 @@ the drawing over the lighting; the lever back is one material in `unlit()`.
 - **WebGPU**, as every pass before it: the container has no device. Nothing
   here is exotic — `MeshBasicNodeMaterial` with a map and a skinned mesh — but
   the first WebGPU frame is Seb's.
-- **The walk on the sand, by eye.** `beach.check` passes and the reach sweep
-  is looser, but the walk's numbers (`STAND`, the strides, the bob) were sized
-  against 0.68 m legs and these are 0.79: he will walk with a shade more knee
-  than before. If it reads crouched, `STAND` is the lever — 0.12 now.
+- **The walk on the sand, by eye, at the new `STAND`.** `beach.check` passes
+  and the sweep says 95.9%; whether 24 cm reads upright is a picture the
+  container cannot take (the isle is 78 units away at swiftshader's frame
+  rate). If it is still low, 0.26 is the ceiling before the foot slides —
+  past that the lever is `RUN_STRIDE` or `RUN_BOB`.
 - **Frame rate** at 91k triangles skinned and drawn twice, on the 2022 laptop.
   It is the one number this pass moved by 3× and it has not been measured.
 
 ### Needs Seb
 
-- **The look, unlit, under the golden hour** — whether a man with no light
-  on him sits in a world that has one, and whether the outline is enough edge
-  from astern. `unlit()` is one line to change if not.
+- **The look, lit, under the golden hour** on real hardware — the suit's
+  roughness (`0.55` in `lit()`) is the one number, and whether the outline
+  still earns its place now that the sun does the edge's work on the lit side.
 - **The stance aft.** Half a metre is a composition change from the only
   angle the visitor gets. `STANCE` in `tools/surfer.py`, and `CARRY_POS.z`
   follows it by hand.

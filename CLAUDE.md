@@ -161,12 +161,12 @@ Breaking one is allowed. Doing it without saying so is not.
   it gets. The surfer's two files are the exception and the only one — a face,
   a suit and a board graphic are not materials a prefix can name, so each
   carries a basecolour texture (2048² on him, 1024² on the board, JPEG, with
-  no lighting painted in) and its own UVs. They are also the only things in
-  the world that are not lit at all: `MeshBasicNodeMaterial` with the texture
-  and an inverted-hull ink outline, nothing else, because the colour in the
-  file *is* the drawing and the sun is ahead of the ship, so lighting it would
-  only ever darken it. The second rider's toon shading, sunward rim and
-  neoprene glint went with COLOR_0 — Seb chose the drawing over the lighting.
+  no lighting painted in) and its own UVs, and both are lit like the world —
+  `MeshStandardNodeMaterial` with the texture under the same sun — with an
+  inverted-hull ink outline round each, which is the one thing that kept the
+  shadow side legible on every rider. The second rider's toon shading, rim
+  and glint went with COLOR_0; the third shipped unlit for a pass and Seb's
+  eye put the sun back on him.
   For anything with a script behind it, `--render out.png` writes the preview
   views and `--render out.png --flex` writes them in a stress pose, which is the
   only way to see whether a rig's weights hold — a model that arrives without a
@@ -437,8 +437,9 @@ stance to the number and applies that as the rest pose, so `Ship.tsx` did not
 change how it moves him: same names, same solve, same ankles. What changed:
 he stands half a metre further aft, on the board's own pads (`STANCE`); the
 board is a file, 2.0 long and 0.63 across with a thinner deck, so the leash
-points and `FOOT_DROP` were re-measured; he and the board are **unlit** —
-texture plus outline, no toon, no rim; and the two files are meshopt-packed.
+points and `FOOT_DROP` were re-measured; he and the board are lit like the
+world, texture plus outline, no toon, no rim; `STAND` doubled for the longer
+legs; and the two files are meshopt-packed.
 `docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
 Seb's eye.
 

@@ -123,7 +123,12 @@ KNEE_F: P3 = (0.248, 0.384, 0.383)
 HIP_F: P3 = (0.10, 0.58, 0.03)
 FOOT_B: P3 = (-0.05, 0.14, -0.30)
 ANKLE_B: P3 = (-0.07, 0.20, -0.28)
-KNEE_B: P3 = (-0.307, 0.279, -0.288)
+# The back knee only sets the *direction* the leg bends in now (see `pose`),
+# and the second rider's knee — level with its own ankle, straight out over
+# the rail — sent the longer leg out and back. Seb: the knee should be more
+# forward. It points forward and out now, toward the front knee, which is
+# where a surfer's back knee is driven.
+KNEE_B: P3 = (-0.25, 0.30, -0.10)
 HIP_B: P3 = (-0.10, 0.60, -0.09)
 
 PELVIS: P3 = (0.0, 0.60, -0.03)
@@ -353,6 +358,7 @@ def joints(P: np.ndarray) -> dict[str, Vector]:
                 part = y
         thigh = centre(part, side)
         hip = np.array([0.85 * thigh[0], Y["hip"], centre(Y["hip"])[2]])
+        J["crotch"] = np.array([0.0, part, centre(Y["hip"])[2]])
         foot = _slab(P, y0 + 0.015 * h, 0.015 * h)
         foot = foot[np.sign(foot[:, 0]) == side]
         toe = foot[np.argmax(foot[:, 2])].copy()
@@ -602,6 +608,43 @@ def pose(rig_obj: bpy.types.Object, board: bpy.types.Object, J: dict[str, Vector
     return out
 
 
+def seat(body: bpy.types.Object, J: dict[str, Vector]) -> None:
+    """The glutes belong to the pelvis, not to the thighs.
+
+    Bone heat gives the back of the pelvis to whichever thigh is nearer, which
+    is right for a thigh and wrong for a buttock: spread the legs into a surf
+    stance and the two cheeks go with the two femurs, and what opens between
+    them is a split down the seat of the suit. Seb: the butt should stay full
+    and round. So, over the band from where the legs part up to the hip joint
+    and a little above it, on the back half of the body, thigh weight is handed
+    to `hips` — all of it at the top of the band, none at the bottom, a smooth
+    ramp between — and the seat rides the pelvis as one piece, with the fold
+    where a leg meets it moved down to where a leg actually meets it."""
+    lo = J["crotch"].y - 0.02 * HEIGHT
+    hi = J["hip_L"].y + 0.05 * HEIGHT
+    back = J["pelvis"].z + 0.01 * HEIGHT
+    groups = {g.name: g.index for g in body.vertex_groups}
+    hips, thighs = groups["hips"], (groups["legF_thigh"], groups["legB_thigh"])
+    moved = 0
+    for v in body.data.vertices:
+        p = v.co
+        y, z = p.z, -p.y  # Blender -> three.js
+        if not (lo <= y <= hi) or z > back:
+            continue
+        t = (y - lo) / (hi - lo)
+        t = t * t * (3 - 2 * t)
+        w = {g.group: g.weight for g in v.groups}
+        take = sum(w.get(i, 0.0) for i in thighs) * t
+        if take < 1e-4:
+            continue
+        for i in thighs:
+            if i in w:
+                body.vertex_groups[i].add([v.index], w[i] * (1 - t), "REPLACE")
+        body.vertex_groups[hips].add([v.index], w.get(hips, 0.0) + take, "REPLACE")
+        moved += 1
+    print(f"[surfer] seat: {moved} verts handed to the hips")
+
+
 def bake(body: bpy.types.Object, rig_obj: bpy.types.Object) -> None:
     """Make the pose the rest pose. The mesh's armature modifier is applied —
     which writes the crouch into the vertices — the armature's pose is
@@ -751,6 +794,7 @@ if __name__ == "__main__":
     for k, v in J.items():
         print(f"[surfer]   {k:11s} {tuple(round(c, 3) for c in v)}")
     rig_obj = rig(body, J)
+    seat(body, J)
     pose(rig_obj, board, J)
     bake(body, rig_obj)
     texture(body, TEX)

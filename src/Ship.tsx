@@ -278,8 +278,14 @@ const PICK = 0.20
  * a real person and a fifth of what the reach would happily spend. The number
  * is capped by taste and not by the legs: at 14 cm the stride goes to 0.49 and
  * he bounces like a cartoon.
+ *
+ * `STAND` doubled with the third rider, whose legs are 0.79 of reach against
+ * the second's 0.68: the same 12 cm out of the same crouch left him walking
+ * on bent knees, which Seb saw. 24 puts the run's worst reach at 95.9% —
+ * the regime the second rider ran in — and 26 is where the sweep in `rigOf`
+ * starts to fail.
  */
-const STAND = 0.12
+const STAND = 0.24
 const WALK_BOB = 0.065
 const RUN_BOB = 0.08
 
@@ -1445,24 +1451,18 @@ function Surfer({ visible }: { visible: boolean }) {
  * above it and a board with a graphic on it, and no prefix was going to say
  * either.
  *
- * Where the rider stops being lit like the rest of the world.
- *
- * Everything else here is `MeshStandardNodeMaterial` under a golden-hour sun,
- * which is right for a hull: a boat is a painted surface and a painted surface
- * has a smooth falloff. The rider is drawn, not painted, and the third rider
- * is drawn *in the file*: the generator's basecolour has no lighting in it,
- * every shadow on him is a shadow somebody painted, and putting a sun on top
- * of that is lighting a drawing twice. So he is unlit — `MeshBasicNodeMaterial`
- * with the texture and nothing else, the colour on screen exactly the colour
- * in the file — and the board with him, because it came from the same hand.
- *
- * What that costs is the thing the second rider's toon pass was fighting: the
- * sun in `Scenery` is ahead of the ship, so the visitor gets this figure's
- * shadow side, and an unlit black suit against a bright sea has no edge of
- * its own. The ink outline below is that edge. The toon steps, the sunward
- * fresnel and the neoprene glint that used to sit on top of COLOR_0 went with
- * COLOR_0 — Seb chose the drawing over the lighting — and the bloom budget
- * they claimed is the wake's again, alone.
+ * How the rider is lit: like the rest of the world, and it took three passes
+ * to get there. The second rider was drawn — toon steps, a sunward rim, a
+ * neoprene glint — because his colour was painted flat into COLOR_0 and the
+ * sun is ahead of the ship, so the visitor got his shadow side with no edge
+ * of its own. The third rider shipped unlit first, on the reasoning that a
+ * generator's basecolour already has its shading in it; and Seb's eye said
+ * what the reasoning missed, which is that a black wetsuit with no light on
+ * it does not sit in a world that has one. So: `MeshStandardNodeMaterial`
+ * with the texture, under the same sun and the same fill as every hull and
+ * every island, roughness a little under a hull's because neoprene is wet.
+ * The ink outline stays — it is the one thing that kept the shadow side
+ * legible on every rider, and it costs the bloom nothing.
  *
  * One material a file, built from the one the loader made: the loader's own
  * `MeshStandardMaterial` is what carries the texture, colour space set, and
@@ -1470,10 +1470,10 @@ function Surfer({ visible }: { visible: boolean }) {
  * library boundary that CLAUDE.md allows — `map` is on every material the
  * loader can produce for a textured primitive and on none of the types.
  */
-const unlit = (loaded: THREE.Material): THREE.MeshBasicNodeMaterial => {
+const lit = (loaded: THREE.Material): THREE.MeshStandardNodeMaterial => {
   const map = (loaded as THREE.Material & { map?: THREE.Texture | null }).map ?? null
   if (import.meta.env.DEV && !map) throw new Error(`${loaded.name}: no basecolour — rebuild it with tools/surfer.py`)
-  return new THREE.MeshBasicNodeMaterial({ map })
+  return new THREE.MeshStandardNodeMaterial({ map, roughness: 0.55, metalness: 0 })
 }
 
 /**
@@ -2212,7 +2212,7 @@ function Rider({ visible }: { visible: boolean }) {
   const rig = useMemo(() => {
     const mesh = scene.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh | undefined
     if (!mesh) throw new Error('surfer.glb: not skinned — rebuild it with tools/surfer.py')
-    mesh.material = unlit(mesh.material as THREE.Material)
+    mesh.material = lit(mesh.material as THREE.Material)
     // The outline is the same geometry and the *same skeleton*, not a copy of
     // either: one set of bone matrices, computed once, read by both draws. It
     // is added beside the rider rather than under it so the two share a parent
@@ -2245,7 +2245,7 @@ function Rider({ visible }: { visible: boolean }) {
 }
 
 /**
- * The board, out of its file, drawn the way the rider is: the texture unlit
+ * The board, out of its file, drawn the way the rider is: the texture lit
  * and the same ink outline round it, one mesh grown a centimetre along its
  * normals and drawn inside out. Nothing moves on it, so no skeleton and no
  * `useFrame` — `Surfer` moves the group it sits in.
@@ -2255,7 +2255,7 @@ function Surfboard() {
   const board = useMemo(() => {
     const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
     if (!mesh) throw new Error('surfboard.glb: no mesh — rebuild it with tools/surfer.py')
-    mesh.material = unlit(mesh.material as THREE.Material)
+    mesh.material = lit(mesh.material as THREE.Material)
     if (!scene.getObjectByName('outline')) {
       const edge = new THREE.Mesh(mesh.geometry, OUTLINE)
       edge.name = 'outline'
