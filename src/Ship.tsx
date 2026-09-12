@@ -13,6 +13,7 @@ import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, spawn }
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
+import pirateUrl from './models/pirate_ship.glb?url'
 
 // Saucer silhouette, rotated around Y. [radius, height]
 const PROFILE: [number, number][] = [
@@ -46,7 +47,16 @@ const PITCH = 0.32    // max nose-up on acceleration, radians
 // the ship and never turns, so the view you get almost all the time is the one
 // from astern — a boat's narrowest. At a true beam the hull was the same width
 // as its own sail and the two read as one slab.
-const HULL = { beam: 0.5, len: 1.35, draft: 0.18, freeboard: 0.2 }
+//
+// Since the ship arrived these stopped describing geometry built here and
+// started describing the envelope a file is fitted into: `len` is the length
+// `pirate_ship.glb` is scaled to, and `draft` is how far its keel goes under
+// this group's y = 0. `freeboard` went with the bulwark it positioned.
+// `beam` is no longer built from — the model brought its own, 1.03 against
+// the 1.00 this asked for — and is kept as the width the camera was framed
+// around, asserted against the file in `Hull` so a re-export cannot quietly
+// change the one dimension the view from astern depends on.
+const HULL = { beam: 0.5, len: 1.35, draft: 0.18 }
 // The chop is 15 cm of water at its steepest, so a hull heeling by its true
 // slope heels four degrees and reads as dead flat. That part of the water is a
 // flat plane wearing normals — the sea it is heeling to is painted on — so this
@@ -1307,100 +1317,102 @@ function Saucer({ visible }: { visible: boolean }) {
 }
 
 /**
- * The other one: a small single-masted boat, sitting in the water rather than
- * over it. Procedural like the saucer — CLAUDE.md's rule is that the character
- * stays that way, and a hull is two solids of revolution and six sticks, which
- * is less than the export pipeline it would otherwise need.
+ * The other one: a three-masted ship, sitting in the water rather than over it.
+ *
+ * Not procedural, and that is a break with CLAUDE.md's rule that the character
+ * stays that way — the second break, after the surfer, and a weaker case than
+ * his. His was that a person is one skin over a skeleton and code is bad at
+ * those. This one is only that Seb had a ship and the boat it replaces was two
+ * solids of revolution and six sticks. `docs/STATUS.md`, "The boat is a ship",
+ * has what it cost, which is the part worth reading before it is done a third
+ * time.
+ *
+ * What did not change is the water. `HULL` still describes the envelope the
+ * camera, the swell and the spray were tuned around, and the file is fitted
+ * *into* it rather than the other way round. Every number the buoyancy reads —
+ * `CRAFT_WATER.boat`, `POP`, `LAUNCH`, `SINK` — is untouched, and so is the
+ * surfer's column beside it.
  *
  * The waterline is this group's y = 0, so `Ship` puts the group on the swell
  * and the hull's own numbers decide how much of it is wet.
  */
 function Boat({ visible }: { visible: boolean }) {
-  const { hullGeo, deckGeo, hull, timber, canvas } = useMemo(() => {
-    // A hull is the bottom of a squashed sphere: round in section, pointed in
-    // plan once `pinch` has been at it, and the one shape that gets there
-    // without a loft and a list of ribs. Scaled to draft + freeboard and then
-    // lifted, so the rim is above the water and the keel is below it.
-    const hullGeo = new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2)
-    hullGeo.scale(HULL.beam, HULL.draft + HULL.freeboard, HULL.len)
-    hullGeo.translate(0, HULL.freeboard, 0)
-    pinch(hullGeo)
-
-    // The deck starts as the same unit circle in XZ and gets the same pinch, so
-    // the two rims agree by construction rather than by two sets of numbers
-    // being kept in step. Dropped below the rim, which leaves the hull standing
-    // proud of it as a bulwark — which is why the hull is double-sided: from the
-    // camera you are looking down into that well at the back of it.
-    const deckGeo = new THREE.CircleGeometry(1, 24)
-    deckGeo.rotateX(-Math.PI / 2)
-    deckGeo.scale(HULL.beam, 1, HULL.len)
-    pinch(deckGeo)
-    deckGeo.translate(0, HULL.freeboard - 0.08, 0)
-
-    const hull = new THREE.MeshStandardNodeMaterial({
-      color: '#7a5233', roughness: 0.72, metalness: 0.05, side: THREE.DoubleSide,
-    })
-    const timber = new THREE.MeshStandardNodeMaterial({ color: '#b98d5c', roughness: 0.8 })
-    // Pale, and the brightest thing in the frame after the sun's own glow: the
-    // sea is nearly black at this hour and a dark sail would lose the boat.
-    const canvas = new THREE.MeshStandardNodeMaterial({
-      color: '#efe2c9', roughness: 0.9, side: THREE.DoubleSide,
-    })
-    return { hullGeo, deckGeo, hull, timber, canvas }
-  }, [])
-
   return (
     <group visible={visible}>
-      <mesh geometry={hullGeo} material={hull} />
-      <mesh geometry={deckGeo} material={timber} />
-
-      {/* Cabin, aft. Narrow enough to sit inside the hull's beam at that station. */}
-      <mesh material={timber} position={[0, HULL.freeboard + 0.03, -0.78]}>
-        <boxGeometry args={[0.36, 0.18, 0.5]} />
-      </mesh>
-
-      <mesh material={timber} position={[0, 0.95, 0.12]}>
-        <cylinderGeometry args={[0.028, 0.038, 1.85, 8]} />
-      </mesh>
-
-      {/* The sail: an open cylinder wall, 64 degrees of it. A flat plane reads as
-          a sheet of card at this size; an arc reads as canvas with wind in it,
-          and costs the same fourteen segments either way. The radius and the arc
-          put its chord back at the mast and its belly 11 cm forward. */}
-      <mesh material={canvas} position={[0, 1.06, -0.49]}>
-        <cylinderGeometry args={[0.75, 0.75, 1.12, 14, 1, true, -0.56, 1.12]} />
-      </mesh>
-
-      {/* Yard and boom, across the top and foot of it. */}
-      <mesh material={timber} position={[0, 1.65, 0.12]} rotation-z={Math.PI / 2}>
-        <cylinderGeometry args={[0.022, 0.022, 0.92, 6]} />
-      </mesh>
-      <mesh material={timber} position={[0, 0.47, 0.12]} rotation-z={Math.PI / 2}>
-        <cylinderGeometry args={[0.02, 0.02, 0.86, 6]} />
-      </mesh>
-
-      {/* Bowsprit, forward and a little up. */}
-      <mesh material={timber} position={[0, 0.27, 1.14]} rotation-x={Math.PI / 2 - 0.28}>
-        <cylinderGeometry args={[0.018, 0.028, 0.8, 6]} />
-      </mesh>
-
-      {/* Rudder, hung off the transom and mostly under water. */}
-      <mesh material={timber} position={[0, -0.05, -1.36]}>
-        <boxGeometry args={[0.045, 0.34, 0.16]} />
-      </mesh>
+      {/* The file behind its own `Suspense`, the way the board is. All three
+          craft stay mounted, so without this boundary a visitor who picked the
+          saucer would have the whole rig waiting on a megabyte of galleon —
+          and the rider's opening run, which is already waiting on his own
+          file, would wait on this one too. */}
+      <Suspense fallback={null}>
+        <Hull />
+      </Suspense>
 
       {/* Running lights, on the same pulse as the saucer's — the bloom pass
-          picks up emissive only, so this is the boat's share of it. */}
+          picks up emissive only, so this is the ship's share of it. The file
+          has lanterns of its own on the taffrail; these two sit up there with
+          them at 1.21, where the old boat's sat on a rail at 0.39, and the
+          third goes to the mainmast head. */}
       {[-1, 1].map((side) => (
-        <mesh key={side} material={LAMP} position={[side * 0.22, HULL.freeboard + 0.19, -0.95]}>
+        <mesh key={side} material={LAMP} position={[side * 0.2, 1.21, -1]}>
           <sphereGeometry args={[0.055, 10, 8]} />
         </mesh>
       ))}
-      <mesh material={LAMP} position={[0, 1.9, 0.12]}>
+      <mesh material={LAMP} position={[0, 1.72, -0.1]}>
         <sphereGeometry args={[0.04, 10, 8]} />
       </mesh>
     </group>
   )
+}
+
+/**
+ * The ship itself, out of `tools/pirate_ship.py`.
+ *
+ * Fitted rather than scaled by a number written down here: the generator's
+ * units are its own, and a re-export at a different size would otherwise be a
+ * silent change to how big the boat is. So the two numbers that place this file
+ * are read off the file — its length becomes `HULL.len` either side of the
+ * mast, and its keel goes `HULL.draft` under the water — and the model is free
+ * to come back at any scale it likes.
+ */
+function Hull() {
+  const { scene } = useGLTF(pirateUrl)
+
+  const ship = useMemo(() => {
+    const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
+    if (!mesh) throw new Error('pirate_ship.glb: no mesh — rebuild it with tools/pirate_ship.py')
+    mesh.material = lit(mesh.material as THREE.Material)
+
+    // Measured with the transform cleared, because `useGLTF` caches the scene
+    // and this runs again on a remount: fitting a model that is already fitted
+    // is how a boat ends up a third of its size on the second visit.
+    scene.scale.setScalar(1)
+    scene.position.set(0, 0, 0)
+    const box = new THREE.Box3().setFromObject(scene)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+
+    const fit = (HULL.len * 2) / size.z
+    scene.scale.setScalar(fit)
+    scene.position.set(
+      (-(box.min.x + box.max.x) / 2) * fit,
+      -box.min.y * fit - HULL.draft,
+      (-(box.min.z + box.max.z) / 2) * fit,
+    )
+
+    // The beam is the one dimension the camera was designed around — it sits
+    // astern and never turns, so the view the visitor gets almost all the time
+    // is the narrowest one a hull has. A model whose width is far off
+    // `HULL.beam` is a model that reads wrong from the only angle that matters.
+    console.assert(
+      Math.abs(size.x * fit - HULL.beam * 2) < 0.15,
+      `pirate_ship.glb: ${(size.x * fit).toFixed(2)} across where the camera was framed ` +
+      `for ${(HULL.beam * 2).toFixed(2)} — look at it from astern before keeping it`,
+    )
+    return scene
+  }, [scene])
+
+  return <primitive object={ship} />
 }
 
 
@@ -1673,7 +1685,7 @@ function Surfer({ visible, onRider }: { visible: boolean; onRider: () => void })
  */
 const lit = (loaded: THREE.Material): THREE.MeshStandardNodeMaterial => {
   const map = (loaded as THREE.Material & { map?: THREE.Texture | null }).map ?? null
-  if (import.meta.env.DEV && !map) throw new Error(`${loaded.name}: no basecolour — rebuild it with tools/surfer.py`)
+  if (import.meta.env.DEV && !map) throw new Error(`${loaded.name}: no basecolour — rebuild it with its tools/ script`)
   return new THREE.MeshStandardNodeMaterial({ map, roughness: 0.55, metalness: 0 })
 }
 
@@ -2814,19 +2826,4 @@ function Surfboard() {
     return scene
   }, [scene])
   return <primitive object={board} />
-}
-
-/**
- * Narrow the forward sections to a stem and the after ones a little, in place.
- * An ellipsoid's plan view is an ellipse, which is a rowing boat; this is what
- * makes it a bow. Applied to the hull and to the deck, which start as the same
- * circle, so both rims come out the same shape.
- */
-function pinch(g: THREE.BufferGeometry) {
-  const p = g.attributes.position as THREE.BufferAttribute
-  for (let i = 0; i < p.count; i++) {
-    const t = p.getZ(i) / HULL.len // -1 at the transom, +1 at the stem
-    p.setX(i, p.getX(i) * (1 - (t > 0 ? 0.72 : 0.18) * t * t))
-  }
-  g.computeVertexNormals()
 }

@@ -126,8 +126,13 @@ Breaking one is allowed. Doing it without saying so is not.
   The three project islands are still a wall for him — arriving *alongside* one
   is what opens its panel — so `offshore` takes an argument rather than growing
   a craft check.
-- The character stays procedural — both hulls. The **surfer** is the one
-  exception, rider and board both, and `tools/surfer.py` is where it says why:
+- The character stays procedural — *was*, for both hulls. There are two
+  exceptions now and the rule is the weaker for it. The **boat** is
+  `src/models/pirate_ship.glb` since the ship, a generated galleon fitted into
+  the envelope `HULL` used to build — `docs/STATUS.md`, "The boat is a ship",
+  argues it and also argues against itself, because unlike the rider's the case
+  was not forced. Only the **saucer** is still drawn by code. The **surfer** is
+  the older exception, rider and board both, and `tools/surfer.py` is where it says why:
   a hull is a solid of revolution with things bolted to it and code is good at
   those; a person is one skin over a skeleton, and a board a person stands on
   is drawn by the same hand as the person. Anything else that wants a model
@@ -189,7 +194,8 @@ Breaking one is allowed. Doing it without saying so is not.
 | Per landmark model | ≤ 300 kB compressed, ≤ 25k triangles |
 | The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass" |
 | The board, `surfboard.glb` | 10k triangles, ~180 kB — decimated from the generator's 95k; nobody looks at it for long |
-| Whole world, compressed | ≤ 3 MB, loaded progressively |
+| The ship, `pirate_ship.glb` | 117k triangles, 1.15 MB — 1.00 MB gz. **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
+| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.26 MB of it spent |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
 | Frame rate | 60fps on a 2022 mid-tier laptop, or cut the effect |
@@ -243,7 +249,8 @@ src/Isle.tsx            that height function as a mesh, its colours, and where
 src/Landmarks.tsx       the mine, the easel, the board — blockout in primitives +
                         TSL, and the detailed model where one exists (`MODEL`)
 src/models/             the .glb files — geometry only, no materials, no UVs,
-                        except the surfer's two, which carry a texture each
+                        except the surfer's two and the ship, which carry a
+                        basecolour texture each and nothing else
 tools/landmark.py       what every landmark script needs — axes, members, export
 tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
 tools/easel.py          the same, for the easel
@@ -251,6 +258,9 @@ tools/board.py          the same, for the board
 tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
                         exports the two generated sources beside it,
                         tools/surfer-tripo.glb and tools/surfboard-tripo.glb
+tools/pirate_ship.py    not a landmark either — the boat: strips the two maps
+                        this site never samples off the generated source beside
+                        it, resizes the third and packs it
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints
