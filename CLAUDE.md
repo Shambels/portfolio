@@ -331,8 +331,9 @@ Space is a jump for him and for nothing else, on the water and on the sand
 alike. He walks or runs, and which one is the **duty factor** — the fraction of
 the cycle a foot is on the ground, 0.46 walking and 0.24 running. Step length is
 `stride / duty`, so a run covers more ground by spending *less time down* rather
-than by swinging further or cycling faster: the running step is 1.71 units where
-the walking one is 0.85, and the legs go round slower doing it. The rate is not
+than by swinging further or cycling faster: the running step is 1.38 units where
+the walking one is 0.72 (1.71 and 0.85 on the second rider — the third stands
+taller and steps shorter), and the legs go round slower doing it. The rate is not
 chosen anywhere — it is whatever makes the planted foot travel backward at
 exactly the speed the body travels forward, which is what makes sliding
 impossible instead of merely capped. One ramped number, `RIDE.land`, drives the craft, the board and the man,
@@ -438,8 +439,9 @@ change how it moves him: same names, same solve, same ankles. What changed:
 he stands half a metre further aft, on the board's own pads (`STANCE`); the
 board is a file, 2.0 long and 0.63 across with a thinner deck, so the leash
 points and `FOOT_DROP` were re-measured; he and the board are lit like the
-world, texture plus outline, no toon, no rim; `STAND` doubled for the longer
-legs; and the two files are meshopt-packed.
+world, texture plus outline, no toon, no rim; on foot he stands up — `STAND`
+0.12 → 0.28, the stride and bob cut to pay for it, and the trunk's rest lean
+taken back out through the pelvis — and the two files are meshopt-packed.
 `docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
 Seb's eye.
 

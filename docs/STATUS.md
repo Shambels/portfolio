@@ -3811,12 +3811,26 @@ and neoprene glint of the second rider are still gone with COLOR_0.
 
 ### Seb's first look, and the three other things it found
 
-- **He walked on bent knees.** `STAND` was sized for 0.68 m legs and these
-  are 0.79: the same 12 cm out of the same crouch is a lower stance on a
-  longer leg. **`STAND` 0.12 → 0.24.** The number was found by running the
-  reach sweep in `rigOf` offline against this rig: 0.24 puts the run's worst
-  reach at 95.9%, the regime the second rider ran in; 0.26 is 98.4% and the
-  assert fires; 0.30 is 103% and the foot slides.
+- **He walked on bent knees, twice.** `STAND` was sized for 0.68 m legs and
+  these are 0.79, so the first answer was 0.12 → 0.24, the most the reach
+  sweep in `rigOf` allowed with the old strides, and Seb saw the same crouch.
+  Two things were wrong, and the height was the smaller one. **The trunk:**
+  the rest pose is a surf crouch with the pelvis-to-neck line pitched 22°
+  forward, and `ride()` scaled the sea out on foot and scaled the walk in,
+  but nothing ever took that lean out — he walked bent over a board he was
+  carrying under his arm. `rigOf` reads the pitch off the file (`lean`) and
+  `ride()` subtracts it through the hips on foot, with the neck and head
+  putting the gaze back on the horizon. **The height:** the sweep runs the
+  stance foot `TERRAIN_DOWN` under the hip plane and the hips `BOB` over it
+  at mid-stance, so the ceiling is `0.44 + STAND + BOB ≤ 0.985 × 0.794`, and
+  the ends of the stance cost `sqrt(h² + STRIDE²)` on top. So **`STAND`
+  0.28, both bobs 0.05 (from 6.5 and 8), both strides 0.33 (from 0.39 and
+  0.41), the assert at 98.5% (from 97%)** — worst reach 97.1% in both gaits.
+  A taller man takes the same ground in shorter, quicker steps; the rate is
+  derived, so it went up on its own: 0.72 a step walking and 1.38 running,
+  from 0.85 and 1.71. Seen this time, not inferred: the throwaway copy was
+  given a `?spawn=` on the isle's beach and photographed walking.
+  `Claude outputs/surfer-v3-walk.png`.
 - **The back knee pointed out and back.** `KNEE_B` only sets the *direction*
   the back leg bends in now, and the second rider's — level with its own
   ankle, straight out over the rail — sent a longer leg out and aft.
@@ -3872,11 +3886,10 @@ and neoprene glint of the second rider are still gone with COLOR_0.
 - **WebGPU**, as every pass before it: the container has no device. Nothing
   here is exotic — `MeshBasicNodeMaterial` with a map and a skinned mesh — but
   the first WebGPU frame is Seb's.
-- **The walk on the sand, by eye, at the new `STAND`.** `beach.check` passes
-  and the sweep says 95.9%; whether 24 cm reads upright is a picture the
-  container cannot take (the isle is 78 units away at swiftshader's frame
-  rate). If it is still low, 0.26 is the ceiling before the foot slides —
-  past that the lever is `RUN_STRIDE` or `RUN_BOB`.
+- **The walk's feel at the shorter, quicker step**, on real hardware and at
+  a real frame rate — the picture says he stands; it cannot say whether 0.72
+  a step reads as walking or as mincing. If it does, the stride is the
+  number, and every centimetre of it back costs the stand about the same.
 - **Frame rate** at 91k triangles skinned and drawn twice, on the 2022 laptop.
   It is the one number this pass moved by 3× and it has not been measured.
 
