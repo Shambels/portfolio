@@ -86,16 +86,17 @@ export const WALK_LAND = 0.2
  *
  * It was `deckY`, about 16 cm, on the reasoning that his soles sit on the deck.
  * They do — but the *lowest* thing on him is the underside of a foot, and
- * `tools/surfer.py` reports that at y 0.11 in board space. Dropping the craft by
- * the deck's 16 put five centimetres of foot through the sand, which is exactly
- * what it looked like. So: 0.11 measured, less a centimetre so that a sole on a
- * downhill step still clears, which is 0.10.
+ * `tools/surfer.py` reports that in board space: 0.11 on the second rider,
+ * 0.097 on the third, whose board is thinner. Dropping the craft by the deck's
+ * 16 put five centimetres of foot through the sand, which is exactly what it
+ * looked like. So: the measurement, less a centimetre so that a sole on a
+ * downhill step still clears, which is 0.09.
  *
  * Applied to the *craft* and not to his ankles, and that part has not changed:
  * moving his feet down in board space is a thing his legs have to pay for, and
  * dropping what they stand on is free.
  */
-export const FOOT_DROP = 0.10
+export const FOOT_DROP = 0.09
 
 /**
  * How far the board is out of his hands — 0 under his feet, 1 under his arm.
