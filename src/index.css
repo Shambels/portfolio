@@ -655,7 +655,8 @@ canvas {
 }
 
 /* The same glass as the panel and the menu button, square, and sized off the
-   window rather than the world — the scale inside it is `SPAN` in `MiniMap`. */
+   window rather than the world — the scale inside it is `SPAN` in `MiniMap`,
+   and the window it shows is drawn around the character. */
 .map {
   position: fixed;
   z-index: 2;
@@ -667,13 +668,31 @@ canvas {
   border-radius: 10px;
   background: #0b0c0fd9;
   backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+/* The isle's coastline, in the sand the letter discs are drawn in. The SVG's
+   viewBox is the window in world units and `MiniMap` moves it every frame;
+   the stroke is one pixel whatever the scale. */
+.map .coast {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: #d5ac7226;
+  stroke: #d5ac7259;
+  stroke-width: 1;
 }
 
 /* One island, one letter, one link. Positioned and sized in percentages by
-   `MiniMap`, from the same frontmatter the scene is built from. */
+   `MiniMap`, from the same frontmatter the scene is built from — with a floor,
+   because at this zoom an island is about 25 px across and a thumb wants more than
+   that. `DISC_MIN` in `MiniMap` is this floor as a fraction of the box. */
 .map .isle {
   position: absolute;
   translate: -50% -50%;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
   display: grid;
   place-items: center;
   border: 1px solid #d5ac7259;
@@ -685,6 +704,14 @@ canvas {
   line-height: 1;
   text-decoration: none;
   transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+/* Out of the window, and held on the edge in the direction it lies: drawn
+   fainter, so a disc at the border reads as "out that way" and not as an
+   island at the border. */
+.map .isle[data-far] {
+  border-style: dashed;
+  background: #d5ac7212;
 }
 
 .map .isle:hover,
@@ -706,6 +733,8 @@ canvas {
    ship is pointing. Drawn facing down, which is yaw 0 — `MiniMap` rotates it. */
 .map .me {
   position: absolute;
+  left: 50%;
+  top: 50%;
   width: 0.6rem;
   height: 0.78rem;
   translate: -50% -50%;

@@ -2329,13 +2329,14 @@ the frame the camera looks into, and clear of every mooring circle by more than
 its own radius (asserted in dev). From the spawn point it is a headland filling
 the top-left; from the mine it is the horizon.
 
-**It is not on the map.** The minimap is bounded by the projects, and fitting an
-island four times the size of everything on it would have shrunk every project
-target from 38% of the box to 15% — on a phone, a 24 px circle with a letter in
-it. The map is the project index and invariant 5's fallback; the isle is not a
-project. Sailing out to it pins the arrow at the edge, which is what the map
-already does for anything flown past. Reversible in four lines if it reads as
-lost rather than as *out that way*.
+**It is not on the map** — *was*: the map is a window round the character
+now, and the isle's coastline is drawn in it. See "The map follows the
+character", below. What the paragraph here used to say: the minimap was
+bounded by the projects, and fitting an island four times the size of
+everything on it would have shrunk every project target from 38% of the box to
+15%; sailing out to it pinned the arrow at the edge. That trade was the
+reason the map could not follow the character either, and the two went
+together.
 
 ### Verified
 
@@ -4319,3 +4320,104 @@ rejects everywhere but the isle, one `useMemo`, two refs, a callback.
   undergrowth behind him instead of inside the hill, and looks down the hill
   past him. That is a change to how the isle is seen from on foot, and it has
   only been seen on the beach.
+
+## The map follows the character — the isle on it, and the projects held at the edge
+
+The minimap was a fixed frame round the three project islands, scaled to fit
+them and nothing else, with the arrow pinned to the border once the character
+flew past the last coast. It is a window now: `SPAN` world units across,
+centred on the character every frame, the arrow turning in the middle, the
+isle's real coastline drawn in it, and any project island outside the window
+held on the box's edge in the direction it lies — so the map is the way to a
+project as well as the index of them. Seb's three calls, asked before it was
+written: 120 units across, north-up (the map does not turn with the heading;
+the arrow does), and the project islands stay circles.
+
+### What changed in `src/MiniMap.tsx`
+
+- **The frame.** `bounds()` and `PAD` are gone; `SPAN = 120` is the one number
+  left, and it is taste: a project island is a sixth of the box (about 28 px
+  on desktop, 22 for the smaller one), the isle is two thirds of it when you
+  are on it, and from the spawn beach the mine is in the window with the
+  easel and the board held on its edge, a hair past it — their centres are at
+  0.92 and 0.93 of the box, and a disc's radius plus the gap is what pushes
+  them onto the hold. 140 would bring all three in from the beach at the
+  cost of every disc on a phone being the floor size. One constant to move.
+- **The window.** The `.coast` SVG's `viewBox` is the window in world units —
+  `VIEW.x - 60, VIEW.z - 60, 120, 120` — and the rAF loop rewrites it every
+  frame. Top view, +x right, +z down: the SVG's own axes, so the isle's path
+  is written straight in world units with no transform.
+- **The isle.** `isleShore` walked round in 96 steps, once, at module load —
+  the same function the hull is pushed out of and `Isle.tsx` lathes from, so
+  the coast on the map is the coast in the world to the harmonic. Scenery,
+  not a link: `aria-hidden`, no route. `vector-effect: non-scaling-stroke`
+  keeps its line one pixel whatever the viewBox does.
+- **The edge hold.** `place()` works in fractions of the box from its centre,
+  which is the character. While the whole disc fits it is exact; past that
+  the offset is scaled by `lim / max(|dx|, |dz|)` — the Chebyshev clamp,
+  which is where a ray from the centre meets a square. The *direction* is
+  preserved exactly (replayed in node from 60 units west of the isle: bearing
+  error 1e-16), which is the point of holding rather than clipping: a project
+  that is north-east reads north-east and not "somewhere up". The old
+  `held()` clamped each axis on its own, which put anything diagonal in a
+  corner. A held disc carries `data-far`, and the CSS draws it dashed and
+  fainter, so a disc at the border reads as *out that way* and not as an
+  island at the border.
+- **The floor.** `.map .isle` has `min-width: 1.5rem` now — at this zoom an
+  island is 25 px across, and on a 320 px phone the map is 109 px wide and
+  the island would be 17. The disc is still the island's size where that is
+  bigger. `DISC_MIN` (0.1 of the box) is that floor as the radius the hold
+  reads, taken at the narrowest phone; on desktop it is generous by a few
+  pixels, which is the safe direction for a disc that must stay inside the
+  border.
+- **The arrow** is centred by the CSS (`left: 50%; top: 50%`) and the loop
+  writes only its `rotate`. Same sign convention as before.
+- **The discs** are looked up by slug from a ref map, not by index, so the
+  loop reads `PROJECTS[SOURCE_LOCALE]` for positions whichever locale rendered
+  the letters; `React` re-applying `style` on a re-render (the `aria-current`
+  change) writes the current frame's values, which is the same thing the loop
+  would have written.
+
+### Cost
+
+About 50 lines of TSX and 25 of CSS more than the fixed map. No dependency, no
+asset. One `setAttribute`, six style writes and three `toggleAttribute`s a
+frame. `npx tsc -b` clean, `npm run check` green (five checks). The placement
+was replayed in node against the real `spawn()` and `isleShore` — the script is
+not kept: it is twenty lines that restate `place()`, and a check that restates
+the thing it checks holds nothing.
+
+### Verified, and what the render caught
+
+A real `npm ci` and `react-router dev` on a throwaway copy in the cloud
+container, headless Chromium on swiftshader, `/en/world` at 1280×800: the
+window opens at `-98.6 -97.6 120 120` — the spawn beach, to the number the
+node replay gave — with the isle's coast drawn round the arrow, the mine in
+the window at 70%/75% and the easel and the board held dashed on the right
+and bottom edges. Steering left turned the arrow from -0.58 to -1.44 rad and
+the window moved with the craft (slowly: swiftshader draws this world at a
+frame a second or worse, so the run and the ride were seen as stills).
+
+It caught one bug that `tsc` cannot: the first draft rendered the `<svg>`
+without its `ref`, so the loop's first frame read `null.setAttribute`, threw,
+and — because the next `requestAnimationFrame` is the last line of `tick` —
+never ran again. A dead loop is a map that draws once and stops, with no
+error after the first, which is exactly the kind of thing a typecheck passes.
+Fixed by the one attribute; the render is why it was found.
+
+### Needs Seb
+
+- **`SPAN`.** 120 was chosen from the numbers; whether a sixth of the box is
+  a letter you can read while steering is a screenshot's call, and 140 is the
+  other number worth one look (all three project islands in from the beach).
+- **The isle's fill.** The same sand tone as the discs, at the same alpha. Two
+  thirds of the box in that tone when you are on the isle may want to be
+  fainter than a disc — `.map .coast` in `index.css`, one colour.
+- **The dashed held disc**, at 24 px. Dashed at that size is a texture rather
+  than a border on some screens; a plain fainter disc is the fallback, one
+  line.
+- **On a phone**, the map is 34vw wide and the `min-width` floor decides every
+  disc's size. Whether three 24 px discs at the edge of a 109 px box are a
+  navigation aid or clutter is a thumb's call — the phone render timed out
+  under swiftshader before the world had placed the craft, so this one was
+  not seen at all.
