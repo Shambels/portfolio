@@ -1,20 +1,18 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
-import {
-  abs, attribute, cameraPosition, color, float, fract, max, mix, normalLocal, normalWorld,
-  normalize, positionLocal, positionWorld, sin, smoothstep, step, time, uniform, uv, vec3,
-} from 'three/tsl'
+import { color, normalLocal, positionLocal, sin, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
 import { steer, swing } from './camera'
-import { SUN, swell } from './Scenery'
+import { swell } from './Scenery'
 import {
   FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
 } from './beach'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
+import surfboardUrl from './models/surfboard.glb?url'
 
 // Saucer silhouette, rotated around Y. [radius, height]
 const PROFILE: [number, number][] = [
@@ -59,30 +57,18 @@ const HULL = { beam: 0.5, len: 1.35, draft: 0.18, freeboard: 0.2 }
 const WAVE_TILT = 3
 const HEEL = 0.6 // radians, about 34 degrees — a big sea, not a capsize
 
-// The surfer. Same controller, same water, a lighter thing on it: 2.3 units of
+// The surfer. Same controller, same water, a lighter thing on it: 2 units of
 // board, no keel, and the whole reason for a third craft is that it leaves the
 // surface. Faster round a turn and quicker off a crest, which is what a board
 // is; the numbers are below, beside the boat's, so the difference between the
 // two floating craft is one table rather than a branch per constant.
-const BOARD = { beam: 0.3, len: 1.15, thick: 0.075 }
-// Nose and tail bent up out of the flat. A board without it is a plank, and it
-// is most of what makes the silhouette read as a board from astern at all.
-const ROCKER = 0.1
-
-/**
- * The top of the board under a point on it, which the traction pad is laid on
- * and `tools/surfer.py` puts the rider's soles on. Written out rather than read
- * off the geometry because by the time the geometry exists it is a deformed
- * sphere and no longer answers questions: this is the same three steps the
- * deformation does, in the same order — the plan pinch, the ellipsoid, and the
- * rocker on top.
- */
-function deckY(x: number, z: number): number {
-  const t = z / BOARD.len                        // -1 at the tail, +1 at the nose
-  const beam = BOARD.beam * (1 - (t > 0 ? 0.88 : 0.5) * t * t)
-  const r = 1 - (x / beam) ** 2 - t * t
-  return 0.08 + (r > 0 ? BOARD.thick * Math.sqrt(r) : 0) + ROCKER * t * t * (t > 0 ? 1 : 0.55)
-}
+//
+// The board is `src/models/surfboard.glb` since the third rider, and these
+// are measured off it by `tools/surfer.py` rather than built here: the keel
+// sits on the waterline, the deck under the two pads is at 0.10 forward and
+// 0.11 aft, the fins reach 0.16 below. `deckY` went with the geometry it
+// described — the one thing that still needs a deck height is the leash, and
+// its three points are written out below where it is built. 2.0 by 0.63.
 
 const soft = (v: number, m: number) => m * Math.tanh(v / m)
 
@@ -1251,10 +1237,9 @@ const WAKE_SPEED = uniform(0)
 /**
  * Foam, not neon. `Post` blooms the emissive buffer at threshold zero, so what
  * a material declares here is exactly how much halo it gets: this peaks at 0.6
- * against the lamp's 1, and only at full speed. It was the surfer's whole share
- * of the bloom until the rider got a rim light and his ribbons got a glow — see
- * `RIDER` below — and it is still the broad one: this is a halo behind the
- * board, and those are a filament on an edge and a line on a stripe.
+ * against the lamp's 1, and only at full speed. It is the surfer's whole share
+ * of the bloom, and was again once the third rider went unlit — the second
+ * one's rim light and ribbon glow claimed a slice of it for a pass.
  *
  * Two fades, and the second is not optional: bloom reads the emissive buffer
  * and not the alpha, so a strip that stops dead at its own rails blooms as a
@@ -1271,11 +1256,14 @@ FOAM.emissiveNode = color('#cfeaff').mul(WAKE_ALONG.mul(WAKE_ACROSS).mul(0.6)).m
 FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
 
 /**
- * And the third one: somebody on a board. The board is still built here — two
- * solids of revolution, a grid for the traction pad, three extruded foils for
- * the fins, a tube for the leash and a strip for the wake — and the rider is a
- * model file, the only one any craft in this world has. `tools/surfer.py` is
- * the reason and the argument for it.
+ * And the third one: somebody on a board. Both are model files now — the only
+ * two any craft in this world has — and `tools/surfer.py` is the reason and
+ * the argument for it. The board was built here for as long as the rider was
+ * metaballs: two solids of revolution, a grid for the pad, three extruded
+ * foils. Both came back from the same generator in the third pass, and a
+ * modelled rider on a procedural board was two drawing styles on one craft.
+ * What is still built here is what is built *between* them: the leash from
+ * the plug to his ankle, and the wake, which is the sea's and not the board's.
  *
  * The stance is read off what the camera can see. It sits astern and never
  * yaws, so the visitor spends the whole session looking at this thing's back:
@@ -1290,7 +1278,9 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  *
  * The waterline is this group's y = 0, same as the boat, so `Ship` puts the
  * group on the swell and the board's own numbers decide what is wet. What the
- * rider stands on is `deckY`, and his soles are placed against it in Blender.
+ * rider stands on is the board's own deck, and his soles are placed against
+ * it in Blender — on its two pads, which is half a metre further aft than the
+ * second rider stood, and the one thing about the stance that moved.
  */
 /**
  * Where the board goes when nobody is standing on it: on its rail against his
@@ -1298,7 +1288,7 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  *
  * The swing is not decoration and it is the only number here chosen against the
  * camera rather than against the man. The camera sits astern and never yaws, so
- * a board carried along the heading is a board seen end-on — 2.3 units of it
+ * a board carried along the heading is a board seen end-on — 2 units of it
  * reduced to an ellipse hidden behind its own rider. A quarter of a radian of
  * yaw and an eighth of pitch put it diagonally across the frame, which is both
  * where it reads and how anybody actually carries one.
@@ -1311,9 +1301,11 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * given something to hold.
  *
  * The roll is exactly a quarter turn, and its sign is the one that puts the
- * deck against his ribs and the fin outboard, clear of his leg.
+ * deck against his ribs and the fin outboard, clear of his leg. The z is his
+ * hip: the board's centre comes to where he stands, and since the third rider
+ * he stands on the pads, `STANCE` in `tools/surfer.py` aft of the middle.
  */
-const CARRY_POS = new THREE.Vector3(-0.30, 0.66, 0.02)
+const CARRY_POS = new THREE.Vector3(-0.30, 0.66, -0.48)
 const CARRY_ROT = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.20, -0.44, -Math.PI / 2, 'YXZ'))
 const CARRY_REST = new THREE.Quaternion()
@@ -1328,96 +1320,28 @@ function Surfer({ visible }: { visible: boolean }) {
   const board = useRef<THREE.Group>(null!)
   const leash = useRef<THREE.Group>(null!)
   const kit = useMemo(() => {
-    // The board. The same trick as the hull — an ellipsoid, pinched in plan —
-    // except that this one keeps its top half, because a board is a board from
-    // above. The nose pinches harder than the tail (a shortboard is pointed
-    // forward and square-ish aft), and the rocker bends both ends up out of the
-    // flat, more at the nose than at the tail, which is what a board is.
-    const boardGeo = new THREE.SphereGeometry(1, 26, 12)
-    boardGeo.scale(BOARD.beam, BOARD.thick, BOARD.len)
-    const p = boardGeo.attributes.position as THREE.BufferAttribute
-    for (let i = 0; i < p.count; i++) {
-      const t = p.getZ(i) / BOARD.len // -1 at the tail, +1 at the nose
-      p.setX(i, p.getX(i) * (1 - (t > 0 ? 0.88 : 0.5) * t * t))
-      p.setY(i, p.getY(i) + ROCKER * t * t * (t > 0 ? 1 : 0.55))
-    }
-    boardGeo.computeVertexNormals()
-    // Ride it high: the keel sits on the waterline and the deck is clear of it,
-    // because a board under a rider planes rather than floats. At the 2 cm of
-    // the first pass the calm chop — 15 cm at its steepest — washed straight
-    // over the deck and the board disappeared under its own rider.
-    boardGeo.translate(0, 0.08, 0)
-
-    // The stringer, and the reason it is a clone rather than a box: the deck is
-    // curved by the rocker, and a straight box laid on it sinks into both ends.
-    // The same geometry scaled to a fifth of its beam follows that curve by
-    // construction, and pinches to a point at the nose the way a real one does.
-    const stripeGeo = boardGeo.clone()
-    stripeGeo.scale(0.2, 1, 1)
-    stripeGeo.translate(0, 0.006, 0)
-
-    // The traction pad under the back foot, which is the one part of a board
-    // that is not the board. A grid laid on `deckY` rather than a box on the
-    // deck: the deck is curved along its length and across its beam, and a flat
-    // slab on it either floats at the middle or sinks at the corners.
-    const padGeo = new THREE.PlaneGeometry(0.24, 0.34, 4, 12)
-    padGeo.rotateX(-Math.PI / 2)
-    padGeo.translate(0, 0, -0.30)
-    const g = padGeo.attributes.position as THREE.BufferAttribute
-    for (let i = 0; i < g.count; i++) {
-      // A kick at the tail end — the arch the back foot pushes against —
-      // which is the one piece of relief a pad has and the thing that says
-      // "traction pad" rather than "black rectangle" from astern.
-      const kick = THREE.MathUtils.smoothstep(-g.getZ(i), 0.38, 0.47) * 0.022
-      g.setY(i, deckY(g.getX(i), g.getZ(i)) + 0.004 + kick)
-    }
-    padGeo.computeVertexNormals()
-
-    // Three fins, not one cone. A fin is a raked foil — its leading edge
-    // sweeps back to a tip behind its base — and a cone with three sides was
-    // a triangle. The outline is one shape in the board's z-y plane extruded a
-    // centimetre across; the top of it is buried in the hull, so it emerges
-    // wherever the bottom happens to be and the base needs no measuring.
-    // `depth` is how far the fin reaches below its base; the base is a shade
-    // longer than that, the tip three quarters of it aft, which are a
-    // thruster fin's proportions and not a keel's — the first cut was a stick.
-    const foil = (depth: number) => {
-      const s = new THREE.Shape()
-      s.moveTo(0, 0.09)
-      s.lineTo(0, 0.03)
-      s.quadraticCurveTo(-0.30 * depth, 0.0, -0.78 * depth, -depth)
-      s.quadraticCurveTo(-0.72 * depth, -0.45 * depth, -1.12 * depth, 0.03)
-      s.lineTo(-1.12 * depth, 0.09)
-      s.closePath()
-      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: false })
-      geo.rotateY(-Math.PI / 2)
-      geo.translate(0.006, 0, 0)
-      return geo
-    }
-    const finGeo = foil(0.13)
-    const sideFinGeo = foil(0.11)
-
     // The leash: a cord from the plug at the tail to a cuff on the back
     // ankle. Both ends are constants — the plug is on the board and the ankle
     // is fixed to the deck (`tools/surfer.py` puts the sole there and the rig
     // never moves it) — so the curve is built once, with the slack lying on
     // the deck between them the way a leash lies when nobody is pulling it.
     // The cuff goes round the back shin a hand above the ankle, at the shin's
-    // own angle — which in this stance is nearly flat, the knee being out
-    // over the rail. `ANKLE_B` and `KNEE_B` in `tools/surfer.py`.
-    const ankle = new THREE.Vector3(-0.07, 0.20, -0.28)
-    const shin = new THREE.Vector3(-0.307, 0.279, -0.288).sub(ankle).normalize()
+    // own angle, which in this stance is well out over the rail. The three
+    // numbers are the back ankle, the back knee and the deck heights `tools/
+    // surfer.py` prints; the back foot is on the tail pad now, so the run is
+    // short and the slack rides over the pad's kick rather than lying flat.
+    const ankle = new THREE.Vector3(-0.07, 0.189, -0.78)
+    const shin = new THREE.Vector3(-0.383, 0.437, -0.684).sub(ankle).normalize()
     const cuffAt = ankle.clone().addScaledVector(shin, 0.045)
     const cuffGeo = new THREE.TorusGeometry(0.050, 0.009, 6, 18)
     cuffGeo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), shin))
     cuffGeo.translate(cuffAt.x, cuffAt.y, cuffAt.z)
     const leashGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0.00, deckY(0, -1.0) + 0.012, -1.00),
-      new THREE.Vector3(-0.03, deckY(-0.03, -0.80) + 0.010, -0.80),
-      new THREE.Vector3(-0.07, deckY(-0.07, -0.58) + 0.010, -0.58),
-      new THREE.Vector3(-0.10, 0.12, -0.42),
+      new THREE.Vector3(0.00, 0.125, -0.99),
+      new THREE.Vector3(-0.02, 0.160, -0.91),
+      new THREE.Vector3(-0.05, 0.150, -0.85),
       cuffAt.clone().add(new THREE.Vector3(0, -0.03, -0.042)),
-    ]), 20, 0.006, 5, false)
+    ]), 16, 0.006, 5, false)
 
     // The wake: one strip of water behind the tail, widening and fading aft.
     // It is the surfer's share of the bloom — the other two craft carry running
@@ -1432,66 +1356,14 @@ function Surfer({ visible }: { visible: boolean }) {
       w.setX(i, w.getX(i) * (WAKE.near + (WAKE.far - WAKE.near) * t))
     }
 
-    // Lime, magenta and black — the board is the rider's, and the rider's
-    // colours are in his file. The skin, suit and hair materials that used to
-    // live here went with him: they are COLOR_0 now.
-    //
-    // What the board is *made of* is here, though, and since the second pass
-    // it is three things and not one. A board is foam under glassed resin, so
-    // the hull is a clearcoat over a satin colour — the same physical material
-    // the saucer's canopy uses, without the transmission. Along the rail,
-    // where the deck lamination meets the bottom's, a pinline: the darker
-    // band every glassed board has where its two layers of cloth overlap. And
-    // on the deck, forward of the pad, **wax** — which is the thing that makes
-    // a surfboard look surfed. Wax is white-ish, matte and combed into a
-    // crosshatch, and it kills the gloss under it; so where the wax mask is
-    // high the colour lifts toward chalk, the roughness goes up and the
-    // clearcoat goes out. The comb is two sines crossed at 45 degrees, which
-    // is what a wax comb leaves and is derived from the thing rather than
-    // borrowed from a noise library.
-    const top = smoothstep(0.35, 0.75, normalLocal.y)
-    const waxZone = smoothstep(-0.16, -0.06, positionLocal.z).mul(smoothstep(0.92, 0.72, positionLocal.z))
-    const comb = sin(positionLocal.x.add(positionLocal.z).mul(180))
-      .mul(sin(positionLocal.x.sub(positionLocal.z).mul(180))).mul(0.5).add(0.5)
-    const wax = top.mul(waxZone)
-    const rail = smoothstep(0.30, 0.12, abs(normalLocal.y))
-    const lime = color('#a8ec2b')
-    const deck = new THREE.MeshPhysicalNodeMaterial({ roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06 })
-    deck.colorNode = mix(mix(lime, color('#3d5a17'), rail.mul(0.7)),
-      color('#e9efd7'), wax.mul(comb.mul(0.45).add(0.30)))
-    deck.roughnessNode = mix(float(0.32), float(0.85), wax)
-    deck.clearcoatNode = wax.oneMinus()
-
-    // The stripe is an inlay under the same glass, and down the middle of it
-    // runs the stringer proper — a strip of timber the width of a finger,
-    // which is what holds a foam blank straight and is visible through the
-    // resin on every board that has one.
-    const stringer = smoothstep(0.006, 0.004, abs(positionLocal.x))
-    const stripe = new THREE.MeshPhysicalNodeMaterial({ roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06 })
-    stripe.colorNode = mix(color('#ff2d95'), color('#c8a26a'), stringer)
-    stripe.clearcoatNode = wax.oneMinus()
-    stripe.roughnessNode = mix(float(0.32), float(0.85), wax)
-
-    // The pad is diced foam: matte, and grooved both ways so it grips. The
-    // grooves are drawn rather than cut — a darker line where the cell edges
-    // fall — at 15 mm, which is the size of the squares on a real one.
-    const cells = max(step(0.80, fract(positionLocal.x.mul(66))), step(0.80, fract(positionLocal.z.mul(66))))
-    const grip = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
-    grip.colorNode = mix(color('#1a1e26'), color('#0a0c10'), cells)
-
-    // Fins are moulded fibreglass — dark, smoked, and glossier than the board.
-    const fin = new THREE.MeshPhysicalNodeMaterial({
-      color: '#1f2b34', roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.04,
-    })
-    // The leash is urethane cord, and the cuff is the one neon thing on the
-    // board — the ankle strap on the reference's colours.
+    // The board's colours are in its file now, and so is what it is made of:
+    // the resin, the pad and the fins that used to be three node materials
+    // here are one basecolour, drawn the way the rider is. What is left is
+    // the leash — urethane cord — and the cuff, the one neon thing on it.
     const cord = new THREE.MeshStandardNodeMaterial({ color: '#14171d', roughness: 0.35 })
     const cuff = new THREE.MeshStandardNodeMaterial({ color: '#a8ec2b', roughness: 0.7 })
 
-    return {
-      boardGeo, stripeGeo, padGeo, wakeGeo, finGeo, sideFinGeo, leashGeo, cuffGeo,
-      deck, stripe, grip, fin, cord, cuff,
-    }
+    return { wakeGeo, leashGeo, cuffGeo, cord, cuff }
   }, [])
 
   // One number a frame, and only while this craft is the one being drawn. The
@@ -1524,21 +1396,14 @@ function Surfer({ visible }: { visible: boolean }) {
   return (
     <group visible={visible}>
       {/* Everything the board is, in one group, because all of it is picked
-          up together — deck, stringer, fin and pad. */}
+          up together — hull, pads, fins and the leash. */}
       <group ref={board}>
-        <mesh geometry={kit.boardGeo} material={kit.deck} />
-        <mesh geometry={kit.stripeGeo} material={kit.stripe} />
-
-        {/* A thruster: the centre fin at the tail and two side fins ahead of
-            it near the rails, canted out and toed in a few degrees the way a
-            set is glassed on. The outline is `foil` above. */}
-        <mesh geometry={kit.finGeo} material={kit.fin} position={[0, 0, -0.66]} />
-        <mesh geometry={kit.sideFinGeo} material={kit.fin} position={[0.105, 0, -0.50]}
-          rotation={[0, 0.06, 0.12]} />
-        <mesh geometry={kit.sideFinGeo} material={kit.fin} position={[-0.105, 0, -0.50]}
-          rotation={[0, -0.06, -0.12]} />
-
-        <mesh geometry={kit.padGeo} material={kit.grip} />
+        {/* The board itself. Its own `Suspense`, so that the leash and the
+            wake — geometry this file builds — are there the frame the surfer
+            is chosen, and the two files arrive when they arrive. */}
+        <Suspense fallback={null}>
+          <Surfboard />
+        </Suspense>
 
         {/* The leash, and the cuff it ends in. In the board's group because it
             is the board's: when he picks the board up the whole thing goes with
@@ -1550,10 +1415,8 @@ function Surfer({ visible }: { visible: boolean }) {
         </group>
       </group>
 
-      {/* And the man. `Suspense` around him and not around the craft: the
-          board is geometry this file builds and it should be on the water the
-          frame the surfer is chosen, whether or not half a megabyte of rider has landed
-          yet. Outside the group above, because he is the one who carries it. */}
+      {/* And the man. Outside the group above, because he is the one who
+          carries it. */}
       <Suspense fallback={null}>
         <Rider visible={visible} />
       </Suspense>
@@ -1566,96 +1429,52 @@ function Surfer({ visible }: { visible: boolean }) {
 }
 
 /**
- * The rider, and the only character in this world that comes out of a file.
- * `tools/surfer.py` argues the case; the short version is that every other
- * craft here is a hull — a solid of revolution with things bolted to it, which
- * is what code is good at — and a person is one skin over a skeleton, which is
- * what eleven cylinders and eight spheres could not close a shoulder seam on.
+ * The rider, and the only character in this world that comes out of a file —
+ * and since the third pass, his board with him. `tools/surfer.py` argues the
+ * case; the short version is that every other craft here is a hull — a solid
+ * of revolution with things bolted to it, which is what code is good at — and
+ * a person is one skin over a skeleton, which is what eleven cylinders and
+ * eight spheres could not close a shoulder seam on.
  *
  * One mesh, and — unlike every landmark, which is flattened with its transform
  * baked in — its node hierarchy is kept, because the hierarchy is the skeleton
  * and flattening it would be throwing the rig away. The material is where the
- * two pipelines part: a landmark asks for its material by name prefix and gets TSL,
- * and this asks for nothing — the colour is COLOR_0 on the geometry, linear in
- * the file and linear in the shader, and `vertexColors` multiplies it in. It is
- * a wetsuit with neon ribbons across it, and no prefix was going to say that.
- */
-/**
- * `emissiveNode` is read by `NodeMaterial.setupEmissive`, which every node
- * material inherits, so a toon material honours it at runtime exactly as a
- * standard one does — see three/src/materials/nodes/NodeMaterial.js. Only
- * `MeshStandardNodeMaterial` declares the field in the types, hence the
- * widening: it is the narrow cast at a library boundary that CLAUDE.md allows,
- * and it is narrower than the `THREE as never` the canvas already needs.
- */
-const RIDER = new THREE.MeshToonNodeMaterial({ vertexColors: true }) as
-  THREE.MeshToonNodeMaterial & Pick<THREE.MeshStandardNodeMaterial, 'emissiveNode'>
-
-/**
+ * two pipelines part: a landmark asks for its material by name prefix and gets
+ * TSL, and this asks for nothing — the colour is a basecolour texture in the
+ * file, and the file's own UVs say where it goes. It is a wetsuit with a face
+ * above it and a board with a graphic on it, and no prefix was going to say
+ * either.
+ *
  * Where the rider stops being lit like the rest of the world.
  *
  * Everything else here is `MeshStandardNodeMaterial` under a golden-hour sun,
  * which is right for a hull: a boat is a painted surface and a painted surface
- * has a smooth falloff. The rider is drawn, not painted. Toon shading quantises
- * the same sun into two or three steps, so a shoulder gets a lit side and a
- * shadow side with a line between them instead of a gradient, and the neon in
- * COLOR_0 stays the colour it was authored as across the whole lit half rather
- * than being dimmed through it. It is the same trick as the crisp bands in
- * `tools/surfer.py`, one stage further along: hard edges in the colour, then
- * hard edges in the light.
+ * has a smooth falloff. The rider is drawn, not painted, and the third rider
+ * is drawn *in the file*: the generator's basecolour has no lighting in it,
+ * every shadow on him is a shadow somebody painted, and putting a sun on top
+ * of that is lighting a drawing twice. So he is unlit — `MeshBasicNodeMaterial`
+ * with the texture and nothing else, the colour on screen exactly the colour
+ * in the file — and the board with him, because it came from the same hand.
  *
- * The rim is the other half, and it turned out to be the important half. The
- * sun in `Scenery` is ahead of the ship, not behind it — the glow on the
- * horizon in front of you is the sun itself — so what the visitor gets is this
- * figure's *shadow* side, lit by fill alone. That is the same complaint
- * docs/STATUS.md files against every landmark, and on a black wetsuit it is
- * worse than on a rock: unlit, the rider is a silhouette on a bright sea with
- * no edge of its own, which reads as a sticker. A fresnel term biased to the
- * sun's side lights the outline instead, which is what a backlit body against
- * water actually does.
+ * What that costs is the thing the second rider's toon pass was fighting: the
+ * sun in `Scenery` is ahead of the ship, so the visitor gets this figure's
+ * shadow side, and an unlit black suit against a bright sea has no edge of
+ * its own. The ink outline below is that edge. The toon steps, the sunward
+ * fresnel and the neoprene glint that used to sit on top of COLOR_0 went with
+ * COLOR_0 — Seb chose the drawing over the lighting — and the bloom budget
+ * they claimed is the wake's again, alone.
  *
- * The exponent is the whole tuning. A fresnel at pow 2 over a body this round
- * is not an edge, it is most of the surface, and at a brightness that reads as
- * an edge it turned a black suit tan. At pow 7 it is a filament along the
- * grazing angles and the suit stays black.
- *
- * The second term is the neon lighting itself. Chroma — the spread between a
- * colour's brightest and dimmest channel — is near zero for the suit, the
- * black, the hair and the skin, and near one for exactly the four ribbon
- * colours, so multiplying COLOR_0 by its own chroma is a mask that selects the
- * neon and nothing else, with no second attribute and no list of colours to
- * keep in step with `tools/surfer.py`.
- *
- * Both are emissive, so both bloom, and that is a claim on a budget `FOAM`
- * above was spending alone. It is deliberate: the wake is the halo and this is
- * the filament, the rim only touches silhouette pixels, and the glow only
- * touches the ribbons. If they ever fight, cut these two before the wake.
+ * One material a file, built from the one the loader made: the loader's own
+ * `MeshStandardMaterial` is what carries the texture, colour space set, and
+ * the swap keeps that and drops the rest. The cast is the narrow one at a
+ * library boundary that CLAUDE.md allows — `map` is on every material the
+ * loader can produce for a textured primitive and on none of the types.
  */
-const VIEW_DIR = positionWorld.sub(cameraPosition).normalize()
-const RIM = normalWorld.dot(VIEW_DIR).abs().oneMinus().pow(7)
-const SUNWARD = normalWorld.dot(vec3(SUN.x, SUN.y, SUN.z)).mul(0.5).add(0.5)
-const COL = attribute<'vec3'>('color', 'vec3')
-const BRIGHT = COL.r.max(COL.g).max(COL.b)
-const CHROMA = BRIGHT.sub(COL.r.min(COL.g).min(COL.b))
-/**
- * The third term is the neoprene. A toon material has no specular at all, and
- * a wetsuit is the one garment whose whole look is specular: wet rubber is a
- * black that carries a tight, cold glint wherever it faces between the sun and
- * the eye. Blinn's half-vector at a high exponent is that glint, and it is
- * masked by the colour's *brightness* the way the neon is masked by chroma —
- * everything on this man darker than a sixth is rubber or hair (the suit, its
- * blue-black panels, the knee pads, the seams, the curls) and everything
- * lighter is skin, teeth or neon, and gets none. Hair takes it too, which is
- * right: wet curls shine. The sun is ahead of the ship, so from astern this
- * lands along the tops of the shoulders and the crown, which is where the
- * light on a backlit surfer actually is.
- */
-const HALF = normalize(vec3(SUN.x, SUN.y, SUN.z).sub(VIEW_DIR))
-const GLINT = normalWorld.dot(HALF).max(0).pow(48)
-const RUBBER = smoothstep(0.16, 0.05, BRIGHT)
-RIDER.emissiveNode = color('#ffb478').mul(RIM.mul(SUNWARD).mul(1.35))
-  .add(COL.mul(CHROMA).mul(0.5))
-  .add(color('#b9cde0').mul(GLINT.mul(RUBBER).mul(0.5)))
+const unlit = (loaded: THREE.Material): THREE.MeshBasicNodeMaterial => {
+  const map = (loaded as THREE.Material & { map?: THREE.Texture | null }).map ?? null
+  if (import.meta.env.DEV && !map) throw new Error(`${loaded.name}: no basecolour — rebuild it with tools/surfer.py`)
+  return new THREE.MeshBasicNodeMaterial({ map })
+}
 
 /**
  * The outline: the same geometry again, inside out, grown a centimetre along
@@ -1744,7 +1563,7 @@ const _scale = new THREE.Vector3()
 
 /**
  * A node's rest transform in the *model's* frame — board space, the same frame
- * `deckY` and `tools/surfer.py` are written in.
+ * `tools/surfer.py` is written in.
  *
  * Composed up the chain from local transforms rather than read off
  * `matrixWorld`, and that is the whole point: `matrixWorld` also carries the
@@ -2392,12 +2211,8 @@ function Rider({ visible }: { visible: boolean }) {
   const { scene } = useGLTF(surferUrl)
   const rig = useMemo(() => {
     const mesh = scene.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh | undefined
-    console.assert(
-      import.meta.env.PROD || !!mesh?.geometry.getAttribute('color'),
-      'surfer.glb: no COLOR_0 — rebuild it with tools/surfer.py',
-    )
     if (!mesh) throw new Error('surfer.glb: not skinned — rebuild it with tools/surfer.py')
-    mesh.material = RIDER
+    mesh.material = unlit(mesh.material as THREE.Material)
     // The outline is the same geometry and the *same skeleton*, not a copy of
     // either: one set of bone matrices, computed once, read by both draws. It
     // is added beside the rider rather than under it so the two share a parent
@@ -2427,6 +2242,32 @@ function Rider({ visible }: { visible: boolean }) {
   })
 
   return <primitive object={scene} />
+}
+
+/**
+ * The board, out of its file, drawn the way the rider is: the texture unlit
+ * and the same ink outline round it, one mesh grown a centimetre along its
+ * normals and drawn inside out. Nothing moves on it, so no skeleton and no
+ * `useFrame` — `Surfer` moves the group it sits in.
+ */
+function Surfboard() {
+  const { scene } = useGLTF(surfboardUrl)
+  const board = useMemo(() => {
+    const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
+    if (!mesh) throw new Error('surfboard.glb: no mesh — rebuild it with tools/surfer.py')
+    mesh.material = unlit(mesh.material as THREE.Material)
+    if (!scene.getObjectByName('outline')) {
+      const edge = new THREE.Mesh(mesh.geometry, OUTLINE)
+      edge.name = 'outline'
+      edge.position.copy(mesh.position)
+      edge.quaternion.copy(mesh.quaternion)
+      edge.scale.copy(mesh.scale)
+      edge.renderOrder = -1
+      mesh.parent!.add(edge)
+    }
+    return scene
+  }, [scene])
+  return <primitive object={board} />
 }
 
 /**
