@@ -6,7 +6,7 @@
  *   node src/isles.check.ts
  */
 import assert from 'node:assert/strict'
-import { ISLES, ISLE_EXTENT, RIM_MAX, ground, isleHeight, isleShore, spawn } from './isles.ts'
+import { ISLES, ISLE_EXTENT, RIM_MAX, ground, isleHeight, isleShore, lagoonDist, pushOut, spawn } from './isles.ts'
 import { WALK_FULL } from './beach.ts'
 
 const isle = ISLES[0]!
@@ -95,3 +95,117 @@ assert.equal(sand.yaw, sea.yaw)
 // beach, so the number it adds to its altitude is what the land does *above*
 // the plateau the three project islands sit on, and never less than nothing.
 console.log('isle: ok — summit', at(0, 0).toFixed(2), 'm, coast', (isle.radius * 2).toFixed(0), 'm across')
+
+/* ---------------------------------------------------------------------------
+ * And the other kind of island.
+ *
+ * Everything above is written for a star-convex isle with its summit over its
+ * own centre, and `crag-isle` is neither. Two of those asserts cannot be
+ * written for it at all:
+ *
+ *   "the ground is zero at its own waterline, on every bearing" — the lagoon's
+ *   shoreline is not on any bearing's list. It is exact by construction
+ *   instead: the carve returns `min(h, 0)` at a signed distance of zero.
+ *
+ *   "the profile climbs the whole way in" — the lagoon is a dip on every
+ *   bearing that crosses it, and that is the feature. What the assert was FOR
+ *   was the saucer diving into a hole it then has to climb out of, so that is
+ *   what gets asserted instead, along with the two things this shape can get
+ *   wrong that the old one could not.
+ * ------------------------------------------------------------------------ */
+
+for (const c of ISLES.filter((i) => i.lagoon)) {
+  const at = (dx: number, dz: number) => isleHeight(c, c.pos[0] + dx, c.pos[1] + dz)
+  const bx = Math.cos(c.lagoon!.bearing)
+  const bz = Math.sin(c.lagoon!.bearing)
+
+  // The rim is still the coast everywhere the entrance is not, and it is still
+  // exact there. The entrance names itself — `lagoonDist` says which bearings
+  // are water, rather than a range anybody wrote down.
+  let worstRim = 0
+  let widest = 0
+  let entrance = 0
+  for (let k = 0; k < 1440; k++) {
+    const theta = (k / 1440) * Math.PI * 2
+    const rim = isleShore(c, theta)
+    widest = Math.max(widest, rim / c.radius)
+    const dx = Math.cos(theta) * rim
+    const dz = Math.sin(theta) * rim
+    if (lagoonDist(c, dx, dz) < 0) { entrance++; continue }
+    worstRim = Math.max(worstRim, Math.abs(at(dx, dz)))
+  }
+  assert.ok(worstRim < 1e-9, `${c.id}: the rim is ${worstRim} off the water`)
+  assert.ok(widest <= RIM_MAX, `${c.id}: the rim reaches ${widest.toFixed(3)}`)
+  assert.ok(entrance > 20 && entrance < 200,
+    `${c.id}: ${entrance} of 1440 bearings are the entrance, which is not an entrance`)
+
+  // The summit is over the spire's axis, not over the island's centre.
+  const ox = -bx * (c.spire?.off ?? 0)
+  const oz = -bz * (c.spire?.off ?? 0)
+  assert.ok(Math.abs(at(ox, oz) - c.peak) < 5e-3,
+    `${c.id}: the summit is ${at(ox, oz).toFixed(3)} and the peak says ${c.peak}`)
+
+  // No dry basin: a patch of land lower than everything around it is a hole
+  // the saucer dives into and climbs back out of, which is the whole of what
+  // the monotone assert was protecting.
+  {
+    const N = 300
+    const EXT = c.radius * 1.3
+    const g = new Float64Array(N * N)
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        g[j * N + i] = at((i / (N - 1) * 2 - 1) * EXT, (j / (N - 1) * 2 - 1) * EXT)
+      }
+    }
+    let pits = 0
+    for (let j = 1; j < N - 1; j++) {
+      for (let i = 1; i < N - 1; i++) {
+        const h = g[j * N + i]!
+        if (h <= 0.05) continue
+        let rise = Infinity
+        let lowest = true
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+          const n = g[(j + dj!) * N + (i + di!)]!
+          if (n <= h) { lowest = false; break }
+          rise = Math.min(rise, n - h)
+        }
+        if (lowest && rise > 0.01) pits++
+      }
+    }
+    assert.equal(pits, 0, `${c.id}: ${pits} dry basins in the land`)
+  }
+
+  // The entrance is open to the sea, and wide enough to take a hull.
+  {
+    const L = c.lagoon!
+    let narrowest = Infinity
+    for (let a = 6; a <= 34; a += 0.25) {
+      let w = 0
+      for (let q = -16; q <= 16; q += 0.05) {
+        if (at(bx * (L.centre + a) - bz * q, bz * (L.centre + a) + bx * q) < 0) w += 0.05
+      }
+      narrowest = Math.min(narrowest, w)
+    }
+    assert.ok(narrowest > 4, `${c.id}: the entrance is ${narrowest.toFixed(1)} m at its narrowest`)
+  }
+
+  // And the push out of land always reaches water, from anywhere on it. This
+  // is `offshore`'s job on this island and it is not a radius any more.
+  {
+    let bad = 0
+    for (let k = 0; k < 360; k++) {
+      const theta = (k / 360) * Math.PI * 2
+      for (const f of [0.2, 0.45, 0.7, 0.9]) {
+        const rim = isleShore(c, theta)
+        const p = { x: c.pos[0] + Math.cos(theta) * rim * f, z: c.pos[1] + Math.sin(theta) * rim * f }
+        if (isleHeight(c, p.x, p.z) <= 0) continue
+        pushOut(c, p, 0.35, 60)
+        if (isleHeight(c, p.x, p.z) > -0.1) bad++
+      }
+    }
+    assert.equal(bad, 0, `${c.id}: ${bad} hulls could not be pushed off the land`)
+  }
+
+  console.log(`${c.id}: ok — lagoon ${(c.lagoon!.radius * 2).toFixed(0)} m across, ` +
+    `summit ${at(ox, oz).toFixed(2)} m`)
+}

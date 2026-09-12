@@ -4585,3 +4585,208 @@ largest single thing in the world — bigger than the rider.
   against "a 2.6 m sea and a 1.9 m mast". The sea did not change; the mast came
   down 19 cm, so an agitated sea is now a little bigger relative to the boat
   than the words in this file say.
+
+## A second isle, and a way inside it — the crescent, the hidden strand, and the stair up the spire
+
+`src/isles.ts` grew a second island and it is not another `palm-isle`. It is a
+crescent wrapped round an almost-closed lagoon, with a 23 m crag standing over
+the lagoon's far shore, a waterfall coming off it into the water, a strand
+hidden at the foot of that fall, and a spiral stair cut up the inside of the
+rock from a doorway at the back of the strand to a way out on the flank
+seventeen metres up.
+
+`palm-isle` is untouched, and that is checked rather than claimed: it runs
+through all of the new arithmetic and comes out with its coast 3.55e-28 off the
+water and its summit at 14.00, the numbers it has always had. Every new term is
+an optional field it does not carry.
+
+### Four terms, and one of them broke an invariant
+
+`spire` moves the crown off the island's centre and spends `share` of the
+shoulder-to-peak climb over a much shorter run. `gorge` cuts the fall's chute
+in its lagoon-facing side. `crag` is three crossing sine pairs in **XZ** — never
+in `theta`, which is the four-lobed crown this file already grew once — faded
+out at the summit so `peak` stays the number it says. `strand` caps the ground
+flat inside a disc at the foot of the chute, which takes a bite out of the base
+of the cliff and leaves an alcove.
+
+`lagoon` is the one that cost something. **An island with one is not
+star-convex**, and one coast per bearing is what this whole file was built on:
+it is why `offshore` could push a hull out along the bearing it was already on.
+A crescent has two coasts on most bearings — a ray from the middle crosses
+water, land, then water again.
+
+So the lagoon is a **signed distance** and not an angle: a circle for the basin,
+a corridor for the entrance, joined with a smooth minimum so the throat is a
+throat. Angles are measured from a centre and this island has two of them. Two
+earlier drafts fought that mismatch — a gaussian notch that came to a cusp at
+its head, then a bay forced to widen seaward — and neither could be the shape
+the reference photograph has. In a distance field the shape is just the shape.
+
+`offshore` grew `pushOut` for it: a walk down the ground's own gradient, which
+knows which of the two coasts the hull is behind because the ground does. Four
+height samples a step against the radial push's none, so the star-convex
+islands keep the radial one. It also ends the star-convex constraint for good,
+which is worth more than it costs.
+
+### What `isles.check.ts` could no longer say
+
+Two of its asserts cannot be written for this shape:
+
+- *"the ground is zero at its own waterline, on every bearing"* — the lagoon's
+  shoreline is not on any bearing's list. It is exact by construction instead:
+  the carve returns `min(h, 0)` at a signed distance of zero.
+- *"the profile climbs the whole way in"* — the lagoon is a dip on every bearing
+  that crosses it, and that is the feature.
+
+What the second one was *for* was the saucer diving into a hole it then has to
+climb out of. So that is what is asserted now — **no dry basin in the land** —
+along with the two things this shape can get wrong that the old one could not:
+**the entrance is open to the sea** (9.0 m at its narrowest against a 2 m hull)
+and **`pushOut` always reaches water** (1,440 starts on the land, every one).
+
+`world.ts`'s dev asserts are guarded the same way, and say why.
+
+### The cave is not a heightfield, and the stair is a rail
+
+`ground(x, z)` has room for one height per point and a cave needs two: the
+floor underfoot and the mountain overhead. Nothing in this world can hold that
+— the collision, the mesh, the walk and the camera floor are all that one
+function.
+
+So `src/stairs.ts` is not a heightfield. It is a **rail**: a parametric
+centreline through the rock with a half-width and a headroom, and a character
+who, while he is inside it, takes his position from the curve instead of from
+the ground. Which is the shape of answer `beach.ts` already is — a mode with
+its own vertical, pure arithmetic, no `three` — so `node src/stairs.check.ts`
+walks a man up it and asserts every tread.
+
+(Plural, and for the reason `isles.ts` is plural: `Stair.tsx` is the component
+beside it and macOS cannot tell the two apart. Walked into again by somebody
+who knew about it, and caught by `tsc` rather than by a deploy.)
+
+**The stair hugs the skin.** Its radius at every turn is solved, sample by
+sample, as the distance from the spire's axis at which the island's own surface
+stands `roof` above where the ceiling would be — so retuning the island moves
+the stair with it instead of leaving it hanging out of a cliff. Two things had
+to be bolted onto that idea, and both were found by the check:
+
+- **a cap on the radius.** Down at the bottom the mountain is only five metres
+  tall, so "as deep as the roof wants" is fifteen metres out from the axis, and
+  the stair came out a 99 m coast path at 10 degrees. A smaller radius is
+  deeper rock, so a cap can only ever make it safer.
+- **less than one full turn.** A spiral of more than one comes back over its
+  own mouth, and its own mouth is a hollow: the strand's alcove is cut out of
+  the rock exactly where the passage wanted to pass at fifteen metres up, and
+  the cover check found a metre and a half of window onto the beach.
+
+**And the climb is paced by the going, not by the parameter**, which is the
+difference between a stair and a ramp with a kink in it. Where the passage
+dives in through the wall it barely moves in plan, and a climb handed out
+evenly spent a metre and a half of rise in half a metre of going — the check
+read 45 degrees there, and a 45-degree stair is a ladder. The radius depends on
+the height and the height now depends on the radius, so it is a fixed point:
+three passes, and the third moves nothing by more than a millimetre.
+
+### The numbers
+
+| | |
+|---|---|
+| the lagoon | 27 m across, 3.4 m deep, entrance 9.0 m at its narrowest |
+| the crescent | 5 m of land at the entrance, 13 at the horns, 27–36 round the back |
+| the summit | 23.000 of 23, over the spire's axis 11 m back from `pos` |
+| the strand | 4 m of sand, 5 m wide, under a 14 m cliff, behind the fall |
+| the stair | 33.1 m of going for 16.8 m of climb, 93 treads at 18 cm |
+| its grade | 30.4 degrees, the same at every point |
+| the passage | 2.30 m wide, 2.35 m of headroom for a 1.8 m rider |
+| rock over it | 1.42 m at the thinnest, portals excepted; 5.85 m between turns |
+| to walk it | 12.3 seconds |
+
+### What it cost the controller, and it is three places
+
+Inside the stair, **the velocity is projected onto the rail and written back**.
+So the yaw, the gait, the stride, the step rate and the speed all come out of
+the code that was already there, reading a velocity that happens to point along
+a corridor. Nothing else in `Ship.tsx` knows he is underground except:
+
+- the altitude, which reads the rail's floor instead of `ground()` — and needs
+  no `follow` lag, because the lag exists for a beach met at riding speed and
+  the rail has no steps in it. The treads are the mesh's; his feet are on the
+  smooth line under them, which is what a stair's collision is everywhere.
+- the hillside read, which is skipped: `ground()` in there is the mountain's
+  *outside*, ten metres over his head, and reading a slope through a hill is a
+  man walking up a corridor leaning thirty degrees.
+- the camera, which rides the rail 3.4 m behind him — astern of a heading in a
+  passage 2.3 m wide is inside a wall — and skips the `CAM_CLEAR` floor, which
+  under a mountain is two metres above the summit.
+
+Going in is `atDoor`: on foot, not mid-jump, not in the water, within 2.2 m of
+a door and facing into it. The sign is the whole point — a door you can only
+walk in through is a door a wave cannot shove you through, and the mouth is on
+a beach.
+
+### The doorways are holes in the shading
+
+A polar grid cannot easily have a hole cut in it, so `Isle.tsx`'s ground
+material discards fragments within `PORTAL` of either door's centre, and what
+is behind them is the tunnel's own mesh. The cost is honest and worth writing
+down: it puts the island's material on the alpha-tested path. It buys a hole
+that moves when the stair moves, which is the bargain every other number on
+this island is made on.
+
+`Isle.tsx` also lays 18 more rings on an isle with a lagoon. The ring list is
+spaced for a cone — flat across the apron, busy either side of the waterline —
+and a crescent has a second waterline in the middle of it.
+
+### Cost
+
+Zero bytes of assets. The island, the strand, the fall's chute and the stair
+are all arithmetic; the passage is 5k triangles built at runtime from the same
+curve the walk is held to. `Stair.tsx` is the first thing in the world with a
+`lit` vertex attribute: daylight falling off from each portal, because a cave
+lit only by this world's one sun is black in the middle, and a black corridor
+is one nobody walks up twice.
+
+### Verified
+
+`npx tsc -b` clean. `npm run check` — all six, `stairs.check.ts` among them:
+
+```
+locales: ok
+camera: ok
+isle: ok — summit 14.00 m, coast 70 m across
+crag-isle: ok — lagoon 27 m across, summit 23.00 m
+stick: ok
+beach: ok — 0.0 cm into the sand at worst, 8.7 cm the biggest step
+stair: ok — 33.1 m of going for 16.8 m of climb, 93 treads, 12.3 s at a walk
+```
+
+The shape was drawn before it was written down — a software raymarch of the
+same height function, and an unrolled section of the spiral against the
+mountain's own surface. Both agree with the shipped module to four decimals.
+
+### Not verified
+
+No build, no bundle, no frame rate, and **nothing has been seen moving**. In
+particular:
+
+- the entry snap. `atDoor` reaches 2.2 m, so walking into a door can move him
+  up to two metres onto the rail in one frame. It may want projecting onto the
+  nearest arc length instead of jumping to the end.
+- the camera through the doorway. The hand-over between the follow camera and
+  the rail camera is a cut, not a blend.
+- whether the passage is legible at all. `DEEP` is 0.16 and `REACH` is 7.5 m,
+  and both are guesses about a cave nobody has stood in.
+- the alpha-tested island. It typechecks; whether it reads at a distance, and
+  what it costs, is a frame away from being known.
+- the saucer over a 23 m crag with a 3.4 m hole in it. `RISE` and `FOLLOW` were
+  tuned on a 13 m ridge.
+
+### Needs Seb
+
+The lagoon is ringed by cliffs at up to 83 degrees and **`beach.ts` still gates
+nothing**: the surfer walks up the inside of a cliff and up the waterfall, the
+same open question the isle had before and now with more cliff to prove it. The
+lever is either a maximum grade in `beach.ts` with an assert beside it — the
+honest one, and new arithmetic rather than a number — or a gentler lagoon
+shore, which costs the forest at the water's edge.

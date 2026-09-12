@@ -1,5 +1,5 @@
 import { PROJECTS } from './content'
-import { ISLES, RIM_MAX, isleHeight, isleShore } from './isles'
+import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -31,7 +31,7 @@ export const GROUND = 0.45
 
 /** The isles are their own module — pure arithmetic, no content import, so
  *  `node src/isle.check.ts` can run it. This is where the world is read from. */
-export { ISLES, ISLE_EXTENT, ground, isleHeight, isleShore, spawn, type Isle } from './isles'
+export { ISLES, ISLE_EXTENT, ground, isleHeight, isleShore, lagoonDist, pushOut, spawn, type Isle } from './isles'
 
 /**
  * Where the character is, in world XZ, and which way it is facing. Written once
@@ -233,6 +233,13 @@ export function offshore(p: { x: number; z: number }, isles = true): void {
     const dz = p.z - i.pos[1]
     const d = Math.hypot(dx, dz)
     if (d >= i.radius * RIM_MAX + BEAM) continue
+    // An isle with a lagoon is not star-convex — a ray from its centre crosses
+    // water, land, then water again — so there is no "out along the bearing"
+    // to push along. `pushOut` walks down the ground's own gradient instead,
+    // which knows which of the two coasts the hull is behind because the
+    // ground does. It costs four height samples a step; the radial push costs
+    // none, so the star-convex islands keep it.
+    if (i.lagoon) { pushOut(i, p, BEAM); continue }
     const r = isleShore(i, Math.atan2(dz, dx)) + BEAM
     if (d >= r) continue
     const k = d > 1e-6 ? r / d : 0
@@ -296,12 +303,21 @@ if (import.meta.env.DEV) {
       widest = Math.max(widest, isleShore(i, theta) / i.radius)
       // And the profile has to meet the water where the coast says it does, or
       // the mesh draws a beach the hull is pushed out of somewhere else.
+      if (i.lagoon) continue
       const s = isleShore(i, theta)
       zero = Math.max(zero, Math.abs(isleHeight(i, i.pos[0] + Math.cos(theta) * s, i.pos[1] + Math.sin(theta) * s)))
     }
     console.assert(widest <= RIM_MAX, `${i.id}: rim reaches ${widest.toFixed(3)}, RIM_MAX is ${RIM_MAX}`)
-    console.assert(zero < 1e-6, `${i.id}: the ground is ${zero.toFixed(3)} off the water at its own coastline`)
-    console.assert(isleHeight(i, i.pos[0], i.pos[1]) > i.peak * 0.8, `${i.id}: no summit — the ridge missed the middle`)
+    // The last two are written for an island whose coast is a radius and whose
+    // summit is over its own centre. An isle with a lagoon is neither: its rim
+    // is cut by an entrance, and its peak stands over `spire.off` metres away
+    // from `pos`. `isles.check.ts` asserts both of those in the form they take
+    // on that shape — the rim is exact everywhere `lagoonDist` does not say
+    // "entrance", and the summit is measured at the spire's axis.
+    if (!i.lagoon) {
+      console.assert(zero < 1e-6, `${i.id}: the ground is ${zero.toFixed(3)} off the water at its own coastline`)
+      console.assert(isleHeight(i, i.pos[0], i.pos[1]) > i.peak * 0.8, `${i.id}: no summit — the ridge missed the middle`)
+    }
     // Clear of every landmark, moorings included: an isle overlapping one is a
     // hull pushed out of a coast into a coast, forever.
     for (const l of LANDMARKS) {
