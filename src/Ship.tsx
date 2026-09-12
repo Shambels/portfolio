@@ -7,7 +7,7 @@ import { useInput } from './useInput'
 import { steer, swing } from './camera'
 import { swell } from './Scenery'
 import {
-  FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
+  BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
 } from './beach'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore } from './world'
 import type { ShipModel } from './WorldGate'
@@ -222,20 +222,35 @@ const HOP_G = 14
  * strides, 1.71 units a step at 3.8 steps a second, against 0.76 at 5.0; with
  * the third's, 1.38 and 0.72 — see `STAND` for why they shortened.
  *
- * The stride does not move between the two at all now — it barely did, 0.39
- * to 0.41 — and that is right, and it is the part that reads as
- * counterintuitive. A runner's legs do not swing much further than a
- * walker's. What changes is how long they stay down.
+ * The stride moves between the two more than it did — 0.40 to 0.48, where
+ * the second rider had 0.39 to 0.41 — because Seb wanted the run's step
+ * visibly longer than the walk's, and it is bought with `RUN_SINK`: a runner
+ * carries his hips a few centimetres lower, which is where the reach for
+ * the longer step comes from. Most of the difference is still the duty.
  */
 const WALK_DUTY = 0.46
 const RUN_DUTY = 0.24
-const WALK_STRIDE = 0.33
-const RUN_STRIDE = 0.33
+const WALK_STRIDE = 0.40
+const RUN_STRIDE = 0.48
 /** How high the swinging foot lifts at a full stride. A runner picks his knees
  *  up and a walker does not, and it is most of what separates them from behind,
  *  which is the only angle this world has on him. */
 const WALK_LIFT = 0.12
 const RUN_LIFT = 0.22
+/**
+ * The foot rolls. A sole held flat through the whole stance is a leg that
+ * can only reach as far as a straight line from the hip to the ankle, and
+ * that line is what bent the knees: at the ends of a 0.40 stride it is
+ * 31 degrees off vertical, and a hip that must stay within it stays low.
+ * A real step lands heel first, toes up, and leaves toes last, heel high,
+ * and the ankle rides up by the foot's own lever at both ends — 4 cm at the
+ * strike, 8 at toe-off — which is reach the hips can spend on standing
+ * taller. `HEEL_PITCH` is the toes going with it. Seb: the knees were still
+ * bent too much walking, and more so running.
+ */
+const HEEL_ON = 0.04
+const HEEL_OFF = 0.08
+const HEEL_PITCH = 0.45
 /** Cycles a second, as a guard on the division above and nothing else — the
  *  rate is derived, and this only ever catches a stride driven to nothing. */
 const CYCLE_MAX = 3.4
@@ -281,24 +296,47 @@ const PICK = 0.20
  * him height (below). At 14 cm the stride goes to 0.49 and he bounces like a
  * cartoon.
  *
- * `STAND` more than doubled with the third rider, whose legs are 0.79 of
- * reach against the second's 0.68: the same 12 cm out of the same crouch left
- * him walking on bent knees, which Seb saw twice — the second time with the
- * trunk still pitched into the surf crouch, which `ride()` now takes out on
- * foot (`lean`). The height has a ceiling and this is at it: the sweep in
- * `rigOf` runs the stance foot `TERRAIN_DOWN` under the hip plane and the
- * hips `BOB` over it at mid-stance, and 0.44 + 0.28 + 0.05 is 97% of these
- * legs with 1.5% left for the sway. What paid for the last 4 cm was the
- * stride and the bob, not the stand: 0.33 for both gaits where the walk had
- * 0.39 and the run 0.41, and 5 cm of bob where they had 6.5 and 8, because
- * the leg is longest with the feet apart and at the top of the vault, and a
- * taller man takes the same ground in shorter, quicker steps — the rate is
- * derived, so it simply goes up. Walking step 0.72 where it was 0.85, running
- * 1.38 where it was 1.71.
+ * `STAND` is most of the man now. The third rider's legs are 0.79 of reach
+ * against the second's 0.68, and his third stance — off Seb's photograph —
+ * has the seat down at knee height, 0.47 in board space, so standing up is
+ * 37 cm of hips and not 12. Height alone was not it, either: the first two
+ * tries left him walking bent over a board he was carrying, because the
+ * stance's fold and turn lived in the hips bone's rest rotation and nothing
+ * took them out — `ride()` does now, with `stand`, read off the file.
+ *
+ * The height, the stride, the bob and the heel are one budget, and the
+ * sweep in `rigOf` is the ledger: the hips `BOB` over the stance foot at
+ * mid-stance, and the leg longest there and with the feet apart at the ends
+ * of the stance, less what the heel gives back at those ends. 0.43 with a
+ * 0.40 stride and 5 cm of bob is 97.0% of these legs at a walk, with the
+ * knee at mid-stance 98% straight on the flat; the run's 0.48 stride is paid
+ * for by `RUN_SINK`, 96.8%. The sweep no longer charges `TERRAIN_DOWN`: a
+ * 2 cm downhill step at the top of the vault is a straight leg with the sole
+ * six millimetres short of the sand, which is the float on a descent the
+ * note above already accepts, and it was costing 2.5% of the leg on every
+ * flat step to insure against. Seb asked for the steps back after a pass at
+ * 0.33 (short and quick, to stand him taller) read as mincing: 0.87 a step
+ * walking, which is what the second rider had, and 2.0 running, which is
+ * longer than he ever had.
  */
-const STAND = 0.28
+const STAND = 0.43
 const WALK_BOB = 0.05
-const RUN_BOB = 0.05
+const RUN_BOB = 0.08
+/** And how much lower a runner carries his hips than a walker — what buys the
+ *  run its longer step under the same reach. */
+const RUN_SINK = 0.04
+/**
+ * Standing. A man who has stopped walking is not a man walking at zero: his
+ * feet come under him (the stride already goes to nothing with the pace), his
+ * hips come up until his legs are straight, the vault stops, and his feet
+ * are a little apart. `STILL` is the extra height and `SPREAD` the extra
+ * width, both scaled by how stopped he is; the bob is scaled by the rest.
+ * The height is the one the reach allows with the feet together and no
+ * vault: 0.30 + 0.43 + 0.05 is 98% of the leg on the flat, which is a knee
+ * a shade off straight. Seb: the standing knees were bent too much.
+ */
+const STILL = 0.05
+const SPREAD = 0.05
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -585,7 +623,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const groundY = useRef(0)  // the sand under his feet — `follow` in `beach.ts`
   const hop = useRef(0)      // how far off the sand a jump has him, and how fast
   const hopVel = useRef(0)
-  const held = useRef(false) // last frame's Space, so a jump is a press
+  const held = useRef(false)
+  const overSand = useRef(false)  // in the air off the water, above the sand // last frame's Space, so a jump is a press
   const lastVel = useRef(new THREE.Vector3()) // for acceleration; velocity is damped, not raw input
   const spring = useRef(new THREE.Vector3())
   const springVel = useRef(new THREE.Vector3())
@@ -658,10 +697,18 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // this is the ramp between them. Last frame's position, deliberately —
     // nothing here is worth reordering the frame for.
     const walks = model === 'surfer'
-    beached.current = walks
-      ? ashore(beached.current, ground(g.position.x, g.position.z), dt, REDUCED)
-      : 0
+    // How long the change ashore has, when it has to be quicker than the
+    // beach's own second and a quarter: a hull in the air over the sand lands
+    // when its arc meets it, and the pickup has to be done by then — so it is
+    // given the time the fall has left, out of last frame's arc.
+    const groundHere = ground(g.position.x, g.position.z)
+    const drop = Math.max(hull.current - (groundHere - FOOT_DROP), 0)
+    const within = walks && flew.current
+      ? (hullVel.current + Math.sqrt(hullVel.current * hullVel.current + 2 * GRAV * drop)) / GRAV
+      : BEACH
+    beached.current = walks ? ashore(beached.current, groundHere, dt, REDUCED, within) : 0
     const afoot = beached.current
+    if (afoot <= 0) overSand.current = false
 
     // Space. The saucer's is a *held* climb to a ceiling — one damped value,
     // nothing to time and nothing to land on — and this is the opposite: an
@@ -903,7 +950,18 @@ const RISE = 10
         // the deck while the deck is on the sand, and on the sand once the
         // board is in his arms. Same curve as the board's own lift, or he walks
         // 16 cm above the thing he is standing on.
-        ride = altitude(ride, groundY.current - FOOT_DROP * carried(afoot) + hop.current, afoot)
+        const sand = groundY.current - FOOT_DROP * carried(afoot) + hop.current
+        // Coming down out of a jump onto the sand: the arc ends here, on his
+        // knees and into the bounce spring the way a hop's does, and the
+        // hull's own fall under him — on to a sea that is under the island —
+        // is no longer his. Landing is a thing that happens once.
+        if (flying && overSand.current && ride <= sand) {
+          springVel.current.y += -hullVel.current * water.squash
+          RIDE.slam = Math.min(-hullVel.current / SPLASH_FULL, 1)
+          hullVel.current = 0
+        }
+        overSand.current = flying && ride > sand
+        ride = altitude(ride, sand, afoot, flying)
         // A man walking does not heel to a wave, and the deck is not throwing
         // him anywhere: what is left of the water fades out of all three.
         roll *= 1 - afoot
@@ -954,7 +1012,11 @@ const RISE = 10
     // Airborne, and the two modes measure it differently — the hull off the
     // surface, or the hop off the sand. One number out of it, because what the
     // rider does about it is the same thing.
-    const aloft = Math.min(hop.current / 0.3, 1)
+    // Off the ground on land: a hop, or a jump off the water that has not
+    // come down yet — `overSand` is that second one, so that a man crossing
+    // the coast in the air stays a man in the air rather than a man walking
+    // at a height.
+    const aloft = Math.max(Math.min(hop.current / 0.3, 1), overSand.current ? 1 : 0)
     RIDE.air += ((1 - wet.current) * (1 - afoot) + aloft * afoot - RIDE.air) * react
     // Spent over about a third of a second, and linearly: a landing is a thing
     // that finishes, where an exponential leaves the knees half bent forever.
@@ -1318,11 +1380,25 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * given something to hold.
  *
  * The roll is exactly a quarter turn, and its sign is the one that puts the
- * deck against his ribs and the fin outboard, clear of his leg. The z is his
- * hip: the board's centre comes to where he stands, and since the third rider
- * he stands on the pads, `STANCE` in `tools/surfer.py` aft of the middle.
+ * deck against his ribs and the fin outboard, clear of his leg.
+ *
+ * Since the third rider the offset is in the *hips bone's* frame and not the
+ * craft's, and `Rider` places the board, not `Surfer`: a board parked at a
+ * fixed point in the craft while the man bobbed and swayed and turned his
+ * pelvis with every stride beside it was a board floating next to him, which
+ * is what Seb saw. Hung off the pelvis it goes where he goes — up over the
+ * stance leg, round with the stride — which is what a thing under an arm
+ * does. The frame's x is his left, y up his trunk, z the way he faces, so
+ * -0.25 is his right side, and 0.13 above the hip joints puts the top rail
+ * of a 0.63 board under his armpit, which is where a board is carried.
+ *
+ * `Rider` writes the board's transform into `CARRY` each frame, after `ride`
+ * has moved the pelvis, and `Surfer` — which owns the board's group — reads
+ * it, the way `RIDE` already crosses between the two. Before the rider has
+ * loaded nothing writes it, and the board sits on the water.
  */
-const CARRY_POS = new THREE.Vector3(-0.30, 0.66, -0.48)
+const CARRY_POS = new THREE.Vector3(-0.25, 0.13, 0.0)
+const CARRY = { pos: new THREE.Vector3(), rot: new THREE.Quaternion() }
 const CARRY_ROT = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.20, -0.44, -Math.PI / 2, 'YXZ'))
 const CARRY_REST = new THREE.Quaternion()
@@ -1396,18 +1472,12 @@ function Surfer({ visible }: { visible: boolean }) {
     WAKE_SPEED.value += (Math.min(SHIP.vel.length() / SPEED, 1) *
       (1 - THREE.MathUtils.smoothstep(RIDE.land, 0.02, 0.28)) - WAKE_SPEED.value) * 0.12
 
-    // And the board comes up with him. It lags the crouch deliberately — the
-    // dip in `ride()` is him reaching for it, and a board that started rising
-    // with his hips would be one he never touched. One eased number for the
-    // whole of it, so the reverse is the same movement backwards: he sets it
-    // down, steps on, and rides away.
-    const t = carried(RIDE.land)
-    board.current.position.copy(CARRY_POS).multiplyScalar(t)
-    board.current.position.y += LIFT_ARC * Math.sin(Math.PI * t)
-    board.current.quaternion.slerpQuaternions(CARRY_REST, CARRY_ROT, t)
+    // The board goes where `Rider` put it, off his pelvis — see `CARRY_POS`.
     // The leash is drawn only while both its ends are where it was built for
     // — the plug on a board on the water and the cuff on an ankle on its deck.
-    leash.current.visible = t < 0.02
+    board.current.position.copy(CARRY.pos)
+    board.current.quaternion.copy(CARRY.rot)
+    leash.current.visible = carried(RIDE.land) < 0.02
   })
 
   return (
@@ -1564,6 +1634,13 @@ const _qt = new THREE.Quaternion()
 const _qa = new THREE.Quaternion()
 const _qb = new THREE.Quaternion()
 const _qi = new THREE.Quaternion()
+const _qs = new THREE.Quaternion()
+const _qb2 = new THREE.Quaternion()
+const _qf = new THREE.Quaternion()
+const _qp = new THREE.Quaternion()
+const _qc = new THREE.Quaternion()
+const _ZERO = new THREE.Vector3()
+const _I = new THREE.Quaternion()
 const _mat = new THREE.Matrix4()
 const _step = new THREE.Matrix4()
 const _AX = new THREE.Vector3(1, 0, 0)
@@ -1610,6 +1687,8 @@ type Joint = {
   ax: THREE.Vector3
   ay: THREE.Vector3
   az: THREE.Vector3
+  from: THREE.Quaternion // the parent's rest rotation, board space
+  into: THREE.Quaternion // and its inverse: board space -> the parent's frame
 }
 
 function jointOf(bone: THREE.Bone, root: THREE.Object3D): Joint {
@@ -1624,6 +1703,7 @@ function jointOf(bone: THREE.Bone, root: THREE.Object3D): Joint {
     import.meta.env.PROD || Math.abs(_scale.x - 1) + Math.abs(_scale.y - 1) + Math.abs(_scale.z - 1) < 1e-4,
     `surfer.glb: \`${bone.name}\` sits under a scale of ${_scale.toArray()} — the rig assumes none`,
   )
+  const from = parent.clone()
   parent.invert()
   return {
     bone,
@@ -1631,15 +1711,47 @@ function jointOf(bone: THREE.Bone, root: THREE.Object3D): Joint {
     ax: _AX.clone().applyQuaternion(parent),
     ay: _AY.clone().applyQuaternion(parent),
     az: _AZ.clone().applyQuaternion(parent),
+    from,
+    into: parent,
   }
 }
 
+/** A rotation whose Y is `dir` and whose Z is as much of `front` as is square
+ *  to it — the bone convention, and how a limb's twist is decided rather than
+ *  left to the shortest rotation. */
+function frameQ(dir: THREE.Vector3, front: THREE.Vector3): THREE.Quaternion {
+  const y = dir.clone().normalize()
+  const z = front.clone().addScaledVector(y, -front.dot(y))
+  if (z.lengthSq() < 1e-8) z.crossVectors(y, _AX)
+  z.normalize()
+  return new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(y, z), y, z))
+}
+
+/**
+ * A base to bend from other than the rest pose: the rest pose turned by
+ * `q`, a rotation given in board space. It is how the walk stands him up —
+ * the whole trunk, then the head back to the horizon, then the arms down to
+ * his sides — with rotations that are read off the file rather than written
+ * down, and `bend` and `fold` lay the frame's own numbers on top.
+ *
+ * What it means, exactly: the bone's rest orientation is turned by `q` in
+ * board space *and then carried by whatever its parent has done since rest*.
+ * For the hips, whose parent never moves, that is just `q`. For anything
+ * below them it is why the rotations in `rigOf` are solved as "what `q`
+ * makes the rest into the wanted thing once the chain above is where the
+ * walk puts it", and not as the difference between two world orientations.
+ */
+function based(j: Joint, q: THREE.Quaternion, out: THREE.Quaternion): THREE.Quaternion {
+  return out.copy(j.into).multiply(q).multiply(j.from).multiply(j.rest)
+}
+
 /** Rotate a joint about board space's x, y and z, on top of its rest pose. */
-function bend(j: Joint, x: number, y: number, z: number): void {
+function bend(j: Joint, x: number, y: number, z: number, base: THREE.Quaternion = j.rest): void {
   _q.setFromAxisAngle(j.ax, x)
   _q.multiply(_qt.setFromAxisAngle(j.ay, y))
   _q.multiply(_qt.setFromAxisAngle(j.az, z))
-  j.bone.quaternion.copy(j.rest).premultiply(_q)
+  j.bone.quaternion.copy(base).premultiply(_q)
 }
 
 /**
@@ -1648,8 +1760,8 @@ function bend(j: Joint, x: number, y: number, z: number): void {
  * in, which `rigOf` reads off the rest pose. One number opens and closes the
  * arm, and it stays anatomy rather than becoming a hinge in the wrong plane.
  */
-function fold(j: Joint, axis: THREE.Vector3, angle: number): void {
-  j.bone.quaternion.copy(j.rest).premultiply(_q.setFromAxisAngle(axis, angle))
+function fold(j: Joint, axis: THREE.Vector3, angle: number, base: THREE.Quaternion = j.rest): void {
+  j.bone.quaternion.copy(base).premultiply(_q.setFromAxisAngle(axis, angle))
 }
 
 /** An arm: three joints and the plane its elbow and wrist fold in. */
@@ -1660,6 +1772,8 @@ type Arm = {
   elbow: THREE.Vector3 // the fold axis, in the upper arm's frame
   wrist: THREE.Vector3 // the same axis, in the forearm's
   side: number         // +1 for the leading arm, -1 for the trailing one
+  hangUp: THREE.Quaternion   // what stands the upper arm down at his side, once the trunk is up
+  hangFore: THREE.Quaternion // and the forearm straight below it
 }
 
 /**
@@ -1688,6 +1802,7 @@ type Leg = {
   d1: THREE.Vector3     // hip -> knee at rest, normalised
   d2: THREE.Vector3     // knee -> ankle at rest, normalised
   q1: THREE.Quaternion  // and the three rest orientations, in board space
+  walk: THREE.Quaternion // the foot's rest orientation with its yaw taken out
   q2: THREE.Quaternion
   q3: THREE.Quaternion
 }
@@ -1698,7 +1813,8 @@ type Rig = {
   hipsInto: THREE.Quaternion // board space -> that frame, for the offset below
   hipsFrom: THREE.Matrix4   // the hips bone's parent, in board space. Constant.
   hipsTurn: THREE.Quaternion // and that parent's rotation alone
-  lean: number              // the torso's forward pitch at rest, pelvis to neck
+  stand: THREE.Quaternion   // from the hips bone's rest orientation to upright, facing forward
+  gaze: THREE.Quaternion    // half of the turn that levels the head once the trunk is upright
   spine: Joint
   chest: Joint
   neck: Joint
@@ -1721,6 +1837,17 @@ function rigOf(scene: THREE.Object3D): Rig {
   }
 
   const hips = jointOf(bone('hips'), scene)
+  const hipsRest = spin('hips')
+  const stand = (() => {
+    // The trunk line and the facing, both in the hips bone's own frame; the
+    // rotation that puts that frame's Y up and its Z forward is the stand.
+    const into = hipsRest.clone().invert()
+    const up = at('neck').sub(at('hips')).normalize().applyQuaternion(into)
+    const front = _AZ.clone().addScaledVector(up, -up.z).normalize()
+    const frame = new THREE.Matrix4().makeBasis(_v.crossVectors(up, front).clone(), up, front)
+    return new THREE.Quaternion().setFromRotationMatrix(frame).invert().multiply(into)
+  })()
+  const standInv = stand.clone().invert()
   const hipsFrom = restOf(hips.bone.parent!, scene, new THREE.Matrix4())
   const hipsTurn = new THREE.Quaternion()
   hipsFrom.decompose(_v, hipsTurn, _scale)
@@ -1737,10 +1864,34 @@ function rigOf(scene: THREE.Object3D): Rig {
     const axis = new THREE.Vector3().crossVectors(a, b)
     if (axis.lengthSq() < 1e-8) axis.crossVectors(b, _AY)
     axis.normalize()
+    // Down to his side for the walk. The stance's arms are a surfer's — one
+    // down the line, one aft over the tail — and once the trunk is stood up
+    // and turned to face the way he walks they are a man in a T. So, in the
+    // frame the trunk will be in: the upper arm to straight down, and the
+    // forearm to straight below it; `ride()` then folds the elbow and swings
+    // the arm as it always did, from hanging.
+    //
+    // As frames and not as directions, because a direction leaves the twist
+    // of the arm to the shortest rotation, and the twist is the palm: the
+    // elbow's tip is sent to point straight back, which is where it pointed
+    // in the A-pose the skin was weighted in, and the palm then faces his
+    // thigh as it did there — and the board, once the trailing arm is out
+    // over it.
+    const tip = at(`${tag}_fore`).sub(at(`${tag}_upper`))
+    const reach = at(`${tag}_hand`).sub(at(`${tag}_upper`)).normalize()
+    tip.addScaledVector(reach, -tip.dot(reach))
+    if (tip.lengthSq() < 1e-6) tip.crossVectors(axis, a)
+    const down = _AY.clone().negate().applyQuaternion(standInv)
+    const back = _AZ.clone().negate().applyQuaternion(standInv)
+    const hangUp = frameQ(down, back).multiply(frameQ(a, tip).invert())
+    const undo = hangUp.clone().invert()
+    const hangFore = frameQ(down.clone().applyQuaternion(undo), back.clone().applyQuaternion(undo))
+      .multiply(frameQ(b, tip).invert())
     return {
       upper, fore, hand, side,
       elbow: axis.clone().applyQuaternion(spin(`${tag}_upper`).invert()),
       wrist: axis.clone().applyQuaternion(spin(`${tag}_fore`).invert()),
+      hangUp, hangFore,
     }
   }
 
@@ -1760,6 +1911,15 @@ function rigOf(scene: THREE.Object3D): Rig {
       d1: new THREE.Vector3().subVectors(knee, hip).normalize(),
       d2: new THREE.Vector3().subVectors(ankle, knee).normalize(),
       q1: spin(`${tag}_thigh`), q2: spin(`${tag}_shin`), q3: spin(`${tag}_foot`),
+      // The foot bone runs along the foot, and since the third stance both
+      // feet are turned to the toe side on the board. A stride wants them
+      // pointing where he is going, so this is the same sole flat on the same
+      // ground, yawed back to straight — the pitch and the roll are kept.
+      walk: (() => {
+        const q = spin(`${tag}_foot`)
+        const along = _AY.clone().applyQuaternion(q)
+        return new THREE.Quaternion().setFromAxisAngle(_AY, -Math.atan2(along.x, along.z)).multiply(q)
+      })(),
     }
   }
 
@@ -1767,10 +1927,24 @@ function rigOf(scene: THREE.Object3D): Rig {
     hips,
     hipsHome: hips.bone.position.clone(),
     hipsInto: hipsTurn.clone().invert(),
-    // How far the torso leans into the crouch, read off the file so the walk
-    // can take exactly that back out: the pitch of the line from the pelvis
-    // to the base of the neck, which is the trunk and not the head.
-    lean: Math.atan2(at('neck').z - at('hips').z, at('neck').y - at('hips').y),
+    // How the trunk is set into the crouch, read off the file so the walk can
+    // take exactly that back out. Every bone `tools/surfer.py` exports runs
+    // along its local Y with its local Z the way it faces — the hips' Z is
+    // the way the trunk faces, the head's Z is the gaze — so "standing up,
+    // facing the way he walks" is the identity rotation for the hips, and
+    // the whole of the stance's turn to the wave, its fold and its lean is
+    // one quaternion, not three angles — and "upright" is the *trunk*
+    // vertical, pelvis to the base of the neck, not the hips bone alone: the
+    // stance folds at the waist, and a pelvis stood up to the identity under
+    // a chest that leans is a man walking stooped, while a pelvis tucked
+    // under a vertical trunk is a man standing.
+    stand,
+    // And the head, which is turned down the line relative to that trunk:
+    // once the trunk is upright it is looking that far off to the side. Half
+    // of the turn back, to lay on the neck and again on the head — see
+    // `based` for the order of the two factors.
+    gaze: new THREE.Quaternion().slerp(
+      standInv.clone().multiply(spin('head').invert()), 0.5),
     hipsFrom, hipsTurn,
     spine: jointOf(bone('spine'), scene),
     chest: jointOf(bone('chest'), scene),
@@ -1816,11 +1990,12 @@ function rigOf(scene: THREE.Object3D): Rig {
      * walk rather than as a limit of the rig, and so is exactly the kind of
      * wrong nobody diagnoses.
      *
-     * It sweeps the *run*, which is the harder of the two gaits: the longest
-     * stride, the lowest duty, and the hips wherever the vault has them at that
-     * moment rather than at some worst case picked by hand — because with a
-     * duty under a half the reach and the bob no longer peak together, and
-     * assuming they do is how the first version of this got 114%.
+     * It sweeps both gaits, each with its own stride, duty, lift, bob and
+     * stand, and the heel's lift at the ends — the hips wherever the vault
+     * has them at that moment rather than at some worst case picked by hand,
+     * because with a duty under a half the reach and the bob no longer peak
+     * together, and assuming they do is how the first version of this got
+     * 114%.
      *
      * The threshold leaves 1.5% for what this sweep does not model: the pelvis
      * turning with the stride and the sway under it, which together move a hip
@@ -1829,29 +2004,39 @@ function rigOf(scene: THREE.Object3D): Rig {
      * clamp `reach` straightens the leg and holds the foot, so the cost of
      * a miss is a foot that slides a centimetre, not a fold.
      */
+    // Both gaits, since the heel: it is no longer obvious which is the harder
+    // one, and the two are one expression with the gait's numbers in it.
+    const gaits = [
+      { name: 'walk', duty: WALK_DUTY, stride: WALK_STRIDE, lift: WALK_LIFT, bob: WALK_BOB, stand: STAND },
+      { name: 'run', duty: RUN_DUTY, stride: RUN_STRIDE, lift: RUN_LIFT, bob: RUN_BOB, stand: STAND - RUN_SINK },
+    ]
     for (const l of rig.legs) {
       const hip = new THREE.Vector3().setFromMatrixPosition(restOf(l.thigh, scene, _mat))
-      let worst = 0
-      for (let k = 0; k < 360; k++) {
-        const u = k / 360
-        const other = (u + 0.5) % 1
-        const swung = u < RUN_DUTY ? 0 : (u - RUN_DUTY) / (1 - RUN_DUTY)
-        const vault = (v: number) =>
-          v < RUN_DUTY ? Math.sin((Math.PI * v) / RUN_DUTY) : 0
-        worst = Math.max(worst, _v.set(
-          l.ankle.x,
-          l.ankle.y +
-            (u < RUN_DUTY ? TERRAIN_DOWN : Math.sin(Math.PI * swung) * RUN_LIFT),
-          u < RUN_DUTY
-            ? l.sweep + RUN_STRIDE - 2 * RUN_STRIDE * (u / RUN_DUTY)
-            : l.sweep - RUN_STRIDE + 2 * RUN_STRIDE * (swung * swung * (3 - 2 * swung)),
-        ).distanceTo(_hip.copy(hip).setY(hip.y + STAND +
-          RUN_BOB * (1.5 * Math.max(vault(u), vault(other)) - 0.5))) / (l.up + l.low))
+      for (const g of gaits) {
+        let worst = 0
+        for (let k = 0; k < 720; k++) {
+          const u = k / 720
+          const other = (u + 0.5) % 1
+          const swung = u < g.duty ? 0 : (u - g.duty) / (1 - g.duty)
+          const t = (u / g.duty) * 2 - 1
+          const vault = (v: number) => (v < g.duty ? Math.sin((Math.PI * v) / g.duty) : 0)
+          const heel = u < g.duty
+            ? (t < 0 ? HEEL_ON : HEEL_OFF) * t * t
+            : HEEL_OFF * (1 - swung) * (1 - swung) + HEEL_ON * swung * swung
+          worst = Math.max(worst, _v.set(
+            l.ankle.x,
+            l.ankle.y + heel + (u < g.duty ? 0 : Math.sin(Math.PI * swung) * g.lift),
+            u < g.duty
+              ? l.sweep + g.stride - 2 * g.stride * (u / g.duty)
+              : l.sweep - g.stride + 2 * g.stride * (swung * swung * (3 - 2 * swung)),
+          ).distanceTo(_hip.copy(hip).setY(hip.y + g.stand +
+            g.bob * (1.5 * Math.max(vault(u), vault(other)) - 0.5))) / (l.up + l.low))
+        }
+        console.assert(worst < 0.985,
+          `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
+          `own length at a ${g.name} — the stride is longer than the leg, and the foot will slide. ` +
+          'Shorten the stride, deepen the bob, lower STAND, or raise the duty.')
       }
-      console.assert(worst < 0.985,
-        `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
-        'own length at a run — the stride is longer than the leg, and the foot will slide. ' +
-        'Shorten RUN_STRIDE, deepen RUN_BOB, or raise RUN_DUTY.')
     }
   }
   return rig
@@ -1887,7 +2072,8 @@ function rigOf(scene: THREE.Object3D): Rig {
  * `leg.pole` to the last decimal.
  */
 function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
-  ankle: THREE.Vector3 = leg.ankle, aim: THREE.Vector3 = leg.pole): void {
+  ankle: THREE.Vector3 = leg.ankle, aim: THREE.Vector3 = leg.pole,
+  foot: THREE.Quaternion = leg.q3): void {
   const hip = _hip.copy(leg.at).applyMatrix4(from)
   const to = _to.subVectors(ankle, hip)
   const span = THREE.MathUtils.clamp(
@@ -1909,8 +2095,10 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
   _qb.setFromUnitVectors(leg.d2, _dir.subVectors(ankle, knee).normalize()).multiply(leg.q2)
   leg.shin.quaternion.copy(_qb).premultiply(_qi.copy(_qa).invert())
   // And the foot keeps the board-space orientation it was sculpted with, which
-  // is flat on the deck. Everything above it has moved; a sole has not.
-  leg.foot.quaternion.copy(leg.q3).premultiply(_qi.copy(_qb).invert())
+  // is flat on the deck — or the one the walk hands it, which is the same
+  // sole pointed where he is going. Everything above it has moved; a sole
+  // has not.
+  leg.foot.quaternion.copy(foot).premultiply(_qi.copy(_qb).invert())
 }
 
 /**
@@ -1979,6 +2167,11 @@ function ride(r: Rig, t: number): void {
   const wobble = Math.sin(step) * onFoot // +1 at his left foot's mid-swing
   const s = Math.min(RIDE.speed, 1)
   const c = RIDE.turn
+  /** How stopped he is, on foot: 1 standing, 0 at a walk or anything faster.
+   *  `RIDE.speed` is against the riding cruise, so a full walk is `WALK_SPEED`
+   *  of it. See `STILL`. */
+  const stillness = 1 - THREE.MathUtils.clamp(RIDE.speed / WALK_SPEED, 0, 1)
+  const still = stillness * onFoot
   // Not scaled by `afloat`, unlike everything else the sea drives: since the
   // hop, being off the ground is something that happens on land too, and
   // `RIDE.air` already knows which one it is measuring.
@@ -2017,11 +2210,18 @@ function ride(r: Rig, t: number): void {
       // after `STAND` had already doubled. The whole of it comes out through
       // the pelvis, and the neck and head below put the gaze back where it
       // was, so he stands up and keeps looking at the horizon.
-      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s - r.lean * onFoot,
+      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s,
     // The pelvis turns with the stride: the hip on the forward leg goes
     // forward, which is a negative rotation about y for his left.
     0.10 * c - 0.10 * swing,
-    -0.58 * tilt - 0.18 * bank - 0.04 * wobble)
+    -0.58 * tilt - 0.18 * bank - 0.04 * wobble,
+    // Standing up. The stance is a man folded over his front thigh and turned
+    // to the wave; a man walking is neither, and the difference is the hips
+    // bone's whole rest orientation, taken back to the identity — upright,
+    // facing the way he walks — as far as he is on foot. Under everything
+    // above, so that the water's terms bend the crouch and the walk's terms
+    // bend the man standing in it.
+    based(r.hips, _qs.slerpQuaternions(_I, r.stand, onFoot), _qb2))
   // And the drop, which is everything that asks a person to get low: the deck
   // coming up at him, a landing, the wave's heel (which costs the legs slack
   // before it costs them anything else), a hard carve, then just going fast.
@@ -2035,8 +2235,10 @@ function ride(r: Rig, t: number): void {
       // is carrying him — see `STAND`. The 1.5 and the 0.5 put the low point
       // at footfall and the high point over the stance, which is where the
       // reach wants them.
-      + STAND * onFoot - PICK * pick
-      + (WALK_BOB + (RUN_BOB - WALK_BOB) * gait) * onFoot *
+      + (STAND - RUN_SINK * gait) * onFoot + STILL * still - PICK * pick
+      // No vault standing: the bob is scaled by however much of `onFoot` is
+      // not `still`, which is what frees the reach the extra height spends.
+      + (WALK_BOB + (RUN_BOB - WALK_BOB) * gait) * (onFoot - still) *
         (1.5 * Math.max(vault(place(0)), vault(place(1))) - 0.5),
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
@@ -2060,17 +2262,22 @@ function ride(r: Rig, t: number): void {
     -0.11 * slope + 0.06 * slam + 0.040 * breath + 0.16 * pick,
     0.08 * c + 0.10 * swing,
     -0.11 * tilt - 0.05 * bank)
-  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick + 0.45 * r.lean * onFoot,
-    0.06 * c, -0.03 * tilt - 0.02 * bank)
+  // With the trunk stood up the head is still turned down the line, which
+  // on the sand is a man walking with his head over his shoulder; `gaze` is
+  // half of the way back, once here and once below.
+  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick,
+    0.06 * c, -0.03 * tilt - 0.02 * bank,
+    based(r.neck, _qs.slerpQuaternions(_I, r.gaze, onFoot), _qb2))
   // The head leads the turn and levels itself against everything else. It is
   // the cue that most reliably reads as alive at this size, and it is the one
   // joint whose share of `turn` was not cut.
   bend(r.head,
     // He looks at the board he is reaching for, and nowhere else does his gaze
     // leave the horizon: that is the whole of what `pick` buys up here.
-    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick + 0.55 * r.lean * onFoot,
+    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick,
     0.22 * c + 0.05 * drift,
-    -0.05 * tilt - 0.02 * bank + 0.03 * sway)
+    -0.05 * tilt - 0.02 * bank + 0.03 * sway,
+    based(r.head, _qs.slerpQuaternions(_I, r.gaze, onFoot), _qb2))
 
   for (const a of r.arms) {
     /**
@@ -2133,36 +2340,37 @@ function ride(r: Rig, t: number): void {
     const led = a.side > 0
     bend(a.upper,
       -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope
-        // The swing, and under it the bias that makes the swing a walk's. The
-        // rest pose puts the leading hand 0.40 forward of its own shoulder,
-        // out over the rail, which is a surfer's arm and not a walker's: it
-        // comes back and in before it starts swinging at all.
+        // The swing. It used to sit on a bias that brought the leading hand
+        // back from 0.40 forward of its shoulder; since the third stance the
+        // arm is handed to the walk already hanging (`hangUp`), and the bias
+        // went.
         // The free arm's swing is the one thing here that grows most with the
         // gait: a walker's hand travels a hand's breadth and a runner's goes
         // from hip to chest. The other arm is holding a board and keeps a tenth
         // of it, which is a body absorbing the stride rather than an arm doing
         // nothing.
-        + (led ? (0.50 + 0.40 * gait) * swing + 0.30 * onFoot
+        + (led ? (0.50 + 0.40 * gait) * swing
                : -(0.08 + 0.06 * gait) * swing) - 0.65 * pick,
       0.05 * c * a.side - 0.10 * up * a.side,
       -0.10 * c - 0.08 * tilt
         + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter)
-        // And inward: the leading arm to his side, the trailing one down onto
-        // the board's outer rail. Both are toward +x, which is why the sign is
-        // the same for the two of them where every other term here mirrors.
-        //
-        // The 0.20 is measured and not chosen: it puts his right hand 4.6 cm
-        // outboard of the board's outer face and his elbow on it, with the
-        // board's inner face against his hip, which is a carry. Move
-        // `CARRY_POS.x` and this moves with it.
-        + onFoot * (led ? -0.30 : 0.20))
+        // And out: the trailing arm away from his side, over the board that
+        // is under it — `CARRY_POS` puts the board's outer face 0.30 out and
+        // this puts the arm outside that, with the elbow below bent a little
+        // to hold it, which is what lifts the hand. The leading arm hangs
+        // where `hangUp` left it, at his side. Positive about z is toward
+        // +x, his left, so the trailing arm's is negative.
+        + onFoot * (led ? -0.04 : -0.38),
+      // From hanging, not from the stance: see `hangUp` in `rigOf`.
+      based(a.upper, _qs.slerpQuaternions(_I, a.hangUp, onFoot), _qb2))
     fold(a.fore, a.elbow,
       0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter
         // And a runner's elbow is bent where a walker's hangs. It is the
         // clearest single cue that this is a run, from directly behind, which
         // is the only angle this world ever has on him.
         + 0.45 * pick + onFoot * (led ? 0.30 + 0.14 * Math.abs(swing) + 0.55 * gait
-                                      : 0.18 + 0.30 * gait))
+                                      : 0.35 + 0.30 * gait),
+      based(a.fore, _qs.slerpQuaternions(_I, a.hangFore, onFoot), _qb2))
     fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam + 0.20 * pick)
   }
 
@@ -2176,6 +2384,7 @@ function ride(r: Rig, t: number): void {
     const l = r.legs[i]
     let target = l.ankle
     let aim = l.pole
+    let pitch = 0
     if (onFoot > 0) {
       /**
        * The walk, and it is the same mechanism the riding legs already were: a
@@ -2213,9 +2422,19 @@ function ride(r: Rig, t: number): void {
       const z = u < duty
         ? l.sweep + a - 2 * a * (u / duty)
         : l.sweep - a + 2 * a * (swung * swung * (3 - 2 * swung))
+      // The roll of the foot — see `HEEL_ON`. `t` runs -1 at the strike to +1
+      // at toe-off through the stance; the swing carries the toe-off heel
+      // out and the strike heel in, so the ankle's height is continuous
+      // round the cycle. Not standing: a stopped man's soles are flat.
+      const t = (u / duty) * 2 - 1
+      const heel = (1 - stillness) * (u < duty
+        ? (t < 0 ? HEEL_ON : HEEL_OFF) * t * t
+        : HEEL_OFF * (1 - swung) * (1 - swung) + HEEL_ON * swung * swung)
+      pitch = (1 - stillness) * HEEL_PITCH * (u < duty ? (t < 0 ? -0.5 : 1) * t * t : 0)
       target = _foot.set(
-        l.ankle.x,
-        l.ankle.y +
+        // A little wider standing than striding — see `SPREAD`.
+        l.ankle.x + Math.sign(l.ankle.x) * SPREAD * stillness,
+        l.ankle.y + heel +
           (u < duty ? 0 : Math.sin(Math.PI * swung) *
             (WALK_LIFT + (RUN_LIFT - WALK_LIFT) * gait)) +
           // Both feet come up in a jump. Nothing else has to happen for it to
@@ -2228,7 +2447,11 @@ function ride(r: Rig, t: number): void {
       ).lerp(l.ankle, afloat)
       aim = _aim.copy(l.pole).lerp(WALK_POLE, onFoot)
     }
-    reach(l, _mat, _qt, target, aim)
+    // The walking foot, and its pitch through the step: toes down leaving
+    // the ground, up meeting it, about board space's x — nothing standing.
+    _qf.slerpQuaternions(l.q3, l.walk, onFoot)
+    if (pitch !== 0) _qf.premultiply(_qp.setFromAxisAngle(_AX, pitch * onFoot))
+    reach(l, _mat, _qt, target, aim, _qf)
   }
 }
 
@@ -2264,6 +2487,19 @@ function Rider({ visible }: { visible: boolean }) {
   useFrame((state) => {
     if (!visible) return
     ride(rig, state.clock.elapsedTime)
+    // And the board comes up with him. It lags the crouch deliberately — the
+    // dip in `ride()` is him reaching for it, and a board that started rising
+    // with his hips would be one he never touched. One eased number for the
+    // whole of it, so the reverse is the same movement backwards: he sets it
+    // down, steps on, and rides away. Where it goes is `CARRY_POS` in the
+    // pelvis's own frame, read off the bone *after* `ride` has moved it, so
+    // it carries every bob and sway and turn of the walk.
+    const t = carried(RIDE.land)
+    restOf(rig.hips.bone, scene, _mat).decompose(_hip, _qc, _scale)
+    _v.copy(CARRY_POS).applyMatrix4(_mat)
+    CARRY.pos.lerpVectors(_ZERO, _v, t)
+    CARRY.pos.y += LIFT_ARC * Math.sin(Math.PI * t)
+    CARRY.rot.slerpQuaternions(CARRY_REST, _qc.multiply(CARRY_ROT), t)
   })
 
   return <primitive object={scene} />
