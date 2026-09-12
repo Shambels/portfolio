@@ -3845,6 +3845,149 @@ and neoprene glint of the second rider are still gone with COLOR_0.
   smooth ramp — 3,326 vertices — so the seat rides the pelvis as one piece
   and the fold where a leg meets it is where a leg actually meets it.
 
+### The stance, off a photograph — and what standing up out of it took
+
+Seb sent a picture: a regular-footer deep in a barrel, and what it says that
+neither of the first two crouches did is that **a surfer stands across his
+board**. The third stance in `tools/surfer.py` is that picture: the trunk
+faces the toe-side rail and the wave (`TORSO_F` toward −x — his left is
+up × facing, so a man with his left foot forward faces −x); the head is
+turned down the line (`GAZE`); the front foot is turned 45° to the toe side
+and the front knee bends over it, not out over the rail; the back foot is
+near square to the stringer and its knee drives forward and in; the seat is
+at knee height (`PELVIS` y 0.47, knees at 0.45 and 0.28); the chest is over
+the front thigh; the leading arm reaches down the line and the trailing one
+hangs aft over the tail. Reach fractions 0.58 front, 0.42 back — a deep
+crouch, as the picture is.
+
+Everything that had been standing him up on the sand assumed the crouch was
+a forward-facing one, and none of it survived:
+
+- **The trunk.** The un-lean was a pitch. The stance is a yaw, a fold and a
+  lean at once, so it is one quaternion now: every bone the script exports
+  has its local Y along the bone and its local Z the way it faces (the hips'
+  Z is the trunk's facing, the head's Z is the gaze — checked on the file),
+  so "upright, facing the way he walks" is the identity for the hips, and
+  `stand` in `rigOf` is the hips' rest orientation inverted. `ride()` bends
+  the hips from `based(rest, slerp(I, stand, onFoot))` — the water's terms
+  bend the crouch, the walk's terms bend the man standing in it.
+- **The head.** With the trunk stood up the head is still turned 40° down
+  the line, which on the sand is a man walking with his head over his
+  shoulder. `gaze` is half the way back, laid on the neck and again on the
+  head. Its two factors are in the order `based` needs — the rotation is
+  applied to the rest *and then carried by the parent's motion* — which the
+  first cut had backwards.
+- **The arms.** A surfer's arms stood up and turned to face forward are a
+  man in a T. `hangUp` and `hangFore` per arm take the upper arm to straight
+  down and the forearm straight below it, in the frame the trunk will be
+  in, and the walk swings and folds them from hanging as it always did. The
+  0.30 bias that used to bring the leading hand back from 0.40 forward went
+  with the pose it was measured against.
+- **The feet.** `reach` kept each foot's board-space rest orientation, which
+  is now yawed 45° and 70°. `walk` per leg is that orientation with the yaw
+  taken out — same sole, same pitch, pointed where he is going — and the
+  solver is handed the slerp.
+- **`STAND` 0.40** (from 0.28): the seat dropped 12–14 cm at rest and the
+  sweep is run against absolute heights, so the same 96.9% worst reach.
+
+Photographed on the isle, as before: upright, arms at his sides, board under
+the trailing arm. `Claude outputs/surfer-v3-walk.png`.
+
+### Seb's third look: the seat, the step, and the board under his arm
+
+- **The seat stuck out, riding and walking.** Riding, it was the pelvis:
+  `WAIST − PELVIS` was pitched 32° with the trunk, and a pelvis pitched with
+  the trunk is a seat out over the heel rail. The fold is at the waist now —
+  the pelvis 12° off vertical, the chest still over the front thigh
+  (`WAIST`, `CHEST` in `tools/surfer.py`). Walking, it was `stand`: it stood
+  the *hips bone* up to the identity, and a pelvis at the identity under a
+  chest that leans is a man walking stooped with his seat behind him. `stand`
+  is built from the trunk line now — pelvis to the base of the neck vertical,
+  the hips' Z forward — so the pelvis tucks under a vertical trunk. `gaze`
+  and the arms' `hang*` are solved against the same `stand`.
+- **The steps were too short, and the run's should be longer than the
+  walk's.** `WALK_STRIDE` 0.33 → 0.40 (0.87 a step, what the second rider
+  had) and `RUN_STRIDE` 0.33 → 0.48 (2.0 a step, longer than he ever had),
+  bobs back to 6 and 8. The stride, the stand and the bob are one budget
+  under the reach sweep, and the run's extra is paid by **`RUN_SINK`**: a
+  runner carries his hips 4 cm lower than a walker, which is what runners
+  do. `STAND` 0.37; the sweep is 97.1% walking and 97.7% running, and
+  `rigOf` now sweeps the run at `STAND − RUN_SINK`.
+- **The carried board floated beside him.** It was parked at a fixed point
+  in the *craft's* frame while the man bobbed, swayed and turned his pelvis
+  with every stride next to it. `CARRY_POS` is in the **hips bone's frame**
+  now — `-0.25` his right side, `0.13` above the hip joints so the top rail
+  of a 0.63 board is under his armpit — and `Rider` reads the pelvis after
+  `ride()` has moved it and writes the board's transform into `CARRY`, which
+  `Surfer` applies to the group it owns, the way `RIDE` already crosses
+  between the two. The board goes up over the stance leg and round with the
+  stride, which is what a thing under an arm does. `LIFT_ARC` and the leash
+  rule are unchanged.
+
+### Seb's fourth look: room for the board, and a man standing still
+
+- **The trailing arm hung through the board.** `hangUp` and `hangFore` are
+  built from *frames* now, not directions — the upper arm to straight down
+  with the elbow's tip sent straight back, the forearm below it the same —
+  which is the twist the A-pose was weighted in, so the palm faces his thigh
+  and, once the arm is out over the board, the board. On foot the trailing
+  arm is then abducted 0.38 rad (`CARRY_POS` puts the board's outer face
+  0.30 out; the arm hangs outside that) and its elbow bent 0.35 rather than
+  0.18, which is what lifts the hand. The leading arm hangs where `hangUp`
+  leaves it, at his side (`-0.04`, from `-0.30` — that number was measured
+  against a rest pose that no longer exists).
+- **Standing, the knees were bent.** A man who has stopped is not a man
+  walking at zero, and the walk's numbers are a budget for striding: hips
+  low enough that the leg reaches the ends of the stance and the top of the
+  vault. Stopped, the stride is already nothing (`RIDE.stride` goes to 0.06
+  with the pace), so the same reach buys height: **`STILL` 0.10** of hips
+  and **`SPREAD` 0.05** of foot width come in as `RIDE.speed / WALK_SPEED`
+  goes to zero, and the bob goes out by the same measure. 0.30 + 0.37 + 0.10
+  is 97% of the leg on the flat — a knee a shade off straight — with no
+  vault on top of it to overrun. Photographed standing on the isle's beach:
+  `Claude outputs/surfer-v3-walk.png`.
+
+### Seb's fifth look: the foot rolls, the arc lands, the keys keep working
+
+- **Still too much knee, walking and more so running.** The reach budget
+  had been spent to its limit twice, so the answer was new reach, and it is
+  the foot: a sole held flat through the stance means the leg can never be
+  longer than hip-to-ankle, and at the ends of a 0.40 stride that line is 31°
+  off vertical. A real step lands heel first with the toes up and leaves
+  toes last with the heel high, and the ankle rides up by the foot's lever
+  at both ends. **`HEEL_ON` 0.04, `HEEL_OFF` 0.08, `HEEL_PITCH` 0.45**: the
+  ankle target rises `t²` through the stance (`t` −1 at the strike, +1 at
+  toe-off), the swing carries the toe-off heel out and the strike heel in so
+  the height is continuous round the cycle, and the foot pitches with it —
+  toes down leaving, up landing — about board x, on top of `walk`. With
+  that, **`STAND` 0.43** (from 0.37), `WALK_BOB` 0.05, `RUN_BOB` 0.08,
+  `STILL` 0.05: 97.0% worst at a walk with the knee 98% straight at
+  mid-stance on the flat, 96.8% at a run with `RUN_SINK` 0.04. The sweep in
+  `rigOf` runs *both* gaits now, with the heel in it, and no longer charges
+  `TERRAIN_DOWN` — a 2 cm downhill step at the top of the vault is a straight
+  leg with the sole 6 mm short of the sand, the float on a descent the
+  `TERRAIN_DOWN` note already accepts, and insuring against it cost 2.5% of
+  the leg on every flat step. `Claude outputs/surfer-v3-walk.png`.
+- **Crossing the coast in the air pulled him down.** `altitude()` lerps the
+  craft from the water's altitude to the sand over the first fifth of the
+  ashore ramp, which is right for walking back into the sea and wrong when
+  the "water" altitude is a hull mid-jump: a man yanked out of the sky. Now:
+  **airborne, the sand is a floor under the arc and nothing else** —
+  `altitude(…, airborne)` returns `max(sand, water)` — and the arc ends on
+  the sand the way a hop's does, into the bounce spring and `RIDE.slam`,
+  once (`overSand` remembers he was above it). And the pickup fits inside
+  the fall: `ashore()` takes a `within`, and over the sand in the air it is
+  the time the arc has left, out of last frame's hull height and velocity,
+  so `beached` reaches 1 as he touches down and he lands on foot with the
+  board under his arm. `RIDE.air` counts that flight too (`aloft`), so he
+  reads as airborne until he lands rather than as walking at a height.
+- **The keys stopped after a click on a link or the mini-map.** `useInput`
+  ignored any keydown whose target was an interactive element, and a click
+  leaves the focus there. Split in two: a field (`input`, `select`,
+  `textarea`, `contenteditable`) owns every key; a link owns Enter, a button
+  or `summary` owns Enter and Space, and every other key goes on flying the
+  ship with the focus wherever the last click left it.
+
 ### Cost
 
 - **Triangles: 32.5k → 91k** on the rider, every one of the generator's,
@@ -3886,10 +4029,8 @@ and neoprene glint of the second rider are still gone with COLOR_0.
 - **WebGPU**, as every pass before it: the container has no device. Nothing
   here is exotic — `MeshBasicNodeMaterial` with a map and a skinned mesh — but
   the first WebGPU frame is Seb's.
-- **The walk's feel at the shorter, quicker step**, on real hardware and at
-  a real frame rate — the picture says he stands; it cannot say whether 0.72
-  a step reads as walking or as mincing. If it does, the stride is the
-  number, and every centimetre of it back costs the stand about the same.
+- **The run's 2.0 m step and 4 cm sink**, at a real frame rate — the sweep
+  says the foot holds; whether it reads as a run or a bound is Seb's.
 - **Frame rate** at 91k triangles skinned and drawn twice, on the 2022 laptop.
   It is the one number this pass moved by 3× and it has not been measured.
 

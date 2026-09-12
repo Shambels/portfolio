@@ -331,9 +331,10 @@ Space is a jump for him and for nothing else, on the water and on the sand
 alike. He walks or runs, and which one is the **duty factor** — the fraction of
 the cycle a foot is on the ground, 0.46 walking and 0.24 running. Step length is
 `stride / duty`, so a run covers more ground by spending *less time down* rather
-than by swinging further or cycling faster: the running step is 1.38 units where
-the walking one is 0.72 (1.71 and 0.85 on the second rider — the third stands
-taller and steps shorter), and the legs go round slower doing it. The rate is not
+than by swinging further or cycling faster: the running step is 2.0 units where
+the walking one is 0.87 (1.71 and 0.85 on the second rider; the third rider's
+run also carries its hips 4 cm lower, `RUN_SINK`, which is what pays for the
+longer step under the same legs), and the legs go round slower doing it. The rate is not
 chosen anywhere — it is whatever makes the planted foot travel backward at
 exactly the speed the body travels forward, which is what makes sliding
 impossible instead of merely capped. One ramped number, `RIDE.land`, drives the craft, the board and the man,
@@ -368,16 +369,18 @@ acceleration, which he meets by getting shorter. Both ankles are fixed to the
 deck, so none of that can happen without one leg extending and the other
 folding — which is the absorption, and is why the legs have a solver and the
 arms do not. A deck heeled 17 degrees leaves his torso 2.5 degrees off vertical.
-The arms hang low and near him by default, both elbows folding forward the way
-an elbow does — the wide pose the model first shipped with was a photograph, and
-a photograph held forever is a man stuck mid-gesture. Width comes back on every change of direction instead: the arm on
-the *outside* of the turn goes up, so turning right raises his left and turning
-left raises his right. Moving those four points broke Blender's bone heat, which
-cannot separate a forearm from the thigh it hangs beside; weights are `diffuse`
-now — nearest bone, then blurred along the mesh's own edges, which is the one
-method whose blind spot is exactly this shape. `docs/STATUS.md`, "The rider
-moves", has the gains and the numbers that want a second opinion. It cost 79 kB
-gz on the model and nothing measurable a frame.
+The rest stance is off a photograph Seb sent, since the third rider: trunk
+across the board facing the wave, head down the line, front knee over the
+front toes, seat at knee height, one arm down the line and one aft — and
+`ride()` reads that whole orientation off the file (`stand`, `gaze`, the
+arms' `hang*`, the feet's `walk`) and takes it back out on foot, so the walk
+is a man standing up and facing where he goes. Width still comes on every
+change of direction: the arm on the *outside* of the turn goes up, so turning
+right raises his left and turning left raises his right. Weights are bone
+heat again since the third rider — laid on the A-pose the generator delivered,
+where the arms hang clear of the thighs — with `diffuse` kept as the fallback.
+`docs/STATUS.md`, "The rider moves", has the rig's numbers, and "The rider,
+third pass" what the stance did to them.
 
 Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
 (`src/stick.ts`) read into `useInput`'s `move`, boost is the same push further,
@@ -440,8 +443,10 @@ he stands half a metre further aft, on the board's own pads (`STANCE`); the
 board is a file, 2.0 long and 0.63 across with a thinner deck, so the leash
 points and `FOOT_DROP` were re-measured; he and the board are lit like the
 world, texture plus outline, no toon, no rim; on foot he stands up — `STAND`
-0.12 → 0.28, the stride and bob cut to pay for it, and the trunk's rest lean
-taken back out through the pelvis — and the two files are meshopt-packed.
+0.37 out of a stance whose seat is at knee height, the whole rest orientation
+of the trunk, head, arms and feet read off the file and taken back out — the
+carried board hangs off his pelvis rather than off the craft; and the two
+files are meshopt-packed.
 `docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
 Seb's eye.
 

@@ -104,56 +104,71 @@ VIEWS = {
 P3 = tuple[float, float, float]
 
 # ------------------------------------------------------------------- the pose
-# The stance, and it is the second rider's to the number: reviewed from astern,
-# arms down and near him, front leg a little straighter than the back one. It
-# is a list of *targets* now rather than of joints. The torso, the head and
-# the arms are aimed along these directions with the new man's own bone
-# lengths, so his elbows and hands land near these points rather than on
-# them; the legs are solved to the two ankles exactly, and the knees go where
-# 0.38 m of thigh and 0.41 m of shin put them — further out than the old
-# 0.43 / 0.25, because these legs are longer and the crouch is the same.
+# The stance, third version, and this one is off a photograph Seb sent: a
+# regular-footer deep in a barrel, and what the picture says that the first
+# two crouches did not is that a surfer stands *across* his board. The trunk
+# faces the toe-side rail and the wave, not the nose; the front foot is turned
+# forty-five degrees toward it and the front knee bends over that foot, not
+# out over the rail; the back foot is nearly square to the stringer and its
+# knee is driven forward and in, toward the front one; the seat is down at the
+# height of the knees, and the chest is over the front thigh. The leading arm
+# reaches down the line, the trailing one hangs aft over the tail.
 #
-# `STANCE` slides the whole man along the board. The generator's pad is at
-# the tail, where a pad is, and a back foot ahead of it is a back foot on wax.
+# It is a list of *targets*: the torso, head and arms are aimed along these
+# directions with the new man's own bone lengths, and the legs are solved to
+# the two ankles exactly, with the knees where 0.38 m of thigh and 0.41 m of
+# shin put them in the direction each `KNEE_*` says. Everything is in board
+# space before `STANCE`, which slides the whole man aft onto the pads.
+#
+# His left is +z and his right is -z when he faces -x: left = up × facing,
+# and the model's own left was +x when it faced the nose. So F, the leading
+# limb, is still his left, and the toe side he faces is -x.
 STANCE = -0.50
 
-FOOT_F: P3 = (0.05, 0.14, 0.42)
+# Where the trunk faces and where the eyes do. The chest is square to the
+# wave; the head is turned down the line, which is the way out of a barrel.
+TORSO_F = Vector((-1.0, 0.0, 0.45)).normalized()
+GAZE = Vector((-0.45, 0.0, 1.0)).normalized()
+
+# The feet: both ankles where they were, both feet turned to the toe side.
 ANKLE_F: P3 = (0.08, 0.20, 0.40)
-KNEE_F: P3 = (0.248, 0.384, 0.383)
-HIP_F: P3 = (0.10, 0.58, 0.03)
-FOOT_B: P3 = (-0.05, 0.14, -0.30)
+TOE_F: P3 = (-0.02, 0.14, 0.50)      # forty-five degrees
 ANKLE_B: P3 = (-0.07, 0.20, -0.28)
-# The back knee only sets the *direction* the leg bends in now (see `pose`),
-# and the second rider's knee — level with its own ankle, straight out over
-# the rail — sent the longer leg out and back. Seb: the knee should be more
-# forward. It points forward and out now, toward the front knee, which is
-# where a surfer's back knee is driven.
-KNEE_B: P3 = (-0.25, 0.30, -0.10)
-HIP_B: P3 = (-0.10, 0.60, -0.09)
+TOE_B: P3 = (-0.20, 0.14, -0.23)     # seventy
+# The hips, at knee height. Only their height and the two knee points are
+# read from these: the hip joints themselves come off the rig.
+HIP_F: P3 = (0.10, 0.45, 0.03)
+HIP_B: P3 = (-0.10, 0.47, -0.09)
+# Each knee is a *direction*: where it sticks out of the line from its hip to
+# its ankle. The front one over its own toes; the back one forward and in.
+KNEE_F: P3 = (-0.09, 0.33, 0.39)
+KNEE_B: P3 = (-0.285, 0.34, -0.035)
 
-PELVIS: P3 = (0.0, 0.60, -0.03)
-WAIST: P3 = (0.02, 0.74, 0.02)
-CHEST: P3 = (0.06, 0.92, 0.11)
-NECK: P3 = (0.07, 1.04, 0.15)
-HEAD: P3 = (0.08, 1.17, 0.19)
+# The trunk, folded forward over the front thigh and turned to the wave. The
+# fold is at the waist and not in the pelvis: a pelvis pitched with the trunk
+# is a seat stuck out over the heel rail, which Seb saw, and a pelvis kept
+# near upright under a chest that leans is a man crouching rather than a man
+# bending over.
+PELVIS: P3 = (0.0, 0.47, -0.03)
+WAIST: P3 = (-0.03, 0.61, -0.01)
+CHEST: P3 = (-0.16, 0.76, 0.04)
+NECK: P3 = (-0.23, 0.86, 0.09)
+HEAD: P3 = (-0.26, 0.98, 0.13)
 
-SHOULDER_F: P3 = (0.22, 0.92, 0.16)
-ELBOW_F: P3 = (0.46, 0.62, 0.28)
-WRIST_F: P3 = (0.46, 0.532, 0.560)
-HAND_F: P3 = (0.46, 0.497, 0.672)
-SHOULDER_B: P3 = (-0.09, 0.94, 0.04)
-ELBOW_B: P3 = (-0.352, 0.663, -0.029)
-WRIST_B: P3 = (-0.453, 0.418, 0.141)
-HAND_B: P3 = (-0.489, 0.330, 0.202)
+# The arms. Leading arm down the line, a little bent; trailing arm aft and
+# down over the tail. Directions, as everything here: the shoulders are
+# wherever the chest puts them.
+SHOULDER_F: P3 = (0.05, 0.70, 0.12)
+ELBOW_F: P3 = (-0.01, 0.545, 0.37)
+WRIST_F: P3 = (-0.09, 0.49, 0.62)
+HAND_F: P3 = (-0.12, 0.48, 0.715)
+SHOULDER_B: P3 = (0.12, 0.72, -0.20)
+ELBOW_B: P3 = (0.21, 0.53, -0.42)
+WRIST_B: P3 = (0.27, 0.45, -0.67)
+HAND_B: P3 = (0.29, 0.44, -0.77)
 
-# Where the face points, and where the chest does — less far into the wave, so
-# the waist reads as a twist. Both as before.
-GAZE = Vector((0.30, 0.06, 1.0)).normalized()
-TORSO_F = Vector((0.16, 0.0, 1.0)).normalized()
 RIGHT = GAZE.cross(Vector((0, 1, 0))).normalized()
 HEAD_UP = RIGHT.cross(GAZE).normalized()
-TOE_F: P3 = (FOOT_F[0], FOOT_F[1], FOOT_F[2] + 0.14)
-TOE_B: P3 = (FOOT_B[0], FOOT_B[1], FOOT_B[2] + 0.14)
 
 
 def V(p) -> Vector:
