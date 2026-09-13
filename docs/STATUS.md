@@ -6034,6 +6034,25 @@ shape falls out of three numbers: a square picture, a thin border on three
 sides, and whatever is left at the foot. The back of it is paper, not a
 mirrored picture (`frontFacing`).
 
+**It is 1.20 wide**, four fifths of the body it comes out of, which is what
+Seb asked for and as wide as a print can be before it is a poster. The height
+is the machine's to give: the slot is 1.54 over the plateau — the body's
+front-bottom edge is the highest point on it with nothing but air underneath —
+so a card that wide at a Polaroid 600's 1.22 proportion would end 8 cm off the
+grass. 1.36 is where that landed: squarer than a real polaroid, with a foot a
+fifth of the picture rather than a quarter, hanging 18 cm clear. The check
+holds both ends of it — at least four fifths of the body, and not into the
+ground — so the next person to widen it has to answer the same question. The
+mouth in the model widened with it, 0.92 to 1.32.
+
+**And the picture was upside down.** A render target's first row is the *top*
+of the frame rendered into it and a texture's v = 0 is the bottom of whatever
+samples it, so the first prints came out of the machine with the rider's head
+at the foot of the card. One `oneMinus` on the v it reads. Worth writing down
+because it is not a backend quirk: it was reported on WebGPU and then seen on
+WebGL2 in the container, so the flip is unconditional and a `isWebGPUBackend`
+test here would have been wrong on half the machines that run this.
+
 `tools/memojo.py` cuts the mouth and its two rollers at the body's own
 front-bottom edge — the lowest point of the face the lens is in, and the one
 place on the machine with nothing but air under it — and `plateau.check.ts`
@@ -6054,7 +6073,7 @@ simply out and developed. The shutter still sounds, as it always did.
 
 The model is 1592 triangles and 77 kB, against 1508 and 71 kB before the slot
 and the rollers — a twentieth of the triangle budget and a quarter of the size
-budget. `Shutter.tsx` is 231 lines and the canvas chunk went from 467 to
+budget. `Shutter.tsx` is 238 lines and the canvas chunk went from 467 to
 470 kB gz against 600; the first route is unchanged at about 145 kB gz against
 200. The render target is 512 square at half float, 2 MB of video memory, and
 it exists whenever the ramp landmark is mounted.
@@ -6104,6 +6123,10 @@ camera's own direction or the approach.
 - Whether the print should hang until the next shot, fall on the grass as a
   loose prop, or fade. It hangs, on his say-so; the other two are a day's work
   each and the props already exist.
+- Whether 1.20 x 1.36 is the right card. It is as wide as the ask and as tall
+  as the slot's height allows; going wider means either a print that touches
+  the island or a slot cut higher up the body's front face, which the barrel
+  is in the way of.
 - Whether the rearrangement reads from the water — the machine is now the
   first thing you see on that island and the ramp is the second.
 - The work is uncommitted, and the folder it was written in has a

@@ -125,7 +125,14 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
     const cv = uv().y.mul(outAt)
     const cu = uv().x
     const inside = step(x0, cu).mul(step(cu, x1)).mul(step(y0, cv)).mul(step(cv, y1))
-    const shot = texture(rt.texture, vec2(cu.sub(x0).div(x1 - x0), cv.sub(y0).div(y1 - y0))).rgb
+    // And the picture, upside down on purpose. A render target's first row is
+    // the *top* of the frame that was rendered into it, and a texture's v = 0
+    // is the bottom of what samples it, so a picture read straight off it
+    // comes out of the machine with the rider's head at the bottom. One
+    // `oneMinus` and he is the right way up. It is the same on both backends —
+    // it was found on WebGL2 and reported on WebGPU.
+    const shot = texture(rt.texture,
+      vec2(cu.sub(x0).div(x1 - x0), cv.sub(y0).div(y1 - y0).oneMinus())).rgb
     // Undeveloped is not white: it is the flat grey-green of a print that has
     // not come up yet, and the picture arrives out of it rather than over it.
     const latent = color('#9aa3a0').rgb
