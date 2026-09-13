@@ -119,8 +119,63 @@ export const STAIR = {
    *  wall. */
   inset: 0.05,
 
-  /** How close to a portal, in metres of XZ, counts as being at it. */
-  reach: 2.2,
+  /**
+   * How far the passage runs out of the flank at the top, level, before it
+   * ends — a balcony.
+   *
+   * Not decoration. The flank at the exit stands at 66 degrees and the face
+   * below it at 80, and a man who may not climb what he cannot climb (see
+   * `MAX_CLIMB` in `beach.ts`) can step out of a door onto that and never get
+   * back to it. So the stair ends somewhere a person can stand and turn round.
+   * The rail simply keeps going at the height it arrived at; the rock stops
+   * where it stops, and the last two metres of it are a ledge in the open air.
+   */
+  balcony: 2.6,
+
+  /**
+   * And the same at the bottom: how far the rail runs out of the doorway onto
+   * the sand before it ends.
+   *
+   * The mirror of the balcony, and for the mirror of its reason. The doorway
+   * itself is a quarter of a metre inside a wall, so a man stopped by that
+   * wall and let onto the rail at the doorway is a man who jumps a quarter of
+   * a metre — and a trigger generous enough to catch him walking in off the
+   * square was a trigger that jumped him a whole one. With a porch, the rail
+   * already reaches the sand he is standing on and there is nothing to jump.
+   */
+  porch: 1.5,
+
+  /**
+   * And then down the outside.
+   *
+   * The balcony was a stop, and a stop is not an exit: the flank it hangs over
+   * stands at 66 degrees and the face below that at 80, so a man who stepped
+   * off it could not walk down and could never climb back. A dead end with a
+   * view is a defensible thing to build and it is not what was asked for.
+   *
+   * So the rail keeps going. Out of the lookout and down the outside of the
+   * crag on a cut path, at the same grade as the stair inside, until the flank
+   * itself is gentle enough to walk on — and there it hands him back to the
+   * island. `foot` is the height it goes down to; `descent` is how far round
+   * the spire it spends getting there.
+   *
+   * It is **cut into the rock and not laid on it**, which is the whole reason
+   * it lives in `isles.ts` as `terrace` rather than here as more rail. A path
+   * solved to follow this flank wanders: `radiusAtHeight` answers the first
+   * crossing on each bearing and the crag term makes that jump from 4.6 m to
+   * 13 m and back within a quarter turn, so the path lurched in and out of the
+   * mountain and came out at nine degrees over ninety-seven metres. A shelf
+   * cut at a chosen grade is a shelf; a line laid on a cliff is a scribble.
+   *
+   * So the descent is ground, and he walks down it the way he walks down
+   * anything. `foot` is only kept here as what the check measures against.
+   */
+  foot: 7.6,
+
+  /** How close to a door, in metres of XZ, counts as being at it. Small on
+   *  purpose: the doorway should be a place you walk to, not a radius you
+   *  blunder into from the middle of a beach. */
+  reach: 1.15,
 }
 
 /* -------------------------------------------------------------------------
@@ -232,6 +287,11 @@ export type Rung = {
  */
 const N = 320
 let PATH: Rung[] | null = null
+/** How many samples of porch stand before the doorway, and the arc lengths of
+ *  the two places the rock starts and stops. Set when the path is built. */
+let PORCH = 0
+let DOOR_S = 0
+let CLIMB_S = 0
 
 export function stairPath(): Rung[] {
   if (PATH) return PATH
@@ -264,8 +324,38 @@ export function stairPath(): Rung[] {
   // between a new height and an old one, and the length comes out three times
   // what it is — which is exactly what it did.
   for (let i = 0; i <= N; i++) pts[i]!.y = ys[i]!
+
+  // ...and then the balcony: `STAIR.balcony` metres of level going, curving
+  // from the passage's own direction round to straight out of the flank, so
+  // there is no corner to turn on the spot at.
+  {
+    const last = pts[N]!
+    const prev = pts[N - 1]!
+    let tx = last.x - prev.x
+    let tz = last.z - prev.z
+    const tl = Math.hypot(tx, tz) || 1
+    tx /= tl
+    tz /= tl
+    const rx = Math.cos(last.phi)
+    const rz = Math.sin(last.phi)
+    const M = 20
+    let x = last.x
+    let z = last.z
+    for (let k = 1; k <= M; k++) {
+      const f = S(0, 1, k / M)
+      let dx = mix(tx, rx, f)
+      let dz = mix(tz, rz, f)
+      const dl = Math.hypot(dx, dz) || 1
+      dx /= dl
+      dz /= dl
+      x += (dx * STAIR.balcony) / M
+      z += (dz * STAIR.balcony) / M
+      pts.push({ t: 1, s: 0, x, y: last.y, z, phi: Math.atan2(z - AXIS.z, x - AXIS.x), r: Math.hypot(x - AXIS.x, z - AXIS.z), yaw: 0 })
+    }
+  }
+
   let s = 0
-  for (let i = 0; i <= N; i++) {
+  for (let i = 0; i < pts.length; i++) {
     const p = pts[i]!
     if (i) {
       const q = pts[i - 1]!
@@ -273,24 +363,68 @@ export function stairPath(): Rung[] {
     }
     p.s = s
   }
-  for (let i = 0; i <= N; i++) {
+  for (let i = 0; i < pts.length; i++) {
     const a = pts[Math.max(0, i - 1)]!
-    const b = pts[Math.min(N, i + 1)]!
+    const b = pts[Math.min(pts.length - 1, i + 1)]!
     pts[i]!.yaw = Math.atan2(b.x - a.x, b.z - a.z)
   }
+  // ...and the porch: the rail run back out of the doorway onto the sand, so
+  // that walking to the door is walking onto the rail.
+  {
+    const first = pts[0]!
+    const ox = Math.cos(first.phi)
+    const oz = Math.sin(first.phi)
+    const M = 10
+    const porch: Rung[] = []
+    for (let k = M; k >= 1; k--) {
+      const d = (k / M) * STAIR.porch
+      porch.push({
+        t: 0, s: 0, x: first.x + ox * d, y: first.y, z: first.z + oz * d,
+        phi: first.phi, r: first.r + d, yaw: 0,
+      })
+    }
+    pts.unshift(...porch)
+    PORCH = porch.length
+  }
+
+  let s2 = 0
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!
+    if (i) {
+      const q = pts[i - 1]!
+      s2 += Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)
+    }
+    p.s = s2
+  }
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)]!
+    const b = pts[Math.min(pts.length - 1, i + 1)]!
+    pts[i]!.yaw = Math.atan2(b.x - a.x, b.z - a.z)
+  }
+  DOOR_S = pts[PORCH]!.s
+  CLIMB_S = pts[PORCH + N]!.s
+
   PATH = pts
   return PATH
 }
 
-/** How long the stair is, in metres of going. */
-export const stairLength = () => stairPath()[N]!.s
+/** How long the whole rail is, balcony included, in metres of going. */
+export const stairLength = () => { const p = stairPath(); return p[p.length - 1]!.s }
+
+/** Where the climbing stops, which is also where the rock stops. */
+export const stairClimbEnd = () => { stairPath(); return CLIMB_S }
+/** And where it starts: the doorway in the strand's back wall, `porch` metres
+ *  in from the rail's own beginning. */
+export const stairDoorS = () => { stairPath(); return DOOR_S }
+
 
 /** The rail at an arc length from the mouth, clamped to its own ends. */
 export function stairAt(s: number): Rung {
   const p = stairPath()
-  const m = Math.min(Math.max(s, 0), p[N]!.s)
+  const last = p.length - 1
+  const m = Math.min(Math.max(s, 0), p[last]!.s)
   let lo = 0
-  let hi = N
+  let hi = last
   while (hi - lo > 1) {
     const k = (lo + hi) >> 1
     if (p[k]!.s < m) lo = k
@@ -310,8 +444,17 @@ export function stairAt(s: number): Rung {
   }
 }
 
+/** The rail's outer end on the sand — where a man walking up the strand meets
+ *  it, and what the door test answers at. */
 export const stairMouth = () => stairAt(0)
+/** The doorway itself: where the rail goes into the rock. */
+export const stairDoor = () => stairAt(stairDoorS())
+/** The outer end of the balcony: where he steps off, and where the door test
+ *  answers at the top. */
 export const stairExit = () => stairAt(stairLength())
+/** Where the rail leaves the rock — the hole in the flank, which is at the
+ *  *inner* end of the balcony and not at the rail's end. */
+export const stairPortal = () => stairAt(stairClimbEnd())
 
 /**
  * How far a point is outside the tunnel's own width at an arc length — used by
@@ -328,18 +471,86 @@ export const STAIR_LATERAL = STAIR.half - MAN.shoulders / 2 - 0.08
  * through by a wave, which matters at the mouth, because the mouth is on a
  * beach.
  */
-export function atDoor(x: number, z: number, yaw: number): 'mouth' | 'exit' | null {
-  for (const [which, p, sign] of [
-    ['mouth', stairMouth(), 1],
-    ['exit', stairExit(), -1],
-  ] as const) {
-    if (Math.hypot(x - p.x, z - p.z) > STAIR.reach) continue
-    // his heading against the rail's, at that end
-    const want = p.yaw
-    const dot = Math.cos(yaw) * Math.cos(want) + Math.sin(yaw) * Math.sin(want)
-    if (dot * sign > 0.2) return which
+/**
+ * The arc length of the point on the rail nearest an XZ — what a man stepping
+ * onto it should be given, rather than the end of it.
+ *
+ * The porch and the balcony exist so that the rail reaches the ground he is
+ * standing on; this is what stops him being teleported along it anyway. 352
+ * samples once, at the moment he walks through a door.
+ */
+export function stairNearest(x: number, z: number, y?: number): number {
+  const p = stairPath()
+  let best = 0
+  let bestD = Infinity
+  for (const r of p) {
+    // Height counts double when it is given, and it has to be given from the
+    // beach: the balcony passes almost overhead of the strand seventeen metres
+    // up, and a search in XZ alone put a man walking up the sand at the top of
+    // the stairs. Found by walking in on eleven bearings.
+    const dy = y === undefined ? 0 : (r.y - y) * 2
+    const d = (r.x - x) ** 2 + (r.z - z) ** 2 + dy * dy
+    if (d < bestD) {
+      bestD = d
+      best = r.s
+    }
   }
+  return best
+}
+
+export function atDoor(x: number, z: number, yaw: number, y: number): 'mouth' | 'exit' | null {
+  // Measured against the nearest point of the RAIL and not against its two
+  // ends, which is the difference between a door and a doorknob. A man walked
+  // at the back of the alcove from twelve degrees off the square is stopped by
+  // the wall three quarters of a metre to one side of the porch — at the door,
+  // by any reading — and a test against the porch's tip refused him.
+  const s = stairNearest(x, z, y)
+  const p = stairAt(s)
+  if (Math.hypot(x - p.x, z - p.z) > STAIR.reach) return null
+  // Under it or over it is not at it.
+  if (Math.abs(p.y - y) > 1.2) return null
+  // And short of the end of it is not at it either. The nearest point to a man
+  // walking straight up the porch's own line is its outer tip, at whatever
+  // distance he still has to go — so without this he steps on a metre early,
+  // and stepping on a metre early is a metre of teleport. Beside the rail he
+  // may be `reach` off it, because that offset is kept and walked off; short
+  // of its end he may not, because that one cannot be.
+  const end = stairLength()
+  if ((s <= 1e-6 || s >= end - 1e-6) && Math.hypot(x - p.x, z - p.z) > 0.3) return null
+  // Which way the DOORWAY faces, which is radially out of the spire — not
+  // which way the passage leaves in. The first version used the rail's own
+  // tangent, and the rail starts turning the moment it is through the wall: at
+  // the mouth that tangent is 76 degrees off the way anybody walks in, which
+  // passed by four hundredths from dead ahead and refused every other
+  // approach.
+  const out = Math.atan2(Math.cos(p.phi), Math.sin(p.phi))
+  // Going in is going against it. Generous, because a door is a thing you walk
+  // at rather than aim at: anything but walking away opens it.
+  if (Math.cos(yaw - out) >= -0.15) return null
+  // And only at the two open ends — the porch on the sand and the ledge at the
+  // top. The rest of the rail is inside a mountain.
+  if (s <= stairDoorS() + 0.1) return 'mouth'
+  if (s >= stairClimbEnd() - 0.1) return 'exit'
   return null
+}
+
+/**
+ * Where a man who walks off the end of the balcony is put: a stride along the
+ * terrace the isle cuts away from it, rather than straight out past its end.
+ *
+ * Out past its end is still f = 0 on the shelf, and f = 0 is the shelf's own
+ * starting face — so stepping "forward" off a ledge that points radially
+ * outward was a ten-metre fall onto the second metre of the path.
+ */
+export function stairStepOff(): { x: number; z: number } {
+  const T = ISLE.terrace
+  const p = stairExit()
+  if (!T) return { x: p.x + Math.sin(p.yaw), z: p.z + Math.cos(p.yaw) }
+  const phi = T.from + T.hand * (0.6 / T.r0)
+  // ...and on the shelf's own line at that point, which has already moved out
+  // a little from where the balcony left off.
+  const r = T.r0 + (T.r1 - T.r0) * (0.6 / T.r0 / (T.turns * Math.PI * 2))
+  return { x: AXIS.x + Math.cos(phi) * r, z: AXIS.z + Math.sin(phi) * r }
 }
 
 /** The ground the isle would report at a point — exported so the check and the
