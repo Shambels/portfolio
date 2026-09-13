@@ -76,7 +76,7 @@ export const FALL = {
    * off a ledge does — it spreads into the air, not back into the cliff.
    */
   spread: 6 * DEG,
-  tuck: 4 * DEG,
+  tuck: 6 * DEG,
 
   /** Where the sheet stops and the plunge starts, in metres above the water. */
   base: 0.15,
