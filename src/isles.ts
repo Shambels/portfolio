@@ -205,7 +205,7 @@ export const ISLES: Isle[] = [
       // here because that file imports this one and not the other way round.
       // `stairs.check.ts` asserts the two agree to a centimetre, so it cannot
       // drift quietly.
-      from: CRAG_BEARING + 0.4405,
+      from: CRAG_BEARING + 0.4463,
       // ROUND THE THICK SIDE, which is the other way from the stair's own
       // hand. The flank between 40 and 120 degrees off the fall is the one
       // that spreads as it falls — 17 m of height at 6 m of radius and 5 m at
@@ -223,7 +223,7 @@ export const ISLES: Isle[] = [
       y1: 6.0,
       // The balcony's own end, so he steps off the ledge onto the shelf and
       // not into the gap between them.
-      r0: 7.068,
+      r0: 7.109,
       r1: 9.5,
       width: 1.7,
       blend: 1.0,

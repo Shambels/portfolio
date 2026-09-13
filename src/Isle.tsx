@@ -128,9 +128,14 @@ const CANOPY = vec3(0.04, 0.17, 0.09)
 const ROCK = vec3(0.062, 0.068, 0.088)
 const CRAG = vec3(0.135, 0.142, 0.16)
 
-/** How wide a hole each doorway cuts in the mountain's shading — a little over
- *  the passage's own half-width, so the frame of it is rock and not a seam. */
-const PORTAL = STAIR.half + 0.55
+/** How wide a hole each doorway cuts in the mountain's shading.
+ *
+ * Comfortably over the passage's own half-width, so what the eye reads as the
+ * opening is bigger than the corridor behind it — which is what a doorway in a
+ * cliff looks like, and which matters here because the trigger that takes you
+ * through it reaches wider still. A hole that looked smaller than the thing
+ * that caught you would read as a bug in the other direction. */
+const PORTAL = STAIR.half + 0.8
 
 const BARK = vec3(0.42, 0.33, 0.24)
 const BARK_DARK = vec3(0.2, 0.15, 0.11)

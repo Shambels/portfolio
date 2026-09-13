@@ -724,6 +724,22 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const caveS = useRef<number | null>(null)
   /** And how far across the passage, in metres either side of the centreline. */
   const caveLat = useRef(0)
+  /**
+   * Which way he faces on the rail, with a deadband — true is back down it.
+   *
+   * On the rail his heading is the rail's, and the rail's heading comes out of
+   * the sign of how hard he is pushing along it. Without a deadband a push a
+   * hair either side of sideways flips him a hundred and eighty degrees, and
+   * the place that happens is the top, where the balcony swings sixty degrees
+   * from tangential to radial in two and a half metres. He spun on the spot.
+   */
+  const caveBack = useRef(false)
+  /** Where the rail says he should be looking, which is not always where he is
+   *  going: standing still in a corridor, a man faces up it. */
+  const caveFace = useRef(0)
+  /** Seconds before a door will take him again. Stepping out of one puts him
+   *  within its reach, facing the way he came out — and `reach` is wide now. */
+  const caveWait = useRef(0)
   // 0 riding, 1 walking — `ashore` in `beach.ts`. 1 from the first frame on
   // the sand spawn, or the first second and a quarter of the world would be
   // him standing on his board on the beach, picking it up.
@@ -898,6 +914,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       const fz = Math.cos(here.yaw)
       const along = vel.current.x * fx + vel.current.z * fz
       const across = vel.current.x * fz - vel.current.z * fx
+      // Which way he is facing, with the deadband — see `caveBack`.
+      if (along > 0.45) caveBack.current = false
+      else if (along < -0.45) caveBack.current = true
       caveLat.current += across * CAVE_SWAY * dt
       // Drawn back inside the passage rather than snapped to it: on the frame
       // he comes through a door he may be a metre wide of the centreline.
@@ -914,6 +933,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         // step to hand him down.
         caveS.current = null
         caveLat.current = 0
+        caveWait.current = 0.7
+        snap.current = true
         g.position.x = here.x - fx * 1.1
         g.position.z = here.z - fz * 1.1
       } else if (want >= len && along > 0) {
@@ -924,6 +945,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         // and not a drop onto it.
         caveS.current = null
         caveLat.current = 0
+        caveWait.current = 0.7
+        // A cut and not a lerp: the camera is inside a mountain and the one it
+        // is handing to is seven metres astern of a man on a ledge. Whatever
+        // route it would take between those two runs through the rock.
+        snap.current = true
         const off = stairStepOff()
         g.position.x = off.x
         g.position.z = off.z
@@ -935,6 +961,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         g.position.x = at.x + az * caveLat.current
         g.position.z = at.z - ax * caveLat.current
         vel.current.set(ax * along, 0, az * along)
+        caveFace.current = at.yaw + (caveBack.current ? Math.PI : 0)
+        // And the frame he steers in is the rail's, not a camera chasing him
+        // round a corner. In a corridor the camera is on rails too, so "ahead"
+        // should mean "up the passage" on every frame — the lag that makes a
+        // follow camera feel like a camera makes a tunnel feel like a fight.
+        camYaw.current = at.yaw
       }
     } else {
       const wasX = g.position.x
@@ -969,7 +1001,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       // spring is still floating at sea level under the sand he is standing
       // on. The door could never open. What was meant by it is `afoot`, which
       // already says he is on his feet on land, and that is the whole test.
-      if (walks && afoot > 0.9 && hop.current <= 0) {
+      caveWait.current = Math.max(0, caveWait.current - dt)
+      if (walks && afoot > 0.9 && hop.current <= 0 && caveWait.current <= 0) {
         const door = atDoor(g.position.x, g.position.z, yaw.current, groundHere)
         if (door) {
           // Onto the rail where he already is, rather than at the end of it.
@@ -979,6 +1012,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
           const s = stairNearest(g.position.x, g.position.z, groundHere)
           const on = stairAt(s)
           caveS.current = s
+          caveBack.current = door === 'exit'
+          snap.current = true
           // NOT clamped to the passage's width. He keeps exactly the offset he
           // walked in with, and the clamp below draws him into the middle over
           // the next third of a second — so stepping through a doorway is a
@@ -991,9 +1026,17 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       }
     }
 
-    if (vel.current.lengthSq() > 0.0025) {
-      const want = Math.atan2(vel.current.x, vel.current.z)
-      const diff = Math.atan2(Math.sin(want - yaw.current), Math.cos(want - yaw.current))
+    // On the rail he faces the way the passage runs, and off it he faces the
+    // way he is going. The rail's is not read off `vel`, because `vel` there is
+    // the rail's direction times a signed push — and a push that crosses zero
+    // is a man spinning on a staircase.
+    const heading = caveS.current !== null
+      ? caveFace.current
+      : vel.current.lengthSq() > 0.0025
+        ? Math.atan2(vel.current.x, vel.current.z)
+        : null
+    if (heading !== null) {
+      const diff = Math.atan2(Math.sin(heading - yaw.current), Math.cos(heading - yaw.current))
       yaw.current += diff * (1 - Math.exp(-agile.turn * dt))
     }
     g.rotation.y = yaw.current

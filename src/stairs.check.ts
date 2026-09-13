@@ -331,7 +331,12 @@ function cover(s: number): number {
   // at the top. The second half of that is the one that bit: the balcony hangs
   // almost over the strand, and a nearest-point search in XZ alone put a man
   // walking up the sand seventeen metres up at the other end of the stair.
-  for (let k = -5; k <= 5; k++) {
+  //
+  // And the fan is deliberately wide, because "walk at the back of the alcove
+  // and you go in" is the property, not "aim at the door and you go in". A
+  // trigger a metre across was the second bug a person found: every approach
+  // that was not square ended with him climbing the rock beside the doorway.
+  for (let k = -7; k <= 7; k++) {
     const dir = mouth.phi + (k * 8 * Math.PI) / 180
     const yaw = Math.atan2(-Math.cos(dir), -Math.sin(dir))
     let x = mouth.x + Math.cos(dir) * 3.4
@@ -357,6 +362,29 @@ function cover(s: number): number {
     assert.ok(gap < 0.35,
       `walking in ${k * 8} degrees off the square steps ${(gap * 100).toFixed(0)} cm onto the rail`)
   }
+  // ...and the same again for a man who is not walking at the door at all, but
+  // straight at the back wall from wherever he happens to have landed. This is
+  // the shape the bug actually took: he came ashore off to one side, walked
+  // into the rock, and climbed it.
+  for (let k = -5; k <= 5; k++) {
+    const side = k * 0.45
+    const ahead = { x: Math.cos(mouth.phi), z: Math.sin(mouth.phi) }
+    const yaw = Math.atan2(-ahead.x, -ahead.z)
+    let x = mouth.x + ahead.x * 3.2 - ahead.z * side
+    let z = mouth.z + ahead.z * 3.2 + ahead.x * side
+    let got = false
+    for (let n = 0; n < 900; n++) {
+      const gh = stairGround(x, z)
+      if (atDoor(x, z, yaw, gh)) { got = true; break }
+      const step = scarp(x, z, x + Math.sin(yaw) * 0.05, z + Math.cos(yaw) * 0.05, stairGround)
+      if (Math.hypot(step.x - x, step.z - z) < 1e-5) break
+      x = step.x
+      z = step.z
+    }
+    assert.ok(got,
+      `a man walking straight at the back wall ${side.toFixed(2)} m off the door never gets in`)
+  }
+
   const gap = Math.hypot(stood.x - mouth.x, stood.z - mouth.z)
   assert.ok(gap < STAIR.reach + 0.6,
     `a man walked at the wall stops ${gap.toFixed(2)} m from the rail and \`reach\` is ${STAIR.reach}`)

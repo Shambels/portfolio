@@ -5035,3 +5035,88 @@ fall: ok — 17.3 m from the landing pad, 6.7 m of foot,
 Drawn before it was written down, in the same raymarch the island was: from
 inside the lagoon it is a white curtain filling the alcove's mouth, and the
 doorway behind it is a ghost at most. Still not seen moving.
+
+## The stair, second pass — a gate instead of a door, and a man who stops turning round
+
+Two bugs, reported together, and they turned out to be the same bug twice: the
+stair was built as a piece of geometry that happens to be walkable, and what a
+person actually meets is furniture. Furniture is forgiving.
+
+### "It requires a lot of precision to aim for the entrance"
+
+The doorway was 2.3 m across with a trigger 1.15 m wide, at the back of an
+alcove five metres across. The rider fits through a 2.3 m door easily — that
+was never the problem. The problem is that a trigger a metre wide at the back
+of a five-metre hollow means every approach that is not square ends with him
+walking into the rock *beside* the door and climbing it, because the rock
+beside the door is climbable and the door is not there.
+
+Three things changed, and only one of them is the opening:
+
+- **`half` 1.15 → 1.45, `head` 2.35 → 2.75.** 2.9 m across and 2.75 high — a
+  gate rather than a door. This is so that what he walks into *looks* like what
+  caught him; it is not what made walking in easy.
+- **`reach` 1.15 → 2.6.** This is what made walking in easy. It covers the
+  whole back of the alcove. What stops it catching a man merely walking past is
+  not its size but the two tests under it: he has to be facing into the hill,
+  and he has to be beside the rail rather than short of the end of it.
+- **`atDoor` stopped testing distance to the rail's *ends*.** The nearest point
+  to a man walking up the porch's own line is its outer tip at whatever
+  distance he still has to go, so a plain distance test stepped him on a metre
+  early — a metre of teleport — *and* refused him whenever he came at the door
+  from the side. It is now a projection **along** the rail (`past > 0.35`),
+  which is the difference between "he is off to one side of the door" and "he
+  has not got to it yet". The heading test also went slack, from
+  `cos ≥ -0.15` to `cos ≥ 0.2`: sideways along the back of the alcove now
+  counts as going in, because sideways along the back of an alcove is what a
+  person does when they are looking for the way in.
+
+`PORTAL` in `Isle.tsx` follows `STAIR.half + 0.8`, so the hole in the mountain
+grew with the passage rather than being a second number to keep in step.
+
+### "The character turns around near the top"
+
+A separate mechanism with the same symptom. Inside the cave the rider's
+position comes off the rail, and his facing was read from the sign of his
+velocity along it. Near the top the rail is nearly level and the stick's
+forward component crosses zero constantly — so he span, every few frames, and
+exiting meant holding a direction precisely enough to keep the sign steady.
+
+Facing now comes from the rail itself, through a latch with a deadband:
+`caveBack` flips only past ±0.45 along the going, and `caveFace` is the rail's
+yaw plus π when it is set. `camYaw` is pinned to the rail too, so the camera
+stops arguing with him. Both doors set `caveWait = 0.7` s and `snap = true`, so
+stepping through cannot immediately re-trigger the door behind him.
+
+### What moved to keep it consistent
+
+Widening the passage moved `EXIT_R`, which moved the landing pad, which left
+the carved `terrace` a few centimetres off its own doorway. The fixed point was
+re-run: `terrace.from` → `CRAG_BEARING + 0.4463`, `r0` → 7.109. The fall's near
+edge tucks 6° instead of 4°, because a wider pad puts its lip closer to the
+terrace it must not pour onto.
+
+### Verified
+
+`npx tsc -b` clean, all eight checks green. `stairs.check.ts` gained two blocks
+written the way the failure happened:
+
+- **Fifteen bearings, ±56° across the alcove's mouth.** Each walks in under
+  `scarp`, has to reach a door, has to be put on the rail's *lower* end, and
+  has to step on with less than 35 cm of gap along the rail.
+- **Eleven lateral offsets, ±2.25 m, walking straight at the back wall.** This
+  is the shape the bug actually took — he came ashore off to one side, walked
+  into the rock, and climbed it. Every one of them now gets in.
+
+And out of the app, 15 sloppy approaches (±2 m of offset, ±18° of aim error)
+through the whole journey:
+
+```
+ offset  aim     in      top     out    re-entries  spins
+   -2.0    0 deg    1.4s    14.0s    15.0s          0       0
+    ...
+    2.0  -18 deg    1.4s    14.1s    15.1s          0       0
+```
+
+Every one enters at ~1.4 s, tops out at ~14 s, steps off at ~15 s, with zero
+re-entries and zero spins. Still not seen moving — `npm run dev` is Seb's.

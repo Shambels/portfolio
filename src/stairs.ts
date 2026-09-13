@@ -76,10 +76,16 @@ export const STAIR = {
    *  into the thick of the crescent rather than out along the cliff. */
   hand: -1,
 
-  /** The passage. 1.15 either side of the centreline is two people passing;
-   *  2.35 of headroom is the rider with 55 cm over his head. */
-  half: 1.15,
-  head: 2.35,
+  /**
+   * The passage. Widened once already, from 1.15 and 2.35, and for a reason
+   * that had nothing to do with whether the rider fitted: he fitted easily.
+   * A doorway is aimed at, and a 2.3 m doorway at the back of an alcove is a
+   * thing you line up for. This is 2.9 m across and 2.75 high, which is a gate
+   * rather than a door, and `reach` below is what actually made walking in
+   * easy — the width is so that what you walk into looks like what caught you.
+   */
+  half: 1.45,
+  head: 2.75,
 
   /** How much rock has to stand over the ceiling. Asserted, not hoped. */
   roof: 2.6,
@@ -172,10 +178,22 @@ export const STAIR = {
    */
   foot: 7.6,
 
-  /** How close to a door, in metres of XZ, counts as being at it. Small on
-   *  purpose: the doorway should be a place you walk to, not a radius you
-   *  blunder into from the middle of a beach. */
-  reach: 1.15,
+  /**
+   * How close to a door, in metres of XZ, counts as being at it.
+   *
+   * It was 1.15 and "small on purpose", on the theory that a doorway should be
+   * a place you walk to rather than a radius you blunder into. That theory is
+   * wrong, and a person walking at it proved it: the alcove is five metres
+   * across and the trigger was a metre, so every approach that was not square
+   * ended with him climbing the rock beside the door instead of going through
+   * it. A door is furniture, not a target.
+   *
+   * 2.6 covers the whole back of the alcove, which is the point. What stops it
+   * catching a man who is merely walking past is not its size — it is the two
+   * tests under it: he has to be facing into the hill, and he has to be beside
+   * the rail rather than short of the end of it.
+   */
+  reach: 2.6,
 }
 
 /* -------------------------------------------------------------------------
@@ -513,15 +531,22 @@ export function atDoor(x: number, z: number, yaw: number, y: number): 'mouth' | 
   const p = stairAt(s)
   if (Math.hypot(x - p.x, z - p.z) > STAIR.reach) return null
   // Under it or over it is not at it.
-  if (Math.abs(p.y - y) > 1.2) return null
-  // And short of the end of it is not at it either. The nearest point to a man
-  // walking straight up the porch's own line is its outer tip, at whatever
-  // distance he still has to go — so without this he steps on a metre early,
-  // and stepping on a metre early is a metre of teleport. Beside the rail he
-  // may be `reach` off it, because that offset is kept and walked off; short
-  // of its end he may not, because that one cannot be.
+  if (Math.abs(p.y - y) > 1.8) return null
+  // And BEYOND the end of it is not at it either — measured along the rail's
+  // own direction rather than as a distance, which is the difference between
+  // "he is off to one side of the door" and "he has not got to it yet".
+  //
+  // The nearest point to a man walking up the porch's own line is its outer
+  // tip, at whatever distance he still has to go, so a plain distance test
+  // stepped him on a metre early — a metre of teleport. A plain distance test
+  // also refused him when he came at the door from the side, which is every
+  // approach that is not square. This refuses the first and allows the second.
   const end = stairLength()
-  if ((s <= 1e-6 || s >= end - 1e-6) && Math.hypot(x - p.x, z - p.z) > 0.3) return null
+  if (s <= 1e-6 || s >= end - 1e-6) {
+    const sign = s <= 1e-6 ? -1 : 1
+    const past = ((x - p.x) * Math.sin(p.yaw) + (z - p.z) * Math.cos(p.yaw)) * sign
+    if (past > 0.35) return null
+  }
   // Which way the DOORWAY faces, which is radially out of the spire — not
   // which way the passage leaves in. The first version used the rail's own
   // tangent, and the rail starts turning the moment it is through the wall: at
@@ -529,9 +554,11 @@ export function atDoor(x: number, z: number, yaw: number, y: number): 'mouth' | 
   // passed by four hundredths from dead ahead and refused every other
   // approach.
   const out = Math.atan2(Math.cos(p.phi), Math.sin(p.phi))
-  // Going in is going against it. Generous, because a door is a thing you walk
-  // at rather than aim at: anything but walking away opens it.
-  if (Math.cos(yaw - out) >= -0.15) return null
+  // Going in is going against it, and the test is deliberately slack: anything
+  // but walking away from the hill opens it. Sideways along the back of the
+  // alcove counts, because sideways along the back of the alcove is what a
+  // person does when they are looking for the way in.
+  if (Math.cos(yaw - out) >= 0.2) return null
   // And only at the two open ends — the porch on the sand and the ledge at the
   // top. The rest of the rail is inside a mountain.
   if (s <= stairDoorS() + 0.1) return 'mouth'
