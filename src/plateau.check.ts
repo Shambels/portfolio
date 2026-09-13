@@ -22,8 +22,9 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  BOARD, PROFILE, PROP_SETS, RIDER_MASS, TIDY_AFTER, TIDY_FOR, WALLED,
-  deckAt, displaced, footprint, hull2d, inside, makeProp, makeSet, profileAt, rim, seedOf, stepProps,
+  BOARD, LENSES, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER, TIDY_FOR, WALLED,
+  deckAt, displaced, footprint, hull2d, inShot, inside, makeProp, makeSet, profileAt,
+  rampLift, rim, seedOf, stepProps,
   type Board, type Hit, type Poly, type Terrain,
 } from './plateau.ts'
 
@@ -59,34 +60,50 @@ const SPREAD = 1.9 // `ISLAND_SPREAD`, the same file
 
 // ------------------------------------------------------------- the wall
 
-/** The mine's polygon, from the file, the way the browser reads it. */
-function wallFromGlb(path: string): Poly {
+/** Every mesh in a .glb, by name, with its positions — the way `Landmarks.tsx`
+ *  reads them, and the only way a check can hold a model to anything. */
+function meshesFromGlb(path: string): { name: string; pos: Float32Array }[] {
   const b = readFileSync(path)
   const len = b.readUInt32LE(12)
   const j = JSON.parse(b.subarray(20, 20 + len).toString()) as {
-    nodes: { mesh?: number; translation?: number[]; rotation?: number[]; scale?: number[] }[]
-    meshes: { primitives: { attributes: { POSITION: number } }[] }[]
+    nodes: { name?: string; mesh?: number; translation?: number[]; rotation?: number[]; scale?: number[] }[]
+    meshes: { name?: string; primitives: { attributes: { POSITION: number } }[] }[]
     accessors: { bufferView: number; byteOffset?: number; count: number }[]
     bufferViews: { byteOffset?: number; byteLength: number }[]
   }
   const bin = 20 + len + 8
-  const pts: { x: number; z: number }[] = []
-  const [lo, hi] = WALLED.mine!
+  const out: { name: string; pos: Float32Array }[] = []
   for (const n of j.nodes) {
     if (n.mesh === undefined) continue
-    assert.ok(!n.translation && !n.rotation && !n.scale, 'mine.glb: a node with a transform — the browser bakes it, this does not')
-    for (const prim of j.meshes[n.mesh]!.primitives) {
+    assert.ok(!n.translation && !n.rotation && !n.scale,
+      `${path}: a node with a transform — the browser bakes it, this does not`)
+    const mesh = j.meshes[n.mesh]!
+    for (const prim of mesh.primitives) {
       const acc = j.accessors[prim.attributes.POSITION]!
       const view = j.bufferViews[acc.bufferView]!
       const off = bin + (view.byteOffset ?? 0) + (acc.byteOffset ?? 0)
-      const pos = new Float32Array(b.buffer.slice(b.byteOffset + off, b.byteOffset + off + acc.count * 12))
-      footprint(pos, lo, hi, pts)
+      out.push({
+        name: n.name ?? mesh.name ?? '',
+        pos: new Float32Array(b.buffer.slice(b.byteOffset + off, b.byteOffset + off + acc.count * 12)),
+      })
     }
+  }
+  return out
+}
+
+/** A landmark's wall, built out of its file exactly as `Detailed` builds it:
+ *  the hull of every vertex in the band, from the meshes the entry names. */
+function wallFromGlb(path: string, shape: string): Poly {
+  const w = WALLED[shape]!
+  const pts: { x: number; z: number }[] = []
+  for (const m of meshesFromGlb(path)) {
+    if (w.part && !m.name.startsWith(w.part)) continue
+    footprint(m.pos, w.band[0], w.band[1], pts)
   }
   return hull2d(pts)
 }
 
-const wall = wallFromGlb(new URL('./models/mine.glb', import.meta.url).pathname)
+const wall = wallFromGlb(new URL('./models/mine.glb', import.meta.url).pathname, 'mine')
 assert.ok(wall.length >= 6 && wall.length <= 64, `the mine's hull has ${wall.length} vertices`)
 // Counter-clockwise, and it holds the rock: the bench's own centre is inside.
 assert.ok(inside(wall, 0, -1.5), 'the benches are outside their own wall')
@@ -342,6 +359,167 @@ function toWorld(cx: number, cz: number, rot: number, lx: number, lz: number) {
   }
   // And it took about the pause plus the ease, no more.
   assert.ok(frames * DT < TIDY_AFTER + TIDY_FOR + 12, `tidy-up took ${(frames * DT).toFixed(1)} s`)
+}
+
+// -------------------------------------------------------------- the ramp
+//
+// Memojo's island. Four things are held. **The shape**: the run climbs from
+// nothing at the foot to the lip with slope still on it, which is what a ramp
+// is and what a smoothstep is not. **The file**: `src/models/memojo.glb` is
+// the same curve to a millimetre at every station, so the deck under the board
+// and the deck in front of the eye cannot drift apart. **The ride**: a board
+// taken up it at cruise stays on the deck the whole way, leaves the lip going
+// up, and comes down in the water past the island — and the same board on the
+// same line with the ramp taken out never leaves the ground, which is what
+// says the jump is the ramp's doing and not the beach's. **The shot**: the
+// giant camera sees him in the air off the lip and does not see him standing
+// at the foot.
+
+const RAMP = RAMPS.ramp!
+const GRAV = 9 // `Ship.tsx`, and the same number the props fall under
+const SIT = 0.05 // `Ship.tsx`: how far over a deck the hull's origin rides
+const STATIONS = 24 // `tools/memojo.py`
+
+{
+  // The shape. Zero at the foot and flat there, `h` at the lip and not flat
+  // there, monotone in between, and nothing off the deck.
+  assert.equal(deckAt('ramp', RAMP.x, RAMP.foot), 0)
+  assert.ok(Math.abs(deckAt('ramp', RAMP.x, RAMP.lip) - RAMP.h) < 1e-9, 'the lip is not `h`')
+  assert.equal(deckAt('ramp', RAMP.x, RAMP.foot + 0.01), 0, 'the deck runs past its own foot')
+  assert.equal(deckAt('ramp', RAMP.x + RAMP.half + 0.01, 0), 0, 'the deck is wider than its own width')
+  let last = -1
+  for (let k = 0; k <= 200; k++) {
+    const z = RAMP.foot + (RAMP.lip - RAMP.foot) * (k / 200)
+    const h = deckAt('ramp', RAMP.x, z)
+    assert.ok(h >= last - 1e-12, `the run falls at z ${z.toFixed(2)}`)
+    last = h
+  }
+  // The foot is a curve and the lip is a straight line — the whole asymmetry.
+  const e = 1e-4
+  const atFoot = (deckAt('ramp', RAMP.x, RAMP.foot - e) - 0) / e
+  const atLip = (RAMP.h - deckAt('ramp', RAMP.x, RAMP.lip + e)) / e
+  assert.ok(atFoot < 0.02, `the foot is a step: slope ${atFoot.toFixed(3)}`)
+  assert.ok(atLip > 0.4, `the lip has no slope left on it: ${atLip.toFixed(3)}`)
+  // And `rampLift` is that slope times the speed up the run, zero off it.
+  assert.ok(Math.abs(rampLift('ramp', RAMP.x, RAMP.lip + 0.01, -9) - 9 * atLip) < 0.02, 'the lift is not the slope')
+  assert.equal(rampLift('ramp', RAMP.x, RAMP.lip + 0.01, 9), 0, 'going back down the run is a climb')
+  assert.equal(rampLift('mine', 0, 0, -9), 0, 'a landmark with no ramp lifted something')
+}
+
+{
+  // The file. Every station's own vertices, against `deckAt` at that z.
+  const meshes = meshesFromGlb(new URL('./models/memojo.glb', import.meta.url).pathname)
+  const deck = meshes.filter((m) => m.name === 'frame_deck')
+  assert.equal(deck.length, 1, 'memojo.glb has no frame_deck')
+  for (let k = 0; k <= STATIONS; k++) {
+    const t = k / STATIONS
+    const z = RAMP.foot + (RAMP.lip - RAMP.foot) * t
+    let top = -Infinity
+    const pos = deck[0]!.pos
+    for (let i = 0; i + 2 < pos.length; i += 3) {
+      if (Math.abs(pos[i + 2]! - z) > 1e-3) continue
+      if (Math.abs(pos[i]! - RAMP.x) > RAMP.half + 1e-3) continue
+      top = Math.max(top, pos[i + 1]!)
+    }
+    assert.ok(top > -Infinity, `memojo.glb: no deck vertices at station ${k}`)
+    const want = deckAt('ramp', RAMP.x, z)
+    assert.ok(Math.abs(top - want) < 1e-3,
+      `memojo.glb: station ${k} is ${top.toFixed(4)} where the board rides ${want.toFixed(4)}`)
+  }
+  // And the wall is the tripod alone. A hull round the deck as well would
+  // swallow the ramp, which is the failure `WALLED.ramp.part` exists to stop.
+  const tripod = wallFromGlb(new URL('./models/memojo.glb', import.meta.url).pathname, 'ramp')
+  assert.ok(tripod.length >= 3, 'the tripod has no hull')
+  assert.ok(!inside(tripod, RAMP.x, 0), 'the wall swallowed the ramp')
+  assert.ok(!inside(tripod, RAMP.x, RAMP.lip), "the wall swallowed the ramp's lip")
+  const lens = LENSES.ramp!
+  assert.ok(inside(tripod, lens.x - lens.dx * 1.55, lens.z - lens.dz * 1.55), 'the camera is not over its own tripod')
+}
+
+/** Ride the ramp — or the same line with the ramp taken out — and report the
+ *  flight. Landmark-local, at `memojo.en.mdx`'s own place in the world. */
+function ride(withRamp: boolean) {
+  const cx = 24, cz = 18
+  const rot = Math.atan2(-cx, -cz)
+  const R = 5.2 * SPREAD
+  const seed = seedOf('memojo')
+  const bedAt = (lx: number, lz: number) => {
+    const w = toWorld(cx, cz, rot, lx, lz)
+    const h = GROUND + profileAt(R, seed, w.x - cx, w.z - cz) +
+      (withRamp ? deckAt('ramp', lx, lz) : 0)
+    return { bed: h + SIT, sea: 0 + SIT, wx: w.x, wz: w.z }
+  }
+  const speed = 9 // cruise on the board
+  let lz = RAMP.foot + 2.5
+  let y = bedAt(RAMP.x, lz).bed
+  let vy = 0
+  let apex = -Infinity, liftOff = 0, onDeck = 0, flew = false, landed = 0
+  for (let f = 0; f < 900; f++) {
+    lz -= speed * DT
+    const { bed } = bedAt(RAMP.x, lz)
+    const dry = bed > SIT
+    vy -= GRAV * DT
+    y += vy * DT
+    if (dry && y < bed) {
+      // `Ship.tsx`: the floor, and the vertical the floor hands over.
+      y = bed
+      vy = Math.max(vy, 0, rampLift(withRamp ? 'ramp' : 'mine', RAMP.x, lz, -speed))
+      if (flew && landed === 0) landed = lz
+    } else if (!dry && y < SIT) {
+      y = SIT
+      if (flew && landed === 0) landed = lz
+    }
+    if (!flew && y > bed + 0.06 && lz < RAMP.lip + 0.2) { flew = true; liftOff = vy }
+    if (!flew) onDeck = Math.max(onDeck, y - bed)
+    apex = Math.max(apex, y - RAMP.h - GROUND - SIT)
+  }
+  const w = toWorld(cx, cz, rot, RAMP.x, landed)
+  return { liftOff, apex, onDeck, landed, ground: GROUND + profileAt(R, seed, w.x - cx, w.z - cz) }
+}
+
+{
+  const on = ride(true)
+  // On the way up he is on the deck, not bouncing up it.
+  assert.ok(on.onDeck < 0.02, `the board bounced ${on.onDeck.toFixed(3)} up the run`)
+  // He leaves it going up, at about the run's own rate: 9 units a second up a
+  // slope of 0.46 is four and a bit.
+  assert.ok(on.liftOff > 3.5 && on.liftOff < 5,
+    `off the lip at ${on.liftOff.toFixed(2)} up — the run should be handing him about 4.2`)
+  // Which buys most of a metre over the lip, and a landing in the water past
+  // the island rather than on the grass beside it.
+  assert.ok(on.apex > 0.6, `only ${on.apex.toFixed(2)} of air over the lip`)
+  assert.ok(on.ground < 0, `he landed on land at ${on.ground.toFixed(2)}`)
+
+  // And the control: the same line at the same speed with no ramp under it
+  // never leaves the ground at all. A beach is not a kicker.
+  // He does leave the ground on the way down the far beach — that is a skim
+  // off a falling slope and it is what the beaches have always done. What he
+  // never gets is anything *upward*, which is the whole difference.
+  const off = ride(false)
+  assert.ok(off.liftOff <= 0, `the flat island handed him ${off.liftOff.toFixed(2)} upward`)
+  assert.ok(off.apex < 0, 'the flat island gave him the ramp\'s height')
+}
+
+{
+  // The shot. The set the browser builds, and a rider in the air off the lip
+  // against a rider standing at the foot.
+  const cx = 24, cz = 18
+  const rot = Math.atan2(-cx, -cz)
+  const set = makeSet('memojo', cx, cz, rot, [], [], LENSES.ramp!)
+  const at = (lx: number, ly: number, lz: number) => {
+    const w = toWorld(cx, cz, rot, lx, lz)
+    return [w.x, ly, w.z] as const
+  }
+  const air = at(RAMP.x, GROUND + RAMP.h + SIT + 0.5, RAMP.lip - 1.2)
+  assert.ok(inShot(set, air[0], air[1], air[2]), 'the lens missed a rider in the air off the lip')
+  const foot = at(RAMP.x, GROUND + SIT, RAMP.foot)
+  assert.ok(!inShot(set, foot[0], foot[1], foot[2]), 'the lens fired at a rider at the foot of the ramp')
+  const behind = at(RAMP.x, GROUND + 3, RAMP.foot + 6)
+  assert.ok(!inShot(set, behind[0], behind[1], behind[2]), 'the lens sees behind itself')
+  const miles = at(RAMP.x, GROUND + RAMP.h + 0.5, RAMP.lip - 30)
+  assert.ok(!inShot(set, miles[0], miles[1], miles[2]), 'the lens sees past its own reach')
+  // And a landmark with no lens never fires.
+  assert.ok(!inShot(makeSet('scrubble', 0, 14, 0, [], []), 0, 1, 12), 'a landmark with no lens took a photograph')
 }
 
 {

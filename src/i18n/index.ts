@@ -29,8 +29,8 @@ const en = {
 
   homeWorkHeading: 'Selected work',
   workTitle: 'Work',
-  workIntro: 'Three case studies. Each one says what I chose, what I rejected, and what it cost.',
-  workDescription: 'Case studies: a VS Code extension that reads data schemas without running your code, a trilingual site for an artist, and a Scrabble analysis board.',
+  workIntro: 'Four case studies. Each one says what I chose, what I rejected, and what it cost.',
+  workDescription: 'Case studies: a VS Code extension that reads data schemas without running your code, a trilingual site for an artist, a Scrabble analysis board, and an on-device photo app.',
 
   readCaseStudy: 'Read the case study',
   // The two ways out of a case study opened from the world, and both of them
@@ -44,6 +44,8 @@ const en = {
   labelStack: 'Stack',
   linkSite: 'Visit the site',
   linkRepo: 'View the source',
+  linkPlay: 'Get it on Google Play',
+  linkAppStore: 'Get it on the App Store',
   noLink: 'Not deployed — the write-up is the artefact.',
 
   // The world's only string. `useInput` reads physical key codes, so the keys
@@ -116,8 +118,8 @@ const fr: Strings = {
 
   homeWorkHeading: 'Projets choisis',
   workTitle: 'Projets',
-  workIntro: "Trois études de cas. Chacune dit ce que j'ai choisi, ce que j'ai écarté, et ce que ça a coûté.",
-  workDescription: "Études de cas : une extension VS Code qui lit les schémas de données sans exécuter votre code, un site trilingue pour une artiste, et un analyseur de parties de Scrabble.",
+  workIntro: "Quatre études de cas. Chacune dit ce que j'ai choisi, ce que j'ai écarté, et ce que ça a coûté.",
+  workDescription: "Études de cas : une extension VS Code qui lit les schémas de données sans exécuter votre code, un site trilingue pour une artiste, un analyseur de parties de Scrabble, et une application photo qui tourne sur l'appareil.",
 
   readCaseStudy: "Lire l'étude de cas",
   closeStudy: "Fermer l'étude de cas",
@@ -127,6 +129,8 @@ const fr: Strings = {
   labelStack: 'Stack',
   linkSite: 'Voir le site',
   linkRepo: 'Voir le code',
+  linkPlay: 'Sur Google Play',
+  linkAppStore: "Sur l'App Store",
   noLink: "Pas déployé — c'est le texte qui fait foi.",
 
   worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
@@ -168,8 +172,8 @@ const nl: Strings = {
 
   homeWorkHeading: 'Geselecteerd werk',
   workTitle: 'Werk',
-  workIntro: 'Drie casestudy’s. Elke zegt wat ik koos, wat ik verwierp, en wat het kostte.',
-  workDescription: 'Casestudy’s: een VS Code-extensie die dataschema’s leest zonder je code uit te voeren, een drietalige site voor een kunstenares, en een Scrabble-analysebord.',
+  workIntro: 'Vier casestudy’s. Elke zegt wat ik koos, wat ik verwierp, en wat het kostte.',
+  workDescription: 'Casestudy’s: een VS Code-extensie die dataschema’s leest zonder je code uit te voeren, een drietalige site voor een kunstenares, een Scrabble-analysebord, en een fotoapp die op het toestel draait.',
 
   readCaseStudy: 'Lees de casestudy',
   closeStudy: 'Sluit de casestudy',
@@ -179,6 +183,8 @@ const nl: Strings = {
   labelStack: 'Stack',
   linkSite: 'Bekijk de site',
   linkRepo: 'Bekijk de broncode',
+  linkPlay: 'Op Google Play',
+  linkAppStore: 'In de App Store',
   noLink: 'Niet uitgebracht — de tekst is het werkstuk.',
 
   worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',

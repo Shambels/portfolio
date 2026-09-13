@@ -36,3 +36,4 @@ build
 id_rsa*
 id_ed25519*
 .claude/settings.local.json
+Claude outputs

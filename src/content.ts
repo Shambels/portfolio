@@ -22,6 +22,11 @@ export type Project = {
   stack: string[]
   site?: string
   repo?: string
+  /** The two stores, for a project that ships as an app. Their own keys rather
+   *  than a second `site`: they are two destinations with two names, and a
+   *  list of links keyed by a store would be a list nothing else here needs. */
+  play?: string
+  appStore?: string
   /** Which shape builds it — see `BUILD` in `src/Landmarks.tsx`. */
   landmark: string
   /** Island centre, XZ. The plateau height is one constant, `GROUND`. */
@@ -104,6 +109,8 @@ function build(slug: string, locale: Locale): Project {
     stack: Array.isArray(stack) ? stack.map(String) : [],
     site: typeof fm.site === 'string' ? fm.site : undefined,
     repo: typeof fm.repo === 'string' ? fm.repo : undefined,
+    play: typeof fm.play === 'string' ? fm.play : undefined,
+    appStore: typeof fm.appStore === 'string' ? fm.appStore : undefined,
     landmark: str(fm.landmark, file, 'landmark'),
     pos: [px, pz],
     size: [sx, sy, sz],

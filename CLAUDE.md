@@ -32,7 +32,10 @@ install`, run by Seb on macOS.
 Claude verifies with `npx tsc -b` and `npm run check` — pure JS, safe from
 either side. That script ran one check out of four for a while; it runs
 nine now — `locales`, `camera`, `isles`, `stick`, `beach`, `stairs`, `falls`
-and `plateau` — and all of them pass. `react-router typegen` and `oxlint` are *not* safe:
+and `plateau` — and all of them pass. **As of the fourth project there is no
+`node_modules` in this folder at all**, so neither command runs here: both
+went to the throwaway copy in the container on a real `npm install`, and
+`npm run build` with them. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -60,6 +63,7 @@ one major behind. Noted here rather than done quietly.
 | `polarsense` | A mine | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `scrubble` | A Scrabble board | — |
+| `memojo` | A ramp, and a giant camera aimed at the end of it | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
 — is English frontmatter, not a table anywhere in code.
@@ -140,7 +144,15 @@ Breaking one is allowed. Doing it without saying so is not.
   node. A prop is a mesh name: `<material>_<part>~<prop>`, and every mesh
   sharing a `~prop` is one rigid thing — the scripts write those names, and
   `Landmarks.tsx` reads them. Hits go through `HITS` in `world.ts` to three
-  synthesised knocks in `Sound.tsx`.
+  synthesised knocks in `Sound.tsx`. Memojo's ramp is the same idea in the
+  vertical: `RAMPS` is a deck that climbs, `rampLift` is the slope times the
+  speed up it, and the launch is the floor handing the board the vertical it
+  was climbing at — no rule anywhere says "jump". It is analytic and confined
+  to a ramp's deck on purpose, because the same number read as a frame
+  difference turns every beach into a kicker. Its giant camera is a wall
+  (`WALLED` names the meshes now, not just a height band — the tripod, or the
+  hull would have swallowed the ramp) and a lens: `LENSES` and `inShot`, a
+  cone that fires `FLASH` and a fourth knock when the rider is airborne in it.
 - The character stays procedural — *was*, for both hulls. There are two
   exceptions now and the rule is the weaker for it. The **boat** is
   `src/models/pirate_ship.glb` since the ship, a generated galleon fitted into
@@ -256,10 +268,11 @@ src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by def
 src/Islands.tsx         the ground under each landmark — lathed from
                         `plateau.ts`'s profile, no assets
 src/plateau.ts          the project islands as ridden: the ground's profile,
-                        the loose props on it and the mine's wall — pure
-                        arithmetic, no three, so the check runs in node
-src/plateau.check.ts    that, with a board ridden at the real mine and over a
-                        row of tiles
+                        the loose props on it, the mine's wall, Memojo's ramp
+                        and the lens that watches it — pure arithmetic, no
+                        three, so the check runs in node
+src/plateau.check.ts    that, with a board ridden at the real mine, over a
+                        row of tiles, and up the real ramp and off it
 src/beach.ts            coming ashore: the ramp between riding and walking, the
                         sand under his feet and the altitude floor over it —
                         pure arithmetic, no three, so the check runs in node
@@ -271,7 +284,8 @@ src/isles.ts            the isle: an island that is a place and not a project,
 src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
-src/Landmarks.tsx       the mine, the easel, the board — blockout in primitives +
+src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
+                        camera — blockout in primitives +
                         TSL, and the detailed model where one exists (`MODEL`);
                         reads `~prop` off mesh names into `PROP_SETS`, and the
                         mine's wall off its vertices
@@ -282,6 +296,7 @@ tools/landmark.py       what every landmark script needs — axes, members, expo
 tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
+tools/memojo.py         the same, for the ramp and the giant camera
 tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
                         exports the two generated sources beside it,
                         tools/surfer-tripo.glb and tools/surfboard-tripo.glb
@@ -316,7 +331,8 @@ deploy/nginx.conf       the server block — root redirect, 404, caching
 `src/content/projects/{slug}.{lang}.mdx`, and nothing lists them anywhere else —
 `react-router.config.ts` reads the directory to build its prerender list.
 
-English carries the structural frontmatter (`year`, `stack`, `site`, `repo`, and
+English carries the structural frontmatter (`year`, `stack`, `site`, `repo`,
+`play` and `appStore` for a project that ships as an app, and
 the world's `landmark`, `order`, `pos`, `size`, `radius`, `waypoint`); `fr` and
 `nl` carry only `title` and `summary` beside their prose. A URL is never written
 down three times. A locale with no file for a slug falls back to English rather
@@ -522,11 +538,27 @@ that every floating hull had been spawning 0.9 m in the air and sinking.
 one that no check holds: `SPAWN.bearing` was chosen against the isle's
 planting, replayed in node, and moves if the seed does.
 
+The world has a fourth project. Memojo is an on-device photo app that ships on
+both stores, so its island is the one thing here that *watches*: a ramp the
+rider goes up and leaves by, and a giant camera aimed at the lip, which fires a
+shutter and a flash when he is in the air in front of it. The jump is not a
+rule — `RAMPS` is a floor that climbs, and the floor hands the board the
+vertical it was climbing at (`rampLift`, `climb()` in `world.ts`); past the lip
+there is no floor left. At cruise that is 0.64 m over a lip already 1.55 up and
+a landing in the sea past the island. Its panel is deliberately a **stub** —
+the store description and the two store links, saying in its own prose that
+the decisions are not written down yet — and its `stack` line is a guess Seb
+made knowingly and which has not been checked. `docs/STATUS.md`, "A fourth
+project", has all of it, including the two things that check it: the glb's
+deck vertices against `deckAt` at every station, and the control that says a
+beach is still not a kicker.
+
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
-*is traversal interesting or a chore* judgement, reviewing the ten unreviewed
+*is traversal interesting or a chore* judgement, reviewing the unreviewed
 FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
-control hints, the three craft labels and the reading view's `closeStudy` and
-`backToWorld`), and judging
+control hints, the three craft labels, the reading view's `closeStudy` and
+`backToWorld`, and now `linkPlay`, `linkAppStore`, the two reworded `work`
+strings and the whole of Memojo's FR and NL prose), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over
 its ridge, on real hardware — swiftshader has no opinion about frame rate, a null audio sink
