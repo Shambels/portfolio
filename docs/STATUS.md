@@ -5316,3 +5316,164 @@ the settle adds is 30% and goes).
   patch that brought the container's clone up to this checkout's HEAD was
   `git diff 71ed542 36d793d` and is reproducible from either end, and the
   fragment of this section was this section.
+
+## A fourth project — Memojo, a ramp to leave by and a camera that watches it
+
+Seb's brief: a new project in the world; its island carries a ramp the surfer
+can ride and jump off, and a giant camera aimed at the end of that ramp; its
+panel carries a summary of the Play Store description and links to both
+stores. Asked, and answered: the panel is a **stub** for now rather than a
+fourth essay, and says so in its own prose — the other three are written
+because their interesting decisions are settled and Memojo's are not written
+down yet; the two store links are **two new frontmatter keys** with their own
+labels rather than a reused `site`; the lens **fires** — a shutter when sound
+is on and a flash off the bloom pass — when the rider is in the air in front
+of it; and FR and NL are written, unreviewed, and join the pile.
+
+- [x] `src/content/projects/memojo.{en,fr,nl}.mdx` — the fourth project, at
+      `pos: [24, 18]`, `order: 4`, `landmark: ramp`
+- [x] `play` and `appStore` frontmatter keys, through `src/content.ts` into
+      the case study's link row, with `linkPlay` and `linkAppStore` per locale
+- [x] The ramp is ridden: `RAMPS` and `rampLift` in `src/plateau.ts`, read by
+      `climb()` in `src/world.ts` and applied at the floor in `Ship.tsx`
+- [x] The camera is a wall — its tripod only — and a lens: `LENSES`,
+      `inShot`, and `WALLED` grown a `part` filter
+- [x] `tools/memojo.py` builds `src/models/memojo.glb` — 1508 triangles, 71 kB
+- [x] A shutter in `src/Sound.tsx`, and the lens's emissive in `Landmarks.tsx`
+- [x] `src/plateau.check.ts` holds the shape, the file, the ride and the shot
+- [ ] Judged on real hardware: whether the jump is the right size, whether the
+      flash is a flash or a strobe, whether the shutter sits in the mix — Seb
+- [ ] The essay that replaces the stub — Seb, and it needs his decisions
+- [ ] The FR and NL prose, and the two new UI strings in each — Seb
+
+### The stack line is a guess, and it is on the page
+
+`stack: [Flutter, Dart, on-device ML, peer-to-peer sync]`. The store listing
+says cross-platform Android and iOS, on-device intelligence and P2P sharing,
+and says nothing at all about a toolchain. Seb chose "assume Flutter, like
+Scrubble" over leaving it empty, knowing it was a guess. It is the one line in
+this repo that is asserted on a public page without a source behind it, so it
+is written down here: **check it before the first deploy.**
+
+### The jump comes out of the ramp, not out of a rule
+
+`plateau()` already gave the board a floor and gravity over it. A ramp is
+therefore only a floor that climbs — `RAMPS.ramp`, a run 3.9 long that rises
+1.55 — and the whole of the launch is one line at the clamp that holds the
+board on that floor: `hullVel = max(hullVel, 0, up)`. A floor coming up under
+a board carries the board with it, so by the lip he is already going up at the
+run's own rate; past the lip there is no floor left and he keeps it. Nothing
+anywhere says "launch".
+
+The slope is what makes that a number. It comes on over the first 0.28 of the
+run and is constant after it, so the foot is a curve the board meets without a
+step and the lip is a straight line it leaves by. A smoothstep — the obvious
+first shape — is flat at *both* ends, and a lip with no slope on it is a ledge
+to fall off. What that gives, measured in node:
+
+| Speed | Off the lip | Air over the lip | Comes down |
+|---|---|---|---|
+| 5 (drifting) | 2.24 up | 0.28 m | 4.4 m past the lip |
+| 7.5 (cruise) | 3.39 up | 0.64 m | 8.4 m past — in the water |
+| 9 | 4.08 up | 0.93 m | 11.4 m past |
+| 13 (boost) | 5.93 up | 1.98 m | 21 m past |
+
+So at cruise he clears the island and lands in the sea, and at full sail he is
+most of two metres over a lip that is already 1.55 up. Space on the way up is
+added to that the way it is anywhere else.
+
+**`rampLift` is analytic, and that is not a detail.** The first version read
+the lift as a frame difference — how far the floor had come up since last
+frame — which is the same number on a ramp and *turns every beach in the world
+into a kicker*, because a beach also rises under a board doing nine units a
+second. Read as slope-times-speed and confined to a ramp's own deck, the three
+existing islands ride exactly as they did. `plateau.check.ts` holds both
+halves: the ramp launches him, and the same line at the same speed with the
+ramp taken out never hands him anything upward.
+
+### The deck the board rides and the deck the eye sees are one curve
+
+`RAMPS.ramp` in `src/plateau.ts` and `RUN` in `tools/memojo.py` are the same
+profile written twice, in two languages, which is exactly the kind of pair
+that drifts. So the check reads `src/models/memojo.glb` back and asserts the
+deck mesh's own vertices sit on `deckAt` **to a millimetre at all 25
+stations**. Change either side alone and `npm run check` fails. It is the
+first time a check in this repo has held a model's *surface* rather than its
+extents, and it is the only reason writing the numbers twice is safe.
+
+### The wall had to learn which meshes it is made of
+
+`WALLED` was a height band, and the hull of everything in it. That works for
+the mine, whose every vertex is rock. Here the tripod's legs and the ramp's
+own deck stand in the same band, and a convex hull round both is a polygon
+that swallows the ramp — the island would have become unridable the moment the
+model loaded. So the entry is `{ band, part? }` now, and `WALLED.ramp` names
+`frame_tripod`: the wall is the hull of three legs, which is a triangle, and
+the ramp is not in it. The model puts all three legs and their braces in one
+object for that reason. It is the same `<material>_<part>` convention
+`matFor` already reads, used for a second purpose rather than a second
+convention.
+
+### The lens
+
+`LENSES.ramp` is a point, a direction, a cosine and a reach — (0.95, 2.62,
+-0.30) looking down (-0.574, -0.092, -0.814), 26 degrees of half-angle, 13
+units. `inShot()` does the world-to-landmark transform itself, so `Ship.tsx`
+holds no second copy of it, and the check can aim it at a rider who is not
+there. It fires when the rider is **off the deck** and inside the cone, which
+in practice is about half a metre past the lip: at the lip itself he is 0.80
+against a cone of 0.90 and the shutter holds.
+
+`SHUTTER_GAP` = 1.1 s is what makes it an event rather than a level — one
+crossing is one photograph. `FLASH` in `world.ts` is the age of the last one,
+decayed to a uniform in `Landmarks.tsx` over `FLASH_FOR` = 0.16 s. The lens
+declares **no emissive at rest**, so it costs the bloom pass nothing until it
+goes off; `Post` blooms the emissive buffer at threshold zero, so when it does
+go off it is the only real light source in the world. Under
+`prefers-reduced-motion` the flash is zero and the shutter still sounds, which
+is the same trade the settle and the spray already make.
+
+The shutter itself is two clicks 55 ms apart — mirror and front curtain
+together, rear curtain behind them — over a lowpassed 128 Hz body. One click
+is a switch; two clicks that far apart are a camera.
+
+### The island moved 2.8 units after the first screenshot
+
+`pos` was `[24, 18]`, and it was `[22, 16]` for an hour. At 22,16 there were
+4.1 m of water between its shore and Scrabble's, against 6.6 m at the tightest
+existing pair, and the minimap drew M and S as two discs touching. Moved out
+along its own bearing: 6.3 m now, which is the family it belongs to, and the
+two letters come apart. Nothing else changed — the waypoint moved with it and
+both composition asserts still hold (`pos[0] > waypoint[0]`,
+`pos[1] < waypoint[1]`).
+
+### Sizes
+
+The model is 1508 triangles and 71 kB — a twentieth of the landmark triangle
+budget and a quarter of its size budget, before any packing, because it is
+eight boxes, four cylinders and one extruded curve. The canvas chunk is 467 kB
+gz against a 600 kB budget and the first route is 128 kB gz against 200,
+both measured on a real `npm run build` in the container. The whole world is
+2.33 MB compressed against 3.
+
+### Not verified
+
+Everything that needs a screen. The jump's *feel* — 0.64 m at cruise is a
+number, not a judgement. Whether the flash reads as a camera or as a glitch,
+and whether 0.16 s is too long at 60 fps. Whether the shutter cuts through the
+sea. Whether a landmark that looks *at* the visitor is pleasant or unnerving
+from the water. And whether the ramp wants a second approach — as built there
+is exactly one line onto it, up the island's +Z beach.
+
+### Needs Seb
+
+- The stack line (above). It is a guess on a public page.
+- The essay. The stub says out loud that Memojo's decisions are not written
+  down, which is honest for a week and thin for a year.
+- The FR and NL prose and the four new store strings, unreviewed like the ten
+  before them.
+- Ride it and say whether the jump is right. `RAMPS.ramp.h` and `.ease` are
+  the two levers; `SHUTTER_GAP` and `FLASH_FOR` are the other two.
+- The work is uncommitted, and the folder it was written in has no
+  `node_modules`, so `npx tsc -b` and `npm run check` were run on a throwaway
+  copy in the container, on a real `npm install`, along with `npm run build`.

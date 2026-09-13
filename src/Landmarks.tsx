@@ -5,16 +5,18 @@ import * as THREE from 'three/webgpu'
 import {
   clamp, color, cos, float, floor, fract, length, max, mix, modelWorldMatrix,
   mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, sin, smoothstep,
-  step, vec2, vec3, vec4,
+  step, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
-import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
+import { FLASH, GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
-  PROP_SETS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet, type Prop, type PropSet,
+  LENSES, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
+  type Prop, type PropSet,
 } from './plateau'
 import { SHIP_XZ } from './Ship'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
+import memojoUrl from './models/memojo.glb?url'
 
 /**
  * The three landmarks: a mine, an easel, a Scrabble board. Track B blockout,
@@ -81,10 +83,22 @@ const PALETTE = {
   dark: '#10151d', // the adit, and anything meant to read as a hole
   board: '#8d94a2',
   ore: '#d9a05c', // the veins — the one warm thing in the rock
+  glass: '#1b2836', // the lens, which is dark until it is not
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
-const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1 }
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1 }
+
+/**
+ * How bright the giant camera's lens is, 0 to 1. One uniform for both material
+ * sets — the cold one and the proximity-highlighted one are two objects and
+ * one lens — written once a frame by `Landmarks` from `FLASH` in `world.ts`.
+ */
+const flashLevel = uniform(0)
+/** How long the flash lasts. Short enough to be a flash: a photographic one is
+ *  a thousandth of a second and a thousandth of a second is invisible at 60fps,
+ *  so this is the shortest thing the eye can be given instead. */
+const FLASH_FOR = 0.16
 
 /** The proximity tint, applied to every colour the same way. */
 const shade = (hex: string, hi: boolean) => new THREE.Color(hex).lerp(HI, hi ? 0.72 : 0)
@@ -142,6 +156,13 @@ function makeMats(hi: boolean) {
   const frame = new THREE.MeshStandardNodeMaterial({ color: c.frame, roughness: 0.72, metalness: 0.15 })
   const panel = new THREE.MeshStandardNodeMaterial({ color: c.panel, roughness: 0.85 })
   const dark = new THREE.MeshStandardNodeMaterial({ color: c.dark, roughness: 1 })
+
+  // The lens. Dark glass, and at rest it declares no emissive at all, which is
+  // what makes it free: `Post` blooms the emissive buffer at threshold zero,
+  // so a lens that is not firing costs the bloom nothing and a lens that is
+  // fires the only real light source in the world.
+  const glass = new THREE.MeshStandardNodeMaterial({ color: c.glass, roughness: 0.18, metalness: 0.3 })
+  glass.emissiveNode = color('#eaf4ff').mul(flashLevel.mul(3.2))
 
   // Strata, and the veins that cut them. PolarSense reads structure that is
   // already in the file without running it, so the rock is layered before anyone
@@ -254,7 +275,7 @@ function makeMats(hi: boolean) {
   const palette = new THREE.MeshStandardNodeMaterial({ color: c.board, roughness: 0.8 })
 
   return {
-    frame, panel, dark, rock, board,
+    frame, panel, dark, rock, board, glass,
     /** Overrides keyed by the whole mesh name, tried before the name's prefix —
      *  a mesh that wants its own shader gets one without a second model. */
     byName: {
@@ -407,6 +428,59 @@ function Board(m: Mats) {
   )
 }
 
+// -------------------------------------------------------------- the ramp
+// Memojo. A kicker the board goes up and leaves by, and a camera the size of a
+// house aimed at the top of it — the app finds the picture nobody was going to
+// find, so the landmark is the one thing in this world that is watching rather
+// than being walked past.
+//
+// The run is `RAMPS.ramp` and nothing here restates it: the blockout is eight
+// risers whose top edges are `deckAt` at that z, so the shape under the board
+// and the shape in front of the eye are the same numbers even before the model
+// arrives. `tools/memojo.py` builds the real one on the same profile, and
+// `plateau.check.ts` reads the file back and holds the two together.
+
+const RAMP = RAMPS.ramp!
+const STEPS = 8
+/** The lens, from `LENSES.ramp`: the body hangs off it and the barrel points
+ *  down its own direction, so the blockout aims wherever the arithmetic does. */
+const LENS = LENSES.ramp!
+
+function Kicker(m: Mats) {
+  const run = RAMP.foot - RAMP.lip
+  // Everything but the ramp is measured back along the lens's own axis, so a
+  // camera aimed somewhere else is a camera that moved rather than a camera
+  // that needs a second set of numbers.
+  const back = (d: number): P3 => [LENS.x - LENS.dx * d, LENS.y - LENS.dy * d, LENS.z - LENS.dz * d]
+  const head = back(1.5)
+  const hip: P3 = [head[0], head[1] - 0.78, head[2]]
+  return (
+    <>
+      {Array.from({ length: STEPS }, (_, k) => {
+        const z0 = RAMP.foot - (run * k) / STEPS
+        const z1 = RAMP.foot - (run * (k + 1)) / STEPS
+        const y = deckAt('ramp', RAMP.x, z1)
+        return (
+          <mesh key={k} geometry={BOX} material={m.frame}
+            position={[RAMP.x, y / 2, (z0 + z1) / 2]} scale={[RAMP.half * 2, y, z0 - z1]} />
+        )
+      })}
+      {/* The body, the barrel, and the lens in its mouth. */}
+      <mesh geometry={BOX} material={m.dark} {...strut(back(2.1), back(0.92), 1.3)} />
+      <mesh geometry={BOX} material={m.panel} position={[head[0], head[1] + 0.82, head[2]]} scale={[0.6, 0.34, 0.5]} />
+      <mesh geometry={BOX} material={m.frame} {...strut(back(0.95), back(0.05), 0.84)} />
+      <mesh geometry={BOX} material={m.glass} {...strut(back(0.07), back(0.01), 0.68)} />
+      {/* The tripod, which is the only part of it a board can hit — and the
+          only part `WALLED` reads, which is why the model names these legs. */}
+      {[0, 1, 2].map((k) => {
+        const a = (k / 3) * Math.PI * 2 + 0.5
+        const toe: P3 = [hip[0] + Math.cos(a) * 0.82, 0, hip[2] + Math.sin(a) * 0.82]
+        return <mesh key={'l' + k} geometry={BOX} material={m.frame} {...strut(hip, toe, 0.14)} />
+      })}
+    </>
+  )
+}
+
 // ----------------------------------------------------------------- the set
 
 /** Keyed by the `landmark` frontmatter field, not by slug: two projects may
@@ -415,6 +489,7 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
   mine: Mine,
   easel: Easel,
   board: Board,
+  ramp: Kicker,
 }
 
 /**
@@ -432,6 +507,7 @@ const MODEL: Record<string, string> = {
   mine: mineUrl,
   easel: easelUrl,
   board: boardUrl,
+  ramp: memojoUrl,
 }
 
 type Part = { geometry: THREE.BufferGeometry; name: string }
@@ -502,7 +578,9 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
         `${url}: no material for ${mesh.name}`,
       )
       const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
-      if (band) footprint(geometry.attributes.position.array, band[0], band[1], wallPts)
+      if (band && (!band.part || mesh.name.startsWith(band.part))) {
+        footprint(geometry.attributes.position.array, band.band[0], band.band[1], wallPts)
+      }
       const prop = mesh.name.split('~')[1]
       const part = { geometry, name: mesh.name }
       if (!prop) fixed.push(part)
@@ -533,7 +611,8 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
       const found = parts.find((p) => p.name.startsWith('panel_found'))
       pieces.push({ id, parts, landed: found ? landedGeometry(found.geometry) : undefined })
     }
-    const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props, band ? [hull2d(wallPts)] : [])
+    const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props,
+      wallPts.length ? [hull2d(wallPts)] : [], LENSES[l.landmark] ?? null)
     return { fixed, pieces, set }
   }, [scene, url, l])
 
@@ -637,6 +716,13 @@ function fits(g: THREE.Group | null, l: Landmark, tag: string) {
 
 export function Landmarks({ near }: { near: string | null }) {
   const [cold, hot] = useMemo(() => [makeMats(false), makeMats(true)], [])
+  // The lens, decayed from `FLASH` — here rather than in `Detailed` so it
+  // fires on the blockout too, and so it is one update for a value both
+  // material sets share. Invariant 6: a visitor who asked for less motion
+  // gets the shutter and not a light going off in their face.
+  useFrame(() => {
+    flashLevel.value = REDUCED ? 0 : Math.max(0, 1 - FLASH.age / FLASH_FOR)
+  })
   return (
     <>
       {LANDMARKS.map((l) => {

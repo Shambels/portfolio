@@ -78,10 +78,88 @@ export const DECKS: Record<string, { half: number; h: number } | undefined> = {
   board: { half: 2.97, h: 0.21 },
 }
 
-/** The deck's lift at a landmark-local XZ, or zero off it. */
+/**
+ * And what is ridden *up*: Memojo's ramp, a deck that climbs along the
+ * landmark's own -Z — which is away from the visitor, so he comes at it from
+ * the water, goes up it, and leaves over the far shore.
+ *
+ * The run is straight and the foot is eased, and that asymmetry is the whole
+ * shape of it. A smoothstep over the length would be flat at *both* ends, and
+ * a lip with no slope on it is a ledge to fall off rather than a ramp to leave
+ * by — the launch below is the slope at the lip and nothing else. So: a slope
+ * that comes on over the first `ease` of the run and is constant from there,
+ * which is a curve where the board meets it and a straight line where it
+ * leaves.
+ */
+export type Ramp = {
+  /** The run's centre line and half-width, across the landmark. */
+  x: number
+  half: number
+  /** Where it starts, at plateau level, and where it ends, at `h`. */
+  foot: number
+  lip: number
+  h: number
+  /** Fraction of the run over which the slope comes on. */
+  ease: number
+}
+
+export const RAMPS: Record<string, Ramp | undefined> = {
+  ramp: { x: -1.05, half: 1.15, foot: 2.9, lip: -1.0, h: 1.55, ease: 0.28 },
+}
+
+/** Height of the run at `t` along it, 0 at the foot and 1 at the lip, for a
+ *  slope that ramps in over `s` and is flat-out after it. The integral of that
+ *  slope, normalised so the lip is exactly 1. */
+const runAt = (t: number, s: number): number =>
+  (t <= s ? (t * t) / (2 * s) : t - s / 2) / (1 - s / 2)
+
+/** And its slope there, in height per unit of run, on the same normalisation. */
+const runSlope = (t: number, s: number): number => (t <= s ? t / s : 1) / (1 - s / 2)
+
+/** Where on the run a landmark-local XZ is: 0 at the foot, 1 at the lip, and
+ *  -1 off the deck altogether. */
+function along(r: Ramp, lx: number, lz: number): number {
+  if (Math.abs(lx - r.x) > r.half) return -1
+  if (lz > r.foot || lz < r.lip) return -1
+  return (r.foot - lz) / (r.foot - r.lip)
+}
+
+/** The deck's lift at a landmark-local XZ, or zero off it — the Scrabble
+ *  board's plinth, or the ramp's run. */
 export function deckAt(shape: string, lx: number, lz: number): number {
   const d = DECKS[shape]
-  return d && Math.abs(lx) <= d.half && Math.abs(lz) <= d.half ? d.h : 0
+  if (d) return Math.abs(lx) <= d.half && Math.abs(lz) <= d.half ? d.h : 0
+  const r = RAMPS[shape]
+  if (!r) return 0
+  const t = along(r, lx, lz)
+  return t < 0 ? 0 : r.h * runAt(t, r.ease)
+}
+
+/**
+ * The vertical a ramp imparts to something crossing it, in units a second: the
+ * deck's slope where the board is, times how fast it is going up the run.
+ *
+ * This is what a jump off the ramp is made of, and it is why the ramp is the
+ * only rising thing in the world that launches anything. Read as a frame
+ * difference — how much the floor came up under him since last frame — every
+ * beach on every island would become a kicker, because a beach also rises
+ * under a board moving fast. Read analytically and confined to a ramp's own
+ * deck, the beaches ride exactly as they did and the ramp throws him, which is
+ * the difference between a change and a feature.
+ *
+ * Zero off the deck, zero going down it, and zero standing still.
+ */
+export function rampLift(shape: string, lx: number, lz: number, vlz: number): number {
+  const r = RAMPS[shape]
+  if (!r) return 0
+  const t = along(r, lx, lz)
+  if (t < 0) return 0
+  // Up the run is -z in landmark space. Crossing it sideways climbs nothing,
+  // and that falls out rather than being a case: `vlz` is the only component
+  // the run has a slope along.
+  const up = -vlz
+  if (up <= 0) return 0
+  return up * (r.h / (r.foot - r.lip)) * runSlope(t, r.ease)
 }
 
 /* -------------------------------------------------------------- the props
@@ -122,6 +200,36 @@ export type Prop = {
   fyaw: number
 }
 
+/**
+ * The giant camera on Memojo's island, as something that can see: where the
+ * lens is in the landmark's own space, where it looks, how wide, and how far.
+ *
+ * It is here and not in `Landmarks.tsx` for the reason everything else in this
+ * file is: what it does is arithmetic — a cone against a point — and the model
+ * beside it is a picture of that arithmetic. The two have to agree or the
+ * shutter fires at a rider the lens is not pointing at, and only one of them
+ * can be checked in node.
+ */
+export type Lens = {
+  /** Where it stands, and the unit vector it looks along. */
+  x: number
+  y: number
+  z: number
+  dx: number
+  dy: number
+  dz: number
+  /** The cosine of its half-angle, and how far it sees. */
+  cos: number
+  reach: number
+}
+
+/** Keyed by landmark shape, like `DECKS` and `RAMPS`. Aimed at the arc off
+ *  the lip: the run leaves at `RAMPS.ramp.lip` and what the lens is for is the
+ *  metre or two after that, which is the only place a rider is in the air. */
+export const LENSES: Record<string, Lens | undefined> = {
+  ramp: { x: 0.95, y: 2.62, z: -0.3, dx: -0.5735, dy: -0.0917, dz: -0.8141, cos: 0.9, reach: 13 },
+}
+
 /** A convex polygon in landmark space, counter-clockwise. */
 export type Poly = { x: number; z: number }[]
 
@@ -133,6 +241,8 @@ export type PropSet = {
   rot: number
   props: Prop[]
   walls: Poly[]
+  /** The landmark's camera, if it has one — one landmark does. */
+  lens: Lens | null
   /** Seconds everything has been still and out of place. */
   still: number
   /** The tidy-up: 0 not running, else its progress toward 1. */
@@ -162,7 +272,34 @@ export type Board = {
   m: number
 }
 
-export type Hit = { kind: 'tile' | 'wood' | 'metal'; force: number }
+/** `shutter` is the odd one out and deliberately lives here anyway: it is not
+ *  something the board hit, it is something that went off because of where the
+ *  board was. The machinery is identical — a one-shot the sound plays once at
+ *  a level — and a second list beside this one would be the same list. */
+export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'shutter'; force: number }
+
+/**
+ * Is a world point in a landmark's lens? False for every landmark that has no
+ * lens, which is all but one.
+ *
+ * The transform is the same one `stepProps` does and is done here rather than
+ * at the call site for the same reason: a second copy of it in `Ship.tsx` is a
+ * second chance to get a sign wrong, and this one the check can hold.
+ */
+export function inShot(set: PropSet, wx: number, wy: number, wz: number): boolean {
+  const l = set.lens
+  if (!l) return false
+  const cr = Math.cos(set.rot)
+  const sr = Math.sin(set.rot)
+  const dx = wx - set.cx
+  const dz = wz - set.cz
+  const rx = dx * cr - dz * sr - l.x
+  const rz = dx * sr + dz * cr - l.z
+  const ry = wy - l.y
+  const d = Math.hypot(rx, ry, rz)
+  if (d < 1e-6 || d > l.reach) return false
+  return (rx * l.dx + ry * l.dy + rz * l.dz) / d >= l.cos
+}
 
 /** What the props stand on: the island and the sea at a world XZ, in world Y. */
 export type Terrain = (wx: number, wz: number) => { land: number; water: number }
@@ -207,7 +344,8 @@ export function makeProp(id: string, px: number, pz: number, r: number, m: numbe
   }
 }
 
-export function makeSet(slug: string, cx: number, cz: number, rot: number, props: Prop[], walls: Poly[]): PropSet {
+export function makeSet(slug: string, cx: number, cz: number, rot: number, props: Prop[],
+  walls: Poly[], lens: Lens | null = null): PropSet {
   let reach = 0
   for (const p of props) reach = Math.max(reach, Math.hypot(p.px, p.pz) + p.r)
   for (const w of walls) for (const v of w) reach = Math.max(reach, Math.hypot(v.x, v.z))
@@ -218,7 +356,7 @@ export function makeSet(slug: string, cx: number, cz: number, rot: number, props
     const b = props[k]!
     slack[n * i + k] = Math.max(0, a.r + b.r - Math.hypot(a.px - b.px, a.pz - b.pz))
   }
-  return { slug, cx, cz, rot, props, walls, still: 0, back: 0, reach, slack }
+  return { slug, cx, cz, rot, props, walls, lens, still: 0, back: 0, reach, slack }
 }
 
 /** Every landmark that has loaded its model, by slug. `Landmarks.tsx` writes
@@ -234,7 +372,17 @@ export const PROP_SETS = new Map<string, PropSet>()
  * vertex in the band, built from the model when it loads: a hand-kept list of
  * boxes would be wrong the first time a bench moved.
  */
-export const WALLED: Record<string, [number, number] | undefined> = { mine: [0.02, 1.2] }
+export const WALLED: Record<string, { band: [number, number]; part?: string } | undefined> = {
+  mine: { band: [0.02, 1.2] },
+  // And the tripod under the giant camera, which is the one thing on Memojo's
+  // island a board cannot ride through. `part` is why this grew a shape: the
+  // hull is convex, the ramp's own deck sits in the same band as the legs, and
+  // a hull drawn round both would make the ramp a wall and the island
+  // unridable. So the wall says which meshes it is made of, and the model
+  // names them — the same `<material>_<part>` convention `matFor` already
+  // reads, used for a second purpose rather than a second convention.
+  ramp: { band: [0.02, 2.2], part: 'frame_tripod' },
+}
 
 /** The XZ of every vertex in a height band, appended to `into`. `pos` is a
  *  flat xyz array, which is what a glTF accessor and a BufferAttribute both are. */

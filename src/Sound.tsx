@@ -230,7 +230,12 @@ const VOICES: Record<string, (ctx: AudioContext, noise: AudioNode, out: AudioNod
  * - **metal** is the mine's head-frame taking a surfboard: a struck steel
  *   member is partials that are not harmonics of anything, so five of them
  *   at ratios off a rolled plate, through a highpass, with the noise bed's
- *   own click on the front. The bang is what the visitor's own speed cost.
+ *   own click on the front. The bang is what the visitor's own speed cost;
+ * - **shutter** is the odd one, and it is not a hit at all — it is the giant
+ *   camera on Memojo's island going off at a rider in the air. A focal-plane
+ *   shutter is *two* events and that is the whole sound: the mirror and the
+ *   front curtain together, then the rear curtain 55 ms behind them. One
+ *   click is a switch; two clicks that far apart are a camera.
  */
 type Knock = (t: number, force: number) => void
 
@@ -255,6 +260,28 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
     return (t, force) => {
       strike(env.gain, t, 0.004, 0.16 + 0.18 * force, 0.4 + 0.6 * force)
       strike(thump.gain, t, 0.004, 0.12, 0.9)
+    }
+  },
+  shutter(ctx, noise, out) {
+    const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 1700 })
+    const mirror = new GainNode(ctx, { gain: 0 })
+    const curtain = new GainNode(ctx, { gain: 0 })
+    noise.connect(hp)
+    hp.connect(mirror)
+    hp.connect(curtain)
+    mirror.connect(out)
+    curtain.connect(out)
+    // And the body under it: a big camera is a box, and the box is what makes
+    // the click sound like something heavy rather than like a relay.
+    const body = new GainNode(ctx, { gain: 0 })
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 760 })
+    osc(ctx, 'triangle', 128).connect(lp)
+    lp.connect(body)
+    body.connect(out)
+    return (t, force) => {
+      strike(mirror.gain, t, 0.001, 0.022, 0.5 + 0.5 * force)
+      strike(body.gain, t, 0.001, 0.045, 0.35 + 0.35 * force)
+      strike(curtain.gain, t + 0.055, 0.001, 0.03, 0.4 + 0.4 * force)
     }
   },
   metal(ctx, noise, out) {

@@ -52,8 +52,19 @@ export default function CaseStudy() {
           {t.linkRepo}
         </a>
       )}
+      {project.play && (
+        <a href={project.play} target="_blank" rel="noreferrer">
+          {t.linkPlay}
+        </a>
+      )}
+      {project.appStore && (
+        <a href={project.appStore} target="_blank" rel="noreferrer">
+          {t.linkAppStore}
+        </a>
+      )}
     </>
   )
+  const shipped = project.site || project.repo || project.play || project.appStore
 
   if (world) {
     return (
@@ -97,7 +108,7 @@ export default function CaseStudy() {
         <p className="lede">{project.summary}</p>
         <p className="links">
           {offsite}
-          {!project.site && !project.repo && <span className="fine">{t.noLink}</span>}
+          {!shipped && <span className="fine">{t.noLink}</span>}
         </p>
       </header>
 

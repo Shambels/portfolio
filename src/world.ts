@@ -1,6 +1,6 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
-import { deckAt, profileAt, seedOf, type Hit } from './plateau'
+import { deckAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -64,6 +64,17 @@ export const SPLASH = { x: 0, z: 0, force: 0, age: 99 }
  */
 export const HITS: Hit[] = []
 
+/**
+ * How long ago the giant camera on Memojo's island fired, in seconds. Written
+ * by `Ship` — which is the only thing that knows the rider is in the air —
+ * and read by `Landmarks`, where it is the lens's emissive.
+ *
+ * A level like `SPLASH` and for the same reason: any number of things may
+ * want it and none of them should consume it. One number rather than a
+ * position too, because unlike a splash it can only ever happen in one place.
+ */
+export const FLASH = { age: 99 }
+
 export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   slug: p.slug,
   landmark: p.landmark,
@@ -119,6 +130,30 @@ export function plateau(x: number, z: number): number {
     h = Math.max(h, GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
   }
   return h
+}
+
+/**
+ * The vertical the ground imparts to a board crossing it at (vx, vz), in units
+ * a second — which on this world is Memojo's ramp and nothing else.
+ *
+ * The same loop `plateau()` runs, because it is the same question asked about
+ * the slope instead of the height: which landmark is under this point, and
+ * what does its deck do there. `rampLift` is where the arithmetic is and
+ * `plateau.check.ts` is what holds it.
+ */
+export function climb(x: number, z: number, vx: number, vz: number): number {
+  let up = 0
+  for (const l of LANDMARKS) {
+    const dx = x - l.pos[0]
+    const dz = z - l.pos[2]
+    const R = l.radius * ISLAND_SPREAD
+    if (dx * dx + dz * dz > (R * 1.25) ** 2) continue
+    const rot = landmarkYaw(l)
+    const c = Math.cos(rot)
+    const s = Math.sin(rot)
+    up = Math.max(up, rampLift(l.landmark, dx * c - dz * s, dx * s + dz * c, vx * s + vz * c))
+  }
+  return up
 }
 
 /** True where the sea surface is: clear of every island's shoreline. */

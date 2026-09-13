@@ -9,8 +9,8 @@ import { swell } from './Scenery'
 import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
-import { GROUND, HITS, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, plateau, spawn } from './world'
-import { BOARD, PROP_SETS, RIDER_MASS, stepProps, type Board, type Terrain } from './plateau'
+import { FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, landmarkAt, landmarkOf, offshore, plateau, spawn } from './world'
+import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
@@ -226,6 +226,13 @@ const HOP_G = 14
  *  at the surface with the fins 0.16 under, so this is the same board a
  *  little higher, not a different board. */
 const SIT = 0.05
+/**
+ * Seconds between one frame of the giant camera's and the next. A shutter is
+ * an event and an event that can happen every frame is a level, so this is
+ * what makes it one: a rider crossing the lens on one jump is one photograph,
+ * and coming back round for another is another.
+ */
+const SHUTTER_GAP = 1.1
 /** Metres of ground above the water over which the water's heel fades out of
  *  the deck: a board on the grass does not lean to the chop under the island. */
 const DRY_IN = 0.2
@@ -1053,6 +1060,16 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       _terrain.t = REDUCED ? 0 : state.clock.elapsedTime
       for (const set of PROP_SETS.values()) {
         stepProps(set, dt, _board, walks && afoot < 0.5, terrain, HITS)
+        // And the giant camera, which does the opposite of the wall above: it
+        // touches nothing and only looks. It fires when the rider is off the
+        // deck and inside the cone — `flew` and not this frame's answer,
+        // because the vertical has not run yet and last frame's is the one
+        // every other event here is timed off.
+        if (set.lens && walks && afoot < 0.5 && flew.current && FLASH.age > SHUTTER_GAP &&
+          inShot(set, _board.x, _board.y, _board.z)) {
+          FLASH.age = 0
+          HITS.push({ kind: 'shutter', force: 1 })
+        }
       }
       g.position.x = _board.x
       g.position.z = _board.z
@@ -1156,6 +1173,7 @@ const RISE = 10
     // thing the visitor watches fade rather than a thing that is integrated, and
     // on a slideshow it should still be gone in a second.
     if (SPLASH.age < 9) SPLASH.age += Math.min(delta, 0.25)
+    if (FLASH.age < 9) FLASH.age += Math.min(delta, 0.25)
 
     // What the craft is riding: the sea for anything that floats, and for the
     // saucer the land, which until the isle arrived was always sea level.
@@ -1254,6 +1272,12 @@ const RISE = 10
         : (surface - hull.current) * water.buoyK - (hullVel.current - surfVel) * water.buoyC)
       hullVel.current = Math.min(hullVel.current, water.launch)
       hull.current += hullVel.current * dt
+      // What the deck under him is doing to him, in units a second. Zero
+      // everywhere but on Memojo's ramp (`climb` in `world.ts`), which is the
+      // one floor in this world that is going up fast enough to matter — and
+      // it is applied at the floor and nowhere else, so it can only ever act
+      // on a board that is actually on the deck.
+      const up = walks ? climb(g.position.x, g.position.z, vel.current.x, vel.current.z) : 0
       if (dry) {
         if (hull.current < bed) {
           // The floor, and a landing on it is spent here — the fall is
@@ -1265,7 +1289,12 @@ const RISE = 10
             RIDE.slam = Math.min(impact / SPLASH_FULL, 1)
           }
           hull.current = bed
-          hullVel.current = Math.max(hullVel.current, 0)
+          // The ramp. A floor climbing under the board carries the board up
+          // with it, so by the lip he is already going up at the run's own
+          // rate — and past the lip there is no floor left to hold him, which
+          // is the whole of the jump. No case says "launch": the deck simply
+          // stops being there, and he keeps the vertical it gave him.
+          hullVel.current = Math.max(hullVel.current, 0, up)
         }
       } else if (hull.current < surface - water.sink) {
         // A hull landing at six units a second would otherwise be a metre under

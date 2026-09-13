@@ -36,7 +36,7 @@ from mathutils import Matrix, Quaternion, Vector
 # anything else is a black hole in the world, so it is caught here.
 # `bark`, `frond` and `bush` are the isle's, shaded by `Isle.tsx` rather than by
 # `Landmarks.tsx` — the same convention, a second file reading it.
-KEYS = ("rock", "frame", "panel", "dark", "board", "bark", "frond", "bush")
+KEYS = ("rock", "frame", "panel", "dark", "board", "glass", "bark", "frond", "bush")
 
 
 def T(x: float, y: float, z: float) -> Vector:
