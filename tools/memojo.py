@@ -101,7 +101,7 @@ UP = RIGHT.cross(AIM).normalized()
 SLOT = Vector(BODY) + AIM * 0.62 - UP * 0.66
 # `PRINTS.ramp` in src/plateau.ts, to the number: the card hangs from here and
 # `plateau.check.ts` reads this mesh back out of the .glb to say so.
-SLOT_W = 0.92
+SLOT_W = 1.32
 
 GLB = "src/models/memojo.glb"
 BLEND = "tools/memojo.blend"
@@ -239,7 +239,7 @@ def slot() -> bpy.types.Object:
     in this file, because the card moves and what is on it is a photograph that
     did not exist when the model was written. `Shutter.tsx` hangs it here."""
     bm = bmesh.new()
-    add_slab(bm, (SLOT.x, SLOT.y, SLOT.z), (SLOT_W, 0.11, 0.17), rx=PITCH, ry=YAW)
+    add_slab(bm, (SLOT.x, SLOT.y, SLOT.z), (SLOT_W, 0.12, 0.18), rx=PITCH, ry=YAW)
     obj = mesh_object("dark_slot", bm)
     finish(obj, 38.0)
     return obj

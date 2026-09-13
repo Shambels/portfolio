@@ -657,7 +657,9 @@ function ride(withRamp: boolean) {
   // foot — which is what is left over rather than a fourth number.
   assert.ok(print.img + 2 * print.border <= print.w + 1e-9, 'the picture is wider than the card')
   assert.ok(print.h - print.img - print.border > print.border * 2, 'the card has no foot')
-  assert.ok(print.y - print.h > 0.25, 'the print reaches the ground')
+  assert.ok(print.y - print.h > 0.15, 'the print reaches the ground')
+  // And it is worth being wide: four fifths of the body it comes out of.
+  assert.ok(print.w >= 1.5 * 0.8 - 1e-9, 'the print is narrower than four fifths of the body')
   // The feed is one speed and the development is not, and both end where they
   // say. Nothing about either moves backwards.
   assert.deepEqual(printAt(print, 0), { out: 0, dev: 0 })

@@ -320,9 +320,17 @@ export type Print = {
 }
 
 export const PRINTS: Record<string, Print | undefined> = {
+  // 1.20 across is four fifths of the body's own 1.5, which is as wide as a
+  // print can be and still be a print rather than a poster. The height is what
+  // the machine will give: the slot is 1.54 over the plateau — the body's
+  // front-bottom edge, and the highest point on it with nothing underneath —
+  // so a card this wide at a true polaroid's 1.22 proportion would end 8 cm
+  // off the grass. 1.36 is the compromise: a squarer card than a Polaroid 600,
+  // with a foot a fifth of the picture rather than a quarter, hanging 18 cm
+  // clear. Taller is a print lying on the island.
   ramp: {
     x: 2.1293, y: 1.5405, z: -2.0914,
-    w: 0.86, h: 1.046, img: 0.772, border: 0.044,
+    w: 1.2, h: 1.36, img: 1.08, border: 0.06,
     out: 2.4, dev: [0.7, 3.2],
   },
 }
