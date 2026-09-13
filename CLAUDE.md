@@ -35,7 +35,8 @@ nine now — `locales`, `camera`, `isles`, `stick`, `beach`, `stairs`, `falls`
 and `plateau` — and all of them pass. **As of the fourth project there is no
 `node_modules` in this folder at all**, so neither command runs here: both
 went to the throwaway copy in the container on a real `npm install`, and
-`npm run build` with them. `react-router typegen` and `oxlint` are *not* safe:
+`npm run build` with them. The check script runs ten since the hologram:
+`sudoku` is the tenth. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -64,7 +65,7 @@ one major behind. Noted here rather than done quietly.
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `scrubble` | A Scrabble board | — |
 | `memojo` | A ramp, and a giant camera aimed at the end of it | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
-| `sudoku` | An unfinished sudoku board — a tray of 81 wells, 31 of them filled | https://github.com/Shambels/sudoku |
+| `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive | https://github.com/Shambels/sudoku |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
 — is English frontmatter, not a table anywhere in code.
@@ -273,7 +274,14 @@ src/plateau.ts          the project islands as ridden: the ground's profile,
                         decks, Memojo's ramp and the lens that watches it —
                         pure arithmetic, no three, so the check runs in node
 src/plateau.check.ts    that, with a board ridden at the real mine, over a
-                        row of tiles, and up the real ramp and off it
+                        row of tiles, and up the real ramp and off it — and
+                        the sudoku's file held to `HOLO`, with nothing loose on it
+src/sudoku.ts           the Sudoku Solver's puzzle — the repository's board,
+                        its `possibleEntries` ported once more, the solver
+                        with its three defects fixed, and the bytes the
+                        hologram samples — pure arithmetic, no three
+src/sudoku.check.ts     31 clues, 50 open, one solution, and every flicker
+                        slot drawn from its own cell's candidates
 src/beach.ts            coming ashore: the ramp between riding and walking, the
                         sand under his feet and the altitude floor over it —
                         pure arithmetic, no three, so the check runs in node
@@ -286,10 +294,12 @@ src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
 src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
-                        camera, the sudoku tray — blockout in primitives +
-                        TSL, and the detailed model where one exists (`MODEL`);
+                        camera, the sudoku's hologram — blockout in primitives
+                        + TSL, and the detailed model where one exists (`MODEL`);
                         reads `~prop` off mesh names into `PROP_SETS`, and the
-                        mine's wall off its vertices
+                        mine's wall off its vertices. The hologram is the one
+                        material here that draws digits: rain that settles
+                        into `src/sudoku.ts`'s board, keyed by the `holo_` prefix
 src/models/             the .glb files — geometry only, no materials, no UVs,
                         except the surfer's two and the ship, which carry a
                         basecolour texture each and nothing else
@@ -298,10 +308,9 @@ tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headles
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
 tools/memojo.py         the same, for the ramp and the giant camera
-tools/sudoku.py         the same, for the sudoku tray — and the one landmark
-                        script that computes geometry rather than drawing it:
-                        an open cell's well is as deep as the cell has
-                        candidates, counted from the repository's own puzzle
+tools/sudoku.py         the same, for the sudoku's projector: the plinth, a
+                        puck, and the quad the hologram is drawn on — the one
+                        landmark that is mostly not geometry
 tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
                         exports the two generated sources beside it,
                         tools/surfer-tripo.glb and tools/surfboard-tripo.glb
@@ -565,18 +574,21 @@ with no build step, and the case study names the three things wrong with it —
 neither version stops when it has won, the JavaScript's scan for the first
 empty cell keeps the last one, and the solve blocks the page behind a message
 the browser never paints — and gives each one its fix. Nothing in that
-repository was changed. Its landmark is a **tray** and not a plate, which is
-the only thing keeping it off Scrabble's board: eighty-one wells sunk into a
-lattice, thirty-one holding a blank tile, fifty open, and the fifty tiles that
-have not been placed stacked on the plinth beside it — which is also where its
-height comes from, because a flat board is the rug Scrubble already learned
-about. The puzzle is the one hard-coded in that repository's `main()`, and an
-open cell's well is as deep as the cell has candidates left, counted by the
-same scan the solver does — so the relief across the tray is the solver's own
-first move, and the shader reads that depth back off the floor and nothing
-else. `docs/STATUS.md`, "A fifth project", has it, including what it did to
-the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now as
-much of the slug as it takes to be unambiguous.
+repository was changed. Its landmark was a **tray** — eighty-one wells sunk
+into a lattice, a well as deep as its cell had candidates — and is now a
+**hologram**, which replaces that committed look: a panel of light standing
+off the plinth, digit rain from across the water, and inside the radius the
+rain settles cell by cell in the solver's own scan order into the puzzle
+hard-coded in that repository's `main()` — thirty-one clues large and steady,
+fifty open cells small and dim and cycling through the candidates they have
+left, which is `possibleEntries` seen rather than counted. The puzzle, the
+candidates and a fixed solver are `src/sudoku.ts`; the glyphs are nine
+fifteen-bit bitmaps in a texture; the tray's fifty loose tiles went with it,
+so the deck rides clean. Digits in the canvas are the puzzle and not the
+prose, which is where invariant 2 draws its line. `docs/STATUS.md`, "A fifth
+project" and "The sudoku is a hologram", have it, including what the tray did
+to the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now
+as much of the slug as it takes to be unambiguous.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the unreviewed

@@ -237,6 +237,8 @@ there, against the types typegen last wrote.
   - [x] The mine's veins are PolarSense's columns — `src/Landmarks.tsx`
   - [x] The easel's canvas resolves on approach
   - [x] The Scrabble tiles settle into the move that was there
+  - [x] The sudoku's rain settles into the repository's own puzzle — a
+        hologram, since the tray was replaced; "The sudoku is a hologram" below
 - [x] The sun swung round, so the visitor sees lit faces — `src/Scenery.tsx`
       *(the finding below, and Seb's call between the two honest fixes)*
 - [x] Post-processing — FXAA and an emissive-only bloom — `src/Post.tsx`
@@ -5662,4 +5664,169 @@ renderer can answer.
   one is longer than most, because the page is an argument.
 - `year: 2019` and `stack: [Python, JavaScript, HTML, CSS]` are read off the
   repository rather than guessed, unlike Memojo's.
+- The work is uncommitted.
+
+## The sudoku is a hologram — the tray replaced, and the puzzle drawn as light
+
+**This replaces a committed look.** "A fifth project" above argued a tray —
+eighty-one wells sunk into a lattice, a well as deep as its cell had
+candidates, and fifty loose tiles stacked on the plinth for height. It was the
+right argument for keeping a second grid off Scrabble's board and it was never
+seen in the world, and when it was, from the deck, the relief that separated
+the two boards read as one dark plate beside a light one. Seb's call: the
+tray goes, the plinth stays as a projector, and the puzzle is drawn — digits,
+in the canvas, as rain that settles into the board.
+
+### What a visitor sees
+
+A square panel 3.6 m on a side standing 0.3 m off the plinth, its plane a
+little behind the deck's centre, a puck on the deck in front of it with a lit
+disc on top and a faint fan of light running from the puck to the panel's
+foot. From across the water the panel is green rain: thirty-six columns of
+small digits falling at their own speeds, a white head on each stream, a tail
+dimming behind it, every slot's digit changing on its own clock. Inside the
+radius — the same signal that opens the reading panel — the rain settles cell
+by cell in the order the repository's solver scans them, row-major from the
+top left, into the board hard-coded in its `main()`: a clue is one large steady
+digit, an open cell is small and dim and keeps cycling through the candidates
+it has left, so a cell with two flips and a cell with six walks through six.
+The lattice draws itself in under the settle, thin between cells and thicker
+between boxes, the tray's two weights kept. Over all of it a hologram's
+scanlines, a slow rolling band, and edges that fade rather than cut. Walk
+away and the cells let go in the same order.
+
+Under reduced motion the clock does not run and `reveal` is pinned at 1: a
+lit, static, resolved grid.
+
+### Where the line is on invariant 2
+
+Digits are drawn into the canvas, and that is deliberate rather than an
+oversight. They are the puzzle — the repository's input, a picture of it,
+the same thing the well depths were drawn the other way up — and not a word
+of the case study. Nothing a screen reader needs is on the panel; every
+sentence about the project is in the MDX. If the puzzle itself should be
+readable, the place for it is a `<pre>` in the case study, not a change here.
+
+### The puzzle moved to where the shader reads it — `src/sudoku.ts`
+
+The board left `tools/sudoku.py`, which no longer needs to know it, for a
+pure module with no three in it: `PUZZLE` and `BOARD` (the repository's
+position, 31 clues, 50 open); `candidates()`, which is the repository's
+`possibleEntries` ported a second time, returning the set this time because
+the shader cycles through it where the tray only counted it; `solve()`, the
+same backtracking search with the three defects the case study names taken
+out — it returns on success, it takes the *first* empty cell, and it is a
+function that returns rather than one that paints — in twelve lines; and
+`table()`, the bytes of an 81 × 7 texture, the clue on row 0 and six flicker
+slots above it holding that cell's candidates repeated round.
+
+`src/sudoku.check.ts` is the tenth check: 31 clues and 50 open; every clue
+consistent with every other; every open cell with 2..6 candidates and every
+count in that range present, which is what the tray sank its wells by; the
+fixed solver finds exactly one solution, keeps every clue, and every cell of
+it is forced; the scan's first move is cell 0; and every slot of the texture
+is drawn from its own cell's candidates and covers all of them.
+
+### The shader — one material, keyed by the `holo_` prefix
+
+No font and no atlas asset. The nine glyphs are nine 3×5 bitmaps as
+fifteen-bit constants, written at load into a 27×5 R8 texture with nearest
+filtering; a glyph is one fetch. The puzzle is `table()` in an 81×7 texture; a
+cell's digit is one more. The flicker slot is `1 + floor(t·f + phase) mod 6`,
+so there is no loop and no bit arithmetic in the fragment — the same graph
+on WebGL2 and WebGPU. About ten fetches a fragment on one quad.
+
+The glb carries no UVs, as no landmark's does, so the panel's `u, v` are read
+off `positionLocal` against `HOLO` in `Landmarks.tsx` — the panel's side, its
+plane and its foot, mirrored from `tools/sudoku.py` — and `u` is flipped on
+the back face so the digits read the right way round from both sides. The
+blockout's quad is therefore the same quad, translated to the same place,
+with the rain already on it while the file is on the wire.
+
+`MeshBasicNodeMaterial`, black, additive, double-sided, no depth write, and
+everything it shows in the emissive so the bloom — which is off emissive only
+— gives it its halo for free. `emissiveNode` is read by every node material's
+lighting setup and typed only on the standard one, so that assignment is the
+one narrow cast in the file. The material is one object shared by both
+material sets: the proximity tint is for things the sun lights.
+
+One thing found on the way: three's TSL `hash` reads its seed as an integer.
+The prototype seeded it with fractions of a column index and would have given
+neighbouring streams the same speed; every seed in the shipped graph is an
+integer — the slot's index, the cell's index, and the tick.
+
+`reveal` is one uniform, ramped in `useFrame` from whether the sudoku is the
+landmark that is `near`: up over 3 s, down over 1.5 s, one number both ways
+like `RIDE.land`. Per cell the settle weight is
+`smoothstep(t0, t0 + 0.35, reveal · 1.35)` with `t0 = index / 81`, so the scan
+order is the reveal order.
+
+### The model — `tools/sudoku.py` is a different script
+
+A plinth, a puck (`frame_emitter`), the lit disc on it (`holo_eye`), the
+panel (`holo_panel`, one quad, wound to face +Z) and the fan (`holo_cone`,
+one quad from the puck's top to the panel's foot, faded along its length in
+the shader). 484 triangles, 20.6 kB, 5.6 kB gzipped, against the tray's
+5,516 and 183 kB. The box gate is `size: [5.4, 4.2, 5.4]` now — the panel's
+top is at 4.11.
+
+Nothing on the island is loose any more. The fifty tiles went with the tray,
+`DECKS.sudoku` stays so the deck rides as the other two do, and the board
+goes straight through the light. The sudoku case in `plateau.check.ts` turned
+around: it used to hold thirteen props to the deck, and now holds that there
+is no `~prop` in the file, that `holo_panel` is one quad of exactly
+`HOLO.side` in the plane `HOLO.z` standing on `HOLO.foot`, that the fan runs
+from `HOLO.z` to `HOLO.emitZ`, and that the puck stands on the deck — because
+the shader derives the cells from those numbers and a quad that moved would
+put every digit in the wrong cell with nothing in the browser to say so.
+
+### Sizes
+
+Canvas chunk 469 kB gz against 600 — up about 2 kB for the shader and the
+puzzle module. First route unchanged. The world's models sum to 2.39 MB gz
+by gzip of each `src/models/*.glb` (the earlier figure was measured with
+the tray at 41 kB; the sudoku is 5.6 kB now, so the world is 35 kB lighter
+than it was).
+
+### Verified, on a throwaway install in a copy of the folder
+
+`npx tsc -b` after `react-router typegen`, all ten checks in `npm run
+check`, and a real `npm run build` — 15 project routes prerendered. The model
+was built and rendered by `tools/sudoku.py` with `bpy` 4.5.13 and the three
+preview views looked at; the box, triangle and floor gates pass.
+
+And, for the first time for this landmark, **it was seen in the world**: the
+dev server run headless in Chromium on SwiftShader, which is the WebGL2
+backend at one frame a second. `Claude outputs/sudoku-hologram-settled.png`
+is the deep link `/en/work/sudoku`, the ship parked at the waypoint on the
+far side, the panel fully resolved and read from its back face: row 0 is
+`_ _ 8 7 3 4 1 6 _`, row 4 is `_ 2 _ 5 _ _ 9 1 3`, every clue in its cell
+and the right way round, the candidates dim between them, the lattice's two
+weights showing, the eye lit under it. `Claude outputs/sudoku-hologram-rain.png`
+is the same view with the settle held at zero: thirty-six streams of digits
+with heads and tails. Both frames are through the bloom.
+
+### Not verified
+
+WebGPU. SwiftShader has none, so the graph has only compiled to GLSL here;
+nothing in it is backend-specific — `frontFacing`, `hash`, two texture
+fetches — but the WGSL side has not been run. Frame rate, as ever: one quad
+and ten fetches should be nothing, and SwiftShader has no opinion. The settle
+as motion: at one frame a second the ramp jumps rather than runs, so the
+3 s / 1.5 s and the scan-order reveal have been seen as end states, not as
+an animation.
+
+### Needs Seb
+
+- Look at it in the world, on hardware, and on WebGPU. The levers are all in
+  `HOLO` in `Landmarks.tsx`: `glow` (how much of the panel reaches the bloom
+  — the whole panel is emissive, and on SwiftShader it reads bright), the
+  three greens, `cols` and `tail` for the rain, `flicker` for the open cells,
+  `settle` and `HOLO_UP` / `HOLO_DOWN` for the resolve.
+- Whether the settle should be the scan order or a random sprinkle — the
+  scan order is the case study's own point, but it is a judgement.
+- Whether the fan of light is worth its pixels, and whether the eye should
+  be brighter than the panel or dimmer.
+- Whether a plinth deck with nothing on it but a puck still reads as a
+  landmark to ride over, or should shrink.
 - The work is uncommitted.

@@ -35,8 +35,9 @@ from mathutils import Matrix, Quaternion, Vector
 # The material keys `Landmarks.tsx` knows. A mesh whose name starts with
 # anything else is a black hole in the world, so it is caught here.
 # `bark`, `frond` and `bush` are the isle's, shaded by `Isle.tsx` rather than by
-# `Landmarks.tsx` — the same convention, a second file reading it.
-KEYS = ("rock", "frame", "panel", "dark", "board", "glass", "bark", "frond", "bush")
+# `Landmarks.tsx` — the same convention, a second file reading it. `holo` is
+# the sudoku's light: unlit, additive, and the only key that draws digits.
+KEYS = ("rock", "frame", "panel", "dark", "board", "glass", "holo", "bark", "frond", "bush")
 
 
 def T(x: float, y: float, z: float) -> Vector:
