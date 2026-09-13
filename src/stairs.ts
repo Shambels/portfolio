@@ -204,7 +204,12 @@ const gPolar = (r: number, phi: number) =>
 const phiAt = (t: number) => BEARING + STAIR.hand * t * STAIR.turns * TAU
 
 /**
- * The radius, on a bearing, at which the island's surface stands at `want`.
+ * The radius, on a bearing, at which the island's surface stands at `want` —
+ * the crag's rim at a given height, measured from the spire's axis.
+ *
+ * Exported because `fall.ts` hangs a waterfall off exactly this: the lip of a
+ * fall is the rim, and a rim anybody wrote down by hand would be a rim that
+ * stopped being the rim the next time the island was tuned.
  *
  * Scanned outward for the FIRST crossing and then refined, rather than
  * bisected. The flank mostly falls away outward but not everywhere — the crag
@@ -213,7 +218,7 @@ const phiAt = (t: number) => BEARING + STAIR.hand * t * STAIR.turns * TAU
  * anybody meant. The first one going out is the one that means "here is where
  * the mountain stops being this tall".
  */
-function radiusAtHeight(phi: number, want: number): number {
+export function radiusAtHeight(phi: number, want: number): number {
   let prev = gPolar(0.6, phi)
   for (let r = 0.8; r <= 24; r += 0.15) {
     const g = gPolar(r, phi)

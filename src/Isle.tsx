@@ -7,7 +7,9 @@ import {
 } from 'three/tsl'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
 import { STAIR, stairDoor, stairPortal } from './stairs'
+import { FALL } from './falls'
 import { Stair } from './Stair'
+import { Fall } from './Fall'
 import palmUrl from './models/palm.glb?url'
 
 /**
@@ -403,6 +405,10 @@ export function Isle() {
               same rail the walk is held to — so it is not inside the placed
               group's transform, only inside its key. */}
           {isle.id === STAIR.isle && <Stair />}
+          {/* ...and the fall off its landing pad, which is scenery with a job:
+              it is what the doorway at the bottom of that stair hides behind.
+              `fall.check.ts` holds it to that. */}
+          {isle.id === FALL.isle && <Fall />}
           <Suspense fallback={null}>
             <Planting plan={plans[i]!} m={m} />
           </Suspense>
