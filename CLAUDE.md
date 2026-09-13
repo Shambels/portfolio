@@ -550,11 +550,11 @@ shutter and a flash when he is in the air in front of it. The jump is not a
 rule — `RAMPS` is a floor that climbs, and the floor hands the board the
 vertical it was climbing at (`rampLift`, `climb()` in `world.ts`); past the lip
 there is no floor left. At cruise that is 0.64 m over a lip already 1.55 up and
-a landing in the sea past the island. Its panel is deliberately a **stub** —
-the store description and the two store links, saying in its own prose that
-the decisions are not written down yet — and its `stack` line is a guess Seb
-made knowingly and which has not been checked. `docs/STATUS.md`, "A fourth
-project", has all of it, including the two things that check it: the glb's
+a landing in the sea past the island. Its panel is the only one that is **not a case
+study**: the source is private, so the summary is the App Store's own
+promotional line and the body describes what the app does rather than what was
+chosen, rejected and cost — and it says so, in its last paragraph. `workIntro`
+is reworded to match. `docs/STATUS.md`, "A fourth project", has all of it, including the two things that check it: the glb's
 deck vertices against `deckAt` at every station, and the control that says a
 beach is still not a kicker.
 
