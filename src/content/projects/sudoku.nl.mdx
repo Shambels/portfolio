@@ -1,0 +1,123 @@
+---
+title: Sudoku-oplosser
+slug: sudoku
+summary: Dezelfde recursieve backtracking-zoektocht twee keer geschreven — één keer voor een terminal, één keer voor een pagina zonder buildstap — en bewaard precies zoals ze in 2019 geschreven werd, gebreken incluis.
+---
+
+## Het probleem
+
+Een sudoku is één regel met drie petten op: negen cijfers, geen herhaling in een
+rij, in een kolom of in een vierkant van drie bij drie. Dat maakt het het
+kleinste interessante zoekprobleem dat er is — klein genoeg om in je hoofd te
+houden, groot genoeg dat elke schikking van de vijftig lege vakjes proberen een
+getal van achtenveertig cijfers is. Het interessante is niet dat een machine het
+kan oplossen. Het is dat het bord je bij elke stap bijna alles vertelt wat je
+niet mag doen: een zoektocht die luistert kost niets, een zoektocht die niet
+luistert raakt nooit klaar.
+
+Ik wilde die zoektocht schrijven, en ze daarna opnieuw schrijven vastgemaakt aan
+iets totaal anders: één keer voor een terminal, één keer voor een pagina. Dit is
+2019 en het is een leerproject. Zes commits, waarvan de laatste "Transfer Lenovo
+330s" heet, wat is wat er met een repository gebeurt als de laptop verandert.
+
+## Wat ik koos
+
+Recursieve backtracking op het eerste lege vakje. Zoek een leeg vakje, bepaal wat
+er legaal in kan, probeer elke kandidaat op zijn beurt en recurseer; als er niets
+meer past, was het vakje ervoor fout, dus zet je het leeg terug en laat je de
+aanroeper zijn volgende kandidaat proberen. Dat is het hele algoritme, en het is
+een regel of veertig in beide talen.
+
+De kandidaten komen uit een scan in plaats van uit een bijgehouden verzameling:
+voor vakje *(i, j)* loop je de rij af, de kolom, het vierkant, en markeer je elk
+cijfer dat er al staat. De array is geïndexeerd *op het cijfer* — `possible[7]`
+bevat 7 zolang 7 beschikbaar is en 0 zodra dat niet meer zo is — zodat vragen of
+een cijfer vrij is een opzoeking is en geen zoektocht, en de kandidatenlus een
+lus van één tot negen is die de nullen overslaat. Zevenentwintig leesacties per
+vakje, elke keer opnieuw van nul berekend.
+
+De browserversie is diezelfde veertig regels met een pagina eraan: eenentachtig
+`<input>`-vakjes, pijltjes en cijfers gekoppeld aan verplaatsen en schrijven, een
+knop en een statusregel. Geen buildstap, geen framework, geen dependency — je
+opent `index.html` en het draait, wat in 2019 de hele reden was om de tweede te
+schrijven.
+
+En één beslissing die ik nog altijd zou verdedigen: hij weigert te starten onder
+zeventien aanwijzingen. Zeventien is geen rond getal dat me beviel — het is het
+bewezen minimum voor een sudoku met een unieke oplossing, in 2012 vastgesteld met
+een uitputtende zoektocht. Daaronder is wat terugkomt *een* ingevuld rooster en
+niet *het* antwoord, en een oplosser die je er stilletjes één van vele aanreikt is
+erger dan een die nee zegt.
+
+## Wat er misgaat
+
+Drie dingen, en geen ervan is subtiel zodra je ernaar kijkt.
+
+**Geen van beide versies stopt wanneer ze gewonnen heeft.** `sudokuSolver` drukt
+het bord af wanneer het bord vol is, en geeft helemaal niets terug; de lus van de
+aanroeper gaat door met zijn resterende kandidaten. Op een puzzel met één
+oplossing blijft de zoektocht dus door de boom lopen nadat ze al klaar was, en op
+een onderbepaald bord drukt ze elke oplossing na elkaar af. De JavaScript doet
+hetzelfde in de DOM, dus het rooster dat op het scherm blijft staan is het
+laatste dat de zoektocht toevallig bereikte en niet het eerste. De fix is aan
+beide kanten één regel: geef `true` terug als het bord vol is, en
+`if (solve(grid)) return true` binnen de kandidatenlus. Backtracking zonder
+succeskanaal is geen backtracking, het is opsomming met een opruimbeurt.
+
+**De JavaScript zoekt het eerste lege vakje en houdt het laatste.** De scan is
+een geneste lus met een `break` erin, en `break` verlaat alleen de binnenste lus
+— de buitenste loopt door en overschrijft `i` en `j` met een leeg vakje verderop.
+Hij recurseert dus op een bijna willekeurig gekozen vakje, hij termineert
+niettemin, en hij levert niettemin correcte roosters, wat precies is waarom
+niemand het zag. De Python-versie doet het wel goed, en wat haar redt is het
+idioom `for … else: continue` / `break`, Pythons antwoord op precies dit
+probleem; JavaScripts antwoord is een gelabelde `break`, of de scan in een
+functie zetten en eruit terugkeren. Twee talen, één algoritme, en het enige
+verschil tussen de twee was niet het algoritme.
+
+**Het oplossen blokkeert de pagina.** `start()` schrijft "Wait for It…" in de
+statusregel en roept dan `solve` aan op de main thread. Er is tussen die twee
+statements geen gelegenheid om te tekenen, dus op een traag bord is de boodschap
+waar de gebruiker op wacht de enige die hij nooit te zien krijgt — het tabblad
+houdt gewoon op met antwoorden. Een Web Worker is de echte fix; één keer de
+controle teruggeven voor de zoektocht begint is de gratis fix, en allebei zijn ze
+beter dan wat er staat. Het is dezelfde les die ik zeven jaar later opnieuw
+opschreef bij een Scrabble-oplosser: een zoektocht die de interface laat haperen
+leest als een kapotte app in plaats van een drukke.
+
+Er is er een vierde, kleiner en grappiger: de statusregel zit in een variabele
+die `alert` heet, met `var` bovenaan het bestand gedeclareerd, waardoor ze
+`window.alert` voor het hele programma afschermt. Niets daarin roept `alert()`
+aan, dus het heeft nooit gebeten — het staat er alleen als herinnering dat ik in
+2019 niet wist wat een `var` op bestandsniveau deed.
+
+## Wat het kostte
+
+Het bord bestaat uit eenentachtig met de hand getypte `<input>`-elementen, elk
+met zijn eigen genummerde class, en het oplossingsrooster uit nog eens
+eenentachtig `<div>`s ernaast. Honderdtweeënzestig elementen in een bestand dat
+vier regels van de taal die al in het project zat had kunnen voortbrengen. Het is
+het eerlijkste wat de repository zegt over waar ik stond: ik kon een recursieve
+zoektocht schrijven voor het me inviel om markup te genereren.
+
+Het twee keer schrijven kostte wat iets twee keer schrijven altijd kost. Er is
+geen gedeelde test — er is geen test — dus het gebrek in de JavaScript-scan kon
+onmogelijk gevangen worden door de Python die het niet heeft. De twee dreven uit
+elkaar op het moment dat de tweede getypt werd, en niets in de repository ging
+dat ooit zeggen.
+
+En de README is één regel lang: `# sudoku`. Elke zin hierboven moest uit de
+broncode teruggelezen worden om deze pagina te schrijven, een uitgave gedaan
+zeven jaar na de besparing.
+
+## Het resultaat
+
+Het lost het bord op. Allebei doen ze dat — de Python op de puzzel die in
+`main()` als eenentachtig losse toewijzingen is ingebakken, eenendertig
+aanwijzingen en één antwoord, en de JavaScript op wat je ook in de pagina typt.
+
+Niets ervan is gerepareerd. De drie gebreken zijn elk een paar regels en ik kan
+ze alle drie aanwijzen; ze laten staan is het nuttigere, want een portfolio dat
+alleen uit de code bestaat die goed ging, is van iemand die nooit is teruggegaan
+om zijn eigen code te lezen. Zo zag deze zoektocht eruit de eerste keer dat ik
+haar schreef, en heel haar waarde nu zit in kunnen zeggen waar ze ernaast zit.

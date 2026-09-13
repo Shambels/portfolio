@@ -706,6 +706,14 @@ canvas {
   transition: background-color 140ms ease, border-color 140ms ease;
 }
 
+/* Two projects whose slugs start with the same letter get two letters each
+   (`LABEL` in MiniMap). The disc is a tap target and does not shrink or grow
+   for what is written in it, so the type comes down instead. */
+.map .isle[data-wide] {
+  font-size: 0.68rem;
+  letter-spacing: -0.01em;
+}
+
 /* Out of the window, and held on the edge in the direction it lies: drawn
    fainter, so a disc at the border reads as "out that way" and not as an
    island at the border. */

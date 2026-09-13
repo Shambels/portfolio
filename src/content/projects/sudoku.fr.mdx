@@ -1,0 +1,126 @@
+---
+title: Solveur de Sudoku
+slug: sudoku
+summary: La même recherche par retour sur trace écrite deux fois — une fois pour un terminal, une fois pour une page sans étape de build — et gardée telle qu'elle a été écrite en 2019, défauts compris.
+---
+
+## Le problème
+
+Un sudoku, c'est une seule règle portant trois casquettes : neuf chiffres, pas de
+répétition sur une ligne, sur une colonne ni dans un carré de trois sur trois.
+C'est le plus petit problème de recherche intéressant qui soit — assez petit pour
+tenir dans la tête, assez grand pour que tester chaque disposition des cinquante
+cases vides soit un nombre à quarante-huit chiffres. Ce qui est intéressant n'est
+pas qu'une machine sache le résoudre. C'est que le plateau vous dit, à chaque
+pas, presque tout ce que vous n'avez pas le droit de faire : une recherche qui
+écoute ne coûte rien, une recherche qui n'écoute pas ne finit jamais.
+
+Je voulais écrire cette recherche, puis l'écrire à nouveau accrochée à quelque
+chose de complètement différent : une fois pour un terminal, une fois pour une
+page. C'est 2019 et c'est un projet d'apprentissage. Six commits, dont le dernier
+s'appelle « Transfer Lenovo 330s », ce qui est ce qui arrive à un dépôt quand
+l'ordinateur change.
+
+## Ce que j'ai choisi
+
+Du retour sur trace récursif sur la première case vide. Trouver un blanc,
+déterminer ce qui peut légalement y aller, essayer chaque candidat à son tour et
+récurser ; quand plus rien ne passe, c'est la case d'avant qui était fausse, donc
+on remet le blanc et on laisse l'appelant essayer son candidat suivant. C'est
+tout l'algorithme, et il fait une quarantaine de lignes dans l'une comme dans
+l'autre langue.
+
+Les candidats sortent d'un balayage plutôt que d'un ensemble tenu à jour : pour
+la case *(i, j)*, parcourir la ligne, parcourir la colonne, parcourir le carré,
+et marquer chaque chiffre déjà posé. Le tableau est indexé *par le chiffre* —
+`possible[7]` vaut 7 tant que 7 est disponible et 0 dès qu'il ne l'est plus — si
+bien que demander si un chiffre est libre est une lecture et non une recherche,
+et que la boucle des candidats va de un à neuf en sautant les zéros. Vingt-sept
+lectures par case, recalculées de zéro à chaque visite.
+
+La version navigateur, c'est ces mêmes quarante lignes avec une page accrochée
+dessus : quatre-vingt-une cases `<input>`, les flèches et les chiffres liés au
+déplacement et à l'écriture, un bouton et une ligne d'état. Pas d'étape de build,
+pas de framework, pas de dépendance — on ouvre `index.html` et ça tourne, ce qui
+en 2019 était toute la raison d'écrire la seconde.
+
+Et une décision que je défendrais encore : il refuse de démarrer en dessous de
+dix-sept indices. Dix-sept n'est pas un chiffre rond qui me plaisait — c'est le
+minimum prouvé pour un sudoku à solution unique, établi par recherche exhaustive
+en 2012. En dessous, ce qui revient est *une* grille complète et non *la*
+réponse, et un solveur qui vous en tend discrètement une parmi d'autres est pire
+qu'un solveur qui dit non.
+
+## Ce qu'il rate
+
+Trois choses, et aucune n'est subtile dès qu'on la regarde.
+
+**Aucune des deux versions ne s'arrête quand elle a gagné.** `sudokuSolver`
+affiche le plateau quand le plateau est plein, et ne renvoie rien du tout ; la
+boucle de l'appelant continue avec ses candidats restants. Sur une grille à
+solution unique, la recherche continue donc de parcourir l'arbre après avoir déjà
+fini, et sur une grille sous-contrainte elle affiche toutes les solutions les
+unes après les autres. Le JavaScript fait la même chose dans le DOM : la grille
+qui reste à l'écran est la dernière que la recherche a atteinte, pas la première.
+Le correctif tient en une ligne de chaque côté : renvoyer `true` quand le plateau
+est plein, et `if (solve(grid)) return true` dans la boucle des candidats. Du
+retour sur trace sans canal de succès n'est pas du retour sur trace, c'est de
+l'énumération avec un rangement à la fin.
+
+**Le JavaScript cherche la première case vide et garde la dernière.** Le balayage
+est une boucle imbriquée avec un `break` dedans, et `break` ne quitte que la
+boucle intérieure — la boucle extérieure continue et écrase `i` et `j` avec une
+case vide plus loin. Il récurse donc sur une case choisie presque au hasard, il
+termine quand même, et il rend quand même des grilles correctes, ce qui est
+exactement pourquoi personne ne l'a vu. La version Python, elle, fait juste, et
+ce qui la sauve est l'idiome `for … else: continue` / `break`, qui est la réponse
+de Python à ce problème précis ; la réponse de JavaScript est un `break`
+étiqueté, ou sortir le balayage dans une fonction et en revenir. Deux langages,
+un algorithme, et la seule différence entre eux n'était pas l'algorithme.
+
+**Le calcul bloque la page.** `start()` écrit « Wait for It… » dans la ligne
+d'état puis appelle `solve` sur le thread principal. Il n'y a aucune occasion de
+peindre entre ces deux instructions : sur une grille lente, le message que
+l'utilisateur attend est le seul qu'il ne verra jamais — l'onglet cesse
+simplement de répondre. Un Web Worker est le vrai correctif ; rendre la main une
+fois avant de lancer la recherche est le correctif gratuit, et les deux valent
+mieux que ce qui est là. C'est la leçon que j'ai réécrite sept ans plus tard sur
+un solveur de Scrabble : une recherche qui saccade l'interface se lit comme une
+application cassée plutôt que comme une application occupée.
+
+Il y en a une quatrième, plus petite et plus drôle : la ligne d'état est tenue
+dans une variable appelée `alert`, déclarée avec `var` en tête de fichier, qui
+masque `window.alert` pour tout le programme. Rien là-dedans n'appelle `alert()`,
+donc ça n'a jamais mordu — ça reste simplement là pour rappeler qu'en 2019 je ne
+savais pas ce que faisait un `var` à la portée du fichier.
+
+## Ce que ça a coûté
+
+Le plateau, ce sont quatre-vingt-un éléments `<input>` tapés à la main, chacun
+avec sa propre classe numérotée, et la grille de solution quatre-vingt-un `<div>`
+de plus à côté. Cent soixante-deux éléments dans un fichier que quatre lignes du
+langage déjà présent dans le projet auraient produites. C'est la chose la plus
+honnête du dépôt sur l'endroit où j'en étais : je savais écrire une recherche
+récursive avant d'avoir eu l'idée de générer du balisage.
+
+L'écrire deux fois a coûté ce que coûte toujours écrire quelque chose deux fois.
+Il n'y a pas de test partagé — il n'y a pas de test — donc le défaut du balayage
+JavaScript ne pouvait pas être attrapé par le Python qui ne l'a pas. Les deux ont
+divergé dès que la seconde a été tapée, et rien dans le dépôt n'allait le dire.
+
+Et le README fait une ligne : `# sudoku`. Chaque phrase ci-dessus a dû être
+relue dans le code source pour écrire cette page, ce qui est une dépense faite
+sept ans après l'économie.
+
+## Le résultat
+
+Ça résout la grille. Les deux le font — le Python sur le puzzle câblé dans
+`main()` en quatre-vingt-une affectations séparées, trente et un indices et une
+réponse unique, et le JavaScript sur ce que vous tapez dans la page.
+
+Rien n'est corrigé. Les trois défauts font quelques lignes chacun et je peux
+pointer chacun d'eux ; les laisser est la chose la plus utile, parce qu'un
+portfolio fait uniquement du code qui s'est bien passé appartient à quelqu'un qui
+n'est jamais revenu lire le sien. Voilà à quoi ressemblait cette recherche la
+première fois que je l'ai écrite, et toute sa valeur aujourd'hui est de pouvoir
+dire où elle se trompe.

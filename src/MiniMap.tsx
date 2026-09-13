@@ -118,6 +118,33 @@ function place(p: { pos: [number, number]; radius: number }) {
 
 const size = (p: { radius: number }) => `${((reach(p) * 2) / SPAN) * 100}%`
 
+/**
+ * What a disc says. The slug and not the title: it is the one name a project
+ * has that is the same in all three locales, so "Arts by Sandra" is an A in
+ * Dutch too and a letter can never collide with itself.
+ *
+ * One letter where that tells them apart and as many as it takes where it does
+ * not — `scrubble` and `sudoku` are both S, and on a map whose whole job is to
+ * be the way to a project, two identical discs are worse than one busier one.
+ * Derived from the slugs rather than written down, so a sixth project starting
+ * with an S gets three letters instead of a collision, and the assert is what
+ * says the derivation still works.
+ */
+const LABEL = (() => {
+  const slugs = PROJECTS[SOURCE_LOCALE].map((p) => p.slug)
+  const out = new Map<string, string>()
+  for (const slug of slugs) {
+    let n = 1
+    while (n < slug.length && slugs.some((o) => o !== slug && o.slice(0, n) === slug.slice(0, n))) n++
+    out.set(slug, slug.slice(0, n).toUpperCase())
+  }
+  return out
+})()
+
+if (import.meta.env.DEV) {
+  console.assert(new Set(LABEL.values()).size === LABEL.size, 'two projects share a map label')
+}
+
 export default function MiniMap({ locale, slug }: { locale: Locale; slug: string | null }) {
   const coast = useRef<SVGSVGElement>(null!)
   const me = useRef<HTMLDivElement>(null!)
@@ -173,12 +200,10 @@ export default function MiniMap({ locale, slug }: { locale: Locale; slug: string
             aria-label={p.title}
             title={p.title}
             data-far={at.far || undefined}
+            data-wide={(LABEL.get(p.slug)?.length ?? 1) > 1 || undefined}
             style={{ left: at.left, top: at.top, width: size(p), height: size(p) }}
           >
-            {/* The slug, not the title: it is the one name a project has that is
-                the same in all three locales, so "Arts by Sandra" is an A in
-                Dutch too and no letter can collide with itself. */}
-            {p.slug[0]!.toUpperCase()}
+            {LABEL.get(p.slug)}
           </Link>
         )
       })}
