@@ -4935,3 +4935,103 @@ the terrace at 14.6 s, and down at the water's edge at 26.9 s. Nowhere stuck.
 Still not seen moving. Two things for the eye when it is: the shelf's outboard
 lip is a sheer face where it fills, which reads more quarry than path, and the
 cut at its top end is a big one.
+
+### The fall, at last — and it has a job
+
+There has never been water on this island. `gorge` cut a chute for one and the
+notes have said "the fall itself is scenery, not geometry" since the crag
+arrived; the chute was there and nothing came down it.
+
+`src/falls.ts` and `src/Fall.tsx` are that water, and it comes off the landing
+pad at the top of the stair — 17.3 m of it, into the bay. (Plural, for the
+third time on this island and for the same reason: `Fall.tsx` sits beside it
+and macOS cannot tell the two apart. `isles.ts`, `stairs.ts`, and now this.
+Caught by `tsc` each time rather than by a deploy, which is the only reason it
+is an annoyance rather than an outage.)
+
+**It is not decoration, and that is what fixes its shape.** The doorway at the
+back of the alcove is a hole in a cliff and reads as one from anywhere on the
+water. A curtain in front of it is what turns the cave into something you find
+rather than something you spot. So:
+
+- The pad is 25 degrees round the spire from the alcove and two and a half
+  metres further out. A sheet hanging straight off it comes down three and a
+  half metres to one side of the door and hides nothing. What hangs instead is
+  a curtain whose lip **leaves the pad and settles onto the rim** within a
+  fifth of its sweep, carrying round in front of the alcove — and the rim is
+  solved from the island (`radiusAtHeight`, now exported from `stairs.ts`),
+  never written down, so the water stays on the cliff when the cliff moves.
+- It **leans out as it falls**, on the square root of the drop, because that is
+  what a parabola is: half the drift is spent in the first quarter of the fall.
+  It leaves the lip at 3.9 m from the axis and lands at 7.0, on the wet sand
+  and in the shallows — which is also what puts it *between* a viewer on the
+  water and the door rather than flat against the wall behind it.
+- It **widens on one side only.** Spread evenly, its near edge swung round into
+  the hill as it fell, and what is round the hill at that bearing is the
+  terrace: the check found the water pouring fourteen metres into a shelf. The
+  far edge opens out over the bay and the near edge tucks the other way, which
+  is also what water thrown off a ledge does.
+
+### The assert that makes it worth having
+
+`falls.check.ts` is mostly one claim: **the doorway cannot be seen from the
+water.** Every eye on the bay, over a fan of 41 bearings, five distances and
+three heights, against four points across the opening — its middle, both jambs
+and its lintel, because a curtain that covers a point and not an opening would
+pass a lazier test. Lines already cut by rock are thrown out, since the
+alcove's own side walls do most of the work and the question is about the fan
+they leave open.
+
+67 lines of sight reach the doorway at all. Every one of them is cut.
+
+The rest of it holds the water to the mountain: the lip starts on the pad's own
+corner, the rest of it is on the rim to within half a metre (this face stands
+at more than eighty degrees — a hand's breadth of radius is a metre of height),
+the sheet is in the air rather than inside the rock below the lip, and 33 of 37
+samples of its foot come down on the water or the wet sand.
+
+### The material
+
+Two scales of noise scrolling down the sheet at different rates: the fine one
+is water, the coarse one is the fact that a fall is not one thing but a dozen
+ropes of it side by side. Two things about it are deliberate:
+
+**It is nearly opaque down the middle.** The fall has a job, and a pretty
+translucent veil would do the geometry's work and then undo it in the shader.
+The sides are thin and the middle is not.
+
+**It is unlit.** Falling water is lit by the sky more than by the sun, and a
+lit sheet here goes dark on its shadow side — which is the side you see it
+from, because the alcove faces the lagoon and the sun is round to port. So it
+is `MeshBasicNodeMaterial` with the light in the colour ramp, the way the sky
+already is.
+
+The plunge is a patch of foam laid on whatever the water lands on, which across
+this foot is wet sand at one end and the bay at the other — so it follows
+`ground()` rather than sitting at sea level, five centimetres up with
+`depthWrite` off so it never argues with the sand.
+
+### Cost and what is not done
+
+About 2,700 triangles and no assets. Nothing is added to the height field: the
+fall is not collidable, which is right — walking through it is how you get to
+the door.
+
+Not done, and both are `Particles.tsx`'s to answer if they are ever wanted: no
+spray thrown off the foot, and no sound. The spray system is WebGPU only, so
+anything built there has to read without it — which is the same rule the rest
+of this island was drawn under.
+
+### Verified
+
+`npx tsc -b` clean, all seven checks:
+
+```
+locales / camera / isle / crag-isle / stick / beach / climb / stair
+fall: ok — 17.3 m from the landing pad, 6.7 m of foot,
+           67 clear lines of sight to the doorway and every one of them cut
+```
+
+Drawn before it was written down, in the same raymarch the island was: from
+inside the lagoon it is a white curtain filling the alcove's mouth, and the
+doorway behind it is a ghost at most. Still not seen moving.
