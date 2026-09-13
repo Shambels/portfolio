@@ -1,5 +1,6 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
+import { deckAt, profileAt, seedOf, type Hit } from './plateau'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -55,6 +56,14 @@ export const VIEW = { x: 0, z: 0, yaw: 0 }
  */
 export const SPLASH = { x: 0, z: 0, force: 0, age: 99 }
 
+/**
+ * What the board hit this frame — a tile, a piece of furniture, the mine —
+ * and how hard. Written by `Ship` (which empties it first) and by the props
+ * it steps, read by `Sound`, which plays each one once. A list and not a
+ * level like `SPLASH`, because two tiles struck in one frame are two clacks.
+ */
+export const HITS: Hit[] = []
+
 export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   slug: p.slug,
   landmark: p.landmark,
@@ -81,6 +90,36 @@ const SHORE = 0.93
 
 /** Where an island's profile meets the water, in world units. */
 const shoreOf = (l: Landmark) => l.radius * ISLAND_SPREAD * SHORE
+
+/** Which way a landmark's group is turned: to face the world's centre, which
+ *  is where the visitor comes from. `Landmarks` turns the model by it,
+ *  `Debug` the box, and `plateau` reads the ground through it. */
+export const landmarkYaw = (l: Landmark) => Math.atan2(-l.pos[0], -l.pos[2])
+
+/**
+ * The ground of the three project islands at a world XZ, in world Y: `GROUND`
+ * on the flat top, the same profile `Islands` revolves down the beach, and
+ * the Scrabble board's plinth on top — and, where there is no island, far
+ * enough under the sea that `max` against the water is always the water.
+ *
+ * The surfer's floor, and the props'. The saucer reads `ground()` — the isles
+ * — and clears the plateaus by hovering; the boat is held off them by
+ * `offshore`. Only the board rides up a beach onto one.
+ */
+export function plateau(x: number, z: number): number {
+  let h = -9
+  for (const l of LANDMARKS) {
+    const dx = x - l.pos[0]
+    const dz = z - l.pos[2]
+    const R = l.radius * ISLAND_SPREAD
+    if (dx * dx + dz * dz > (R * 1.25) ** 2) continue
+    const rot = landmarkYaw(l)
+    const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
+    const lz = dx * Math.sin(rot) + dz * Math.cos(rot)
+    h = Math.max(h, GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
+  }
+  return h
+}
 
 /** True where the sea surface is: clear of every island's shoreline. */
 export function overWater(x: number, z: number): boolean {
@@ -215,13 +254,14 @@ const MOOR_REACH = 0.6
  * below), so one pass is enough: nothing this pushes out of one island can
  * land inside another.
  *
- * `isles` is the one exception the world has, and it is the surfer's: a man
+ * `isles` is the one exception the world had, and it was the surfer's: a man
  * standing on a plank he can pick up is the only craft here whose vehicle is
  * portable, so he crosses the isle's coast and walks up the beach instead of
- * being held off it. The landmark islands are not his to walk on — arriving
- * alongside one is what opens its panel, and their mooring circles are nearly
- * twice the radius that does it — so they are still a push for every craft
- * that floats. See `WALK_IN` in `Ship.tsx`.
+ * being held off it. The landmark islands were a push for him too, until the
+ * board learned to ride up their beaches (`plateau`) — now `Ship` does not
+ * call this for him at all, and the argument is kept so that a boat's push
+ * off the isles can still be switched off on its own. See `WALK_IN` in
+ * `Ship.tsx`.
  */
 export function offshore(p: { x: number; z: number }, isles = true): void {
   // The isles first: they are the big ones, and their coast is a radius at an

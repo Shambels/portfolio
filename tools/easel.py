@@ -73,6 +73,9 @@ def on_leg(name: str, y: float) -> tuple[float, float, float]:
 
 
 def build_easel() -> bpy.types.Object:
+    """The A-frame. `~easel` is the prop it belongs to, with the canvas on it,
+    the tray's brushes and the palette: everything that goes over together
+    when a surfboard takes the easel's leg (`src/plateau.ts`)."""
     bm = bmesh.new()
 
     for name in FEET:
@@ -101,7 +104,7 @@ def build_easel() -> bpy.types.Object:
     add_slab(bm, (X, CLAMP_Y - 0.07, 0.40), (0.32, 0.11, 0.05))
     add_cyl(bm, (X, CLAMP_Y, 0.22), (X, CLAMP_Y, 0.10), 0.026, 8)
 
-    return mesh_object("frame_easel", bm)
+    return mesh_object("frame_easel~easel", bm)
 
 
 # ---------------------------------------------------------------------- table
@@ -128,7 +131,7 @@ def build_table() -> bpy.types.Object:
     for sz in (-1, 1):
         z = TABLE[1] + sz * (d / 2 - 0.08)
         add_slab(bm, (TABLE[0], 0.17, z), (w - 0.16, 0.055, 0.04))
-    return mesh_object("frame_table", bm)
+    return mesh_object("frame_table~table", bm)
 
 
 # --------------------------------------------------------------------- canvas
@@ -169,13 +172,20 @@ ON_TABLE = ((TABLE[0] - 0.15, TABLE_TOP + 0.03, TABLE[1] - 0.07), 0.56, 0.40, -1
 LEANING = ((TABLE[0] + 0.50, 0.35, TABLE[1] + 0.05), 0.52, 0.70, 0.0, 0.78, 0.24)
 
 
-def build_canvases() -> tuple[bpy.types.Object, bpy.types.Object]:
-    faces, bars = bmesh.new(), bmesh.new()
-    for c, w, h, rx, ry, *rz in (ON_EASEL, ON_TABLE, LEANING):
+# Which prop each canvas goes with: the one on the easel is the easel's, the
+# one lying on the table is the table's, and the one leaning on the table's end
+# is its own — it is on the ground, and a table knocked out from under it
+# leaves it where it stood. Three canvases, three objects each for face and
+# bars, and every face is still `panel_canvases` to the shader.
+CANVASES = {"easel": ON_EASEL, "table": ON_TABLE, "lean": LEANING}
+
+
+def build_canvases() -> dict[str, tuple[bpy.types.Object, bpy.types.Object]]:
+    out = {}
+    for prop, (c, w, h, rx, ry, *rz) in CANVASES.items():
         f, b = canvas(c, w, h, rx, ry, rz[0] if rz else 0.0)
-        faces.from_mesh(_to_mesh(f, "f"))
-        bars.from_mesh(_to_mesh(b, "b"))
-    return mesh_object("panel_canvases", faces), mesh_object("frame_stretchers", bars)
+        out[prop] = (mesh_object(f"panel_canvases~{prop}", f), mesh_object(f"frame_stretchers~{prop}", b))
+    return out
 
 
 def _to_mesh(bm: bmesh.types.BMesh, name: str):
@@ -191,25 +201,31 @@ def _to_mesh(bm: bmesh.types.BMesh, name: str):
 # on the table, a jar with the brushes that are drying.
 
 
-def build_props() -> tuple[bpy.types.Object, bpy.types.Object]:
-    frame, dark = bmesh.new(), bmesh.new()
+def build_props() -> tuple[bpy.types.Object, bpy.types.Object, bpy.types.Object]:
+    """(the tray's things, the jar's brushes, the jar) — the first go with the
+    easel and the other two with the table."""
+    tray, brushes, dark = bmesh.new(), bmesh.new(), bmesh.new()
 
     # In the tray.
-    add_cyl(frame, (X - 0.52, TRAY_Y + 0.05, 0.44), (X - 0.19, TRAY_Y + 0.05, 0.41), 0.012, 6)
-    add_cyl(frame, (X - 0.44, TRAY_Y + 0.05, 0.38), (X - 0.10, TRAY_Y + 0.05, 0.40), 0.012, 6)
-    add_cyl(frame, (X + 0.20, TRAY_Y + 0.06, 0.43), (X + 0.40, TRAY_Y + 0.06, 0.44), 0.028, 8)
+    add_cyl(tray, (X - 0.52, TRAY_Y + 0.05, 0.44), (X - 0.19, TRAY_Y + 0.05, 0.41), 0.012, 6)
+    add_cyl(tray, (X - 0.44, TRAY_Y + 0.05, 0.38), (X - 0.10, TRAY_Y + 0.05, 0.40), 0.012, 6)
+    add_cyl(tray, (X + 0.20, TRAY_Y + 0.06, 0.43), (X + 0.40, TRAY_Y + 0.06, 0.44), 0.028, 8)
 
     # Jar of brushes on the table, and the brushes fanning out of it.
     jar = (TABLE[0] + 0.29, TABLE[1] - 0.15)
     add_cyl(dark, (jar[0], TABLE_TOP, jar[1]), (jar[0], TABLE_TOP + 0.19, jar[1]), 0.058, 12)
     for dx, dz in ((0.05, 0.02), (-0.03, 0.05), (0.01, -0.05)):
         add_cyl(
-            frame,
+            brushes,
             (jar[0], TABLE_TOP + 0.13, jar[1]),
             (jar[0] + dx * 2.4, TABLE_TOP + 0.42, jar[1] + dz * 2.4),
             0.011, 6,
         )
-    return mesh_object("frame_props", frame), mesh_object("dark_props", dark)
+    return (
+        mesh_object("frame_props~easel", tray),
+        mesh_object("frame_props~table", brushes),
+        mesh_object("dark_props~table", dark),
+    )
 
 
 def build_palette() -> bpy.types.Object:
@@ -218,7 +234,7 @@ def build_palette() -> bpy.types.Object:
     timber one."""
     bm = bmesh.new()
     add_slab(bm, (X + 0.46, TRAY_Y + 0.05, 0.42), (0.30, 0.022, 0.18), 0.0, 0.35)
-    return mesh_object("board_palette", bm)
+    return mesh_object("board_palette~easel", bm)
 
 
 # --------------------------------------------------------------------- the set
@@ -227,17 +243,22 @@ def build_palette() -> bpy.types.Object:
 def main() -> None:
     start()
 
-    faces, stretchers = build_canvases()
-    props_frame, props_dark = build_props()
-    frame = join("frame_easel", [build_easel(), build_table(), stretchers, props_frame])
-    panel = join("panel_canvases", [faces])
-    board = join("board_palette", [build_palette()])
-    dark = join("dark_props", [props_dark])
+    # Three props, each a group of meshes that share a `~name` — see
+    # `build_easel`. The timber of each prop is joined into one mesh per prop
+    # rather than one for the whole landmark, which is what it was.
+    canvases = build_canvases()
+    tray, brushes, jar = build_props()
+    easel = join("frame_easel~easel", [build_easel(), canvases["easel"][1], tray])
+    table = join("frame_table~table", [build_table(), canvases["table"][1], brushes])
+    lean = canvases["lean"][1]
+    palette = build_palette()
 
-    finish(frame, 40, bevel=0.01)
-    finish(panel, 50)
-    finish(board, 50, bevel=0.006)
-    finish(dark, 45)
+    for timber in (easel, table, lean):
+        finish(timber, 40, bevel=0.01)
+    for face, _ in canvases.values():
+        finish(face, 50)
+    finish(palette, 50, bevel=0.006)
+    finish(jar, 45)
 
     export("easel", BOX, GLB, BLEND)
 

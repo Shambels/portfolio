@@ -31,7 +31,8 @@ install`, run by Seb on macOS.
 
 Claude verifies with `npx tsc -b` and `npm run check` — pure JS, safe from
 either side. That script ran one check out of four for a while; it runs
-`locales`, `camera`, `isles`, `stick` and `beach` now, and all five pass. `react-router typegen` and `oxlint` are *not* safe:
+nine now — `locales`, `camera`, `isles`, `stick`, `beach`, `stairs`, `falls`
+and `plateau` — and all of them pass. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -123,9 +124,23 @@ Breaking one is allowed. Doing it without saying so is not.
   is pure arithmetic so that `beach.check.ts` can walk him onto the real island
   in node; it is a *floor* and not a fade, and the difference between those two
   words is a man on the beach against a man inside it.
-  The three project islands are still a wall for him — arriving *alongside* one
-  is what opens its panel — so `offshore` takes an argument rather than growing
-  a craft check.
+  The three project islands are not a wall for him either, since the props:
+  he rides up their beaches on the board — `plateau()` in `world.ts` is the
+  floor, the island mesh's own profile with the Scrabble plinth on top, and
+  gravity over it is what the buoyancy spring is under the sea — and he never
+  gets off, because `ashore()` reads the isles' `ground()`, which is zero
+  there. `offshore` is the boat's now, and still takes its argument.
+- Still no engine for what stands on those islands. `src/plateau.ts` is the
+  tiles and the studio furniture as discs in their landmark's space, the
+  board as a capsule, one impulse per contact with a friction share for spin,
+  a fixed sliding deceleration, a step off the plinth, a float in the sea,
+  and a tidy-up five seconds after everything stops. The mine is the convex
+  hull of its own model between 2 cm and 1.2 m, and a wall. Pure arithmetic,
+  no three, so `plateau.check.ts` rides a board at the real `mine.glb` in
+  node. A prop is a mesh name: `<material>_<part>~<prop>`, and every mesh
+  sharing a `~prop` is one rigid thing — the scripts write those names, and
+  `Landmarks.tsx` reads them. Hits go through `HITS` in `world.ts` to three
+  synthesised knocks in `Sound.tsx`.
 - The character stays procedural — *was*, for both hulls. There are two
   exceptions now and the rule is the weaker for it. The **boat** is
   `src/models/pirate_ship.glb` since the ship, a generated galleon fitted into
@@ -183,6 +198,10 @@ Breaking one is allowed. Doing it without saying so is not.
   through `npx` at the end of `tools/surfer.py` (`--no-pack` skips it; the
   file is then the same model, four times heavier). The decoder is already in
   drei's `useGLTF`, so it costs the bundle nothing.
+- A screenshot Claude renders to *look* at the work is not an asset. It goes to
+  the session's own scratchpad, not into this repo; a frame earns a file in
+  `Claude outputs/` only when `docs/STATUS.md` cites it by name as the evidence
+  for something. Nothing in `src/` has ever imported one, and nothing should.
 - Shaders derive from what a project does. Generic noise does not ship.
 
 ## Budgets
@@ -234,7 +253,13 @@ src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
 src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only
 src/Particles.tsx       the spray under the ship — GPU compute, WebGPU only
 src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by default
-src/Islands.tsx         the ground under each landmark — lathed, no assets
+src/Islands.tsx         the ground under each landmark — lathed from
+                        `plateau.ts`'s profile, no assets
+src/plateau.ts          the project islands as ridden: the ground's profile,
+                        the loose props on it and the mine's wall — pure
+                        arithmetic, no three, so the check runs in node
+src/plateau.check.ts    that, with a board ridden at the real mine and over a
+                        row of tiles
 src/beach.ts            coming ashore: the ramp between riding and walking, the
                         sand under his feet and the altitude floor over it —
                         pure arithmetic, no three, so the check runs in node
@@ -247,7 +272,9 @@ src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
 src/Landmarks.tsx       the mine, the easel, the board — blockout in primitives +
-                        TSL, and the detailed model where one exists (`MODEL`)
+                        TSL, and the detailed model where one exists (`MODEL`);
+                        reads `~prop` off mesh names into `PROP_SETS`, and the
+                        mine's wall off its vertices
 src/models/             the .glb files — geometry only, no materials, no UVs,
                         except the surfer's two and the ship, which carry a
                         basecolour texture each and nothing else
@@ -263,7 +290,8 @@ tools/pirate_ship.py    not a landmark either — the boat: strips the two maps
                         it, resizes the third and packs it
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
-src/Debug.tsx           ?debug — radii, blockout boxes, waypoints
+src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
+                        and the mine's wall
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
@@ -401,6 +429,20 @@ Touch is drag-to-fly, not tap-to-move: a drag on the world is a thumb stick
 rise is a second finger. Nothing is cut on a phone, and the whole phase cost
 528 bytes gz. `docs/STATUS.md` has the layout it changed and the one camera
 number it changed with it.
+
+The surfer rides the three project islands. Up the beach onto the plateau on
+the board, over the Scrabble plinth, off the far side into the sea, and a
+jump anywhere on the way — no walking, because the beach code reads the
+isles' ground and these are not isles. What is on them moves: every tile
+and the studio's three pieces are loose props the board knocks the way it
+hit them, with spin off a clipped edge, a row handed down a row, a drop off
+the plinth, a float in the lagoon, a wooden clack when sound is on, and a
+tidy-up five seconds after the last thing stops; the seven found tiles join
+in once the shader has put them down. The mine is a wall, read as the hull
+of its own model, and a board that hits it comes off it with a metal bang.
+`src/plateau.ts` and `docs/STATUS.md`, "The project islands are ridden".
+Not judged on hardware yet: how far a tile should go, and whether the easel
+should topple rather than slide.
 
 The visitor picks the craft in the menu, and the sea beside it — **calm** or
 **agitated**, two states and not a dial. Both are remembered, and the sound is

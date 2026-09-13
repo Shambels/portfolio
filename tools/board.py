@@ -21,6 +21,13 @@ crossword reads from the shape of the cluster, not from what is written on it,
 and the grid and the premium squares are already in the TSL shader — which reads
 `positionLocal.xz`, so the plate has to stay centred on the group's origin.
 
+Every tile is its own object, named `panel_tile~t00` and so on: the part after
+the `~` is which loose prop a mesh belongs to, and `Landmarks.tsx` gives each
+one a group of its own so the surfboard can knock it about (`src/plateau.ts`).
+They were one mesh once, and the split cost nothing but draw calls — the
+geometry is in the same place to the vertex, which is what the found tiles'
+settle shader needs, since it still keys each tile on its own x.
+
 Shared plumbing, the coordinate convention and the export are in `landmark.py`.
 """
 
@@ -104,32 +111,41 @@ def build_plate() -> bpy.types.Object:
     return mesh_object("board_grid", bm)
 
 
-def build_tiles() -> bpy.types.Object:
-    bm = bmesh.new()
-    for i, j in PLAYED:
+def build_tiles() -> list[bpy.types.Object]:
+    """The played tiles and the rack's, one object each — see the note at the
+    top: each is a prop the board can knock."""
+    out = []
+    for n, (i, j) in enumerate(PLAYED):
+        bm = bmesh.new()
         x, z = at(i, j)
         add_slab(bm, (x, TOP + TILE_H / 2, z), (TILE, TILE_H, TILE))
+        out.append(mesh_object(f"panel_tile~t{n:02d}", bm))
     # In the rack, standing and leaning back on its lip — face toward the
     # visitor, which is the side the group is turned to.
     for k in range(7):
+        bm = bmesh.new()
         add_slab(
             bm, ((k - 3) * CELL, TOP + 0.20, RACK_Z + 0.05), (TILE, 0.32, TILE_H), RACK_TILT,
         )
-    return mesh_object("panel_tiles", bm)
+        out.append(mesh_object(f"panel_tile~t{len(PLAYED) + k:02d}", bm))
+    return out
 
 
-def build_found() -> bpy.types.Object:
-    """The move that was there. A separate mesh, not merged into the played
-    tiles, so a shader can single it out without a second model."""
-    bm = bmesh.new()
+def build_found() -> list[bpy.types.Object]:
+    """The move that was there. Named apart from the played tiles so a shader
+    can single them out without a second model — and one object each, so the
+    physics can have one once the shader has put it down."""
+    out = []
     # Stepped and tipped rather than a level row: the scene has no shadow maps,
     # so height alone does not say "in the air" — a rank of tiles at one height
     # reads as a plank. A cascade reads as tiles on their way down, which is also
     # the pose the Phase 4 animation lands from.
     for k, (i, j) in enumerate(FOUND):
+        bm = bmesh.new()
         x, z = at(i, j)
         add_slab(bm, (x, FOUND_Y + (k - 3) * 0.045, z), (TILE, TILE_H, TILE), -0.05 - k * 0.02)
-    return mesh_object("panel_found", bm)
+        out.append(mesh_object(f"panel_found~f{k}", bm))
+    return out
 
 
 def main() -> None:
@@ -137,13 +153,11 @@ def main() -> None:
 
     frame = join("frame_board", [build_plinth()])
     board = join("board_grid", [build_plate()])
-    tiles = join("panel_tiles", [build_tiles()])
-    found = join("panel_found", [build_found()])
 
     finish(frame, 30, bevel=0.008)
     finish(board, 60)
-    finish(tiles, 50, bevel=0.008)
-    finish(found, 50, bevel=0.008)
+    for tile in build_tiles() + build_found():
+        finish(tile, 50, bevel=0.008)
 
     export("board", BOX, GLB, BLEND)
 
