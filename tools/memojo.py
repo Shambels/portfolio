@@ -8,8 +8,17 @@ Why this shape. Memojo finds the photograph nobody was going to find — you
 remember "her laughing in the garden" and the phone finds it, on the phone,
 without sending anything anywhere. So the landmark is the only thing in this
 world that is *watching*: a kicker the rider goes up and leaves by, and a
-camera the size of a house aimed at the end of it. He does not press anything.
-He goes off the lip and the shutter goes, which is the app.
+camera the size of a house standing past the end of it. He does not press
+anything. He goes off the lip and the shutter goes, which is the app — and a
+print comes out of the slot under the body, which is the photograph the app
+found for you.
+
+Where the two stand moved with the print. The ramp is out at the near edge of
+the plateau, so the rider comes off the beach onto the deck; the camera is past
+the lip and out to his right, looking back across the arc rather than along it,
+so it is out of the flight line and it gets his face rather than his back. Both
+`RAMPS.ramp` and `LENSES.ramp` in `src/plateau.ts` say so first — this file is
+the picture of those numbers.
 
 The one thing here that is not free-hand: **the deck is the collision.**
 `RAMPS.ramp` in `src/plateau.ts` is what the surfboard rides, and `RUN` below
@@ -37,7 +46,7 @@ from mathutils import Vector
 # ---------------------------------------------------------------- the contract
 # src/content/projects/memojo.en.mdx, frontmatter `size`. `Landmarks.tsx`
 # asserts the same box again in the browser.
-BOX = (5.4, 4.0, 4.2)
+BOX = (6.2, 3.2, 7.2)
 
 # ------------------------------------------------------------------- the run
 # `RAMPS.ramp` in src/plateau.ts, to the number. The slope comes on over the
@@ -45,7 +54,7 @@ BOX = (5.4, 4.0, 4.2)
 # meets the deck, a straight line where it leaves. A smoothstep would be flat
 # at the lip too, and a lip with no slope on it is a ledge, not a ramp.
 RUN_X, RUN_HALF = -1.05, 1.15
-FOOT, LIP, RISE, EASE = 2.9, -1.0, 1.55, 0.28
+FOOT, LIP, RISE, EASE = 4.1, 0.2, 1.55, 0.28
 # Stations along the run. The check samples these exact z values, so this is
 # `STATIONS` there as well.
 STATIONS = 24
@@ -67,8 +76,8 @@ def deck(k: int) -> tuple[float, float]:
 # `LENSES.ramp` in src/plateau.ts. Everything about the camera is measured back
 # along this axis, so aiming it somewhere else moves the whole machine instead
 # of needing a second set of numbers.
-LENS = Vector((0.95, 2.62, -0.30))
-AIM = Vector((-0.5735, -0.0917, -0.8141))
+LENS = Vector((1.45, 2.45, -2.20))
+AIM = Vector((-0.9416, 0.3013, -0.1506)).normalized()
 YAW = math.atan2(-AIM.x, -AIM.z)
 PITCH = math.asin(AIM.y)
 
@@ -82,13 +91,30 @@ def back(d: float) -> tuple[float, float, float]:
 BODY = back(1.55)
 HIP = (BODY[0], BODY[1] - 0.72, BODY[2])  # where the tripod takes the weight
 
+# The body's own frame, which is where the slot is measured from: `AIM` is its
+# forward, `RIGHT` the horizontal across it, `UP` the third. The box is
+# 1.5 x 1.32 x 1.24 in that frame, so its front-bottom edge — the lowest point
+# of the face the lens is in, and the one point on the machine with nothing but
+# air under it — is the middle of the mouth the paper comes out of.
+RIGHT = Vector((-AIM.z, 0.0, AIM.x)).normalized()
+UP = RIGHT.cross(AIM).normalized()
+SLOT = Vector(BODY) + AIM * 0.62 - UP * 0.66
+# `PRINTS.ramp` in src/plateau.ts, to the number: the card hangs from here and
+# `plateau.check.ts` reads this mesh back out of the .glb to say so.
+SLOT_W = 0.92
+
 GLB = "src/models/memojo.glb"
 BLEND = "tools/memojo.blend"
 
 VIEWS = {
-    "approach": ((1.2, 4.6, 11.0), (0.0, 1.4, 0.2)),
-    "quarter": ((-7.6, 4.2, 7.4), (0.0, 1.6, 0.0)),
-    "front": ((0.4, 2.0, 9.0), (0.4, 1.9, 0.0)),
+    # From the water, the way the rider arrives: the foot of the run nearest,
+    # the machine standing past the lip and off to the right of it.
+    "approach": ((2.0, 5.4, 13.5), (0.5, 1.3, 0.6)),
+    # And from the other quarter, which is the side the deck is open on.
+    "quarter": ((-9.0, 5.2, 5.6), (0.6, 1.6, -0.2)),
+    # Orthographic, from where the rider is when the shutter goes: what the
+    # machine — and the slot under it — look like to the man being photographed.
+    "front": ((-6.6, 3.0, -2.6), (2.4, 1.7, -2.0)),
 }
 
 
@@ -207,6 +233,32 @@ def finder() -> bpy.types.Object:
     return obj
 
 
+def slot() -> bpy.types.Object:
+    """The mouth. A dark letterbox let into the body's front-bottom edge, wide
+    enough that the card clears it — and the only part of the printing that is
+    in this file, because the card moves and what is on it is a photograph that
+    did not exist when the model was written. `Shutter.tsx` hangs it here."""
+    bm = bmesh.new()
+    add_slab(bm, (SLOT.x, SLOT.y, SLOT.z), (SLOT_W, 0.11, 0.17), rx=PITCH, ry=YAW)
+    obj = mesh_object("dark_slot", bm)
+    finish(obj, 38.0)
+    return obj
+
+
+def rollers() -> bpy.types.Object:
+    """And what feeds it: two rollers across the mouth, proud of it by a
+    centimetre. They are the only reason the slot reads as a thing paper comes
+    out of rather than a slot cut in a box."""
+    bm = bmesh.new()
+    half = RIGHT * (SLOT_W / 2 - 0.03)
+    for s in (-1, 1):
+        c = SLOT + AIM * 0.045 + UP * (0.055 * s)
+        add_cyl(bm, tuple(c - half), tuple(c + half), 0.035, segments=10)
+    obj = mesh_object("frame_roller", bm)
+    finish(obj, 38.0)
+    return obj
+
+
 def tripod() -> bpy.types.Object:
     """Three legs and the head they meet at — and the only part of this
     landmark a board can hit. `WALLED.ramp` in `src/plateau.ts` reads the wall
@@ -233,7 +285,8 @@ def tripod() -> bpy.types.Object:
 
 def build() -> None:
     start()
-    parts = [ramp(), cheeks(), lip_edge(), body(), barrel(), lens(), finder(), tripod()]
+    parts = [ramp(), cheeks(), lip_edge(), body(), barrel(), lens(), finder(), tripod(),
+             slot(), rollers()]
     # Joined in pairs only where they share a material and a name: the export
     # keeps one object per mesh name, and `WALLED` and `matFor` both read those
     # names, so nothing here is merged for tidiness.

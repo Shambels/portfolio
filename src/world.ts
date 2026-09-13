@@ -1,6 +1,6 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
-import { deckAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
+import { GROUND, deckAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -27,8 +27,13 @@ export type Landmark = {
  * at a constant altitude over flat ground (BUILD-PLAN — no ground following
  * until the terrain gains hills), so a taller island is one the saucer flies
  * through. Raising this means teaching `Ship` to follow the ground first.
+ *
+ * It is *declared* in `plateau.ts` now and re-exported from here, so that
+ * everything that reads it off `world.ts` still does. The move is one line and
+ * it bought one thing: a landmark-local height and a world one can be told
+ * apart inside a file node can load. See `Lens` there.
  */
-export const GROUND = 0.45
+export { GROUND }
 
 /** The isles are their own module — pure arithmetic, no content import, so
  *  `node src/isle.check.ts` can run it. This is where the world is read from. */

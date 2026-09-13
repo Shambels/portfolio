@@ -5885,3 +5885,229 @@ an animation.
 - Whether a plinth deck with nothing on it but a puck still reads as a
   landmark to ride over, or should shrink.
 - The work is uncommitted.
+
+## The camera moved, and it prints
+
+Memojo's island was rearranged and its camera now gives you the photograph.
+Three things, in the order they had to happen: the ramp went out to the edge
+of the plateau on the side the rider comes from; the camera went round to the
+far side of the lip, out to his right, looking back across the arc instead of
+along it; and the shutter, which used to be a click and a glow, now also fires
+a flash and feeds a print out of a slot under the body.
+
+**This replaces the committed arrangement of the fourth landmark.** Nothing
+about the run's own shape changed — same 3.9 of length, same 1.55 of rise,
+same `ease` — but everything about where the two things stand did, and the
+landmark's `size` frontmatter with it: `[5.4, 4.0, 4.2]` is now
+`[6.2, 3.2, 7.2]`, because the machine is no longer beside the ramp, it is
+behind it.
+
+### The ramp is at the edge, and 4.1 is what "the edge" means
+
+`RAMPS.ramp.foot` was 2.9 and is 4.1; the lip follows it from -1.0 to 0.2.
+The number is not a taste: the island's flat top runs out to 0.52 of its
+radius, bent by `rim`, and on this island's bearing that is about 4.5 on the
+run's centre line and about 4.0 at the outer edge of the deck. At 4.1 all
+three corners of the foot are on ground `profileAt` calls flat, so the model's
+own floor can sit at y 0 the full width of the deck. At 4.6 the outer corner
+is 5 cm down the beach and the foot floats. `plateau.check.ts` holds both
+halves of that — every corner flat at the foot, and half a metre further out
+not flat, so the claim "at the edge" is a measurement and not a word.
+
+The ride is unchanged where it matters and better where it does not: off the
+lip at 4.0 up, 0.88 over the lip, down in the water 11.1 past it. He still
+lands in the sea rather than on the grass, which is the assert that was
+already there.
+
+### The camera stands past the lip, and that is what gets his face
+
+It was at (0.95, 2.62, -0.30) looking down (-0.574, -0.092, -0.814) — on the
+approach side of the ramp, aimed the same way the rider flies. Two things
+were wrong with that and the second is the one that matters. It stood in the
+way: the tripod was between the water and the foot on the only line onto the
+deck. And it photographed his back.
+
+It is at (1.45, 2.45, -2.2) now, looking (-0.9416, 0.3013, -0.1506): past the
+lip, 2.5 out to the rider's right — the run climbs the landmark's -Z and a
+rider facing that way has +X on his right — and turned back across the arc.
+The clearance from the flight line is 2.7 m at the nearest tripod foot, and
+every foot, the body and its back plate are on flat ground.
+
+The face comes out of the stance rather than out of the aim. `tools/surfer.py`
+puts the trunk across the board, facing the board's -X — he rides regular and
+the toe side is where he looks — and the board's -X on this heading is this
+side of the island. So a camera that stands to his right and looks across at
+him is square to his chest. `GAZE` turns his head a further 24 degrees toward
+it. Turning the machine round was not enough on its own; standing it on the
+correct side of the man was the whole thing.
+
+### The cone is the timing, and there is still no rule
+
+`Ship.tsx`'s condition is what it was — in the air, in the cone, and
+`SHUTTER_GAP` since the last one. What changed is that the cone no longer
+contains the deck. A rider standing on the lip is 61 degrees off the axis
+against a 26-degree cone; halfway up the run he is further out still; at the
+foot he is nowhere near it. The first frame that can fire is therefore one
+with air under the board, and the simulation says where: 2.2 m past the lip,
+0.69 m over it, near the top of the arc. `plateau.check.ts` rides the real
+ramp and asserts both of those, and separately asserts that the four places a
+rider can stand on this island are all outside the cone.
+
+That is the second time on this landmark that pointing something somewhere has
+done the work a rule would have done badly. The jump is the floor's slope, not
+a jump rule; the photograph is where the lens looks, not a wait-for-it rule.
+
+### The lens's own height was 45 cm out, and now it is not
+
+`Lens.y` was read as a world height while `x` and `z` were landmark-local, so
+the cone's mouth sat 45 cm below the glass the model draws. It never mattered
+while the lens was only a trigger. It matters the moment a *camera* stands at
+that point and hands back a picture, so `y` is landmark-local like the other
+two, `inShot` subtracts the landmark's floor, and `GROUND` moved from
+`world.ts` to `plateau.ts` — re-exported from `world.ts`, so nothing that
+imports it changed — because the file that has to tell a local height from a
+world one is the one node can load. The check aims a point at the glass itself
+and asserts it is in the cone's mouth.
+
+### The flash
+
+In-world, and only in-world: a much brighter lens, a beam, and a light.
+
+- The glass's emissive went from 3.2 to 9 on the same `flashLevel` uniform.
+  It still declares nothing at rest, so it still costs the bloom pass nothing
+  until it goes off.
+- The beam is a cone mesh from the glass down the lens's own axis, 4.6 long
+  and the cone's own half-angle wide, additive, brightest at the glass and
+  gone by the far end. No emissive, so `Post` never blooms it — the halo is
+  the lens's and this is the air in front of it.
+- The light is a `pointLight` at the glass at 45 W with quadratic decay, which
+  is about twice the sun at the range the rider is photographed from and
+  nothing at all by the time it reaches the water. It is what puts the flash
+  on *him* rather than only on the camera.
+
+`FLASH_FOR` is still 0.16 s and reduced motion still gets none of it.
+
+### The photograph is a real photograph
+
+`src/Shutter.tsx` is new, and it is the one thing in this world that renders
+the world twice. A `PerspectiveCamera` sits at `LENSES.ramp`'s own point
+inside the landmark's own group — not at a copy of it computed somewhere else
+— and on the frame the shutter fires, one frame is rendered through it into a
+512-square target. That is a render pass, which the plan says to ask about
+first; it was asked about and it is bounded: one extra scene render per
+shutter, never oftener than `SHUTTER_GAP`, and nothing at all in between.
+
+Two things it took two goes to get right, both of them visible in the picture
+rather than in any assert:
+
+- **Far plane.** At 420 the sky dome — a 520-unit sphere about the origin —
+  was clipped, and the first photograph came back with a perfectly round dark
+  hole in the sky the shape of the far plane. 1400 now.
+- **Half float.** The target holds *linear* radiance, because the card is
+  drawn back into the same scene and `Post` tone maps the whole frame at the
+  end. Eight bits clipped the sun off the water before the picture ever
+  reached the paper.
+
+The lens's `frame` — half the angle of what it takes in — is 0.76 rad, wider
+than the 0.45 of the cone it fires on. That difference is the margin round the
+rider: the cone's edge is where the shutter goes, so a frame the same width as
+the cone would put him on the edge of every picture. At 0.76 he sits about a
+third of the way out from the middle, against the sky, with the sea and the
+far isle under him. `Claude outputs/memojo-photograph.png` is one, taken in
+the browser and tone mapped the way the card tone maps it.
+
+### The print
+
+A card fed out of a slot under the body, blank, developing as it comes, left
+hanging until the next shot pulls it back in and puts a new one out.
+
+`PRINTS.ramp` in `plateau.ts` is where the slot is, how big the card is and
+how long both take; `printAt` is the two numbers a frame needs. The feed is
+linear because a roller is a motor at one speed; the development is a
+smoothstep because a chemical is not. Out in 2.4 s, up between 0.7 and 3.2, so
+the picture is still arriving after the card has stopped.
+
+The card is a quad hanging from its own top edge, so scaling it *is* feeding
+it out, and it reads the picture at the height the paper has reached — which
+is what makes it come out bottom-first the way a print does. A polaroid's
+shape falls out of three numbers: a square picture, a thin border on three
+sides, and whatever is left at the foot. The back of it is paper, not a
+mirrored picture (`frontFacing`).
+
+`tools/memojo.py` cuts the mouth and its two rollers at the body's own
+front-bottom edge — the lowest point of the face the lens is in, and the one
+place on the machine with nothing but air under it — and `plateau.check.ts`
+reads `dark_slot` back out of the .glb and holds it to `PRINTS.ramp` to a
+centimetre, exactly as it already holds the deck to `deckAt`.
+
+It faces where the camera faces, which is where the photograph was taken from.
+A rider in the air and anyone standing off the end of the run sees the
+picture; from the waypoint, where a deep link parks you, you see the back of
+the card and the machine that made it. `Claude outputs/memojo-print.png` is
+the card hanging in the world, seen from the waypoint with the card turned
+round for the look, because from that side it is white paper.
+
+Under reduced motion there is no flash, no beam and no feed: the print is
+simply out and developed. The shutter still sounds, as it always did.
+
+### Sizes
+
+The model is 1592 triangles and 77 kB, against 1508 and 71 kB before the slot
+and the rollers — a twentieth of the triangle budget and a quarter of the size
+budget. `Shutter.tsx` is 231 lines and the canvas chunk went from 467 to
+470 kB gz against 600; the first route is unchanged at about 145 kB gz against
+200. The render target is 512 square at half float, 2 MB of video memory, and
+it exists whenever the ramp landmark is mounted.
+
+### Verified, on a throwaway install in a copy of the folder
+
+`npx tsc -b`, all ten checks in `npm run check`, and a real
+`npm run build` — 15 project routes prerendered. The model was rebuilt and
+rendered by `tools/memojo.py` with `bpy` 4.5.13 and the three preview views
+looked at.
+
+And it was **seen in the world**: the build served and driven headless in
+Chromium on SwiftShader, which is the WebGL2 backend at about a frame every
+ten seconds. The shutter was fired from a temporary key in that copy — at one
+frame per ten seconds there is no driving a rider up a ramp — and the capture,
+the target read-back, the card and the flash were all watched through it. The
+two pictures cited above came out of that run.
+
+One thing was fixed on the way in that belongs to nobody's feature:
+`src/sudoku.ts` had a stray `g` at the start of line 115, committed, which
+made every check after `locales` fail to parse. One character.
+
+### Not verified
+
+WebGPU. SwiftShader has none, so the capture has only been run through the
+WebGL2 path — `setRenderTarget`, `render`, `setRenderTarget(null)` around
+`Post`'s own pipeline. Nothing in it is backend-specific and three's WebGPU
+backend takes the same three calls, but the WGSL side has not been run, and
+this is the one change in the world that touches the renderer rather than a
+material.
+
+Frame rate, for the same reason: the cost is one scene render at 512 square,
+at most once every 1.1 s, and SwiftShader has no opinion about what that
+costs on a 2022 laptop.
+
+And every judgement: whether 45 W is a flash or a floodlight, whether 0.16 s
+still reads now that there is a beam, whether 2.4 s is the right speed for a
+print, whether the picture wants the ramp in it (at 0.76 rad it does not —
+the lip is 55 degrees off the axis), and whether the card should face the
+camera's own direction or the approach.
+
+### Needs Seb
+
+- Ride it. The levers: `LENSES.ramp.frame` (how much the picture takes in),
+  `.cos` (when it fires), `FLASH_WATTS` and `CONE_GAIN` in `Shutter.tsx`
+  (the flash), `PRINTS.ramp.out` and `.dev` (the print's two speeds).
+- Whether the print should hang until the next shot, fall on the grass as a
+  loose prop, or fade. It hangs, on his say-so; the other two are a day's work
+  each and the props already exist.
+- Whether the rearrangement reads from the water — the machine is now the
+  first thing you see on that island and the ramp is the second.
+- The work is uncommitted, and the folder it was written in has a
+  `node_modules` built for macOS, so `npm install`, `npm run build` and the
+  browser run were done on a throwaway copy in the container. `npx tsc -b` and
+  `npm run check` were run in the folder itself — both are pure JS and both
+  pass there, once the stray character above was out of `sudoku.ts`.

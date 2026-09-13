@@ -22,16 +22,16 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  BOARD, DECKS, LENSES, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER, TIDY_FOR, WALLED,
-  deckAt, displaced, footprint, hull2d, inShot, inside, makeProp, makeSet, profileAt,
+  BOARD, DECKS, GROUND, LENSES, PRINTS, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER,
+  TIDY_FOR, WALLED,
+  deckAt, displaced, footprint, hull2d, inShot, inside, makeProp, makeSet, printAt, profileAt,
   rampLift, rim, seedOf, stepProps,
   type Board, type Hit, type Poly, type Terrain,
 } from './plateau.ts'
 import { PANEL } from './sudoku.ts'
 
 const DT = 1 / 120
-const GROUND = 0.45 // `world.ts`
-const SPREAD = 1.9 // `ISLAND_SPREAD`, the same file
+const SPREAD = 1.9 // `ISLAND_SPREAD`, `world.ts`
 
 // ------------------------------------------------------------ the ground
 
@@ -414,7 +414,7 @@ function toWorld(cx: number, cz: number, rot: number, lx: number, lz: number) {
 
 // -------------------------------------------------------------- the ramp
 //
-// Memojo's island. Four things are held. **The shape**: the run climbs from
+// Memojo's island. Six things are held. **The shape**: the run climbs from
 // nothing at the foot to the lip with slope still on it, which is what a ramp
 // is and what a smoothstep is not. **The file**: `src/models/memojo.glb` is
 // the same curve to a millimetre at every station, so the deck under the board
@@ -422,9 +422,14 @@ function toWorld(cx: number, cz: number, rot: number, lx: number, lz: number) {
 // taken up it at cruise stays on the deck the whole way, leaves the lip going
 // up, and comes down in the water past the island — and the same board on the
 // same line with the ramp taken out never leaves the ground, which is what
-// says the jump is the ramp's doing and not the beach's. **The shot**: the
-// giant camera sees him in the air off the lip and does not see him standing
-// at the foot.
+// says the jump is the ramp's doing and not the beach's. **The place**: the
+// run's foot is on the flat top of the island and not down its beach, which is
+// what "at the edge" is allowed to mean. **The shot**: the camera sees him in
+// the air over the lip, and sees him nowhere on the deck — not at the foot, not
+// halfway up, not standing on the lip itself — so the photograph it takes is of
+// a jump by construction and not by a rule that says to wait. **The print**:
+// the slot `tools/memojo.py` cuts is the slot `PRINTS.ramp` hangs paper from,
+// and the paper clears the ground.
 
 const RAMP = RAMPS.ramp!
 const GRAV = 9 // `Ship.tsx`, and the same number the props fall under
@@ -501,9 +506,13 @@ function ride(withRamp: boolean) {
     return { bed: h + SIT, sea: 0 + SIT, wx: w.x, wz: w.z }
   }
   const speed = 9 // cruise on the board
+  // The lens as `Landmarks.tsx` builds it, so the shutter in here is the
+  // shutter in the browser and not a second reading of the same numbers.
+  const eye = makeSet('memojo', cx, cz, rot, [], [], LENSES.ramp!)
   let lz = RAMP.foot + 2.5
   let y = bedAt(RAMP.x, lz).bed
   let vy = 0
+  let shot = 0, shotOver = -1
   let apex = -Infinity, liftOff = 0, onDeck = 0, flew = false, landed = 0
   for (let f = 0; f < 900; f++) {
     lz -= speed * DT
@@ -523,9 +532,15 @@ function ride(withRamp: boolean) {
     if (!flew && y > bed + 0.06 && lz < RAMP.lip + 0.2) { flew = true; liftOff = vy }
     if (!flew) onDeck = Math.max(onDeck, y - bed)
     apex = Math.max(apex, y - RAMP.h - GROUND - SIT)
+    // `Ship.tsx`'s own condition, to the letter: in the air, and in the cone.
+    if (flew && !landed && !shot) {
+      const w = toWorld(cx, cz, rot, RAMP.x, lz)
+      if (inShot(eye, w.x, y, w.z)) { shot = lz; shotOver = y - RAMP.h - GROUND - SIT }
+    }
   }
   const w = toWorld(cx, cz, rot, RAMP.x, landed)
-  return { liftOff, apex, onDeck, landed, ground: GROUND + profileAt(R, seed, w.x - cx, w.z - cz) }
+  return { liftOff, apex, onDeck, landed, shot, shotOver,
+    ground: GROUND + profileAt(R, seed, w.x - cx, w.z - cz) }
 }
 
 {
@@ -540,6 +555,12 @@ function ride(withRamp: boolean) {
   // the island rather than on the grass beside it.
   assert.ok(on.apex > 0.6, `only ${on.apex.toFixed(2)} of air over the lip`)
   assert.ok(on.ground < 0, `he landed on land at ${on.ground.toFixed(2)}`)
+  // And the camera went off at him, in the air, well past the lip — which is
+  // the whole reason the lens was moved and the only thing that says where it
+  // points is right. Not a rule that waits: the cone simply does not contain
+  // the deck, so the first frame it can fire on is one with air under him.
+  assert.ok(on.shot < RAMP.lip - 1.2, `the shutter fired ${(RAMP.lip - on.shot).toFixed(2)} past the lip`)
+  assert.ok(on.shotOver > 0.4, `it photographed him ${on.shotOver.toFixed(2)} over the lip`)
 
   // And the control: the same line at the same speed with no ramp under it
   // never leaves the ground at all. A beach is not a kicker.
@@ -552,8 +573,31 @@ function ride(withRamp: boolean) {
 }
 
 {
-  // The shot. The set the browser builds, and a rider in the air off the lip
-  // against a rider standing at the foot.
+  // The place. The run's foot is at the edge of the plateau's flat top and not
+  // over the side of it: every corner of it is on ground the profile calls
+  // flat, which is what lets the model's own floor sit at y 0 the whole width
+  // of the deck. Half a metre further out and the outer corner is on the beach.
+  const cx = 24, cz = 18
+  const rot = Math.atan2(-cx, -cz)
+  const R = 5.2 * SPREAD
+  const seed = seedOf('memojo')
+  const groundAt = (lx: number, lz: number) => {
+    const w = toWorld(cx, cz, rot, lx, lz)
+    return profileAt(R, seed, w.x - cx, w.z - cz)
+  }
+  for (const lx of [RAMP.x - RAMP.half, RAMP.x, RAMP.x + RAMP.half]) {
+    assert.ok(groundAt(lx, RAMP.foot) > -0.03,
+      `the foot is ${groundAt(lx, RAMP.foot).toFixed(3)} down the beach at x ${lx.toFixed(2)}`)
+  }
+  assert.ok(groundAt(RAMP.x + RAMP.half, RAMP.foot + 0.5) < -0.02,
+    'the foot is not near the edge at all — half a metre further out is still flat')
+}
+
+{
+  // The shot. The set the browser builds, and every place a rider can be on
+  // this island: in the air over the lip, which fires — and standing on the
+  // lip, halfway up the run, at the foot, behind the camera and a long way
+  // past it, none of which do.
   const cx = 24, cz = 18
   const rot = Math.atan2(-cx, -cz)
   const set = makeSet('memojo', cx, cz, rot, [], [], LENSES.ramp!)
@@ -561,16 +605,75 @@ function ride(withRamp: boolean) {
     const w = toWorld(cx, cz, rot, lx, lz)
     return [w.x, ly, w.z] as const
   }
-  const air = at(RAMP.x, GROUND + RAMP.h + SIT + 0.5, RAMP.lip - 1.2)
-  assert.ok(inShot(set, air[0], air[1], air[2]), 'the lens missed a rider in the air off the lip')
+  const air = at(RAMP.x, GROUND + RAMP.h + SIT + 0.8, RAMP.lip - 2.6)
+  assert.ok(inShot(set, air[0], air[1], air[2]), 'the lens missed a rider in the air over the lip')
+  const lip = at(RAMP.x, GROUND + RAMP.h + SIT, RAMP.lip)
+  assert.ok(!inShot(set, lip[0], lip[1], lip[2]), 'the lens fired at a rider standing on the lip')
+  const run = at(RAMP.x, GROUND + deckAt('ramp', RAMP.x, 2) + SIT, 2)
+  assert.ok(!inShot(set, run[0], run[1], run[2]), 'the lens fired at a rider halfway up the run')
   const foot = at(RAMP.x, GROUND + SIT, RAMP.foot)
   assert.ok(!inShot(set, foot[0], foot[1], foot[2]), 'the lens fired at a rider at the foot of the ramp')
   const behind = at(RAMP.x, GROUND + 3, RAMP.foot + 6)
   assert.ok(!inShot(set, behind[0], behind[1], behind[2]), 'the lens sees behind itself')
   const miles = at(RAMP.x, GROUND + RAMP.h + 0.5, RAMP.lip - 30)
   assert.ok(!inShot(set, miles[0], miles[1], miles[2]), 'the lens sees past its own reach')
+  // Its own y is the landmark's, like its x and its z: a point at the glass
+  // itself is in the cone's mouth, and the same point read as a world height
+  // — 45 cm higher, which is what this used to do — is not.
+  const lens = LENSES.ramp!
+  const eye = at(lens.x + lens.dx * 0.4, GROUND + lens.y + lens.dy * 0.4, lens.z + lens.dz * 0.4)
+  assert.ok(inShot(set, eye[0], eye[1], eye[2]), 'the cone does not start at the glass')
   // And a landmark with no lens never fires.
   assert.ok(!inShot(makeSet('scrubble', 0, 14, 0, [], []), 0, 1, 12), 'a landmark with no lens took a photograph')
+}
+
+{
+  // The print. The slot in the file is the slot the paper hangs from, the card
+  // is a card — a square picture with a wide foot — and it clears the ground
+  // and comes out at one speed.
+  const print = PRINTS.ramp!
+  const meshes = meshesFromGlb(new URL('./models/memojo.glb', import.meta.url).pathname)
+  const slot = meshes.filter((m) => m.name === 'dark_slot')
+  assert.equal(slot.length, 1, 'memojo.glb has no dark_slot')
+  const lo = [Infinity, Infinity, Infinity]
+  const hi = [-Infinity, -Infinity, -Infinity]
+  for (let i = 0; i + 2 < slot[0]!.pos.length; i += 3) {
+    for (let k = 0; k < 3; k++) {
+      lo[k] = Math.min(lo[k]!, slot[0]!.pos[i + k]!)
+      hi[k] = Math.max(hi[k]!, slot[0]!.pos[i + k]!)
+    }
+  }
+  const mid = [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2)
+  const want = [print.x, print.y, print.z]
+  for (let k = 0; k < 3; k++) {
+    assert.ok(Math.abs(mid[k]! - want[k]!) < 0.01,
+      `the slot is at ${mid.map((n) => n.toFixed(3))} and the paper comes out of ${want}`)
+  }
+  // The mouth is turned with the body, so its own length is the long side of
+  // what it leaves on the axes — and it has to be at least the card's width.
+  assert.ok(Math.max(hi[0]! - lo[0]!, hi[2]! - lo[2]!) > print.w,
+    'the card is wider than the slot it comes out of')
+  // A polaroid: the picture square, three thin borders and a fat one at the
+  // foot — which is what is left over rather than a fourth number.
+  assert.ok(print.img + 2 * print.border <= print.w + 1e-9, 'the picture is wider than the card')
+  assert.ok(print.h - print.img - print.border > print.border * 2, 'the card has no foot')
+  assert.ok(print.y - print.h > 0.25, 'the print reaches the ground')
+  // The feed is one speed and the development is not, and both end where they
+  // say. Nothing about either moves backwards.
+  assert.deepEqual(printAt(print, 0), { out: 0, dev: 0 })
+  assert.equal(printAt(print, print.out).out, 1)
+  assert.equal(printAt(print, print.out * 99).out, 1)
+  assert.equal(printAt(print, print.dev[0]).dev, 0)
+  assert.equal(printAt(print, print.dev[1]).dev, 1)
+  assert.ok(printAt(print, print.out).dev < 1, 'the picture was up before the card was out')
+  let last = -1
+  for (let k = 0; k <= 200; k++) {
+    const p = printAt(print, (k / 200) * 4)
+    assert.ok(p.out >= last - 1e-12 && p.dev >= 0 && p.dev <= 1, 'the print went backwards')
+    last = p.out
+  }
+  // Halfway out is halfway out: a roller at one speed, not an ease.
+  assert.ok(Math.abs(printAt(print, print.out / 2).out - 0.5) < 1e-12, 'the feed is not linear')
 }
 
 {

@@ -64,7 +64,7 @@ one major behind. Noted here rather than done quietly.
 | `polarsense` | A mine | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `scrubble` | A Scrabble board | — |
-| `memojo` | A ramp, and a giant camera aimed at the end of it | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
+| `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
 | `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive | https://github.com/Shambels/sudoku |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
@@ -271,10 +271,15 @@ src/Islands.tsx         the ground under each landmark — lathed from
                         `plateau.ts`'s profile, no assets
 src/plateau.ts          the project islands as ridden: the ground's profile,
                         the loose props on it, the mine's wall, the two plinth
-                        decks, Memojo's ramp and the lens that watches it —
-                        pure arithmetic, no three, so the check runs in node
+                        decks, Memojo's ramp, the lens that watches it and the
+                        print that comes out of it — and `GROUND`, which moved
+                        here from `world.ts` (which re-exports it) so that a
+                        landmark-local height and a world one can be told apart
+                        in a file node can load — pure arithmetic, no three
 src/plateau.check.ts    that, with a board ridden at the real mine, over a
-                        row of tiles, and up the real ramp and off it — and
+                        row of tiles, and up the real ramp and off it, with the
+                        shutter going at him in the air and at nobody on the
+                        deck — and
                         the sudoku's file held to `HOLO`, with nothing loose on it
 src/sudoku.ts           the Sudoku Solver's puzzle — the repository's board,
                         its `possibleEntries` ported once more, the solver
@@ -295,6 +300,10 @@ src/isles.ts            the isle: an island that is a place and not a project,
 src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
+src/Shutter.tsx         what the giant camera does when it goes off: the
+                        burst, the frame it takes — a second camera at the
+                        lens, one render into a target — and the print that
+                        feeds out of the slot under the body
 src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
                         camera, the sudoku's hologram — blockout in primitives
                         + TSL, and the detailed model where one exists (`MODEL`);
@@ -309,7 +318,8 @@ tools/landmark.py       what every landmark script needs — axes, members, expo
 tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
-tools/memojo.py         the same, for the ramp and the giant camera
+tools/memojo.py         the same, for the ramp, the giant camera and the
+                        mouth its prints come out of
 tools/sudoku.py         the same, for the sudoku's projector: the plinth, a
                         puck, and the quad the hologram is drawn on — the one
                         landmark that is mostly not geometry
@@ -555,9 +565,20 @@ one that no check holds: `SPAWN.bearing` was chosen against the isle's
 planting, replayed in node, and moves if the seed does.
 
 The world has a fourth project. Memojo is an on-device photo app that ships on
-both stores, so its island is the one thing here that *watches*: a ramp the
-rider goes up and leaves by, and a giant camera aimed at the lip, which fires a
-shutter and a flash when he is in the air in front of it. The jump is not a
+both stores, so its island is the one thing here that *watches* — and, since
+the second pass, the one thing that gives you something back. The ramp stands
+at the near edge of the plateau, where the flat top runs out, so the rider
+comes off the beach straight onto the deck; the camera stands past the lip and
+out to his right, looking back across the arc rather than along it, which is
+both out of the way of the jump and square to his chest — he rides across his
+board, facing its -X, and on that heading its -X is that side of the island.
+It fires a shutter, a flash and a beam when he is in the air in front of it,
+takes an actual photograph — a second camera at the lens, one frame into a
+512-square target, the one place this world renders itself twice — and feeds
+the print out of a slot under the body over two and a half seconds, developing
+as it comes, where it hangs until the next shot. `src/Shutter.tsx`, and
+`docs/STATUS.md`, "The camera moved, and it prints", for the arrangement it
+replaced and the two numbers that are Seb's eye. The jump is not a
 rule — `RAMPS` is a floor that climbs, and the floor hands the board the
 vertical it was climbing at (`rampLift`, `climb()` in `world.ts`); past the lip
 there is no floor left. At cruise that is 0.64 m over a lip already 1.55 up and
@@ -565,9 +586,13 @@ a landing in the sea past the island. Its panel is the only one that is **not a 
 study**: the source is private, so the summary is the App Store's own
 promotional line and the body describes what the app does rather than what was
 chosen, rejected and cost — and it says so, in its last paragraph. `workIntro`
-is reworded to match. `docs/STATUS.md`, "A fourth project", has all of it, including the two things that check it: the glb's
-deck vertices against `deckAt` at every station, and the control that says a
-beach is still not a kicker.
+is reworded to match. `docs/STATUS.md`, "A fourth project", has all of it, including the things that
+check it: the glb's deck vertices against `deckAt` at every station, the
+control that says a beach is still not a kicker, the run's foot held to ground
+the profile calls flat, the slot in the glb held to `PRINTS.ramp`, and a ride
+up the real ramp that asserts the shutter goes at a man 2.2 m past the lip and
+at nobody standing on it. No rule anywhere says "wait until he is up" either:
+the cone simply does not contain the deck.
 
 And a fifth, which is the oldest code on the site and the only page that is
 mostly an argument against itself. The Sudoku Solver is 2019: the same
