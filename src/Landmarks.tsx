@@ -7,11 +7,12 @@ import {
   modelWorldMatrix, mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, select,
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
-import { FLASH, GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
+import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
-  LENSES, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
+  LENSES, PRINTS, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
   type Prop, type PropSet,
 } from './plateau'
+import { Shutter, flashLevel } from './Shutter'
 import { SHIP, SHIP_XZ } from './Ship'
 import { PANEL, PIERCE, SLOTS, holes, pierce, table } from './sudoku'
 import mineUrl from './models/mine.glb?url'
@@ -92,16 +93,9 @@ const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout 
 
 const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1, holo: 1 }
 
-/**
- * How bright the giant camera's lens is, 0 to 1. One uniform for both material
- * sets — the cold one and the proximity-highlighted one are two objects and
- * one lens — written once a frame by `Landmarks` from `FLASH` in `world.ts`.
- */
-const flashLevel = uniform(0)
-/** How long the flash lasts. Short enough to be a flash: a photographic one is
- *  a thousandth of a second and a thousandth of a second is invisible at 60fps,
- *  so this is the shortest thing the eye can be given instead. */
-const FLASH_FOR = 0.16
+/* How bright the giant camera's lens is lives in `Shutter.tsx` now, with the
+ * rest of what the camera does when it goes off. The glass material below is
+ * one of the three things that read it. */
 
 /** The proximity tint, applied to every colour the same way. */
 const shade = (hex: string, hi: boolean) => new THREE.Color(hex).lerp(HI, hi ? 0.72 : 0)
@@ -416,7 +410,10 @@ function makeMats(hi: boolean) {
   // so a lens that is not firing costs the bloom nothing and a lens that is
   // fires the only real light source in the world.
   const glass = new THREE.MeshStandardNodeMaterial({ color: c.glass, roughness: 0.18, metalness: 0.3 })
-  glass.emissiveNode = color('#eaf4ff').mul(flashLevel.mul(3.2))
+  // 3.2 while the camera only clicked; 9 now that it prints. The flash is the
+  // one moment this world has a second light source in it, and a lens that
+  // goes to the same brightness as the ore in the mine is a bulb, not a flash.
+  glass.emissiveNode = color('#eaf4ff').mul(flashLevel.mul(9))
 
   // Strata, and the veins that cut them. PolarSense reads structure that is
   // already in the file without running it, so the rock is layered before anyone
@@ -995,12 +992,7 @@ function fits(g: THREE.Group | null, l: Landmark, tag: string) {
 
 export function Landmarks({ near }: { near: string | null }) {
   const [cold, hot] = useMemo(() => [makeMats(false), makeMats(true)], [])
-  // The lens, decayed from `FLASH` — here rather than in `Detailed` so it
-  // fires on the blockout too, and so it is one update for a value both
-  // material sets share. Invariant 6: a visitor who asked for less motion
-  // gets the shutter and not a light going off in their face.
   useFrame((state, dt) => {
-    flashLevel.value = REDUCED ? 0 : Math.max(0, 1 - FLASH.age / FLASH_FOR)
     // The sudoku's settle: one number both ways, like `RIDE.land` — up while
     // the sudoku is the landmark that is near, back down once it is not. The
     // same signal that opens the panel, so the board resolves as the visitor
@@ -1049,6 +1041,14 @@ export function Landmarks({ near }: { near: string | null }) {
               </Suspense>
             ) : (
               blockout
+            )}
+            {/* What the camera does when it goes off — the burst, the frame it
+                takes and the print it puts out. Mounted beside the landmark
+                rather than inside the model, so it fires on the blockout too
+                and so the second camera sits at the lens's own point in the
+                landmark's own space. One landmark has a lens. */}
+            {LENSES[l.landmark] && PRINTS[l.landmark] && (
+              <Shutter lens={LENSES[l.landmark]!} print={PRINTS[l.landmark]!} />
             )}
           </group>
         )

@@ -112,7 +112,7 @@ export const PIERCE = {
   /** How far off the plane, along the landmark's z, a hull is still in it:
    *  half the board's length, so the nose and the tail both count. */
   reach: 1.0,
-g  /** Seconds a cell stays rain after the last touch — short, so the board
+  /** Seconds a cell stays rain after the last touch — short, so the board
    *  is already mending as the hull leaves it — seconds it takes to settle
    *  back, and how far the settle is spread over the scan order. */
   hold: 0.6,

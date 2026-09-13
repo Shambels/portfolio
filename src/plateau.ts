@@ -15,6 +15,16 @@
  * that lands on its edge — is a decision to make once somebody misses it.
  */
 
+/**
+ * Height of every island plateau above the water, and the Y every landmark's
+ * own space is measured from. Defined here rather than in `world.ts` — which
+ * re-exports it, so nothing that imports it had to change — because a lens
+ * standing 2.45 up in the model has to be the same 2.45 to the cone that
+ * fires it, and only a file that knows where the landmark's floor is can
+ * turn one into the other. It was 45 cm out before this; see `inShot`.
+ */
+export const GROUND = 0.45
+
 /** Smoothstep. Three-free, like the rest of the file. */
 const S = (a: number, b: number, x: number) => {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1)
@@ -107,8 +117,16 @@ export type Ramp = {
   ease: number
 }
 
+/**
+ * The run itself is unchanged — same length, same rise, same ease — and it has
+ * moved 1.9 out along the landmark's +Z, which is the way the visitor comes
+ * from. The foot is now at the far edge of the plateau's flat top (`profileAt`
+ * is still 0 under all three corners of it, and 4.6 would not be), so the
+ * rider comes off the beach onto the deck instead of crossing half the island
+ * first, and everything behind the lip is free for the camera to stand in.
+ */
 export const RAMPS: Record<string, Ramp | undefined> = {
-  ramp: { x: -1.05, half: 1.15, foot: 2.9, lip: -1.0, h: 1.55, ease: 0.28 },
+  ramp: { x: -1.05, half: 1.15, foot: 4.1, lip: 0.2, h: 1.55, ease: 0.28 },
 }
 
 /** Height of the run at `t` along it, 0 at the foot and 1 at the lip, for a
@@ -215,7 +233,12 @@ export type Prop = {
  * can be checked in node.
  */
 export type Lens = {
-  /** Where it stands, and the unit vector it looks along. */
+  /** Where it stands and the unit vector it looks along — all four in the
+   *  landmark's own space, `y` included. It used to be the only quantity in
+   *  this file measured from the water rather than from the landmark's floor,
+   *  which put the cone 45 cm under the glass the model draws. It matters now
+   *  that it did not before: `Shutter.tsx` puts a real camera at this point
+   *  and the picture it takes comes out of the machine. */
   x: number
   y: number
   z: number
@@ -225,13 +248,98 @@ export type Lens = {
   /** The cosine of its half-angle, and how far it sees. */
   cos: number
   reach: number
+  /** Half the angle of what it takes *in*, in radians — the photograph — which
+   *  is wider than the cone it fires on, and deliberately. The cone is the
+   *  trigger and its edge is where the shutter goes, so a frame the same width
+   *  as the cone would put the rider on the edge of every picture it ever
+   *  took. The difference between the two is the margin round him. */
+  frame: number
 }
 
-/** Keyed by landmark shape, like `DECKS` and `RAMPS`. Aimed at the arc off
- *  the lip: the run leaves at `RAMPS.ramp.lip` and what the lens is for is the
- *  metre or two after that, which is the only place a rider is in the air. */
+/**
+ * Keyed by landmark shape, like `DECKS` and `RAMPS`. One landmark has one.
+ *
+ * Where it stands is the whole of what it photographs. It used to sit on the
+ * approach side of the ramp looking *down* the run, which is a camera standing
+ * in the way of the jump and getting the back of the man who makes it. It
+ * stands past the lip now, out to his right — the ramp runs up the landmark's
+ * -Z and a rider facing that way has +X on his right — and it looks back
+ * across the arc rather than along it. He rides across its frame with his
+ * chest to it, because a surfer stands *across* his board: `tools/surfer.py`
+ * puts the trunk on the board's -X, and the board's -X on this heading is
+ * this side of the island. So the camera is out of the flight line by 2.7 m
+ * and it gets his face.
+ *
+ * The cone is what makes the shutter go, and where it points is also the
+ * timing. Aimed at the air over the lip rather than at the lip, it does not
+ * see a man standing on the deck at all — he crosses into it about 1.4 m past
+ * the lip with 0.6 m of air under the board, which is the photograph. No rule
+ * anywhere says "wait until he is up"; the camera is simply framed on the
+ * place where he is.
+ */
 export const LENSES: Record<string, Lens | undefined> = {
-  ramp: { x: 0.95, y: 2.62, z: -0.3, dx: -0.5735, dy: -0.0917, dz: -0.8141, cos: 0.9, reach: 13 },
+  ramp: {
+    x: 1.45, y: 2.45, z: -2.2,
+    dx: -0.9416, dy: 0.3013, dz: -0.1506,
+    cos: 0.9, reach: 13, frame: 0.76,
+  },
+}
+
+/**
+ * And what comes out of it. A camera that takes a photograph has to give it to
+ * somebody, so the giant one prints: a card fed out of a slot under the body,
+ * blank, developing as it comes, and left hanging in the slot until the next
+ * shot pulls it back in and puts a new one out.
+ *
+ * The numbers are here beside the lens because they are the same kind of thing
+ * — where a fixture of the landmark is, in the landmark's own space — and
+ * because `tools/memojo.py` cuts the slot at `x, y, z` and the check reads that
+ * mesh back out of the .glb and holds the two together, exactly as it does the
+ * deck. The card itself is not in the model: it moves, and what is on it is a
+ * texture that did not exist when the file was written.
+ */
+export type Print = {
+  /** The slot, in the landmark's own space: the middle of the card's top edge
+   *  as it hangs. It is the body's own front-bottom edge, which is why the
+   *  paper clears the tripod and the ground both. */
+  x: number
+  y: number
+  z: number
+  /** The card. `img` is the picture's square, `border` the paper round three
+   *  sides of it; what is left at the foot is the fat border a print has, and
+   *  it falls out of the other three rather than being a fourth number. */
+  w: number
+  h: number
+  img: number
+  border: number
+  /** Seconds to feed the whole card out, and the two the picture comes up
+   *  over — it starts developing before it has finished printing, which is
+   *  what a print does. */
+  out: number
+  dev: [number, number]
+}
+
+export const PRINTS: Record<string, Print | undefined> = {
+  ramp: {
+    x: 2.1293, y: 1.5405, z: -2.0914,
+    w: 0.86, h: 1.046, img: 0.772, border: 0.044,
+    out: 2.4, dev: [0.7, 3.2],
+  },
+}
+
+/**
+ * The print `t` seconds after the shutter: how much of the card is out of the
+ * slot, and how far the picture has come up. Both 0 to 1.
+ *
+ * The feed is linear because a roller is: it is a motor at one speed, not a
+ * thing that accelerates and settles. The development is not — it is a
+ * chemical coming up, slow at both ends — so that one is a smoothstep.
+ */
+export function printAt(p: Print, t: number): { out: number; dev: number } {
+  return {
+    out: Math.min(Math.max(t / p.out, 0), 1),
+    dev: S(p.dev[0], p.dev[1], t),
+  }
 }
 
 /** A convex polygon in landmark space, counter-clockwise. */
@@ -299,7 +407,7 @@ export function inShot(set: PropSet, wx: number, wy: number, wz: number): boolea
   const dz = wz - set.cz
   const rx = dx * cr - dz * sr - l.x
   const rz = dx * sr + dz * cr - l.z
-  const ry = wy - l.y
+  const ry = wy - GROUND - l.y
   const d = Math.hypot(rx, ry, rz)
   if (d < 1e-6 || d > l.reach) return false
   return (rx * l.dx + ry * l.dy + rz * l.dz) / d >= l.cos
