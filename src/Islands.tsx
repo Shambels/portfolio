@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import { mix, mx_fractal_noise_float, positionWorld, smoothstep, vec3 } from 'three/tsl'
 import { ISLAND_SPREAD, LANDMARKS } from './world'
+import { PROFILE, rim, seedOf } from './plateau'
 
 /**
  * The ground under each landmark. One `LatheGeometry` per island, revolved from
@@ -18,31 +19,17 @@ import { ISLAND_SPREAD, LANDMARKS } from './world'
  * plane by construction, whatever height an island is placed at.
  */
 
-// Half an island, from the axis outward. [fraction of radius, height relative
-// to the plateau]. Flat out to 0.52 so blockout boxes sit square on it; the
-// last two points are the underwater skirt, which the ocean hides but which
+// The profile and the rim are `plateau.ts`'s since the surfer started riding
+// up the beach: the mesh here and the floor under his board have to be one
+// island, and node has to be able to load the floor. `PROFILE` is half an
+// island from the axis outward, flat to 0.52 with an underwater skirt that
 // stops the silhouette ending in a cut edge when you fly past at a low angle.
-const PROFILE: [number, number][] = [
-  [0, 0], [0.52, 0], [0.68, -0.12], [0.8, -0.3], [0.88, -0.55], [0.96, -1.6], [1, -3.2],
-]
 const SEGMENTS = 48
 
 const ROCK = vec3(0.09, 0.12, 0.14)
 const WET = vec3(0.36, 0.31, 0.24)
 const SAND = vec3(0.84, 0.74, 0.55)
 const GRASS = vec3(0.27, 0.34, 0.2)
-
-/** Coastline radius at an angle, as a multiple of the nominal one. Three
- *  detuned harmonics: enough that the eye reads a shape rather than a disc,
- *  few enough that the plateau stays convex and a box never overhangs it. */
-function rim(theta: number, seed: number) {
-  return (
-    1 +
-    0.11 * Math.sin(3 * theta + seed) +
-    0.06 * Math.sin(5 * theta + seed * 2.3) -
-    0.05 * Math.sin(7 * theta + seed * 0.7)
-  )
-}
 
 function island(radius: number, seed: number) {
   const g = new THREE.LatheGeometry(
@@ -62,9 +49,7 @@ function island(radius: number, seed: number) {
 
 export function Islands() {
   const { geometries, ground } = useMemo(() => {
-    const geometries = LANDMARKS.map((l) =>
-      island(l.radius * ISLAND_SPREAD, [...l.slug].reduce((h, c) => h + c.charCodeAt(0), 0)),
-    )
+    const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug)))
 
     const ground = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
     const y = positionWorld.y

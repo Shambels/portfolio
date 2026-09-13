@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { SHIP } from './Ship'
 import { seaRoll } from './Scenery'
-import { LANDMARKS, overWater, type Landmark } from './world'
+import { HITS, LANDMARKS, overWater, type Landmark } from './world'
+import type { Hit } from './plateau'
 
 /**
  * Phase 4's ambient sound — the last item on the list, and the one BUILD-PLAN
@@ -216,6 +217,70 @@ const VOICES: Record<string, (ctx: AudioContext, noise: AudioNode, out: AudioNod
   },
 }
 
+/**
+ * The knocks: what the board hitting something sounds like, one per kind of
+ * thing (`HITS` in `world.ts`), each a function of how hard. Built once and
+ * gated, like the voices — nothing is constructed at the moment of a hit,
+ * because a hit is the one moment a stalled audio thread would be heard.
+ *
+ * - a **tile** is the board voice's own click: a tile on a board, one at a
+ *   time instead of the shader's three;
+ * - **wood** — the easel, the table — is lower and longer, noise with a
+ *   knock under it: a stretcher bar going over on a plank floor;
+ * - **metal** is the mine's head-frame taking a surfboard: a struck steel
+ *   member is partials that are not harmonics of anything, so five of them
+ *   at ratios off a rolled plate, through a highpass, with the noise bed's
+ *   own click on the front. The bang is what the visitor's own speed cost.
+ */
+type Knock = (t: number, force: number) => void
+
+const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: AudioNode) => Knock> = {
+  tile(ctx, noise, out) {
+    const bp = new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 1250, Q: 6 })
+    const env = new GainNode(ctx, { gain: 0 })
+    noise.connect(bp)
+    bp.connect(env)
+    env.connect(out)
+    return (t, force) => strike(env.gain, t, 0.002, 0.09 + 0.08 * force, 0.35 + 0.65 * force)
+  },
+  wood(ctx, noise, out) {
+    const bp = new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 420, Q: 2.2 })
+    const env = new GainNode(ctx, { gain: 0 })
+    noise.connect(bp)
+    bp.connect(env)
+    const thump = new GainNode(ctx, { gain: 0 })
+    osc(ctx, 'sine', 96).connect(thump)
+    thump.connect(env)
+    env.connect(out)
+    return (t, force) => {
+      strike(env.gain, t, 0.004, 0.16 + 0.18 * force, 0.4 + 0.6 * force)
+      strike(thump.gain, t, 0.004, 0.12, 0.9)
+    }
+  },
+  metal(ctx, noise, out) {
+    const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 160 })
+    const ring = new GainNode(ctx, { gain: 0 })
+    for (const k of [1, 1.58, 2.27, 3.05, 4.1]) {
+      const g = new GainNode(ctx, { gain: 1 / (k * k) })
+      osc(ctx, 'triangle', 185 * k).connect(g)
+      g.connect(hp)
+    }
+    hp.connect(ring)
+    ring.connect(out)
+    const click = new GainNode(ctx, { gain: 0 })
+    noise.connect(new BiquadFilterNode(ctx, { type: 'highpass', frequency: 2400 })).connect(click)
+    click.connect(out)
+    return (t, force) => {
+      strike(ring.gain, t, 0.003, 0.35 + 0.6 * force, 0.5 + 0.5 * force)
+      strike(click.gain, t, 0.001, 0.03, 0.3 + 0.4 * force)
+    }
+  },
+}
+const KNOCK = 0.55
+/** Two hits in one frame are two hits, a hair apart, not one envelope
+ *  restarted on top of itself. */
+const KNOCK_GAP = 0.012
+
 type Rig = {
   ctx: AudioContext
   master: GainNode
@@ -224,6 +289,7 @@ type Rig = {
   hum: GainNode
   tone: OscillatorNode[]
   voices: { l: Landmark; prox: GainNode; voice: Voice; next: number }[]
+  knocks: Record<Hit['kind'], Knock>
 }
 
 function build(): Rig {
@@ -255,7 +321,13 @@ function build(): Rig {
     return [{ l, prox, voice: make(ctx, noise, prox), next: 0 }]
   })
 
-  return { ctx, master, sea, wind, hum, tone, voices }
+  const bus = new GainNode(ctx, { gain: KNOCK })
+  bus.connect(master)
+  const knocks = Object.fromEntries(
+    (Object.keys(KNOCKS) as Hit['kind'][]).map((k) => [k, KNOCKS[k](ctx, noise, bus)]),
+  ) as Record<Hit['kind'], Knock>
+
+  return { ctx, master, sea, wind, hum, tone, voices, knocks }
 }
 
 /**
@@ -312,6 +384,13 @@ export function Sound({ on }: { on: boolean }) {
     const k = Math.min(Math.hypot(SHIP.vel.x, SHIP.vel.z) / CRUISE, BOOST) / BOOST
     set(r.hum.gain, HUM[0] + (HUM[1] - HUM[0]) * k, t)
     for (const o of r.tone) set(o.frequency, HUM_HZ * (1 + HUM_RISE * k), t, 0.12)
+
+    // What the board hit this frame. `Ship` filled the list before this ran
+    // and empties it before it runs again.
+    for (let i = 0; i < HITS.length; i++) {
+      const h = HITS[i]!
+      r.knocks[h.kind](t + i * KNOCK_GAP, h.force)
+    }
 
     for (const v of r.voices) {
       const near = fade(Math.hypot(x - v.l.pos[0], z - v.l.pos[2]), v.l.radius, v.l.radius * FAR)

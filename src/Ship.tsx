@@ -9,7 +9,8 @@ import { swell } from './Scenery'
 import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
-import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, spawn } from './world'
+import { GROUND, HITS, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, plateau, spawn } from './world'
+import { BOARD, PROP_SETS, RIDER_MASS, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
@@ -203,6 +204,31 @@ const JUMP = 5.2
  * high again, which is right: a board pops.
  */
 const HOP_G = 14
+/* ------------------------------------------------------ the project islands
+ *
+ * The board rides up onto them. Every hull was held off the three landmark
+ * islands by `offshore`, the surfer included; he is not any more, and what he
+ * gets instead is a floor — `plateau()` in `world.ts`, the same profile the
+ * island mesh is revolved from, with the Scrabble board's plinth on top. On
+ * it he is still *riding*: the water's own vertical keeps running (`bed` is
+ * simply the higher of the two surfaces, and gravity is what acts over it,
+ * the way it does in the air), so a jump is the same jump and a landing the
+ * same landing, and nothing about the change of mode at the isle's beach is
+ * read here, because `ground()` is still the isles' and is zero on a plateau.
+ * That is the whole reason he does not get off and walk: the beach code
+ * never learns these islands exist.
+ *
+ * What is on them is `plateau.ts`'s: the tiles and the furniture the board
+ * knocks about, and the mine, which is a wall he bounces off.
+ */
+/** How far over a plateau the hull's origin rides — the keel a hair clear of
+ *  the grass, the fins in it, which nobody sees. In the water the origin is
+ *  at the surface with the fins 0.16 under, so this is the same board a
+ *  little higher, not a different board. */
+const SIT = 0.05
+/** Metres of ground above the water over which the water's heel fades out of
+ *  the deck: a board on the grass does not lean to the chop under the island. */
+const DRY_IN = 0.2
 /* ------------------------------------------------------------------ the gait
  *
  * **The duty factor is where the distance comes from, and it is the whole idea
@@ -534,6 +560,21 @@ const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
  */
 export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0 }
 
+/** The board as `plateau.ts` sees it, filled once a frame — see `SIT`. */
+const _board: Board = {
+  x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, spin: 0, len: BOARD.len, r: BOARD.r, m: RIDER_MASS,
+}
+/** And what a prop stands on: the island's ground and the sea, at this
+ *  frame's clock. The swell is `Scenery`'s, so a tile in the lagoon bobs on
+ *  the water the visitor can see. */
+const _terrain = { t: 0 }
+const _here = { land: 0, water: 0 }
+const terrain: Terrain = (wx, wz) => {
+  _here.land = plateau(wx, wz)
+  _here.water = swell(wx, wz, _terrain.t).y
+  return _here
+}
+
 /**
  * The same hull, as the vec2 the landmarks' shaders measure an approach from.
  * They used to recover it by subtracting a constant `CAM_OFFSET` from the
@@ -598,6 +639,10 @@ const RIDE = {
   duty: 0,   // and the fraction of the cycle a foot is on the ground
   rise: 0,   // the ground's slope along his heading, and across it: what puts
   cant: 0,   // one foot higher than the other on a hillside
+  // And one for being on a project island: 1 with the plateau under the
+  // board instead of the sea. The wake reads it — there is no water to
+  // leave one in — and nothing about the pose does, because he is riding.
+  dry: 0,
 }
 /** What `RIDE.heave` is 1 at, units/sec^2. A hull settling onto calm water runs
  *  a few of these; a roller taken at full sail is well over it and clamps. */
@@ -833,6 +878,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // divides by, and one NaN frame hides the ship for the rest of the session.
     const dt = THREE.MathUtils.clamp(delta, 1 / 240, 0.05)
     const g = rig.current
+    // Last frame's hits have been heard. `Sound` runs after this in the same
+    // frame, so whatever is pushed below is what it plays.
+    HITS.length = 0
 
     // Coming ashore, and it is read before anything else because it decides how
     // fast he is going: the speed below is his on the board or his on foot, and
@@ -986,10 +1034,30 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       // A hull cannot climb a beach. Pushed back onto the mooring circle rather
       // than stopped dead, so a boat leaning on a coast keeps whatever part of its
       // motion runs along it and slides round the island instead of sticking.
-      // The isles are not a wall for the surfer — he walks up them — and they are
-      // for everything else. The landmark islands still are for both: see the
-      // note on `offshore`.
-      if (floats) offshore(g.position, !walks)
+      // No coast is a wall for the surfer any more: he walks up the isles and
+      // rides up the landmark islands (`SIT`), so `offshore` is the boat's.
+      if (floats && !walks) offshore(g.position)
+      // What stands on the landmark islands, against the board. Stepped for
+      // every craft — a tile floating in the lagoon keeps floating while the
+      // visitor is in the saucer — and *hitting* only for the board, riding:
+      // a man on foot never reaches one, and the boat cannot get there. The
+      // mine's wall writes the position and the velocity straight back.
+      _board.x = g.position.x
+      _board.z = g.position.z
+      _board.y = hull.current
+      _board.yaw = yaw.current
+      _board.vx = vel.current.x
+      _board.vz = vel.current.z
+      _board.spin = Math.atan2(Math.sin(yaw.current - lastYaw.current),
+        Math.cos(yaw.current - lastYaw.current)) / dt
+      _terrain.t = REDUCED ? 0 : state.clock.elapsedTime
+      for (const set of PROP_SETS.values()) {
+        stepProps(set, dt, _board, walks && afoot < 0.5, terrain, HITS)
+      }
+      g.position.x = _board.x
+      g.position.z = _board.z
+      vel.current.x = _board.vx
+      vel.current.z = _board.vz
       // And in through a door, if he is on his feet in front of one and facing
       // it. On foot only — a board does not go up a staircase — and not in the
       // air, because a man landing on a doorway is a man who did not choose to
@@ -1103,6 +1171,7 @@ const RISE = 10
     let ride = 0
     let roll = 0
     let heel = 0
+    let landK = 0
     let vertAccel = (climbVel - altVel.current) / dt
     if (!floats) {
       const land = clearance(g.position.x, g.position.z, vel.current.x, vel.current.z)
@@ -1118,11 +1187,16 @@ const RISE = 10
     }
     if (floats) {
       const surface = s.y
+      // And the ground of a project island under the board — see `SIT`. A
+      // long way under the sea for the boat, and everywhere there is no
+      // island, so that `max` against the water is the water.
+      const bed = walks ? plateau(g.position.x, g.position.z) + SIT : -1e9
+      const dry = bed > surface
       if (reset.current) {
         // A deep link puts the hull down beside a landmark. It arrives floating,
         // not falling from wherever the last one was.
         reset.current = false
-        hull.current = surface
+        hull.current = Math.max(surface, bed)
         groundY.current = ground(g.position.x, g.position.z)
         hop.current = hopVel.current = 0
         hullVel.current = 0
@@ -1137,9 +1211,10 @@ const RISE = 10
       const surfVel = THREE.MathUtils.clamp((surface - lastSurface.current) / dt, -SURF_MAX, SURF_MAX)
       lastSurface.current = surface
 
-      const flying = hull.current > surface + SKIN
-      // Off the top of a crest: the kick that turns a hop into a jump.
-      if (flying && !flew.current && hullVel.current > water.popMin) {
+      const flying = hull.current > Math.max(surface, bed) + SKIN
+      // Off the top of a crest: the kick that turns a hop into a jump. A
+      // crest's, and not a beach's — riding up onto an island is a climb.
+      if (flying && !flew.current && hullVel.current > water.popMin && !dry) {
         hullVel.current = Math.min(hullVel.current * water.pop, water.launch)
       }
       // And back into it. The impact is last frame's fall, before the spring
@@ -1170,15 +1245,32 @@ const RISE = 10
       }
 
       const wasVel = hullVel.current
-      hullVel.current += dt * (flying
+      // Over an island there is no spring: gravity, and a floor. That is what
+      // makes a jump off the deck the same jump as one off the water, and a
+      // slope down the beach a thing he skims down rather than is lowered
+      // down — the ground falls away a little faster than he does.
+      hullVel.current += dt * (flying || dry
         ? -GRAV
         : (surface - hull.current) * water.buoyK - (hullVel.current - surfVel) * water.buoyC)
       hullVel.current = Math.min(hullVel.current, water.launch)
       hull.current += hullVel.current * dt
-      // A hull landing at six units a second would otherwise be a metre under
-      // before the spring caught it, which on displaced water is a hull that
-      // disappeared. It stops at the draft it has, and the spring floats it back.
-      if (hull.current < surface - water.sink) {
+      if (dry) {
+        if (hull.current < bed) {
+          // The floor, and a landing on it is spent here — the fall is
+          // stopped dead, so there is no next frame to read it off. No foam:
+          // that ring is the water's.
+          if (flew.current && -hullVel.current > SPLASH_MIN) {
+            const impact = Math.min(-hullVel.current, water.launch)
+            springVel.current.y += impact * water.squash
+            RIDE.slam = Math.min(impact / SPLASH_FULL, 1)
+          }
+          hull.current = bed
+          hullVel.current = Math.max(hullVel.current, 0)
+        }
+      } else if (hull.current < surface - water.sink) {
+        // A hull landing at six units a second would otherwise be a metre under
+        // before the spring caught it, which on displaced water is a hull that
+        // disappeared. It stops at the draft it has, and the spring floats it back.
         hull.current = surface - water.sink
         hullVel.current = Math.max(hullVel.current, 0)
       }
@@ -1196,6 +1288,12 @@ const RISE = 10
       // painted water, the other is a thirty-degree face you can see.
       roll = soft((s.dx * cy - s.dz * sy) * water.tilt + (s.rx * cy - s.rz * sy), water.heel) * wet.current
       heel = soft(-((s.dx * sy + s.dz * cy) * water.tilt + (s.rx * sy + s.rz * cy)), water.heel) * wet.current
+      // On an island the sea is still under the ground and its chop is still
+      // in `s`; a board on the grass does not heel to it. Faded over the
+      // first `DRY_IN` of beach so the waterline is not a step.
+      landK = THREE.MathUtils.smoothstep(bed - surface, 0, DRY_IN)
+      roll *= 1 - landK
+      heel *= 1 - landK
 
       // And the beach. The buoyancy above keeps running underneath — the water
       // is still there and he is going back to it — so this is a blend and not
@@ -1316,6 +1414,7 @@ const RISE = 10
     RIDE.slope += (heel - RIDE.slope) * react
     RIDE.bank += (bank - RIDE.bank) * react
     RIDE.heave += (THREE.MathUtils.clamp(vertAccel / SHOCK, -1, 1) - RIDE.heave) * react
+    RIDE.dry += (landK - RIDE.dry) * react
 
     // And the walk's five. The phase is advanced by *distance* and not by time,
     // so a rider who stops stops mid-step, and boost is a longer stride at the
@@ -1814,7 +1913,7 @@ function Surfer({ visible, onRider }: { visible: boolean; onRider: () => void })
     // board is in the air. It fades over the first sand rather than over the
     // whole change of mode.
     WAKE_SPEED.value += (Math.min(SHIP.vel.length() / SPEED, 1) *
-      (1 - THREE.MathUtils.smoothstep(RIDE.land, 0.02, 0.28)) - WAKE_SPEED.value) * 0.12
+      (1 - THREE.MathUtils.smoothstep(RIDE.land, 0.02, 0.28)) * (1 - RIDE.dry) - WAKE_SPEED.value) * 0.12
 
     // The board goes where `Rider` put it, off his pelvis — see `CARRY_POS`.
     // The leash is drawn only while both its ends are where it was built for

@@ -1,4 +1,5 @@
-import { Suspense, useMemo, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
@@ -6,7 +7,10 @@ import {
   mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, sin, smoothstep,
   step, vec2, vec3, vec4,
 } from 'three/tsl'
-import { LANDMARKS, type Landmark } from './world'
+import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
+import {
+  PROP_SETS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet, type Prop, type PropSet,
+} from './plateau'
 import { SHIP_XZ } from './Ship'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
@@ -261,11 +265,14 @@ function makeMats(hi: boolean) {
   }
 }
 
-/** The material a mesh asks for by name, falling back to its prefix. */
+/** The material a mesh asks for by name, falling back to its prefix. The
+ *  part after a `~` is which prop the mesh belongs to (see `Detailed`), and it
+ *  is not the material's business. */
 function matFor(m: Mats, name: string): THREE.Material {
-  const key = name.split('_')[0]
+  const base = name.split('~')[0]!
+  const key = base.split('_')[0]
   console.assert(import.meta.env.PROD || key in MATERIAL_KEYS, `no material for ${name}`)
-  return m.byName[name] ?? m[key as Exclude<keyof Mats, 'byName'>] ?? m.frame
+  return m.byName[base] ?? m[key as Exclude<keyof Mats, 'byName'>] ?? m.frame
 }
 
 // --------------------------------------------------------------- the mine
@@ -427,14 +434,66 @@ const MODEL: Record<string, string> = {
   board: boardUrl,
 }
 
-function Detailed({ url, m }: { url: string; m: Mats }) {
+type Part = { geometry: THREE.BufferGeometry; name: string }
+
+/**
+ * A found tile, landed: the settle shader's own transform at `w = 1`, baked
+ * into geometry once, with the normals turned by the same untip. A knocked
+ * tile is drawn from this and from the plain tile material, because the
+ * shader keys its settle on the ship's distance and a tile lying on the
+ * grass twenty metres off would otherwise float back up to where it hung.
+ * Change the shader and change this — `plateau.check.ts` cannot see either.
+ */
+function landedGeometry(src: THREE.BufferGeometry): THREE.BufferGeometry {
+  const g = src.clone()
+  const pos = g.attributes.position as THREE.BufferAttribute
+  const nor = g.attributes.normal as THREE.BufferAttribute | undefined
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i)
+    const k = Math.min(Math.max(Math.round(x / CELL - 1), 0), 6)
+    const centreY = FOUND_Y + (k - 3) * FOUND_STEP
+    const a = -(FOUND_TILT[0]! + k * FOUND_TILT[1]!)
+    const dy = pos.getY(i) - centreY
+    const dz = pos.getZ(i) - FOUND_Z
+    const c = Math.cos(a)
+    const sn = Math.sin(a)
+    pos.setXYZ(i, x, centreY + dy * c - dz * sn - (centreY - TILE_Y), FOUND_Z + dy * sn + dz * c)
+    if (nor) {
+      const ny = nor.getY(i)
+      const nz = nor.getZ(i)
+      nor.setXYZ(i, nor.getX(i), ny * c - nz * sn, ny * sn + nz * c)
+    }
+  }
+  return g
+}
+
+/** Where a found tile's settle is, 0 hanging and 1 landed, for tile `k` at
+ *  `d` from the ship — the CPU twin of the shader's `t` and `w`, so that the
+ *  physics knows which tiles are on the board yet. */
+function settled(k: number, d: number): number {
+  const t = REDUCED ? 0 : 1 - THREE.MathUtils.smoothstep(d, 4.2, 8.5)
+  return THREE.MathUtils.clamp(t * 1.75 - k * 0.105, 0, 1)
+}
+
+function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
   const { scene } = useGLTF(url)
   // Flattened to a list of meshes with their transforms baked in, rather than
   // rendered as a `<primitive>`: it keeps the tree the same shape the blockout
   // builds, which is what lets the box check below read either of them.
-  const parts = useMemo(() => {
+  //
+  // A mesh named `<material>_<part>~<prop>` is one piece of a loose prop —
+  // a tile, the table with what is on it — and every piece with the same
+  // `~prop` is one rigid thing to the physics (`plateau.ts`). Its geometry
+  // stays exactly where the file put it; the group it sits in is what moves.
+  // The disc it is to the board is its footprint's own half-width, and its
+  // turning point the footprint's centre. A landmark in `WALLED` is a wall
+  // instead: the hull of everything in the band, read from the same vertices.
+  const built = useMemo(() => {
     scene.updateMatrixWorld(true)
-    const out: { geometry: THREE.BufferGeometry; name: string }[] = []
+    const fixed: Part[] = []
+    const loose = new Map<string, Part[]>()
+    const band = WALLED[l.landmark]
+    const wallPts: { x: number; z: number }[] = []
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh
       if (!mesh.isMesh) return
@@ -442,15 +501,101 @@ function Detailed({ url, m }: { url: string; m: Mats }) {
         import.meta.env.PROD || mesh.name.split('_')[0] in MATERIAL_KEYS,
         `${url}: no material for ${mesh.name}`,
       )
-      out.push({ geometry: mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), name: mesh.name })
+      const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld)
+      if (band) footprint(geometry.attributes.position.array, band[0], band[1], wallPts)
+      const prop = mesh.name.split('~')[1]
+      const part = { geometry, name: mesh.name }
+      if (!prop) fixed.push(part)
+      else if (loose.has(prop)) loose.get(prop)!.push(part)
+      else loose.set(prop, [part])
     })
-    return out
-  }, [scene, url])
+    const props: Prop[] = []
+    const pieces: { id: string; parts: Part[]; landed?: THREE.BufferGeometry }[] = []
+    const box = new THREE.Box3()
+    for (const [id, parts] of loose) {
+      box.makeEmpty()
+      for (const part of parts) {
+        part.geometry.computeBoundingBox()
+        box.union(part.geometry.boundingBox!)
+      }
+      const px = (box.min.x + box.max.x) / 2
+      const pz = (box.min.z + box.max.z) / 2
+      const w = box.max.x - box.min.x
+      const d = box.max.z - box.min.z
+      // A tile is a tile; everything else weighs what its footprint says,
+      // in tiles — a table about seven, the easel about twelve.
+      const tile = /^[tf]\d/.test(id)
+      const mass = tile ? 1 : 2 + 8 * w * d
+      // A hair under, so a row of tiles laid a cell apart is not a row of
+      // discs leaning on each other.
+      const r = 0.5 * Math.max(w, d) * 0.98
+      props.push(makeProp(id, px, pz, r, mass, GROUND + deckAt(l.landmark, px, pz)))
+      const found = parts.find((p) => p.name.startsWith('panel_found'))
+      pieces.push({ id, parts, landed: found ? landedGeometry(found.geometry) : undefined })
+    }
+    const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props, band ? [hull2d(wallPts)] : [])
+    return { fixed, pieces, set }
+  }, [scene, url, l])
+
+  // Published for the flight controller the moment the model is in, and for
+  // as long as it is: `Ship` reads the map once a frame and touches nothing
+  // that is not in it.
+  useEffect(() => {
+    PROP_SETS.set(l.slug, built.set)
+    return () => { PROP_SETS.delete(l.slug) }
+  }, [built, l.slug])
+
+  const groups = useRef<(THREE.Group | null)[]>([])
+  const hanging = useRef<(THREE.Mesh | null)[]>([])
+  const landed = useRef<(THREE.Mesh | null)[]>([])
+  useFrame(() => {
+    const set: PropSet = built.set
+    for (let i = 0; i < set.props.length; i++) {
+      const p = set.props[i]!
+      const g = groups.current[i]
+      if (g) {
+        g.position.set(p.px + p.x, p.y, p.pz + p.z)
+        g.rotation.y = p.yaw
+      }
+      const piece = built.pieces[i]!
+      if (!piece.landed) continue
+      // A found tile: the physics may have it once the shader has put it
+      // down, and while it is out of place it is drawn landed and plain.
+      const wx = set.cx + p.px * Math.cos(set.rot) + p.pz * Math.sin(set.rot)
+      const wz = set.cz - p.px * Math.sin(set.rot) + p.pz * Math.cos(set.rot)
+      const k = Math.min(Math.max(Math.round(p.px / CELL - 1), 0), 6)
+      p.fixed = !p.loose && settled(k, Math.hypot(wx - SHIP_XZ.value.x, wz - SHIP_XZ.value.y)) < 1
+      const h = hanging.current[i]
+      const d = landed.current[i]
+      if (h) h.visible = !p.loose
+      if (d) d.visible = p.loose
+    }
+  })
+
   return (
     <>
-      {parts.map((p, i) => (
+      {built.fixed.map((p, i) => (
         <mesh key={i} geometry={p.geometry} material={matFor(m, p.name)} />
       ))}
+      {built.pieces.map((piece, i) => {
+        const p = built.set.props[i]!
+        return (
+          <group key={piece.id} ref={(g) => { groups.current[i] = g }} position={[p.px, 0, p.pz]}>
+            <group position={[-p.px, 0, -p.pz]}>
+              {piece.parts.map((part, j) =>
+                piece.landed && part.name.startsWith('panel_found') ? (
+                  <group key={j}>
+                    <mesh ref={(e) => { hanging.current[i] = e }} geometry={part.geometry} material={matFor(m, part.name)} />
+                    <mesh ref={(e) => { landed.current[i] = e }} geometry={piece.landed} material={m.panel} visible={false} />
+                  </group>
+                ) : (
+                  <mesh key={j} geometry={part.geometry} material={matFor(m, part.name)} />
+                ),
+              )}
+            </group>
+          </group>
+        )
+      })}
     </>
   )
 }
@@ -469,14 +614,16 @@ function fits(g: THREE.Group | null, l: Landmark, tag: string) {
   if (!g || !import.meta.env.DEV || checked.has(l.slug + tag)) return
   checked.add(l.slug + tag)
   _box.makeEmpty()
-  for (const c of g.children) {
+  // Every mesh under the group, wherever it sits: a prop's two groups cancel
+  // at rest, which is when this runs, so its geometry's own box is its box.
+  g.traverse((c) => {
     const mesh = c as THREE.Mesh
-    if (!mesh.geometry) continue
+    if (!mesh.isMesh) return
     mesh.updateMatrix()
     mesh.geometry.computeBoundingBox()
     _one.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrix)
     _box.union(_one)
-  }
+  })
   const s = _box.getSize(new THREE.Vector3())
   console.assert(
     // A tilted beam's end cap is square to the beam, so a leg foot buries a
@@ -503,11 +650,11 @@ export function Landmarks({ near }: { near: string | null }) {
           // Turned to face the world's centre, which is where the visitor comes
           // from: the adit, the canvas and the tile rack all point at the
           // approach without any of them carrying a hand-tuned angle.
-          <group key={l.slug} position={l.pos} rotation-y={Math.atan2(-l.pos[0], -l.pos[2])}>
+          <group key={l.slug} position={l.pos} rotation-y={landmarkYaw(l)}>
             {url ? (
               <Suspense fallback={blockout}>
                 <group ref={(g) => { fits(g, l, 'model') }}>
-                  <Detailed url={url} m={m} />
+                  <Detailed url={url} m={m} l={l} />
                 </group>
               </Suspense>
             ) : (

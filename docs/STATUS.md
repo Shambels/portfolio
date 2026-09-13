@@ -5120,3 +5120,199 @@ through the whole journey:
 
 Every one enters at ~1.4 s, tops out at ~14 s, steps off at ~15 s, with zero
 re-entries and zero spins. Still not seen moving — `npm run dev` is Seb's.
+
+
+## The project islands are ridden — tiles that fly, a studio that goes over, a mine that rings
+
+Seb's brief: the surfer crosses the three landmark islands the way he crosses
+the isle, but stays on the board; the Scrabble tiles and the studio furniture
+are knocked the way they were hit; the mine does not move, and a board that
+hits it bounces off with a bang. Asked, and answered: the seven found tiles
+are knockable once the shader has put them down; knocked things ease back
+after a pause, whether or not the visitor is still there; a piece that reaches
+the water floats; tiles and furniture make a wooden sound, the mine a metal
+one, when sound is on.
+
+- [x] The surfer rides up onto the three landmark islands — `plateau()` in
+      `src/world.ts`, the same profile the island mesh is revolved from,
+      moved to `src/plateau.ts` so node can load it
+- [x] He stays on the board there, and jumps there — no walking transition
+- [x] Every tile is a loose prop; the easel, the table and the leaning canvas
+      are three more — `tools/board.py`, `tools/easel.py`, re-exported
+- [x] Contacts: board against prop, prop against prop, prop off a step, prop
+      in the sea, and the tidy-up — `src/plateau.ts`, `src/plateau.check.ts`
+- [x] The mine is a wall built from its own model; the board bounces
+- [x] Three knocks in `src/Sound.tsx` — tile, wood, metal — off `HITS`
+- [x] `?debug` draws the discs and the wall
+- [ ] Judged on real hardware: the feel of a hit, how far a tile goes, whether
+      the easel should topple rather than slide — Seb
+
+### The floor, and why the beach code never hears about it
+
+The surfer was held off the landmark islands by `offshore` like every hull. He
+is not any more: `Ship.tsx` no longer calls `offshore` for him at all, and
+what he gets instead is a **floor** — `plateau(x, z)`, which is `GROUND` on
+the flat top, `Islands.tsx`'s own profile down the beach (the profile and the
+rim moved to `plateau.ts` so both the mesh and the floor are one function),
+and the Scrabble board's plinth on top of that (`DECKS`). In the vertical he
+is still *riding*: `bed` is the higher of the plateau and the swell, gravity
+acts over it exactly as it does in the air, and the buoyancy spring keeps
+running underneath — so a jump off the deck is the same jump as one off a
+crest, a landing on the grass is the same landing (spent at the floor, since
+the fall is stopped dead there and there is no next frame to read it off; no
+foam, that ring is the water's), and riding down the beach is a skim rather
+than a lowering, because the ground falls away a hair faster than he does.
+The water's heel fades out over the first `DRY_IN` = 0.2 m of ground above the
+sea, so a board on the grass does not lean to the chop under the island.
+
+He does not get off, and nothing had to say so: `ashore()` reads `ground()`,
+which is the isles', and is zero on a plateau. The beach code never learns
+these islands exist. `SIT` = 0.05 is how far over the plateau the hull's
+origin rides — keel a hair clear of the grass, fins in it.
+
+`RIDE.dry` is the one new number the rider's interface carries: 1 with the
+plateau under the board, and only the wake reads it (no water to leave one
+in). The spray and the sea in the mix already stopped at a coastline.
+
+### The props, and what is deliberately not a physics engine
+
+`src/plateau.ts` — pure arithmetic, no three — is the whole of it. A prop is
+one rigid thing in its landmark's own space: XZ, a height offset from where
+it rested, a yaw, and the four velocities. **The board is a capsule** (2.0 by
+0.63: a spine of 1.37 with 0.315 of radius) and **every prop is a disc** of
+its own footprint's half-width. Contact is closest-point-on-spine against
+disc centre; the impulse is the usual one-dimensional rigid-body impulse with
+the rider at eighty tiles of mass, `BOUNCE` 0.35, and a friction share of
+`GRIP` 0.35 along the contact — which is the whole of a disc's spin, because
+a disc struck through its centre would otherwise leave without turning. The
+board's own yaw rate is in the contact velocity, so a board swept round into a
+tile hits it without moving anywhere. Props hit props the same way; a row of
+tiles taken end-on hands the motion down the row. A light thing hit hard hops.
+
+On the floor a prop slides under a fixed deceleration (`DRAG` 10 — a tile
+slapped at nine units a second stops about four metres on), drops the step
+when it leaves the plinth, and if it reaches ground below the sea it
+**floats**: a spring to the surface and the water's drag, on `Scenery`'s own
+swell, so a tile in the lagoon bobs on the water the visitor can see. The
+model's own overlaps — the leaning canvas is a disc through the table's — are
+measured once at rest (`slack`) and kept, so nothing pushes apart on load.
+
+The **tidy-up**: five seconds after everything out of place has stopped
+(`TIDY_AFTER`), it all eases home over 1.2 s (`TIDY_FOR`), a smoothstep from
+where each thing lay. A hit during the ease stops the ease where it has got
+to and the rest is physics.
+
+**What was decided against**, and each is one decision away: a table that
+topples (props keep their tilt; the easel goes over sideways as a slider), a
+tile landing on its edge, the board plinth's rim as a wall to a slow tile (it
+is 5 cm; tiles cross it), and tiles hit by the saucer or the boat (Seb said
+the board).
+
+### Props in the model, not in a list
+
+A mesh named `<material>_<part>~<prop>` is one piece of a loose prop, and
+every piece sharing a `~prop` is one rigid thing: `panel_tile~t00` … `t17`
+(the eleven played and the seven in the rack), `panel_found~f0` … `f6`, and
+on the studio island `~easel` (the A-frame, the canvas on it, its stretchers,
+the tray's brushes and tube, the palette), `~table` (the table, the flat
+canvas, the jar and its brushes) and `~lean` (the canvas on the ground
+against the table's end). `Landmarks.tsx` reads the suffix, keeps every
+geometry exactly where the file put it, and gives each prop two nested groups
+— turned about the footprint's centre, offset by the physics. `matFor` strips
+the suffix, so `panel_canvases~easel` still gets the painting shader and
+`panel_found~f3` the settle. The material-name contract and the blockout-box
+check are untouched (`fits` traverses now).
+
+The two scripts split what they used to join. `board.py`'s tiles are one
+object each, `easel.py`'s three canvases each carry their prop, and its
+timber is joined per prop rather than per landmark. Rebuilt in the cloud
+container with `bpy 4.5.13`: **board.glb 44 → 49 kB, 1464 tris; easel.glb 62
+→ 65 kB, 2012 tris.** Both well under the landmark row. Draw calls: +25 on the
+board, +7 on the studio.
+
+**The found tiles.** The settle shader keys each tile on its own x and on the
+ship's distance, and it does not know a tile has been knocked: one lying on
+the grass twenty metres off would float back up to where it hung. So each
+found tile is drawn twice — the file's geometry under the settle material,
+and a copy with the shader's own transform at `w = 1` baked in
+(`landedGeometry`, the CPU twin) under the plain tile material — and
+`loose` picks which is visible. The physics may only have a found tile once
+its `w` has reached 1, which `Detailed` computes each frame the same way the
+shader does (`settled`). Change the shader and change both; no check can see
+either.
+
+### The wall
+
+`WALLED` says which landmark shapes are a wall (the mine), and the band of
+height the wall is read from: 0.02 to 1.2 m, the rock and the head-frame's
+legs and not a strut crossing overhead. `Detailed` takes every vertex in the
+band from the loaded model and `hull2d` makes one convex polygon of them —
+so the adit gets a wall across its mouth, which is right for a surfboard.
+Board against wall is spine against polygon: an end inside is pushed out
+through the nearest edge, a spine nearer than the board's radius is pushed
+out along the closest pair of points, the velocity's share into the wall is
+reflected at `WALL_BOUNCE` 0.55, and that share is the bang.
+
+### The knocks
+
+Three one-shots in `Sound.tsx`, built once and gated like the voices, played
+off `HITS` — a list `Ship` empties at the top of its frame and fills, read by
+`Sound` later in the same frame, two in one frame a hair apart. A **tile** is
+the board voice's own click, one at a time. **Wood** is lower and longer,
+noise with a 96 Hz knock under it. **Metal** is five triangle partials at
+ratios that are not harmonics of anything (1, 1.58, 2.27, 3.05, 4.1 × 185 Hz)
+through a highpass, with the noise bed's own click on the front; the ring's
+length and level are the hit's force. `KNOCK` 0.55 is the bus.
+
+### Cost
+
+`plateau.ts` and the two model changes are the whole of it. Canvas chunk:
+not measured (no build here); the module is about 3 kB gz by eye and `Ship`
+grew a hundred lines. Per frame at sea: one `PROP_SETS` loop of three
+early-outs. Near an island with things moving: N props against the capsule,
+N² / 2 disc pairs (N ≤ 25), one terrain read per moving prop.
+
+### Verified
+
+`npx tsc -b` clean on the device and in the container; `npm run check` green,
+nine checks now. `plateau.check.ts` builds the mine's polygon from the real
+`mine.glb` the way the browser does and rides a board at it on eight bearings
+and from the side: never a frame inside, the approach speed reversed, a bang
+over 0.5 each time. A tile hit square leaves along the board's heading at
+1.2–1.45 × the closing speed and the board keeps 97% of its own; one clipped
+leaves at an angle and spins; a row taken end-on moves at least three; a tile
+pushed off the plinth ends 0.21 lower, on the ground under it to a
+millimetre; one pushed off the island ends floating with its base at the
+water; and five seconds later everything is back to the millimetre with
+nothing loose.
+
+Seen moving, at a frame a second under swiftshader, in `Claude outputs/`:
+the surfer riding up onto the Scrabble board and across it with tiles
+knocked off the far side (`plateau-board-*.png`); into the mine and off it,
+twice, sliding along the wall (`plateau-mine-*.png`); through the studio,
+easel one way and table the other, and a jump off the far edge
+(`plateau-easel-*.png`). No assertion fired: the blockout-box check passed
+on both re-exported models.
+
+### Not verified
+
+Frame rate with N² pairs running — trivially cheap on paper, unmeasured. How
+far a tile *should* go, and whether `BOUNCE`, `GRIP` and `DRAG` are the
+numbers; those are the feel and they are Seb's. The knocks on real speakers.
+Whether a knocked found tile reads right in the moment it swaps from the
+settle material to the plain one (same geometry, same colour; the warm tint
+the settle adds is 30% and goes).
+
+### Needs Seb
+
+- Ride into everything and say what is wrong: too light, too far, too slow to
+  tidy. Every number named above is one constant.
+- Whether the easel should topple. A slider reads as a sled; a topple is a
+  tilt axis, a pivot at the downhill feet and about forty lines.
+- Whether the tidy-up should also wait for the visitor to leave: as built it
+  runs under him if he stands still five seconds.
+- The board's plinth rim: a wall to tiles, or not. Not, as built.
+- The work is uncommitted. The two by-products of making it are deleted: the
+  patch that brought the container's clone up to this checkout's HEAD was
+  `git diff 71ed542 36d793d` and is reproducible from either end, and the
+  fragment of this section was this section.
