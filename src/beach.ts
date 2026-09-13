@@ -156,3 +156,75 @@ export function altitude(water: number, sand: number, land: number, airborne = f
   if (airborne) return Math.max(sand, water)
   return Math.max(sand, water + (sand - water) * S(0, WALK_LAND, land))
 }
+
+/**
+ * The steepest ground he will walk up, as a rise over a run — 60 degrees.
+ *
+ * There was no such number until the crag isle, and its absence was invisible
+ * while the only land in the world was `palm-isle`, whose steepest flank is
+ * 55.1 degrees: a man who can climb anything and a man who can climb 60
+ * degrees walk that island identically. It stopped being invisible the moment
+ * there was a cliff. The strand's back wall is 83 degrees and the flank above
+ * the fall is 80, and a man with no limit walks straight up both of them —
+ * over the doorway he was trying to go through, and out of the world the
+ * island was drawn as.
+ *
+ * So: 60, chosen against the island that already exists rather than against a
+ * building code. `beach.check.ts` asserts that nothing on `palm-isle` is
+ * refused by it, which is what keeps that island exactly the island it was.
+ */
+export const MAX_CLIMB = Math.tan((60 * Math.PI) / 180)
+
+/**
+ * A step he is trying to take, with the part of it that climbs a wall taken
+ * out — so he slides along the foot of a cliff instead of walking up it.
+ *
+ * A projection and not a stop, for the reason `offshore` is a push and not a
+ * stop: a man leaning on a slope keeps whatever part of his motion runs along
+ * it. Walked straight at a cliff he arrives and stays; walked at it on the
+ * slant he follows it round, which on this island is how you find a door.
+ *
+ * `ground` is passed in rather than imported, so this file stays what it is —
+ * arithmetic with no `three` and no island in it, which is what lets the check
+ * walk a man up the real one in node.
+ */
+export function scarp(
+  fx: number, fz: number, tx: number, tz: number,
+  ground: (x: number, z: number) => number,
+): { x: number; z: number } {
+  const mx = tx - fx
+  const mz = tz - fz
+  const run = Math.hypot(mx, mz)
+  if (run < 1e-6) return { x: tx, z: tz }
+  const here = ground(fx, fz)
+  if (ground(tx, tz) - here <= run * MAX_CLIMB) return { x: tx, z: tz }
+
+  // The slope's own uphill direction, and his step with that component removed.
+  const e = 0.4
+  const gx = (ground(fx + e, fz) - ground(fx - e, fz)) / (2 * e)
+  const gz = (ground(fx, fz + e) - ground(fx, fz - e)) / (2 * e)
+  const gl = Math.hypot(gx, gz)
+  // Too steep and yet flat is a discontinuity, not a slope, and the only thing
+  // in this world that makes one is the alcove's own back wall seen exactly
+  // edge-on. Nothing to slide along: he stays.
+  if (gl < 1e-6) return { x: fx, z: fz }
+  const ux = gx / gl
+  const uz = gz / gl
+  const up = mx * ux + mz * uz
+  let sx = mx - ux * up
+  let sz = mz - uz * up
+  // The contour is straight and the wall is not, so what is left after the
+  // projection can still climb — most of all round the inside of the alcove,
+  // where the wall curves away under his feet within a step. Shortened rather
+  // than refused: four halvings, so he slows into a corner instead of
+  // sticking in it, and the one place that showed was a man walking at the
+  // back of the strand from twenty degrees off and stopping dead two metres
+  // wide of the doorway.
+  for (let k = 0; k < 4; k++) {
+    if (ground(fx + sx, fz + sz) - here <= run * MAX_CLIMB) break
+    sx *= 0.5
+    sz *= 0.5
+  }
+  if (ground(fx + sx, fz + sz) - here > run * MAX_CLIMB) return { x: fx, z: fz }
+  return { x: fx + sx, z: fz + sz }
+}

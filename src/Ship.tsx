@@ -7,10 +7,10 @@ import { useInput } from './useInput'
 import { steer, swing } from './camera'
 import { swell } from './Scenery'
 import {
-  BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow,
+  BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
 import { GROUND, SPLASH, VIEW, ground, landmarkAt, landmarkOf, offshore, spawn } from './world'
-import { STAIR_LATERAL, atDoor, stairAt, stairLength } from './stairs'
+import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
@@ -422,6 +422,10 @@ const CAVE_EYE = 1.45
 /** How much of the passage he may drift across, per second, per unit of
  *  sideways push. He is on a rail; this is the width of it. */
 const CAVE_SWAY = 0.8
+
+/** And how fast he is drawn back into the middle of it when a doorway has let
+ *  him in off the centreline — metres a second. */
+const CAVE_DRAW = 3
 
 const CAM_RISE = 1.8
 const CAM_AIM = 4
@@ -894,8 +898,13 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       const fz = Math.cos(here.yaw)
       const along = vel.current.x * fx + vel.current.z * fz
       const across = vel.current.x * fz - vel.current.z * fx
-      caveLat.current = THREE.MathUtils.clamp(
-        caveLat.current + across * CAVE_SWAY * dt, -STAIR_LATERAL, STAIR_LATERAL)
+      caveLat.current += across * CAVE_SWAY * dt
+      // Drawn back inside the passage rather than snapped to it: on the frame
+      // he comes through a door he may be a metre wide of the centreline.
+      const over = Math.abs(caveLat.current) - STAIR_LATERAL
+      if (over > 0) {
+        caveLat.current -= Math.sign(caveLat.current) * Math.min(over, CAVE_DRAW * dt)
+      }
       const want = caveS.current + along * dt
       const len = stairLength()
       if (want <= 0 && along < 0) {
@@ -908,13 +917,16 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         g.position.x = here.x - fx * 1.1
         g.position.z = here.z - fz * 1.1
       } else if (want >= len && along > 0) {
-        // And out of the top onto the flank, which is the same handover the
-        // other way up: the exit's floor is the flank's height by construction.
+        // And off the end of the balcony onto the terrace, which is the thing
+        // that makes the top an exit rather than a dead end. The shelf starts
+        // at the ledge's own outer end and at its own height — `isles.ts` says
+        // so and `stairs.check.ts` asserts it — so this is a step onto ground
+        // and not a drop onto it.
         caveS.current = null
         caveLat.current = 0
-        const top = stairAt(len)
-        g.position.x = top.x + Math.sin(top.yaw) * 1.1
-        g.position.z = top.z + Math.cos(top.yaw) * 1.1
+        const off = stairStepOff()
+        g.position.x = off.x
+        g.position.z = off.z
       } else {
         caveS.current = THREE.MathUtils.clamp(want, 0, len)
         const at = stairAt(caveS.current)
@@ -925,7 +937,20 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         vel.current.set(ax * along, 0, az * along)
       }
     } else {
+      const wasX = g.position.x
+      const wasZ = g.position.z
       g.position.addScaledVector(vel.current, dt)
+      // And the part of that step which tried to climb a wall, taken back out.
+      // On his feet only: a hull is held off a coast by `offshore` and the
+      // saucer flies over it. `scarp` is a projection, so walking at a cliff on
+      // the slant follows it round — which on the crag isle is how a man finds
+      // the doorway at the back of the strand instead of walking over the top
+      // of it.
+      if (walks && afoot > 0.5) {
+        const slid = scarp(wasX, wasZ, g.position.x, g.position.z, ground)
+        g.position.x = slid.x
+        g.position.z = slid.z
+      }
       // A hull cannot climb a beach. Pushed back onto the mooring circle rather
       // than stopped dead, so a boat leaning on a coast keeps whatever part of its
       // motion runs along it and slides round the island instead of sticking.
@@ -938,11 +963,30 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       // air, because a man landing on a doorway is a man who did not choose to
       // go in. `atDoor` is what refuses the wrong side: the mouth is on a
       // beach, and a beach is a place a wave can put you.
-      if (walks && afoot > 0.9 && hop.current <= 0 && wet.current < 0.5) {
-        const door = atDoor(g.position.x, g.position.z, yaw.current)
+      //
+      // `wet` was in this condition and had no business being: it is 1 in the
+      // water and 0 in the air, and on a beach it is 1, because the buoyancy
+      // spring is still floating at sea level under the sand he is standing
+      // on. The door could never open. What was meant by it is `afoot`, which
+      // already says he is on his feet on land, and that is the whole test.
+      if (walks && afoot > 0.9 && hop.current <= 0) {
+        const door = atDoor(g.position.x, g.position.z, yaw.current, groundHere)
         if (door) {
-          caveS.current = door === 'mouth' ? 0 : stairLength()
-          caveLat.current = 0
+          // Onto the rail where he already is, rather than at the end of it.
+          // The porch and the balcony run the rail out to the ground he walks
+          // on at each end, and this is what stops him being slid along it
+          // anyway the moment the trigger answers.
+          const s = stairNearest(g.position.x, g.position.z, groundHere)
+          const on = stairAt(s)
+          caveS.current = s
+          // NOT clamped to the passage's width. He keeps exactly the offset he
+          // walked in with, and the clamp below draws him into the middle over
+          // the next third of a second — so stepping through a doorway is a
+          // step and not a jump. The trigger has to be a metre wide to catch a
+          // man who came at the wall on the slant, and a metre is a very
+          // visible teleport.
+          caveLat.current =
+            (g.position.x - on.x) * Math.cos(on.yaw) - (g.position.z - on.z) * Math.sin(on.yaw)
         }
       }
     }

@@ -91,6 +91,41 @@ export type Isle = {
    *  starts putting dips on a radial. */
   crag?: { amp: number; scale: number; from: number; to: number }
 
+  /**
+   * The way down from the top of the stair: a shelf cut round the crag,
+   * spiralling from the lookout to the shoulder at a grade a person can walk.
+   *
+   * Ground and not rail. A path solved to *follow* this flank wanders — the
+   * first crossing of a height jumps from 4.6 m of radius to 13 and back
+   * within a quarter turn, because the crag term puts bumps in it — so the
+   * shelf is cut at a chosen grade instead, and the mountain is what gives way.
+   * Which also means he walks down it with the legs he already has, and
+   * nothing in `Ship.tsx` knows it is there.
+   *
+   * `from` is the bearing it starts on and it is the stair's own exit bearing,
+   * which is a number written down twice: `stairs.check.ts` asserts the two
+   * agree, and that the balcony's end lands on the shelf rather than beside it.
+   */
+  terrace?: {
+    from: number
+    turns: number
+    hand: number
+    y0: number
+    y1: number
+    r0: number
+    r1: number
+    width: number
+    blend: number
+    /** The smallest radius from the spire's axis it is allowed to touch.
+     *
+     *  Not tidiness — it is what makes this term stable. `stairs.ts` solves the
+     *  stair's exit from the flank's own height, and a shelf cut whose inner
+     *  edge reached the doorway moved the doorway, which moved the balcony,
+     *  which moved the shelf: four hand-iterations and the numbers were still
+     *  crawling. Held off the doorway, the two stop arguing. */
+    inner: number
+  }
+
   /** The hidden strand: a disc at the foot of the chute inside which the
    *  ground is capped flat. It takes a bite out of the base of the cliff, so
    *  what is left is an alcove — a few metres of sand with a wall of rock
@@ -159,6 +194,41 @@ export const ISLES: Isle[] = [
     gorge: { width: 0.26, depth: 0.55, lip: 0.20, lipW: 0.04 },
     crag: { amp: 1.8, scale: 0.22, from: 8.5, to: 14.5 },
     strand: { r: 7.0, rad: 2.7, y: 0.62, blend: 0.55 },
+    // The stair comes out at 17.4 m on the bearing 0.628 radians round from
+    // the fall — `STAIR.turns` and `STAIR.hand` in `src/stairs.ts` are what
+    // put it there, and `stairs.check.ts` asserts this agrees with them. From
+    // the lookout the shelf spends two thirds of a turn coming down to the
+    // shoulder, where the flank is gentle enough to walk off it.
+    terrace: {
+      // The balcony's own outer end — a number derived from `STAIR.turns`,
+      // `STAIR.hand` and `STAIR.balcony` in `src/stairs.ts` and written down
+      // here because that file imports this one and not the other way round.
+      // `stairs.check.ts` asserts the two agree to a centimetre, so it cannot
+      // drift quietly.
+      from: CRAG_BEARING + 0.4405,
+      // ROUND THE THICK SIDE, which is the other way from the stair's own
+      // hand. The flank between 40 and 120 degrees off the fall is the one
+      // that spreads as it falls — 17 m of height at 6 m of radius and 5 m at
+      // 18 — and every other bearing is a face. Run the other way the shelf
+      // walked straight out over the lagoon within twenty degrees.
+      hand: 1,
+      // 144 degrees of sweep, 17.4 m down to 6.0, at a mean 29 degrees — and
+      // the flank where it ends stands at 50, which is under `MAX_CLIMB`, so
+      // he can walk off the end of it onto the mountain instead of arriving at
+      // a second dead end. All four of those numbers were searched for rather
+      // than chosen: every shallower descent ended on ground too steep to
+      // leave, and every steeper one was a ramp rather than a path.
+      turns: 0.40,
+      y0: 17.4,
+      y1: 6.0,
+      // The balcony's own end, so he steps off the ledge onto the shelf and
+      // not into the gap between them.
+      r0: 7.068,
+      r1: 9.5,
+      width: 1.7,
+      blend: 1.0,
+      inner: 5.9,
+    },
   },
 ]
 
@@ -384,6 +454,46 @@ export function isleHeight(i: Isle, x: number, z: number): number {
     const d = lagoonDist(i, dx, dz)
     const floor = -i.lagoon.floor * (1 - Math.exp(Math.min(d, 0) / i.lagoon.shelf))
     h = mix(Math.min(h, floor), h, S(0, i.lagoon.band, d))
+  }
+
+
+  // ...and last of all, the terrace, because it is cut into the FINISHED
+  // island and not into a half-built one.
+  //
+  // Cut before the lagoon, its first six metres came out up to ten metres low:
+  // the top of the stair overlooks the lagoon, so the shelf leaves the ledge
+  // within a couple of metres of the lagoon's rim, and the lagoon's own shore
+  // ramp was pulling the path down into it.
+
+  // The terrace: a shelf cut round the flank from the top of the stair down to
+  // the shoulder. One bearing has one place on it, so the nearest point is not
+  // searched for — it is read off the angle, which is what keeps this to six
+  // lines and no iteration.
+  //
+  // It both cuts and fills: `h` is *assigned* the shelf's height inside its
+  // width rather than clamped down to it, because a path across a
+  // sixty-degree face is a cut on its uphill side and a built-out lip on its
+  // downhill one, and a shelf that only ever cut would be a groove with
+  // nothing under its outer half.
+  if (i.terrace) {
+    const T = i.terrace
+    const span = T.turns * Math.PI * 2
+    // How far round from its start, in its own hand, 0 to 2pi.
+    const a = wrap((Math.atan2(dz - oz, dx - ox) - T.from) * T.hand)
+    const k = a < 0 ? a + Math.PI * 2 : a
+    if (k <= span) {
+      const f = k / span
+      const rT = mix(T.r0, T.r1, f)
+      const d = Math.abs(Math.hypot(dx - ox, dz - oz) - rT)
+      // Faded out at both ends of the sweep as well as across it, or the shelf
+      // begins and ends in a wall of its own making.
+      // Barely any fade at the start: the shelf begins under the balcony, and
+      // the balcony is what covers the step it would otherwise begin with.
+      const here = Math.hypot(dx - ox, dz - oz)
+      const on = S(1, 0.9, f) * S(T.width + T.blend, T.width, d) *
+        S(T.inner - 0.7, T.inner, here)
+      h = mix(h, mix(T.y0, T.y1, f), on)
+    }
   }
 
   return h

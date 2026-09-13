@@ -4790,3 +4790,148 @@ same open question the isle had before and now with more cliff to prove it. The
 lever is either a maximum grade in `beach.ts` with an assert beside it — the
 honest one, and new arithmetic rather than a number — or a gentler lagoon
 shore, which costs the forest at the water's edge.
+
+### The cave could not be entered, and why
+
+Seb walked at the doorway and the character climbed the mountain over it. Two
+things were wrong, and the first was not the one it looked like.
+
+**`wet` does not mean "not swimming".** The door's condition was
+`afoot > 0.9 && hop <= 0 && wet < 0.5`, and `wet` is 1 in the water and 0 in
+the air — which on a beach is 1, because the buoyancy spring is still floating
+at sea level under the sand he is standing on. The condition could never be
+true on land. The door never opened, in any circumstance, and the reason it
+took a person to find it is that every assert in `stairs.check.ts` tested
+`atDoor` and none of them tested the frame loop's own gate.
+
+**And nothing stopped him climbing an 83-degree wall.** This is the gap that
+has been in "Needs Seb" since the isle: `beach.ts` gated no slope at all. It
+was invisible while the only land was `palm-isle`, whose steepest flank is 55.1
+degrees — a man who can climb anything and a man who can climb sixty walk that
+island identically. The crag isle has cliffs, and a man with no limit walks
+straight up the one with the doorway in it.
+
+So `beach.ts` grew `MAX_CLIMB` (60 degrees) and `scarp`, which takes the
+climbing part out of a step and leaves the part that runs along the slope. A
+projection and not a stop, for the reason `offshore` is a push: walked straight
+at a cliff he arrives and stays, walked at it on the slant he follows it round
+— which on this island is how a person finds a door. `beach.check.ts` asserts
+that **no step anywhere on `palm-isle` is refused by it**, which is what keeps
+that island exactly the island it was.
+
+### Three more, found by walking a man in
+
+With those fixed, walking in still worked only from dead ahead, so the approach
+was simulated on eleven bearings across the alcove's mouth. It found:
+
+- **`atDoor` tested his heading against the RAIL's.** The rail starts turning
+  the moment it is through the wall, so at the mouth its tangent is 76 degrees
+  off the way anybody walks in — it passed by four hundredths from dead ahead
+  and refused everything else. It tests against the way the *doorway faces*
+  now, which is radially out of the spire, and the test is generous: anything
+  but walking away opens it.
+- **the nearest-point search was in XZ.** The balcony hangs almost over the
+  strand, seventeen metres up, so a man walking up the sand was put at the top
+  of the stairs. Height counts double in it now.
+- **stepping on was a teleport.** The trigger has to be a metre wide to catch a
+  man who came at the wall on the slant, and a metre is a very visible jump. So
+  the rail runs out to meet him at both ends — a `porch` on the sand and the
+  `balcony` at the top — he keeps the offset he walked in with rather than
+  being snapped to the centreline, and it is walked off over a third of a
+  second. The door also refuses him while he is still short of the rail's end,
+  because that gap is the one thing he cannot keep. Eleven bearings now step on
+  with between 2 and 26 cm of correction, and `stairs.check.ts` asserts it.
+
+The balcony earned its keep twice over: the flank at the exit stands at 66
+degrees and the face below it at 80, so with `MAX_CLIMB` in place a man who
+stepped off the top could never have got back to the door. The top of the stair
+is a ledge and a stop — you come out into the open air, and the way down is the
+way you came.
+
+### Verified
+
+`npx tsc -b` clean, all six checks pass, and the thing that was broken is now
+asserted three ways: `atDoor` answers from eleven approaches, none of them is
+put at the wrong end of the rail, and a man walked up the strand by `scarp`
+stops within reach of the door instead of over the top of it. Driven end to
+end outside the app, the walk is: on the sand, through the door at about a
+second, on the ledge at 17.40 m fourteen seconds later.
+
+Still not seen moving.
+
+### Stuck at the top — and the way down
+
+The stair could be entered and climbed, and then he stood on the balcony and
+could not get off it. That was deliberate and it was wrong: the note above says
+"the top is a stop and not a door", and a stop is not an exit.
+
+The reasoning behind the stop was sound — the flank at the exit stands at 66
+degrees and the face below it at 80, so with `MAX_CLIMB` in place a man who
+stepped off could walk down and never climb back. The conclusion was the wrong
+one. **The stair needed somewhere to come out to.**
+
+### The terrace, and why it is ground rather than rail
+
+The first attempt kept it as rail: extend the centreline out of the lookout and
+spiral it down the outside, with its radius solved from the flank's own height
+so the path would lie on the surface. It does not work, and the reason is worth
+keeping. `radiusAtHeight` answers the **first** crossing on a bearing, and the
+crag term puts bumps in the flank: the answer jumps from 4.6 m of radius to 13
+and back inside a quarter turn. The path lurched in and out of the mountain and
+came out 97 m long at nine degrees. **A shelf cut at a chosen grade is a shelf;
+a line laid on a cliff is a scribble.**
+
+So the descent is `terrace` in `src/isles.ts` — ground, cut into the flank,
+and he walks down it with the legs he already has. Nothing in `Ship.tsx` knows
+it is there. One bearing has one place on it, so there is no nearest-point
+search: the angle *is* the parameter, which keeps the whole term to six lines
+and no iteration. It cuts **and** fills, because a path across a sixty-degree
+face is a cut on its uphill side and a built-out lip on its downhill one.
+
+144 degrees of sweep, 17.4 m down to 6.0, at a mean 29 degrees — and the four
+numbers were searched for rather than chosen. Every shallower descent ended on
+ground too steep to leave and every steeper one was a ramp rather than a path;
+this one ends on a 50-degree flank, which is under `MAX_CLIMB`, so he walks off
+the end of it onto the mountain instead of arriving at a second dead end.
+
+It also has to go **round the thick side**, which is the opposite hand to the
+stair's own. Run the other way it walked out over the lagoon within twenty
+degrees, because the flank between 40 and 120 degrees off the fall is the only
+one that spreads as it falls — 17 m of height at 6 m of radius and 5 m at 18 —
+and every other bearing is a face.
+
+### Three things it took to make the two meet
+
+- **It is cut last.** Before the lagoon, the lagoon's own shore ramp pulled the
+  first six metres of the path down by up to ten metres: the top of the stair
+  overlooks the lagoon, so the shelf leaves the ledge within a couple of metres
+  of its rim.
+- **It has an inner limit.** `stairs.ts` solves the stair's exit from the
+  flank's height, so a shelf whose inner edge reached the doorway *moved* the
+  doorway, which moved the balcony, which moved the shelf. Four hand-iterations
+  and the numbers were still crawling. Held off the doorway at `inner`, the two
+  stop arguing and the fixed point is reached in one pass.
+- **No fade at its near end.** The shelf begins with a face across it, and that
+  face is under the balcony — which is what the balcony is for. Faded, the first
+  metre was not shelf, and a man stepping off the ledge fell ten metres onto the
+  part that was.
+
+`terrace.from` and `r0` are the balcony's own bearing and radius, written down
+in `isles.ts` because `stairs.ts` imports it and not the other way round.
+`stairs.check.ts` asserts the two agree to six centimetres, so they cannot
+drift quietly — the same bargain `SPAWN.bearing` is kept by.
+
+### Verified
+
+Two new asserts, and the second is the bug in the form it was reported:
+stepping off the ledge is a 39 cm step onto the terrace and not a drop, and a
+man who walks downhill from there gets off the crag rather than stopping on it.
+All six checks pass; `tsc -b` clean.
+
+Driven end to end outside the app, the whole journey is: up the strand, through
+the door at 1.0 s, out of the portal at 17.40 m at 13.6 s, off the ledge onto
+the terrace at 14.6 s, and down at the water's edge at 26.9 s. Nowhere stuck.
+
+Still not seen moving. Two things for the eye when it is: the shelf's outboard
+lip is a sheer face where it fills, which reads more quarry than path, and the
+cut at its top end is a big one.

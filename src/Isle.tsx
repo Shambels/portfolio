@@ -6,7 +6,7 @@ import {
   sin, smoothstep, vec3,
 } from 'three/tsl'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
-import { STAIR, stairExit, stairMouth } from './stairs'
+import { STAIR, stairDoor, stairPortal } from './stairs'
 import { Stair } from './Stair'
 import palmUrl from './models/palm.glb?url'
 
@@ -183,7 +183,7 @@ function materials() {
   const hole = (d: { x: number; y: number; z: number }) =>
     smoothstep(PORTAL - 0.35, PORTAL,
       positionWorld.distance(vec3(d.x, d.y + PORTAL * 0.35, d.z)))
-  land.opacityNode = hole(stairMouth()).mul(hole(stairExit()))
+  land.opacityNode = hole(stairDoor()).mul(hole(stairPortal()))
   land.alphaTest = 0.5
 
   // Ring scars up the trunk. `positionLocal` and not world: every palm is the
