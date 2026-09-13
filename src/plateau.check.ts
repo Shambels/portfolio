@@ -27,6 +27,7 @@ import {
   rampLift, rim, seedOf, stepProps,
   type Board, type Hit, type Poly, type Terrain,
 } from './plateau.ts'
+import { PANEL } from './sudoku.ts'
 
 const DT = 1 / 120
 const GROUND = 0.45 // `world.ts`
@@ -128,12 +129,13 @@ assert.ok(!inside(wall, 0, 4), 'the approach is inside the wall')
 // draws as light, and a `holo_` mesh that is not a quad or a disc would be
 // one the shader cannot read `u, v` off. The panel's own place is held too,
 // because `Landmarks.tsx` derives the cells from `positionLocal` against
-// `HOLO` and a quad that moved would put the digits in the wrong cells.
+// `PANEL` in `sudoku.ts` — and so does the piercing, on the CPU — and a
+// quad that moved would put the digits in the wrong cells.
 
 {
   const path = new URL('./models/sudoku.glb', import.meta.url).pathname
   const deck = DECKS.sudoku!
-  const HOLO = { side: 3.6, z: -0.6, foot: 0.51, emitZ: 1.1, emitTop: 0.27 } // `Landmarks.tsx`
+  const HOLO = { ...PANEL, emitZ: 1.1, emitTop: 0.27 } // `sudoku.ts`, and `HOLO` in `Landmarks.tsx`
   const meshes = meshesFromGlb(path)
   assert.ok(meshes.every((m) => !m.name.includes('~')), 'the sudoku has a loose prop on it')
   const panel = meshes.find((m) => m.name === 'holo_panel')

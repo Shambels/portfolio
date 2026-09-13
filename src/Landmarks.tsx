@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, mix, mod,
+  abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, min, mix, mod,
   modelWorldMatrix, mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, select,
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
@@ -12,8 +12,8 @@ import {
   LENSES, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
   type Prop, type PropSet,
 } from './plateau'
-import { SHIP_XZ } from './Ship'
-import { SLOTS, table } from './sudoku'
+import { SHIP, SHIP_XZ } from './Ship'
+import { PANEL, PIERCE, SLOTS, holes, pierce, table } from './sudoku'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -150,16 +150,16 @@ const TILE_Y = 0.2525 // TOP + TILE_H / 2
 
 // The sudoku's plinth and its projector, mirrored from `tools/sudoku.py`. The
 // glb carries no UVs, so the panel's shader reads `u, v` off `positionLocal`
-// against `side`, `z` and `foot` — change one and change the other, and the
-// digits land in the wrong cells. The rest below is the look, and it is the
-// shader's own: how many streams of rain, how long a tail, how fast an open
-// cell cycles, and the three greens.
+// against `PANEL` in `sudoku.ts` — its side, its plane and its foot; change
+// the script and change that, and the digits land in the wrong cells. The
+// rest below is the look, and it is the shader's own: how many streams of
+// rain, how long a tail, how fast an open cell cycles, and the three greens.
 const SU_PLINTH = 4.9
 const SU_TOP = 0.21
 const HOLO = {
-  side: 3.6, // the panel: nine cells of 0.4, the tray's own pitch
-  z: -0.6, // its plane, in the landmark's frame; the front faces +Z
-  foot: 0.51, // its bottom edge — 0.3 off the plinth, where the tray's rail was
+  side: PANEL.side, // the panel: nine cells of 0.4, the tray's own pitch
+  z: PANEL.z, // its plane, in the landmark's frame; the front faces +Z
+  foot: PANEL.foot, // its bottom edge — 0.3 off the plinth, where the tray's rail was
   emitZ: 1.1, // the puck it is projected from, and the top of it
   emitTop: 0.27,
   emitR: 0.42,
@@ -173,6 +173,11 @@ const HOLO = {
 /** The settle, each way: seconds to resolve on arriving, and to let go on leaving. */
 const HOLO_UP = 3
 const HOLO_DOWN = 1.5
+/** The landmark the hologram stands on — the first with the shape, and the
+ *  one whose frame the hull is read in for the piercing. The hole texture
+ *  is one object, so a second sudoku would share its holes. */
+const HOLO_AT = LANDMARKS.find((l) => l.landmark === 'sudoku')
+let holeWasOpen = false
 
 // Invariant 6. The settle is the one thing here that moves geometry, so it is
 // the one thing that has to be able to not happen.
@@ -242,6 +247,14 @@ const FONT_TEX = (() => {
 
 /** The puzzle: one column per cell, the clue on row 0, the flicker slots above. */
 const PUZZLE_TEX = byteTexture(table(), 81, 1 + SLOTS)
+
+/** And the holes: how scrambled each cell is, 0..255, one byte a cell in the
+ *  panel's own layout — written by `pierce` and `holes` in `sudoku.ts` from
+ *  where the hull is, uploaded when anything in it changes. */
+const holeBytes = new Uint8Array(81)
+const HOLE_TEX = byteTexture(holeBytes, 81, 1)
+const holeStrength = new Float32Array(81)
+const holeHitAt = new Float32Array(81)
 
 /** How far the rain has settled into the board, 0 to 1: ramped in
  *  `Landmarks` from whether the sudoku is the landmark that is near. */
@@ -335,9 +348,16 @@ function makeHolo() {
   const lines = clamp(cellLine.mul(0.22).add(boxLine.mul(0.55)), 0, 0.7)
   const grid = digits.add(LINE.mul(lines).mul(smoothstep(0, 0.6, reveal)))
 
-  // ---- the settle, in the solver's scan order: cell 0 first, 80 last.
+  // ---- the settle, in the solver's scan order: cell 0 first, 80 last —
+  // and less wherever the hull has been through. The hole is looked up by
+  // the cell's place on the panel and not by `idx`, because `idx` is
+  // mirrored on the back face so the board reads, and a hole is a hole from
+  // either side.
   const t0 = idx.div(81)
-  const w = smoothstep(t0, t0.add(HOLO.settle), reveal.mul(1 + HOLO.settle))
+  const settle = smoothstep(t0, t0.add(HOLO.settle), reveal.mul(1 + HOLO.settle))
+  const place = cell.y.mul(9).add(floor(uFront.mul(9)))
+  const hole = texture(HOLE_TEX, vec2(place.add(0.5).div(81), 0.5)).r
+  const w = min(settle, oneMinus(hole))
   const picture = mix(rain, grid, w)
 
   // ---- and a hologram's tell: scanlines, a slow rolling band, a faint wash
@@ -979,7 +999,7 @@ export function Landmarks({ near }: { near: string | null }) {
   // fires on the blockout too, and so it is one update for a value both
   // material sets share. Invariant 6: a visitor who asked for less motion
   // gets the shutter and not a light going off in their face.
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
     flashLevel.value = REDUCED ? 0 : Math.max(0, 1 - FLASH.age / FLASH_FOR)
     // The sudoku's settle: one number both ways, like `RIDE.land` — up while
     // the sudoku is the landmark that is near, back down once it is not. The
@@ -989,6 +1009,23 @@ export function Landmarks({ near }: { near: string | null }) {
     const here = LANDMARKS.some((l) => l.slug === near && l.landmark === 'sudoku')
     holoReveal.value = THREE.MathUtils.clamp(
       holoReveal.value + (here ? dt / HOLO_UP : -dt / HOLO_DOWN), 0, 1)
+    // And the piercing: the hull into the sudoku's frame, and if it is in
+    // the panel's plane, the cells it is through go back to rain; every
+    // frame, the holes close on their own clock (`sudoku.ts`). The texture
+    // is uploaded only while something is open, and once more to clear it.
+    if (HOLO_AT) {
+      const l = HOLO_AT
+      const rot = landmarkYaw(l)
+      const dx = SHIP.pos.x - l.pos[0]
+      const dz = SHIP.pos.z - l.pos[2]
+      const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
+      const lz = dx * Math.sin(rot) + dz * Math.cos(rot)
+      const now = state.clock.elapsedTime
+      if (Math.abs(lz - PANEL.z) <= PIERCE.reach) pierce(lx, SHIP.pos.y - l.pos[1], now, holeStrength, holeHitAt)
+      const open = holes(now, holeStrength, holeHitAt, holeBytes)
+      if (open || holeWasOpen) HOLE_TEX.needsUpdate = true
+      holeWasOpen = open
+    }
   })
   return (
     <>
