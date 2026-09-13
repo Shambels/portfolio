@@ -84,3 +84,91 @@ export function table(board: readonly number[] = BOARD): Uint8Array {
   }
   return out
 }
+
+// ------------------------------------------------------------ the piercing
+// The panel is light, and the board rides straight through it. What that
+// does to the picture is here rather than in the shader, because it is
+// arithmetic worth an assert: which cells a hull passing through the plane
+// touches, and how each one comes back.
+//
+// A touched cell is scrambled — back to rain — and stays so while the hull
+// is in the plane and for `hold` seconds after; then it settles again over
+// `resettle`, the cells in the solver's own scan order across `stagger`, so
+// the hole closes the way the board first resolved. `Landmarks.tsx` runs
+// `pierce` when the hull is within `reach` of the plane and `holes` every
+// frame, and the shader takes the lesser of the scan settle and `1 - hole`.
+
+/** The panel in the landmark's frame — `tools/sudoku.py`'s `PANEL`,
+ *  `PANEL_Z` and `PANEL_FOOT`, and `HOLO` in `Landmarks.tsx`. Nine cells of
+ *  `side / 9` each way, row 0 at the top, column 0 at -x. */
+export const PANEL = { side: 3.6, z: -0.6, foot: 0.51 }
+
+export const PIERCE = {
+  /** The hull as it pierces: a standing capsule of this radius and height
+   *  off the hull's origin — a man on a board, near enough, and a saucer
+   *  through its middle. */
+  r: 0.45,
+  h: 1.9,
+  /** How far off the plane, along the landmark's z, a hull is still in it:
+   *  half the board's length, so the nose and the tail both count. */
+  reach: 1.0,
+g  /** Seconds a cell stays rain after the last touch — short, so the board
+   *  is already mending as the hull leaves it — seconds it takes to settle
+   *  back, and how far the settle is spread over the scan order. */
+  hold: 0.6,
+  resettle: 1.5,
+  stagger: 0.8,
+  /** Past the radius, how far the edge of the hole is feathered. */
+  soft: 0.3,
+}
+
+/** The centre of cell `i` (row-major, 81) in the panel's plane. */
+export function cellAt(i: number): [number, number] {
+  const c = PANEL.side / 9
+  return [(i % 9 + 0.5) * c - PANEL.side / 2, PANEL.foot + PANEL.side - (Math.floor(i / 9) + 0.5) * c]
+}
+
+/**
+ * A hull at `(x, y)` in the panel's plane, its origin at `y`: how hard it
+ * touches each cell, 1 inside the capsule and feathering to 0 over `soft`
+ * beyond it. Written into `strength` where it is more than what is there,
+ * and `hitAt[i]` is stamped `now` for every cell touched at all. Returns
+ * whether anything was.
+ */
+export function pierce(x: number, y: number, now: number, strength: Float32Array, hitAt: Float32Array): boolean {
+  let any = false
+  for (let i = 0; i < 81; i++) {
+    const [cx, cy] = cellAt(i)
+    const dy = cy - Math.min(Math.max(cy, y), y + PIERCE.h)
+    const d = Math.hypot(cx - x, dy)
+    if (d >= PIERCE.r + PIERCE.soft) continue
+    const t = Math.min(Math.max((d - PIERCE.r) / PIERCE.soft, 0), 1)
+    const s = 1 - t * t * (3 - 2 * t)
+    if (s > strength[i]!) strength[i] = s
+    hitAt[i] = now
+    any = true
+  }
+  return any
+}
+
+/**
+ * How scrambled each cell is at `now`, 0..255 for the shader's texture: its
+ * strength for `hold` seconds after its last touch, then falling to 0 over
+ * `resettle`, later by `stagger · i / 81` so the hole closes in scan order.
+ * A cell that has settled has its strength cleared, so the next touch is a
+ * fresh one. Returns whether any cell is still open.
+ */
+export function holes(now: number, strength: Float32Array, hitAt: Float32Array, out: Uint8Array): boolean {
+  let any = false
+  for (let i = 0; i < 81; i++) {
+    const s = strength[i]!
+    if (s === 0) { out[i] = 0; continue }
+    const age = now - hitAt[i]!
+    const k = Math.min(Math.max((PIERCE.hold + (PIERCE.stagger * i) / 81 + PIERCE.resettle - age) / PIERCE.resettle, 0), 1)
+    const h = s * k
+    out[i] = Math.round(h * 255)
+    if (h > 0) any = true
+    else strength[i] = 0
+  }
+  return any
+}

@@ -5780,10 +5780,62 @@ from `HOLO.z` to `HOLO.emitZ`, and that the puck stands on the deck — because
 the shader derives the cells from those numbers and a quad that moved would
 put every digit in the wrong cell with nothing in the browser to say so.
 
+### It can be pierced
+
+Seb's call, the same day: the board rides straight through the light, so the
+light should know. Where the hull goes through the panel the cells it passes
+through are scrambled — back to rain — while the rest of the board stands;
+they stay rain while the hull is in the plane and for a moment after, and
+then the rain settles again, cell by cell in the solver's scan order across
+most of a second, and the board is whole — mending behind the rider as he
+leaves it rather than waiting for him to be gone.
+
+The arithmetic is in `src/sudoku.ts` because it is arithmetic: `pierce()`
+takes the hull's position in the panel's plane as a standing capsule
+(`PIERCE.r` 0.45 round, `h` 1.9 up from the hull's origin — a man on a board,
+near enough, and a saucer through its middle) and writes a strength into
+every cell it reaches, 1 inside and feathered to 0 over `soft` 0.3 beyond,
+stamping the time; `holes()` turns strength and age into the byte the shader
+reads — full for `hold` 0.6 s after the last touch (2 s at first; Seb
+wanted the mending to start sooner), then down over `resettle`
+1.5 s, later by `stagger` 0.8 s × the cell's scan index — and clears a cell
+once it has closed so the next touch is fresh. `sudoku.check.ts` holds it: a
+hull on the deck at the middle scrambles the bottom of the middle column,
+reaches the middle row, feathers the one over his head and does not touch
+the one above that; a hull beside the panel touches nothing; a touched cell
+is rain at once, still rain a hair before its hold is up, half-settled
+halfway through, closes in scan order against the cell under it, and leaves
+nothing behind.
+
+`Landmarks.tsx` runs it in the same `useFrame` as the reveal: the hull
+(`SHIP.pos`, which carries altitude) into the sudoku landmark's frame,
+`pierce` when it is within `PIERCE.reach` 1.0 — half the board's length — of
+the panel's plane, `holes` every frame into an 81 × 1 byte texture that is
+uploaded only while something is open and once more to clear. The shader
+takes the lesser of the scan settle and `1 − hole`. One thing worth knowing
+about the lookup: the settle's `idx` is mirrored on the back face so the
+board reads from behind, but a hole is a hole from either side, so it is
+looked up by the cell's *place* on the panel — the front-face column — and
+not by `idx`. `PANEL` (side, plane, foot) moved into `sudoku.ts` on the way,
+so `Landmarks.tsx`, the piercing and `plateau.check.ts` now read one copy
+and only `tools/sudoku.py` mirrors it.
+
+Under reduced motion nothing pierces: the panel is a static resolved grid,
+and a patch of frozen rain in it would be a patch of noise. No sound on the
+crossing — it is light — which is a decision Seb may want to revisit.
+
+`Claude outputs/sudoku-hologram-pierced.png` is the resolved panel with a
+hull held standing in it at the deck, just right of the middle: a column of
+rain from the foot up to the middle row, feathered at its edges, the rest of
+the board intact. Taken with the same headless WebGL2 run as the other two
+frames, the hull's position scripted in a scratch patch that did not ship.
+The hold and the re-settle are held by the check, not by a frame — at one
+frame a second nothing here can be seen as motion.
+
 ### Sizes
 
 Canvas chunk 469 kB gz against 600 — up about 2 kB for the shader and the
-puzzle module. First route unchanged. The world's models sum to 2.39 MB gz
+puzzle module, and a few hundred bytes more for the piercing. First route unchanged. The world's models sum to 2.39 MB gz
 by gzip of each `src/models/*.glb` (the earlier figure was measured with
 the tray at 41 kB; the sudoku is 5.6 kB now, so the world is 35 kB lighter
 than it was).
@@ -5825,6 +5877,9 @@ an animation.
   `settle` and `HOLO_UP` / `HOLO_DOWN` for the resolve.
 - Whether the settle should be the scan order or a random sprinkle — the
   scan order is the case study's own point, but it is a judgement.
+- The piercing on hardware: `PIERCE.r` and `h` (how big a hole the rider
+  makes), `hold` and `resettle` (how long it stays open and how fast it
+  closes), and whether the crossing wants a sound.
 - Whether the fan of light is worth its pixels, and whether the eye should
   be brighter than the panel or dimmer.
 - Whether a plinth deck with nothing on it but a puck still reads as a

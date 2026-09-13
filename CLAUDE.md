@@ -278,10 +278,12 @@ src/plateau.check.ts    that, with a board ridden at the real mine, over a
                         the sudoku's file held to `HOLO`, with nothing loose on it
 src/sudoku.ts           the Sudoku Solver's puzzle — the repository's board,
                         its `possibleEntries` ported once more, the solver
-                        with its three defects fixed, and the bytes the
-                        hologram samples — pure arithmetic, no three
-src/sudoku.check.ts     31 clues, 50 open, one solution, and every flicker
-                        slot drawn from its own cell's candidates
+                        with its three defects fixed, the bytes the hologram
+                        samples, the panel's place (`PANEL`) and what a hull
+                        through it does to the picture — pure arithmetic, no three
+src/sudoku.check.ts     31 clues, 50 open, one solution, every flicker slot
+                        drawn from its own cell's candidates, and the hole a
+                        hull leaves through the panel — where, and how it closes
 src/beach.ts            coming ashore: the ramp between riding and walking, the
                         sand under his feet and the altitude floor over it —
                         pure arithmetic, no three, so the check runs in node
@@ -584,8 +586,11 @@ fifty open cells small and dim and cycling through the candidates they have
 left, which is `possibleEntries` seen rather than counted. The puzzle, the
 candidates and a fixed solver are `src/sudoku.ts`; the glyphs are nine
 fifteen-bit bitmaps in a texture; the tray's fifty loose tiles went with it,
-so the deck rides clean. Digits in the canvas are the puzzle and not the
-prose, which is where invariant 2 draws its line. `docs/STATUS.md`, "A fifth
+so the deck rides clean — and the board rides through the light, which
+scrambles the cells it passes through back to rain until, a moment after
+it has gone, they settle again in the same scan order (`pierce` and `holes`
+in `src/sudoku.ts`, held by its check). Digits in the canvas are the puzzle
+and not the prose, which is where invariant 2 draws its line. `docs/STATUS.md`, "A fifth
 project" and "The sudoku is a hologram", have it, including what the tray did
 to the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now
 as much of the slug as it takes to be unambiguous.
