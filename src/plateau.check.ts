@@ -121,50 +121,50 @@ assert.ok(!inside(wall, 0, 4), 'the approach is inside the wall')
 }
 
 // ------------------------------------------------------------- the sudoku
-// A landmark with no wall and no ramp, whose whole physical claim is that the
-// thirteen things standing on its deck are standing on its deck. `Landmarks`
-// gives every prop a `rest` of `GROUND + deckAt(...)` and then treats that as
-// the floor under it, so a tile modelled anywhere else floats or sinks the
-// first time it is touched — and nothing in the browser would say so, because
-// a prop at rest is drawn exactly where the file put it.
+// A landmark with no wall, no ramp and — since the hologram — nothing loose:
+// a plinth, a puck on it, and light. Its physical claim is the negative one,
+// that the board rides the deck and goes straight through the panel, and the
+// file has to keep it: a `~prop` here would be a thing to hit that the shader
+// draws as light, and a `holo_` mesh that is not a quad or a disc would be
+// one the shader cannot read `u, v` off. The panel's own place is held too,
+// because `Landmarks.tsx` derives the cells from `positionLocal` against
+// `HOLO` and a quad that moved would put the digits in the wrong cells.
 
 {
   const path = new URL('./models/sudoku.glb', import.meta.url).pathname
   const deck = DECKS.sudoku!
-  const tray = 3.6 / 2 + 0.16 // the tray's own half-width: `PLATE / 2 + RIM_W`
-  type Bounds = { lo: number; x0: number; x1: number; z0: number; z1: number }
-  const props = new Map<string, Bounds>()
-  let seated = 0
-  for (const m of meshesFromGlb(path)) {
-    const prop = m.name.split('~')[1]
-    if (!prop) {
-      if (m.name === 'panel_clue') seated++
-      continue
-    }
-    const b: Bounds = props.get(prop) ??
-      { lo: Infinity, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }
-    for (let i = 0; i + 2 < m.pos.length; i += 3) {
-      b.lo = Math.min(b.lo, m.pos[i + 1]!)
-      b.x0 = Math.min(b.x0, m.pos[i]!)
-      b.x1 = Math.max(b.x1, m.pos[i]!)
-      b.z0 = Math.min(b.z0, m.pos[i + 2]!)
-      b.z1 = Math.max(b.z1, m.pos[i + 2]!)
-    }
-    props.set(prop, b)
+  const HOLO = { side: 3.6, z: -0.6, foot: 0.51, emitZ: 1.1, emitTop: 0.27 } // `Landmarks.tsx`
+  const meshes = meshesFromGlb(path)
+  assert.ok(meshes.every((m) => !m.name.includes('~')), 'the sudoku has a loose prop on it')
+  const panel = meshes.find((m) => m.name === 'holo_panel')
+  assert.ok(panel, 'no holo_panel in the file')
+  assert.equal(panel.pos.length, 4 * 3, 'the panel is not one quad')
+  for (let i = 0; i < 12; i += 3) {
+    assert.ok(Math.abs(Math.abs(panel.pos[i]!) - HOLO.side / 2) < 1e-4, 'the panel is not HOLO.side wide')
+    assert.ok(Math.abs(panel.pos[i + 2]! - HOLO.z) < 1e-4, 'the panel is not in the plane HOLO.z')
+    const y = panel.pos[i + 1]!
+    assert.ok(Math.abs(y - HOLO.foot) < 1e-4 || Math.abs(y - HOLO.foot - HOLO.side) < 1e-4,
+      'the panel does not stand on HOLO.foot')
   }
-  // One mesh and no `~`: the thirty-one clues are held by their wells and do
-  // not move. Splitting them into props is the change this asserts against.
-  assert.equal(seated, 1, 'the seated clues are not one fixed mesh')
-  assert.equal(props.size, 13, `${props.size} loose props on the sudoku, expected 13`)
-  for (const [id, b] of props) {
-    const px = (b.x0 + b.x1) / 2
-    const pz = (b.z0 + b.z1) / 2
-    assert.ok(Math.abs(b.lo - deck.h) < 2e-3, `${id} stands at ${b.lo.toFixed(3)}, the deck is ${deck.h}`)
-    assert.ok(Math.abs(px) <= deck.half && Math.abs(pz) <= deck.half, `${id} is off the plinth`)
-    assert.equal(deckAt('sudoku', px, pz), deck.h, `${id} is not over the deck`)
-    // And clear of the tray, or a stack of tiles is standing in a well.
-    assert.ok(Math.abs(px) > tray || Math.abs(pz) > tray, `${id} stands on the grid`)
+  // The fan runs from the top of the puck to the panel's foot, on the deck.
+  const cone = meshes.find((m) => m.name === 'holo_cone')
+  assert.ok(cone, 'no holo_cone in the file')
+  let lo = Infinity, hi = -Infinity
+  for (let i = 0; i < cone.pos.length; i += 3) {
+    lo = Math.min(lo, cone.pos[i + 2]!)
+    hi = Math.max(hi, cone.pos[i + 2]!)
   }
+  assert.ok(Math.abs(lo - HOLO.z) < 1e-4 && Math.abs(hi - HOLO.emitZ) < 1e-4, 'the fan does not reach the puck')
+  // And the puck stands on the deck, inside it, where the deck is the deck.
+  const puck = meshes.find((m) => m.name === 'frame_emitter')
+  assert.ok(puck, 'no frame_emitter in the file')
+  let base = Infinity, top = -Infinity
+  for (let i = 0; i < puck.pos.length; i += 3) {
+    base = Math.min(base, puck.pos[i + 1]!)
+    top = Math.max(top, puck.pos[i + 1]!)
+    assert.equal(deckAt('sudoku', puck.pos[i]!, puck.pos[i + 2]!), deck.h, 'the puck is off the deck')
+  }
+  assert.ok(Math.abs(base - deck.h) < 2e-3 && Math.abs(top - HOLO.emitTop) < 2e-3, 'the puck is not on the deck')
 }
 
 const flat: Terrain = () => ({ land: GROUND, water: 0 })

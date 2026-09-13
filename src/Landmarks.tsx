@@ -3,9 +3,9 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  clamp, color, cos, float, floor, fract, length, max, mix, modelWorldMatrix,
-  mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, sin, smoothstep,
-  step, uniform, vec2, vec3, vec4,
+  abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, mix, mod,
+  modelWorldMatrix, mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, select,
+  sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
 import { FLASH, GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
@@ -13,6 +13,7 @@ import {
   type Prop, type PropSet,
 } from './plateau'
 import { SHIP_XZ } from './Ship'
+import { SLOTS, table } from './sudoku'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -21,7 +22,7 @@ import sudokuUrl from './models/sudoku.glb?url'
 
 /**
  * The five landmarks: a mine, an easel, a Scrabble board, a ramp with a camera
- * watching the end of it, and a sudoku tray. Track B blockout,
+ * watching the end of it, and a sudoku projected as light. Track B blockout,
  * one step past grey boxes — enough silhouette that each project is
  * identifiable from the air, and no detail beyond that, because what Track B's
  * exit test judges is the layout and not the shading.
@@ -89,7 +90,7 @@ const PALETTE = {
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
-const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1 }
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1, holo: 1 }
 
 /**
  * How bright the giant camera's lens is, 0 to 1. One uniform for both material
@@ -106,6 +107,7 @@ const FLASH_FOR = 0.16
 const shade = (hex: string, hi: boolean) => new THREE.Color(hex).lerp(HI, hi ? 0.72 : 0)
 
 type Vec2 = THREE.Node<'vec2'>
+type Num = THREE.Node<'float'>
 
 /**
  * How near the visitor is to a point: 1 inside `near`, 0 beyond `far`, in XZ.
@@ -146,42 +148,239 @@ const FOUND_Z = 2 * CELL
 const FOUND_TILT = [-0.05, -0.02] // the tip of tile k: FOUND_TILT[0] + k * FOUND_TILT[1]
 const TILE_Y = 0.2525 // TOP + TILE_H / 2
 
-// The sudoku tray, mirrored from `tools/sudoku.py`: the grid's pitch, the top
-// of a cell line, the tile, and the two well depths the shader reads the
-// relief back out of. Change one and change the other — the model is what
-// ships, and this is both what stands in for it and what shades it.
-const SU_CELL = 0.4
-const SU_PLATE = SU_CELL * 9
-const SU_RIM = 0.16
+// The sudoku's plinth and its projector, mirrored from `tools/sudoku.py`. The
+// glb carries no UVs, so the panel's shader reads `u, v` off `positionLocal`
+// against `side`, `z` and `foot` — change one and change the other, and the
+// digits land in the wrong cells. The rest below is the look, and it is the
+// shader's own: how many streams of rain, how long a tail, how fast an open
+// cell cycles, and the three greens.
 const SU_PLINTH = 4.9
 const SU_TOP = 0.21
-const SU_RAIL = 0.51
-const SU_SEAT = SU_RAIL - 0.11
-const SU_TILE = 0.34
-const SU_TILE_H = 0.15
-const WELL_MIN = 0.12 // a cell with two candidates left
-const WELL_MAX = 0.24 // a cell with six
-
-/** The board hard-coded into `main()` in the repository's own `sudoku.py`: a
- *  '#' is a clue and a '.' an open cell, and the row index runs along z.
- *  Thirty-one down, fifty to go, one solution. */
-const CLUES = [
-  '..######.', '#...##...', '#...##...', '..#.#....', '.#.#..###',
-  '#..#....#', '..#..##.#', '#......#.', '...#..##.',
-]
-
-/** Where the fifty unplaced tiles are stacked on the plinth's border, and how
- *  many in each: `STACKS` in `tools/sudoku.py`. The seven lying flat beside
- *  them are detail and the blockout does without them. */
-const SU_BORDER = (SU_PLATE / 2 + SU_RIM + SU_PLINTH / 2) / 2
-const SU_STACKS: [number, number, number][] = [
-  [-SU_BORDER, -1.25, 9], [-SU_BORDER, 0, 7], [-SU_BORDER, 1.25, 8],
-  [-1.25, -SU_BORDER, 6], [0.1, -SU_BORDER, 7], [1.45, -SU_BORDER, 6],
-]
+const HOLO = {
+  side: 3.6, // the panel: nine cells of 0.4, the tray's own pitch
+  z: -0.6, // its plane, in the landmark's frame; the front faces +Z
+  foot: 0.51, // its bottom edge — 0.3 off the plinth, where the tray's rail was
+  emitZ: 1.1, // the puck it is projected from, and the top of it
+  emitTop: 0.27,
+  emitR: 0.42,
+  coneW: 0.36, // the fan of light, where it leaves the puck
+  cols: 36, // rain streams across the panel — four to a cell
+  tail: 0.45, // a stream's tail, in panel heights
+  settle: 0.35, // how long one cell takes to settle, as a share of `reveal`
+  flicker: 1.4, // an open cell's candidates, cycles a second
+  glow: 0.85, // what reaches the bloom: the whole panel is emissive
+}
+/** The settle, each way: seconds to resolve on arriving, and to let go on leaving. */
+const HOLO_UP = 3
+const HOLO_DOWN = 1.5
 
 // Invariant 6. The settle is the one thing here that moves geometry, so it is
 // the one thing that has to be able to not happen.
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+// ------------------------------------------------------------ the hologram
+// The Sudoku Solver, drawn as light. The first pass was a tray of eighty-one
+// wells beside Scrabble's board of tiles, and the second grid in the world
+// read as the first one twice. This is not a board: it is the puzzle itself,
+// the position hard-coded in that repository's `main()`, projected on a
+// panel standing off the plinth. From across the water it is rain — nine
+// digits falling in thirty-six streams, each slot changing on its own clock.
+// Inside the radius the rain settles cell by cell in the solver's own scan
+// order, row-major from the top left, into the board: a clue is one large
+// steady digit, an open cell is small and dim and keeps cycling through the
+// candidates it has left, which is the repository's `possibleEntries` seen
+// rather than counted. The lattice draws itself in under the settle, and
+// walking away lets the cells go in the same order.
+//
+// Digits are drawn into the canvas, and that is the line invariant 2 draws:
+// they are the puzzle — the repository's input, a picture of it — and not a
+// word of the case study. Nothing a screen reader needs is on the panel.
+//
+// No font and no atlas: the nine glyphs are nine 3×5 bitmaps, fifteen bits
+// each, written once into a 27×5 texture; the puzzle is `table()` from
+// `src/sudoku.ts` in an 81×7 texture, the clue on row 0 and six flicker slots
+// under it. A digit is one fetch and a glyph is one more, on either backend.
+//
+// Unlit and additive, and all of it in the emissive so the bloom — which is
+// off emissive only — gives it its halo without a second pass. Reduced
+// motion: `reveal` is pinned at 1 and the clock does not run — a lit, static,
+// resolved grid.
+
+/** Nine 3×5 bitmaps, rows top to bottom, three bits each, the left column
+ *  the high bit. */
+const FONT = [
+  0b010_110_010_010_111, // 1
+  0b111_001_111_100_111, // 2
+  0b111_001_111_001_111, // 3
+  0b101_101_111_001_001, // 4
+  0b111_100_111_001_111, // 5
+  0b111_100_111_101_111, // 6
+  0b111_001_001_001_001, // 7
+  0b111_101_111_101_111, // 8
+  0b111_101_111_001_111, // 9
+]
+
+function byteTexture(data: Uint8Array, w: number, h: number): THREE.DataTexture {
+  const tex = new THREE.DataTexture(data, w, h, THREE.RedFormat, THREE.UnsignedByteType)
+  tex.magFilter = tex.minFilter = THREE.NearestFilter
+  tex.needsUpdate = true
+  return tex
+}
+
+/** The glyphs: digit `g` at columns `(g - 1) * 3` on, the top row of the
+ *  bitmap at the top. A texture's rows run bottom-up, so row `py` of a
+ *  bitmap is stored at `4 - py`. */
+const FONT_TEX = (() => {
+  const data = new Uint8Array(27 * 5)
+  FONT.forEach((bits, g) => {
+    for (let py = 0; py < 5; py++)
+      for (let px = 0; px < 3; px++)
+        data[(4 - py) * 27 + g * 3 + px] = (bits >> ((4 - py) * 3 + (2 - px))) & 1 ? 255 : 0
+  })
+  return byteTexture(data, 27, 5)
+})()
+
+/** The puzzle: one column per cell, the clue on row 0, the flicker slots above. */
+const PUZZLE_TEX = byteTexture(table(), 81, 1 + SLOTS)
+
+/** How far the rain has settled into the board, 0 to 1: ramped in
+ *  `Landmarks` from whether the sudoku is the landmark that is near. */
+const holoReveal = uniform(REDUCED ? 1 : 0)
+
+const GREEN = vec3(0.16, 1.0, 0.38)
+const HEAD = vec3(0.85, 1.0, 0.9)
+const LINE = vec3(0.2, 0.9, 0.45)
+
+/** The panel's material — one graph, built once, shared by both material sets:
+ *  the proximity tint is for things the sun lights, and this is a light. */
+function makeHolo() {
+  const T = time.mul(REDUCED ? 0 : 1)
+  const still = REDUCED ? 1 : 0
+  const reveal = holoReveal
+
+  // A glyph, 1 where the bitmap is set: `p` is the position inside the glyph's
+  // box, 0..1 each way with y down, and `digit` is 1..9.
+  const glyph = (digit: Num, p: Vec2) => {
+    const inside = step(0, p.x).mul(step(p.x, 0.99999)).mul(step(0, p.y)).mul(step(p.y, 0.99999))
+    const px = floor(p.x.mul(3))
+    const py = floor(p.y.mul(5))
+    const u = digit.sub(1).mul(3).add(px).add(0.5).div(27)
+    const v = float(4).sub(py).add(0.5).div(5)
+    return texture(FONT_TEX, vec2(u, v)).r.mul(inside)
+  }
+  // The digit at cell `idx` on `row` of the puzzle texture.
+  const digitAt = (idx: Num, row: Num) =>
+    floor(texture(PUZZLE_TEX, vec2(idx.add(0.5).div(81), row.add(0.5).div(1 + SLOTS))).r.mul(255).add(0.5))
+
+  // Panel space from the landmark's: u across, v up, and u flipped on the back
+  // face so the digits read the right way round from either side.
+  const uFront = positionLocal.x.add(HOLO.side / 2).div(HOLO.side)
+  const u = select(frontFacing, uFront, oneMinus(uFront))
+  const v = positionLocal.y.sub(HOLO.foot).div(HOLO.side)
+  const y = oneMinus(v) // top-down, for the cells and the glyphs
+  const puv = vec2(u, y)
+
+  // ---- rain. Thirty-six slots each way, two streams to a column, and a
+  // digit in every slot that changes on its own clock. `hash` reads its seed
+  // as an integer, so every seed here is one.
+  const N = HOLO.cols
+  const slot = floor(puv.mul(N))
+  const local = fract(puv.mul(N))
+  const col = slot.x
+  const seed = col.add(slot.y.mul(N))
+  const stream = (k: number) => {
+    const speed = hash(col.add(1000 * k + 7)).mul(0.6).add(0.35)
+    const phase = hash(col.add(1000 * k + 311))
+    const headY = fract(T.mul(speed).add(phase)).mul(HOLO.tail + 1) // 0..1 + tail, top-down
+    const slotY = slot.y.add(0.5).div(N)
+    const d = headY.sub(slotY) // positive above the head: in the tail
+    const tail = oneMinus(smoothstep(0, HOLO.tail, d)).mul(step(0, d))
+    return { tail: tail.mul(tail), head: step(abs(d), 0.6 / N) }
+  }
+  const s0 = stream(0)
+  const s1 = stream(1)
+  const rainAmt = max(s0.tail, s1.tail)
+  const headAmt = max(s0.head, s1.head)
+  const rate = hash(seed.add(50_003)).mul(5).add(2)
+  const tick = floor(T.mul(rate).add(hash(seed.add(70_001)).mul(7)))
+  const rainDigit = floor(hash(seed.add(tick.mul(1297))).mul(9)).add(1)
+  const rainGlyph = glyph(rainDigit, vec2(local.x.sub(0.25).div(0.5), local.y.sub(0.08).div(0.84)))
+  const rain = mix(GREEN, HEAD, headAmt).mul(rainGlyph).mul(max(rainAmt, headAmt))
+
+  // ---- the grid. A clue fills its cell; a candidate is small and dim in the
+  // middle of it, and which candidate is the slot row this cell is on now.
+  const cell = floor(puv.mul(9))
+  const cl = fract(puv.mul(9))
+  const idx = cell.y.mul(9).add(cell.x)
+  const clue = digitAt(idx, float(0))
+  const isClue = step(0.5, clue)
+  const slotRow = mod(floor(T.mul(HOLO.flicker).add(hash(idx.add(90_001)).mul(SLOTS))), SLOTS).add(1)
+  const shown = still ? digitAt(idx, float(1)) : digitAt(idx, slotRow)
+  const big = glyph(shown, vec2(cl.x.sub(0.3).div(0.4), cl.y.sub(0.15).div(0.7)))
+  const small = glyph(shown, vec2(cl.x.sub(0.395).div(0.21), cl.y.sub(0.325).div(0.35)))
+  const digits = GREEN.mul(mix(small.mul(0.22), big, isClue))
+  // The lattice: thin between cells, thick between boxes — the tray's own two
+  // weights — and it comes in with the reveal rather than with the cells.
+  const cw = 0.05
+  const bw = 0.04
+  const cellLine = max(
+    step(cl.x, cw).add(step(oneMinus(cl.x), cw)),
+    step(cl.y, cw).add(step(oneMinus(cl.y), cw)),
+  )
+  const bl = fract(puv.mul(3))
+  const boxLine = max(
+    step(bl.x, bw).add(step(oneMinus(bl.x), bw)),
+    step(bl.y, bw).add(step(oneMinus(bl.y), bw)),
+  )
+  const lines = clamp(cellLine.mul(0.22).add(boxLine.mul(0.55)), 0, 0.7)
+  const grid = digits.add(LINE.mul(lines).mul(smoothstep(0, 0.6, reveal)))
+
+  // ---- the settle, in the solver's scan order: cell 0 first, 80 last.
+  const t0 = idx.div(81)
+  const w = smoothstep(t0, t0.add(HOLO.settle), reveal.mul(1 + HOLO.settle))
+  const picture = mix(rain, grid, w)
+
+  // ---- and a hologram's tell: scanlines, a slow rolling band, a faint wash
+  // where nothing is lit, and edges that fade rather than cut.
+  const scan = float(0.86).add(sin(v.mul(420)).mul(0.14))
+  const bandPos = fract(T.mul(0.07)).mul(1.3).sub(0.15)
+  const band = exp(abs(v.sub(bandPos)).mul(-30)).mul(0.35 * (1 - still))
+  const edge = smoothstep(0, 0.02, u).mul(smoothstep(0, 0.02, oneMinus(u)))
+    .mul(smoothstep(0, 0.03, v)).mul(smoothstep(0, 0.03, oneMinus(v)))
+  const panelLight = picture.add(GREEN.mul(0.02)).mul(scan.add(band)).mul(edge)
+
+  // Black, unlit, and everything it shows in the emissive. `emissiveNode` is
+  // read by every node material's lighting setup and typed only on the
+  // standard one — a narrow cast at the library boundary.
+  const light = (emissive: THREE.Node) => {
+    const m = new THREE.MeshBasicNodeMaterial({
+      color: 0x000000, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide,
+    })
+    ;(m as unknown as { emissiveNode: THREE.Node }).emissiveNode = emissive
+    return m
+  }
+  const panel = light(panelLight.mul(HOLO.glow))
+
+  // The fan from the puck to the panel's foot: brightest where it leaves the
+  // puck, soft at its two long edges, and the same band rolling down it.
+  const along = positionLocal.z.sub(HOLO.z).div(HOLO.emitZ - HOLO.z) // 1 at the puck
+  const halfW = mix(float(HOLO.side / 2), float(HOLO.coneW / 2), along)
+  const across = oneMinus(smoothstep(0.6, 1, abs(positionLocal.x).div(halfW)))
+  const cone = light(GREEN.mul(mix(0.03, 0.22, along.mul(along))).mul(across).mul(scan.mul(0.5).add(0.5)))
+
+  // The eye on the puck: steady, and the brightest green on the island, so
+  // the panel has somewhere to come from.
+  const eye = light(GREEN.mul(0.8))
+
+  return { panel, cone, eye }
+}
+const HOLO_MATS = makeHolo()
+
+/** The blockout's panel, translated to where the model's quad stands: the
+ *  shader reads its place off `positionLocal`, so it cannot be positioned. */
+const HOLO_QUAD = new THREE.PlaneGeometry(HOLO.side, HOLO.side)
+  .translate(0, HOLO.foot + HOLO.side / 2, HOLO.z)
 
 function makeMats(hi: boolean) {
   const c = Object.fromEntries(
@@ -304,22 +503,6 @@ function makeMats(hi: boolean) {
   // Landed tiles warm very slightly: they are part of the word now.
   found.colorNode = mix(color(c.panel), color(shade('#e2d9c8', hi)), w.mul(0.3))
 
-  // The sudoku's wells. The floor of an open cell is sunk by how many digits
-  // could still legally go in it — `tools/sudoku.py` works that out from the
-  // puzzle and puts it in the geometry — so the only shading this landmark
-  // needs is to read that depth back off the floor it is drawing. A cell with
-  // two candidates left sits almost level with the lines and takes the tray's
-  // own colour; one with six is a pit. Nothing is written anywhere on it
-  // (invariant 2): what the relief says is how much of the board is still
-  // open, which is the first thing that solver computes and the only thing
-  // about it that has a shape.
-  const wells = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
-  wells.colorNode = mix(
-    color(c.dark),
-    color(c.board).mul(0.5),
-    smoothstep(SU_RAIL - WELL_MAX, SU_RAIL - WELL_MIN, positionLocal.y),
-  )
-
   // The palette in the easel's tray. It wants the board colour — `tools/easel.py`
   // says so, and names the mesh for it — but not the board's grid, which is
   // 15x15 Scrabble cells and was drawing two of its lines across a palette.
@@ -327,13 +510,17 @@ function makeMats(hi: boolean) {
 
   return {
     frame, panel, dark, rock, board, glass,
+    // The hologram is the same object in both sets: it is not tinted, because
+    // it is not lit.
+    holo: HOLO_MATS.panel,
     /** Overrides keyed by the whole mesh name, tried before the name's prefix —
      *  a mesh that wants its own shader gets one without a second model. */
     byName: {
       panel_canvases: canvas,
       panel_found: found,
       board_palette: palette,
-      dark_wells: wells,
+      holo_cone: HOLO_MATS.cone,
+      holo_eye: HOLO_MATS.eye,
     } as Record<string, THREE.Material | undefined>,
   }
 }
@@ -534,48 +721,19 @@ function Kicker(m: Mats) {
 }
 
 // ------------------------------------------------------------- the sudoku
-// The Sudoku Solver, and the awkward part of it: this world already has a
-// square board of blank tiles on a plinth. What separates the two is that a
-// sudoku has structure in its holes — so Scrabble stays a flat plate with its
-// grid painted on by a shader and tiles standing on top, and this is a tray:
-// a lattice standing 30 cm off the plinth with eighty-one wells sunk into it,
-// thirty-one of them holding a tile and fifty left open. `tools/sudoku.py`
-// builds the real one and sinks each open well by how many digits could still
-// go in it; the blockout below is the same clue pattern in three boxes, which
-// is enough to read as a partly-filled grid while the file is on the wire.
+// The Sudoku Solver: a plinth, a puck, and the light standing over it. The
+// panel is the shader's, and the shader reads where it is off the vertex, so
+// the blockout's quad is the model's quad — the same size in the same place,
+// with the rain already on it while the file is on the wire. The plinth and
+// the puck are the only things here the sun touches.
 
 function Sudoku(m: Mats) {
-  const mid = (SU_TOP + SU_RAIL) / 2
-  const h = SU_RAIL - SU_TOP
   return (
     <>
       <mesh geometry={BOX} material={m.frame} position={[0, SU_TOP / 2, 0]} scale={[SU_PLINTH, SU_TOP, SU_PLINTH]} />
-      {/* The tray as one dark block with the clues standing out of it: the
-          wells are what the eye is meant to find, and before the model is in,
-          the holes are better said by one shadow than by eighty-one boxes. */}
-      <mesh geometry={BOX} material={m.dark} position={[0, mid, 0]} scale={[SU_PLATE, h, SU_PLATE]} />
-      {[-1, 1].map((s) => (
-        <group key={s}>
-          <mesh geometry={BOX} material={m.frame} position={[0, mid, (s * (SU_PLATE + SU_RIM)) / 2]}
-            scale={[SU_PLATE + SU_RIM * 2, h, SU_RIM]} />
-          <mesh geometry={BOX} material={m.frame} position={[(s * (SU_PLATE + SU_RIM)) / 2, mid, 0]}
-            scale={[SU_RIM, h, SU_PLATE]} />
-        </group>
-      ))}
-      {CLUES.map((row, i) =>
-        [...row].map((cell, j) =>
-          cell === '#' ? (
-            <mesh key={`${i},${j}`} geometry={BOX} material={m.panel}
-              position={[(j - 4) * SU_CELL, SU_SEAT + SU_TILE_H / 2, (i - 4) * SU_CELL]}
-              scale={[SU_TILE, SU_TILE_H, SU_TILE]} />
-          ) : null,
-        ),
-      )}
-      {/* And what is not down yet — one for every open cell. */}
-      {SU_STACKS.map(([x, z, n]) => (
-        <mesh key={`${x},${z}`} geometry={BOX} material={m.panel}
-          position={[x, SU_TOP + (n * SU_TILE_H) / 2, z]} scale={[SU_TILE, n * SU_TILE_H, SU_TILE]} />
-      ))}
+      <mesh geometry={BOX} material={m.frame} position={[0, (SU_TOP + HOLO.emitTop) / 2, HOLO.emitZ]}
+        scale={[HOLO.emitR * 2, HOLO.emitTop - SU_TOP, HOLO.emitR * 2]} />
+      <mesh geometry={HOLO_QUAD} material={m.holo} />
     </>
   )
 }
@@ -821,8 +979,16 @@ export function Landmarks({ near }: { near: string | null }) {
   // fires on the blockout too, and so it is one update for a value both
   // material sets share. Invariant 6: a visitor who asked for less motion
   // gets the shutter and not a light going off in their face.
-  useFrame(() => {
+  useFrame((_, dt) => {
     flashLevel.value = REDUCED ? 0 : Math.max(0, 1 - FLASH.age / FLASH_FOR)
+    // The sudoku's settle: one number both ways, like `RIDE.land` — up while
+    // the sudoku is the landmark that is near, back down once it is not. The
+    // same signal that opens the panel, so the board resolves as the visitor
+    // starts reading about it. Pinned at 1 under reduced motion.
+    if (REDUCED) return
+    const here = LANDMARKS.some((l) => l.slug === near && l.landmark === 'sudoku')
+    holoReveal.value = THREE.MathUtils.clamp(
+      holoReveal.value + (here ? dt / HOLO_UP : -dt / HOLO_DOWN), 0, 1)
   })
   return (
     <>
