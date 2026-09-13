@@ -17,9 +17,11 @@ import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
 import memojoUrl from './models/memojo.glb?url'
+import sudokuUrl from './models/sudoku.glb?url'
 
 /**
- * The three landmarks: a mine, an easel, a Scrabble board. Track B blockout,
+ * The five landmarks: a mine, an easel, a Scrabble board, a ramp with a camera
+ * watching the end of it, and a sudoku tray. Track B blockout,
  * one step past grey boxes — enough silhouette that each project is
  * identifiable from the air, and no detail beyond that, because what Track B's
  * exit test judges is the layout and not the shading.
@@ -143,6 +145,39 @@ const FOUND_STEP = 0.045
 const FOUND_Z = 2 * CELL
 const FOUND_TILT = [-0.05, -0.02] // the tip of tile k: FOUND_TILT[0] + k * FOUND_TILT[1]
 const TILE_Y = 0.2525 // TOP + TILE_H / 2
+
+// The sudoku tray, mirrored from `tools/sudoku.py`: the grid's pitch, the top
+// of a cell line, the tile, and the two well depths the shader reads the
+// relief back out of. Change one and change the other — the model is what
+// ships, and this is both what stands in for it and what shades it.
+const SU_CELL = 0.4
+const SU_PLATE = SU_CELL * 9
+const SU_RIM = 0.16
+const SU_PLINTH = 4.9
+const SU_TOP = 0.21
+const SU_RAIL = 0.51
+const SU_SEAT = SU_RAIL - 0.11
+const SU_TILE = 0.34
+const SU_TILE_H = 0.15
+const WELL_MIN = 0.12 // a cell with two candidates left
+const WELL_MAX = 0.24 // a cell with six
+
+/** The board hard-coded into `main()` in the repository's own `sudoku.py`: a
+ *  '#' is a clue and a '.' an open cell, and the row index runs along z.
+ *  Thirty-one down, fifty to go, one solution. */
+const CLUES = [
+  '..######.', '#...##...', '#...##...', '..#.#....', '.#.#..###',
+  '#..#....#', '..#..##.#', '#......#.', '...#..##.',
+]
+
+/** Where the fifty unplaced tiles are stacked on the plinth's border, and how
+ *  many in each: `STACKS` in `tools/sudoku.py`. The seven lying flat beside
+ *  them are detail and the blockout does without them. */
+const SU_BORDER = (SU_PLATE / 2 + SU_RIM + SU_PLINTH / 2) / 2
+const SU_STACKS: [number, number, number][] = [
+  [-SU_BORDER, -1.25, 9], [-SU_BORDER, 0, 7], [-SU_BORDER, 1.25, 8],
+  [-1.25, -SU_BORDER, 6], [0.1, -SU_BORDER, 7], [1.45, -SU_BORDER, 6],
+]
 
 // Invariant 6. The settle is the one thing here that moves geometry, so it is
 // the one thing that has to be able to not happen.
@@ -269,6 +304,22 @@ function makeMats(hi: boolean) {
   // Landed tiles warm very slightly: they are part of the word now.
   found.colorNode = mix(color(c.panel), color(shade('#e2d9c8', hi)), w.mul(0.3))
 
+  // The sudoku's wells. The floor of an open cell is sunk by how many digits
+  // could still legally go in it — `tools/sudoku.py` works that out from the
+  // puzzle and puts it in the geometry — so the only shading this landmark
+  // needs is to read that depth back off the floor it is drawing. A cell with
+  // two candidates left sits almost level with the lines and takes the tray's
+  // own colour; one with six is a pit. Nothing is written anywhere on it
+  // (invariant 2): what the relief says is how much of the board is still
+  // open, which is the first thing that solver computes and the only thing
+  // about it that has a shape.
+  const wells = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
+  wells.colorNode = mix(
+    color(c.dark),
+    color(c.board).mul(0.5),
+    smoothstep(SU_RAIL - WELL_MAX, SU_RAIL - WELL_MIN, positionLocal.y),
+  )
+
   // The palette in the easel's tray. It wants the board colour — `tools/easel.py`
   // says so, and names the mesh for it — but not the board's grid, which is
   // 15x15 Scrabble cells and was drawing two of its lines across a palette.
@@ -282,6 +333,7 @@ function makeMats(hi: boolean) {
       panel_canvases: canvas,
       panel_found: found,
       board_palette: palette,
+      dark_wells: wells,
     } as Record<string, THREE.Material | undefined>,
   }
 }
@@ -481,6 +533,53 @@ function Kicker(m: Mats) {
   )
 }
 
+// ------------------------------------------------------------- the sudoku
+// The Sudoku Solver, and the awkward part of it: this world already has a
+// square board of blank tiles on a plinth. What separates the two is that a
+// sudoku has structure in its holes — so Scrabble stays a flat plate with its
+// grid painted on by a shader and tiles standing on top, and this is a tray:
+// a lattice standing 30 cm off the plinth with eighty-one wells sunk into it,
+// thirty-one of them holding a tile and fifty left open. `tools/sudoku.py`
+// builds the real one and sinks each open well by how many digits could still
+// go in it; the blockout below is the same clue pattern in three boxes, which
+// is enough to read as a partly-filled grid while the file is on the wire.
+
+function Sudoku(m: Mats) {
+  const mid = (SU_TOP + SU_RAIL) / 2
+  const h = SU_RAIL - SU_TOP
+  return (
+    <>
+      <mesh geometry={BOX} material={m.frame} position={[0, SU_TOP / 2, 0]} scale={[SU_PLINTH, SU_TOP, SU_PLINTH]} />
+      {/* The tray as one dark block with the clues standing out of it: the
+          wells are what the eye is meant to find, and before the model is in,
+          the holes are better said by one shadow than by eighty-one boxes. */}
+      <mesh geometry={BOX} material={m.dark} position={[0, mid, 0]} scale={[SU_PLATE, h, SU_PLATE]} />
+      {[-1, 1].map((s) => (
+        <group key={s}>
+          <mesh geometry={BOX} material={m.frame} position={[0, mid, (s * (SU_PLATE + SU_RIM)) / 2]}
+            scale={[SU_PLATE + SU_RIM * 2, h, SU_RIM]} />
+          <mesh geometry={BOX} material={m.frame} position={[(s * (SU_PLATE + SU_RIM)) / 2, mid, 0]}
+            scale={[SU_RIM, h, SU_PLATE]} />
+        </group>
+      ))}
+      {CLUES.map((row, i) =>
+        [...row].map((cell, j) =>
+          cell === '#' ? (
+            <mesh key={`${i},${j}`} geometry={BOX} material={m.panel}
+              position={[(j - 4) * SU_CELL, SU_SEAT + SU_TILE_H / 2, (i - 4) * SU_CELL]}
+              scale={[SU_TILE, SU_TILE_H, SU_TILE]} />
+          ) : null,
+        ),
+      )}
+      {/* And what is not down yet — one for every open cell. */}
+      {SU_STACKS.map(([x, z, n]) => (
+        <mesh key={`${x},${z}`} geometry={BOX} material={m.panel}
+          position={[x, SU_TOP + (n * SU_TILE_H) / 2, z]} scale={[SU_TILE, n * SU_TILE_H, SU_TILE]} />
+      ))}
+    </>
+  )
+}
+
 // ----------------------------------------------------------------- the set
 
 /** Keyed by the `landmark` frontmatter field, not by slug: two projects may
@@ -490,6 +589,7 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
   easel: Easel,
   board: Board,
   ramp: Kicker,
+  sudoku: Sudoku,
 }
 
 /**
@@ -508,6 +608,7 @@ const MODEL: Record<string, string> = {
   easel: easelUrl,
   board: boardUrl,
   ramp: memojoUrl,
+  sudoku: sudokuUrl,
 }
 
 type Part = { geometry: THREE.BufferGeometry; name: string }

@@ -22,7 +22,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  BOARD, LENSES, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER, TIDY_FOR, WALLED,
+  BOARD, DECKS, LENSES, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER, TIDY_FOR, WALLED,
   deckAt, displaced, footprint, hull2d, inShot, inside, makeProp, makeSet, profileAt,
   rampLift, rim, seedOf, stepProps,
   type Board, type Hit, type Poly, type Terrain,
@@ -56,6 +56,8 @@ const SPREAD = 1.9 // `ISLAND_SPREAD`, the same file
   assert.equal(deckAt('board', 2.9, -2.9), 0.21)
   assert.equal(deckAt('board', 3.0, 0), 0)
   assert.equal(deckAt('mine', 0, 0), 0)
+  assert.equal(deckAt('sudoku', 2.4, -2.4), 0.21)
+  assert.equal(deckAt('sudoku', 2.5, 0), 0)
 }
 
 // ------------------------------------------------------------- the wall
@@ -116,6 +118,53 @@ assert.ok(!inside(wall, 0, 4), 'the approach is inside the wall')
     area += a.x * b.z - b.x * a.z
   }
   assert.ok(area > 0, 'the wall winds clockwise')
+}
+
+// ------------------------------------------------------------- the sudoku
+// A landmark with no wall and no ramp, whose whole physical claim is that the
+// thirteen things standing on its deck are standing on its deck. `Landmarks`
+// gives every prop a `rest` of `GROUND + deckAt(...)` and then treats that as
+// the floor under it, so a tile modelled anywhere else floats or sinks the
+// first time it is touched — and nothing in the browser would say so, because
+// a prop at rest is drawn exactly where the file put it.
+
+{
+  const path = new URL('./models/sudoku.glb', import.meta.url).pathname
+  const deck = DECKS.sudoku!
+  const tray = 3.6 / 2 + 0.16 // the tray's own half-width: `PLATE / 2 + RIM_W`
+  type Bounds = { lo: number; x0: number; x1: number; z0: number; z1: number }
+  const props = new Map<string, Bounds>()
+  let seated = 0
+  for (const m of meshesFromGlb(path)) {
+    const prop = m.name.split('~')[1]
+    if (!prop) {
+      if (m.name === 'panel_clue') seated++
+      continue
+    }
+    const b: Bounds = props.get(prop) ??
+      { lo: Infinity, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }
+    for (let i = 0; i + 2 < m.pos.length; i += 3) {
+      b.lo = Math.min(b.lo, m.pos[i + 1]!)
+      b.x0 = Math.min(b.x0, m.pos[i]!)
+      b.x1 = Math.max(b.x1, m.pos[i]!)
+      b.z0 = Math.min(b.z0, m.pos[i + 2]!)
+      b.z1 = Math.max(b.z1, m.pos[i + 2]!)
+    }
+    props.set(prop, b)
+  }
+  // One mesh and no `~`: the thirty-one clues are held by their wells and do
+  // not move. Splitting them into props is the change this asserts against.
+  assert.equal(seated, 1, 'the seated clues are not one fixed mesh')
+  assert.equal(props.size, 13, `${props.size} loose props on the sudoku, expected 13`)
+  for (const [id, b] of props) {
+    const px = (b.x0 + b.x1) / 2
+    const pz = (b.z0 + b.z1) / 2
+    assert.ok(Math.abs(b.lo - deck.h) < 2e-3, `${id} stands at ${b.lo.toFixed(3)}, the deck is ${deck.h}`)
+    assert.ok(Math.abs(px) <= deck.half && Math.abs(pz) <= deck.half, `${id} is off the plinth`)
+    assert.equal(deckAt('sudoku', px, pz), deck.h, `${id} is not over the deck`)
+    // And clear of the tray, or a stack of tiles is standing in a well.
+    assert.ok(Math.abs(px) > tray || Math.abs(pz) > tray, `${id} stands on the grid`)
+  }
 }
 
 const flat: Terrain = () => ({ land: GROUND, water: 0 })

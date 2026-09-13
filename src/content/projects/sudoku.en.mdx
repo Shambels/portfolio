@@ -1,0 +1,130 @@
+---
+title: Sudoku Solver
+slug: sudoku
+year: 2019
+stack: [Python, JavaScript, HTML, CSS]
+repo: https://github.com/Shambels/sudoku
+summary: The same recursive backtracking search written twice — once for a terminal, once for a page with no build step — and kept exactly as it was written in 2019, defects included.
+landmark: sudoku
+order: 5
+pos: [-19, 27]
+size: [5.4, 1.6, 5.4]
+radius: 5
+waypoint: [-22, 30]
+---
+
+## The problem
+
+A sudoku is one rule wearing three hats: nine digits, no repeat down a row, a
+column or a three-by-three box. That makes it the smallest interesting search
+problem there is — small enough to hold in your head, large enough that trying
+every arrangement of the fifty empty cells is a number with forty-eight digits in
+it. The interesting part is not that a computer can solve it. It is that the
+board tells you, at every step, almost everything you are not allowed to do, and
+a search that listens costs nothing while a search that does not never finishes.
+
+I wanted to write that search, and then write it again attached to something
+completely different: once for a terminal, once for a page. This is 2019 and it
+is a learning project. Six commits, the last of them called "Transfer Lenovo
+330s", which is what happens to a repository when the laptop changes.
+
+## What I chose
+
+Recursive backtracking on the first empty cell. Find a blank, work out what could
+legally go in it, try each candidate in turn and recurse; when nothing fits, the
+cell before it was wrong, so put the blank back and let the caller try its next
+candidate. That is the whole algorithm and it is about forty lines in either
+language.
+
+The candidates come out of a scan rather than out of a maintained set: for cell
+*(i, j)*, walk the row, walk the column, walk the box, and mark every digit
+already standing. The array is indexed *by the digit* — `possible[7]` holds 7
+while 7 is available and 0 once it is not — so asking whether a digit is free is
+a lookup rather than a search, and the loop that tries candidates is a loop from
+one to nine that skips the zeros. Twenty-seven reads per cell, recomputed from
+scratch every time the cell is visited.
+
+The browser version is those same forty lines with a page attached: eighty-one
+`<input>` cells, arrow keys and digits bound to move and write, a solve button
+and a status line. No build step, no framework, no dependency — you open
+`index.html` and it runs, which in 2019 was the entire point of writing the
+second one.
+
+And one decision I would still defend: it refuses to start on fewer than
+seventeen clues. Seventeen is not a round number I liked the look of — it is the
+proven minimum for a sudoku with a unique solution, settled by exhaustive search
+in 2012. Below it, what comes back is *a* completed grid rather than *the*
+answer, and a solver that quietly hands you one of many is worse than one that
+says no.
+
+## What it gets wrong
+
+Three things, and none of them is subtle once you look at it.
+
+**Neither version stops when it wins.** `sudokuSolver` prints the board when the
+board is full, and returns nothing at all; the caller's loop carries on through
+its remaining candidates. On a puzzle with one solution that means the search
+keeps walking the tree after it has already finished, and on an under-constrained
+board it prints every solution in turn. The JavaScript does the same thing into
+the DOM, so the grid left on the screen is the last one the search happened to
+reach rather than the first. The fix is a line each way: return `true` when the
+board is full, and `if (solve(grid)) return true` inside the candidate loop.
+Backtracking with no success channel is not backtracking, it is enumeration with
+a tidy-up.
+
+**The JavaScript looks for the first empty cell and keeps the last one.** The
+scan is a nested loop with a `break` in it, and `break` leaves the inner loop
+only — the outer loop runs on and overwrites `i` and `j` with some later empty
+cell. So it recurses on a cell chosen almost at random, and it still terminates,
+and it still returns correct grids, which is exactly why nobody noticed. The
+Python version gets it right, and what saves it is the `for … else: continue` /
+`break` idiom, which is Python's answer to this precise problem; JavaScript's
+answer is a labelled break, or lifting the scan into a function and returning out
+of it. Two languages, one algorithm, and the only difference between them was not
+the algorithm.
+
+**The solve blocks the page.** `start()` writes "Wait for It…" into the status
+line and then calls `solve` on the main thread. There is no opportunity to paint
+between those two statements, so on a slow board the message the user is waiting
+for is the one message they never see — the tab simply stops answering. A Web
+Worker is the real fix; yielding once before the search starts is the free one,
+and either beats what is there. It is the same lesson I wrote down again seven
+years later on a Scrabble solver: a search that janks the interface reads as a
+broken app rather than a busy one.
+
+There is a fourth, smaller and funnier: the status line is held in a variable
+called `alert`, declared with `var` at the top of the file, which shadows
+`window.alert` for the whole program. Nothing in there calls `alert()`, so it
+never bit — it just stands as a reminder that in 2019 I did not know what `var`
+at file scope was doing.
+
+## What it cost
+
+The board is eighty-one `<input>` elements typed out by hand, each carrying its
+own numbered class, and the solution grid is another eighty-one `<div>`s beside
+them. A hundred and sixty-two elements in a file that four lines of the language
+already in the project would have produced. It is the most honest thing in the
+repository about where I was standing: I could write a recursive search before it
+occurred to me to generate markup.
+
+Writing it twice cost what writing anything twice costs. There is no shared
+test — there is no test — so the defect in the JavaScript scan could never be
+caught by the Python that does not have it. The two drifted the moment the second
+one was typed and nothing in the repository was ever going to say so.
+
+And the README is one line long: `# sudoku`. Every sentence above had to be read
+back out of the source to write this page, which is a cost paid seven years after
+the saving.
+
+## The outcome
+
+It solves the board. Both of them do — the Python one on the puzzle wired into
+`main()` as eighty-one separate assignments, thirty-one clues and a unique
+answer, and the JavaScript one on whatever you type into the page.
+
+None of it is fixed. The three defects are a few lines each and I can point at
+every one of them; leaving them alone is the more useful thing, because a
+portfolio made only of the code that went well belongs to somebody who has never
+gone back and read their own. This is what the search looked like the first time
+I wrote it, and the value of it now is entirely in being able to say where it is
+wrong.

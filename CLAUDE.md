@@ -64,6 +64,7 @@ one major behind. Noted here rather than done quietly.
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `scrubble` | A Scrabble board | — |
 | `memojo` | A ramp, and a giant camera aimed at the end of it | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
+| `sudoku` | An unfinished sudoku board — a tray of 81 wells, 31 of them filled | https://github.com/Shambels/sudoku |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
 — is English frontmatter, not a table anywhere in code.
@@ -128,7 +129,7 @@ Breaking one is allowed. Doing it without saying so is not.
   is pure arithmetic so that `beach.check.ts` can walk him onto the real island
   in node; it is a *floor* and not a fade, and the difference between those two
   words is a man on the beach against a man inside it.
-  The three project islands are not a wall for him either, since the props:
+  The project islands are not a wall for him either, since the props:
   he rides up their beaches on the board — `plateau()` in `world.ts` is the
   floor, the island mesh's own profile with the Scrabble plinth on top, and
   gravity over it is what the buoyancy spring is under the sea — and he never
@@ -226,7 +227,7 @@ Breaking one is allowed. Doing it without saying so is not.
 | The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass" |
 | The board, `surfboard.glb` | 10k triangles, ~180 kB — decimated from the generator's 95k; nobody looks at it for long |
 | The ship, `pirate_ship.glb` | 117k triangles, 1.15 MB — 1.00 MB gz. **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
-| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.26 MB of it spent |
+| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.31 MB of it spent |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
 | Frame rate | 60fps on a 2022 mid-tier laptop, or cut the effect |
@@ -268,9 +269,9 @@ src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by def
 src/Islands.tsx         the ground under each landmark — lathed from
                         `plateau.ts`'s profile, no assets
 src/plateau.ts          the project islands as ridden: the ground's profile,
-                        the loose props on it, the mine's wall, Memojo's ramp
-                        and the lens that watches it — pure arithmetic, no
-                        three, so the check runs in node
+                        the loose props on it, the mine's wall, the two plinth
+                        decks, Memojo's ramp and the lens that watches it —
+                        pure arithmetic, no three, so the check runs in node
 src/plateau.check.ts    that, with a board ridden at the real mine, over a
                         row of tiles, and up the real ramp and off it
 src/beach.ts            coming ashore: the ramp between riding and walking, the
@@ -285,7 +286,7 @@ src/Isle.tsx            that height function as a mesh, its colours, and where
                         its thirty-eight palms stand (plural filename: macOS
                         cannot tell `isles.ts` from `Isle.tsx` without the s)
 src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
-                        camera — blockout in primitives +
+                        camera, the sudoku tray — blockout in primitives +
                         TSL, and the detailed model where one exists (`MODEL`);
                         reads `~prop` off mesh names into `PROP_SETS`, and the
                         mine's wall off its vertices
@@ -297,6 +298,10 @@ tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headles
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
 tools/memojo.py         the same, for the ramp and the giant camera
+tools/sudoku.py         the same, for the sudoku tray — and the one landmark
+                        script that computes geometry rather than drawing it:
+                        an open cell's well is as deep as the cell has
+                        candidates, counted from the repository's own puzzle
 tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
                         exports the two generated sources beside it,
                         tools/surfer-tripo.glb and tools/surfboard-tripo.glb
@@ -553,12 +558,33 @@ project", has all of it, including the two things that check it: the glb's
 deck vertices against `deckAt` at every station, and the control that says a
 beach is still not a kicker.
 
+And a fifth, which is the oldest code on the site and the only page that is
+mostly an argument against itself. The Sudoku Solver is 2019: the same
+backtracking search written twice, once for a terminal and once for a page
+with no build step, and the case study names the three things wrong with it —
+neither version stops when it has won, the JavaScript's scan for the first
+empty cell keeps the last one, and the solve blocks the page behind a message
+the browser never paints — and gives each one its fix. Nothing in that
+repository was changed. Its landmark is a **tray** and not a plate, which is
+the only thing keeping it off Scrabble's board: eighty-one wells sunk into a
+lattice, thirty-one holding a blank tile, fifty open, and the fifty tiles that
+have not been placed stacked on the plinth beside it — which is also where its
+height comes from, because a flat board is the rug Scrubble already learned
+about. The puzzle is the one hard-coded in that repository's `main()`, and an
+open cell's well is as deep as the cell has candidates left, counted by the
+same scan the solver does — so the relief across the tray is the solver's own
+first move, and the shader reads that depth back off the floor and nothing
+else. `docs/STATUS.md`, "A fifth project", has it, including what it did to
+the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now as
+much of the slug as it takes to be unambiguous.
+
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the unreviewed
 FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
 control hints, the three craft labels, the reading view's `closeStudy` and
 `backToWorld`, and now `linkPlay`, `linkAppStore`, the two reworded `work`
-strings and the whole of Memojo's FR and NL prose), and judging
+strings, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
+Solver's, which is the longest translation on the site), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over
 its ridge, on real hardware — swiftshader has no opinion about frame rate, a null audio sink

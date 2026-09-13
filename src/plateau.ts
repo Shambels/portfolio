@@ -69,13 +69,17 @@ export function profileAt(radius: number, seed: number, dx: number, dz: number):
 
 /**
  * What stands proud of a plateau and is ridden over rather than into: the
- * Scrabble board's plinth, a square deck a fifth of a metre high (`tools/
- * board.py`: `TOP`, `PLINTH`). Keyed by landmark shape, and a landmark with no
- * entry is flat. The tiles sit on this deck, so a board that could not get up
- * onto it could never reach them.
+ * Scrabble board's plinth and the sudoku tray's, each a square deck a fifth of
+ * a metre high (`tools/board.py` and `tools/sudoku.py`: `TOP`, `PLINTH`).
+ * Keyed by landmark shape, and a landmark with no entry is flat. The tiles sit
+ * on this deck, so a board that could not get up onto it could never reach
+ * them — and on the sudoku that is all there is to reach, because a clue
+ * seated in its well is held by the well and only the fifty tiles that have
+ * not been placed are loose.
  */
 export const DECKS: Record<string, { half: number; h: number } | undefined> = {
   board: { half: 2.97, h: 0.21 },
+  sudoku: { half: 2.45, h: 0.21 },
 }
 
 /**

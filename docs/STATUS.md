@@ -5477,3 +5477,162 @@ is exactly one line onto it, up the island's +Z beach.
 - The work is uncommitted, and the folder it was written in has no
   `node_modules`, so `npx tsc -b` and `npm run check` were run on a throwaway
   copy in the container, on a real `npm install`, along with `npm run build`.
+
+## A fifth project — Sudoku Solver, a tray where the fourth grid would have been
+
+`https://github.com/Shambels/sudoku`, 2019: two solvers for the same puzzle,
+one Python and one in a browser, six commits, the last of them called "Transfer
+Lenovo 330s". It is the oldest thing on this site by seven years and the only
+one whose case study is mostly about what is wrong with it.
+
+### The page says where the code is wrong, and what the fix is
+
+Seb's call, and it is the one that made the page worth writing. The three
+defects are read out of the source and named: neither version returns a success
+value, so both keep walking the tree after they have solved the board and the
+JavaScript leaves the *last* solution on the screen rather than the first; the
+JavaScript's scan for the first empty cell `break`s only the inner loop, so it
+recurses on whichever empty cell the outer loop last overwrote `i` and `j`
+with — which still terminates, still returns correct grids, and is exactly why
+nobody noticed; and the solve runs on the main thread behind a "Wait for It…"
+the browser never gets an opportunity to paint. Each one is given its fix in a
+line. The Python version gets the second one right, and what saves it is
+`for … else: continue` / `break` — two languages, one algorithm, and the
+difference between them was not the algorithm. That is the sentence the page
+exists for.
+
+Nothing in the repository was changed. Leaving the defects and pointing at them
+is the position, and the page says so.
+
+### A second square board of blank tiles, which is the whole difficulty
+
+Scrubble is already a 15×15 grid of blank tiles on a plinth. Built the same way
+this would be one landmark seen twice, and two discs of the same size on the
+minimap. So the two are separated by the thing a sudoku has and a crossword does
+not — **structure in the holes**. Scrabble stays a flat plate with its grid
+painted on by a shader and tiles standing on it; this is a *tray*: a lattice
+standing 30 cm off the plinth with eighty-one wells sunk into it, thirty-one of
+them holding a tile and fifty left open. Scrubble reads as things on a surface,
+this reads as holes in one.
+
+Tiles are blank here for the reason they are blank there (invariant 2). What
+makes it a sudoku rather than a nine-by-nine anything is the line weight: a
+three-by-three divider is `BOX_RIB` 0.10 against a cell line's `RIB` 0.035, and
+it stands `BOX_PROUD` 0.03 taller as well. Wider alone was not enough, and the
+render is what said so — from the air the two weights read, but from the deck,
+which is where the rider is, every line is the same edge until one of them
+stands up. `Claude outputs/sudoku-approach.png` is the frame that settled both
+that and the stacks below.
+
+### The puzzle is the repository's, and the relief is the solver's first move
+
+The board is not invented. It is the position hard-coded into `main()` in the
+repository's own `sudoku.py` as eighty-one separate assignments: 31 clues, 50
+open cells, one solution (checked). `CLUES` and `DIGITS` in `tools/sudoku.py`
+are that board written twice, as a mask and as digits, and `main()` asserts they
+are the same board before it builds anything.
+
+And one thing is derived rather than drawn: **an open cell's well is as deep as
+the cell is open.** `candidates()` is the repository's own `possibleEntries`,
+counted instead of returned — how many digits could legally still go in that
+cell on the starting position. It runs 2 to 6 across this board, and that count
+is the well's depth, `WELL_MIN` 0.12 to `WELL_MAX` 0.24. So the relief across
+the tray is the puzzle's own constraint, which is to say it is the first thing
+the solver in that repository computes, and the only thing about a solver that
+has a shape at all.
+
+`Landmarks.tsx` shades the well floors by that depth and by nothing else: read
+`positionLocal.y` back off the floor it is drawing and mix from `dark` at the
+bottom of the deepest well to half the tray's own colour at the top of the
+shallowest. A nearly-decided cell sits almost level with the lines and takes the
+board's colour; one with six candidates left is a pit. No digit is written
+anywhere, and nothing generic is: this is the fourth shader in the world and the
+fourth to come out of what its project does.
+
+### The clues do not move, and that is thirteen props instead of forty-four
+
+A tile seated in a well is held by the well. So the thirty-one clues are one
+fixed mesh (`panel_clue`, no `~prop`) and what is loose is what has not been
+placed: six stacks and seven tiles lying flat on the plinth's border, fifty in
+all, one for every open cell. A stack is one mesh and therefore one rigid thing
+to `plateau.ts` — the board sends the whole column skidding rather than
+scattering it, which is the decision this world already made about a table that
+will not topple. `DECKS.sudoku` is `{ half: 2.45, h: 0.21 }`, the same plinth
+Scrabble has, so the island rides exactly as the other three do.
+
+`plateau.check.ts` gained the assert that holds all of that together: read
+`sudoku.glb` the way `Detailed` reads it, and every one of the thirteen props
+must stand at exactly the deck's height, over the deck, and clear of the tray —
+because `Landmarks` gives each prop a `rest` of `GROUND + deckAt(...)` and then
+treats that as the floor under it. A tile modelled a centimetre off floats or
+sinks the first time it is touched, and nothing in the browser would say so: a
+prop at rest is drawn exactly where the file put it.
+
+### Where it went, and why the stacks are there at all
+
+`pos [-19, 27]`, `waypoint [-22, 30]`, `radius 5`, `size [5.4, 1.8, 5.4]`. The
+tightest gap is 23.0 units to Scrabble against 20.0 needed by the mooring
+circles, which is the roomiest of the three candidates that passed, and the
+composition asserts hold by construction. It is the far side of the world from
+Memojo, and beyond Scrabble from the spawn beach.
+
+The stacks are not decoration. Scrabble's own note says it: a board is flat, the
+saucer hovers at 0.45, and a landmark 40 cm tall is a rug flown over. Scrubble
+solved that by hanging seven tiles in the air; doing that again would be the
+same trick twice, so here the height is the fifty tiles that are not down yet —
+six columns, no two the same, 9 / 7 / 8 / 6 / 7 / 6, the tallest 1.56 m. The
+first build had five equal columns in a row down one side and read as a
+colonnade; varied, split across two sides, and jittered a centimetre and three
+degrees a tile, they read as a job half done.
+
+### The minimap ran out of letters
+
+`scrubble` and `sudoku` are both S, and the disc on the map is the slug's first
+letter. Two identical discs on the one thing whose whole job is to be the way to
+a project is worse than a busier disc, so `LABEL` in `MiniMap.tsx` now takes as
+many letters of the slug as it takes to be unambiguous — SC and SU here, one
+letter for the other three — with a dev assert that the labels are still
+distinct and a `[data-wide]` rule that brings the type down rather than growing
+the tap target. Derived from the slugs, so a sixth project starting with an S
+gets three letters instead of a collision.
+
+### Sizes
+
+5,516 triangles and 183 kB, 41 kB gzipped — a fifth of the landmark triangle
+budget and a seventh of its size budget. The world's models are now 2.31 MB
+gzipped against 3 MB (gzip of each `src/models/*.glb`, summed). The canvas chunk
+is 467 kB gz against 600 and the first route 147 kB gz against 200 — the three
+new MDX files are most of the 19 kB the first route gained, because the content
+module carries every project's prose in every locale.
+
+### Verified, on a throwaway install in a copy of the folder
+
+`npx tsc -b` after `react-router typegen`, all eight checks in `npm run check`,
+and a real `npm run build` — 15 project routes prerendered, five slugs by three
+locales. The model was built and rendered by `tools/sudoku.py` and the three
+preview views looked at; the box gate, the triangle gate and the floor gate in
+`landmark.py` all pass.
+
+### Not verified
+
+Everything that needs a screen, as usual, and one thing more than usual: **the
+landmark has never been seen in the world.** The Blender previews are flat grey
+under a hard key, which is where the line-weight decision was made and where it
+stops being useful — whether the wells read as holes under the golden-hour sun,
+whether the depth shading reads as relief or as dirt, and whether a tray of
+dark pits sits well beside the isle's turquoise are all things only the real
+renderer can answer.
+
+### Needs Seb
+
+- Look at it in the world. The two levers are `WELL_MIN`/`WELL_MAX` (how much
+  relief) and the `mix` in the `wells` material (how much the shallow end
+  lightens). The blockout and the model share `SU_*` in `Landmarks.tsx` and
+  `tools/sudoku.py`, and those are written down twice on purpose.
+- The stacks against the sun. Six columns up to 1.56 m will throw six shadows
+  across the tray, and the sun is astern and to port.
+- The FR and NL prose, unreviewed like every translation before it — and this
+  one is longer than most, because the page is an argument.
+- `year: 2019` and `stack: [Python, JavaScript, HTML, CSS]` are read off the
+  repository rather than guessed, unlike Memojo's.
+- The work is uncommitted.
