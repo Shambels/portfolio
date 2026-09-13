@@ -2,10 +2,10 @@
 title: Memojo
 slug: memojo
 year: 2026
-stack: [Flutter, Dart, on-device ML, peer-to-peer sync]
+stack: [iOS, Android, on-device, peer-to-peer]
 play: https://play.google.com/store/apps/details?id=eu.memojo.memojo
 appStore: https://apps.apple.com/us/app/memojo/id6742910168
-summary: A gallery you can ask in plain language, and albums that go phone to phone — all of it on the device, with no account, no upload and no server to answer to.
+summary: Search, organize and share your photos privately. Memojo is free, on-device, cross-platform and built for unlimited P2P album sharing.
 landmark: ramp
 order: 4
 pos: [24, 18]
@@ -14,34 +14,94 @@ radius: 5.2
 waypoint: [21, 21]
 ---
 
-## The problem
+Memojo is a photo app for Android and iPhone. It reads the gallery you already
+have, on the phone it is already on, and gives you back three things a gallery
+does not give you: a search box you can talk to, albums you did not have to
+make, and a way to hand a whole album to somebody else's phone without either
+of you paying for storage.
 
-You have eleven thousand photos and no way to ask for one.
+It is free, it has no account, and it does not upload your photos. Not to a
+cheaper tier, not for processing, not at all — the work happens on the device,
+which is also why it works with the radio off.
 
-The search box in a gallery app matches filenames and dates, which is to say it
-matches nothing you remember. What you remember is "the one of her laughing in
-the garden", and the only tools that answer that sentence are the ones that
-upload your entire life to somebody's datacentre first, then sell you the
-storage back a year later when the free tier runs out. The privacy cost and the
-lock-in are the same cost paid twice.
+## Search the way you actually remember
 
-Memojo answers the sentence on the phone. Photos are read, understood and
-grouped where they already are: search is natural language, albums build
-themselves, nothing is tagged by hand, and there is no account, no upload and
-no network call — the app works in aeroplane mode because there is nothing for
-it to reach. Sharing an album is peer to peer and cross-platform, Android to
-iPhone directly, with no size cap and no copy landing on a third machine on the
-way.
+Nobody remembers a filename or a date. You remember that she was laughing, that
+it was in the garden, that the trees were red. So that is what you type:
 
-It is on both stores, free, and it collects nothing.
+- *baby laughing in the garden*
+- *ski trip with friends*
+- *dinner near the sea*
+- *red trees in autumn forest*
 
-## Where this one stands
+Memojo understands the sentence and finds the photographs that match it. There
+is nothing to set up first and nothing to tag — no faces to name, no albums to
+seed, no keywords to maintain. The phone looks at the pictures itself and knows
+what is in them, and the search box is where you ask.
 
-This panel is shorter than the three beside it, and that is deliberate rather
-than unfinished-and-quiet: the others are written up because their interesting
-decisions are settled. Memojo's are not written down yet — what the on-device
-model gives up against a server-side one, what the peer-to-peer transport does
-on two phones that are not on the same network, and what "no byte leaves your
-phone" costs in a feature list. That write-up belongs here and it is not here.
+The practical difference is the scroll. Eleven thousand photos with a date
+picker is a thing you give up on halfway; eleven thousand photos with a
+sentence is one query.
 
-Until it is, the stores have the product, and the two links above go to it.
+## Albums that were already there
+
+The same understanding runs over the whole gallery, so the gallery arrives
+sorted. Memojo groups what you have into albums that mean something — by what
+is in the pictures rather than by the folder the camera dropped them in — and
+keeps doing it as you take more.
+
+You end up browsing instead of searching, which is the better half of it. A
+camera roll is a list in one direction, newest first, for ever. A set of albums
+is something you can wander around.
+
+Indexing is work, so when it runs is yours to choose: it can be left to get on
+with it, or scheduled for when the phone is charging and you are not using it.
+
+## A diary out of pictures you already took
+
+Once the moments are grouped, they read as a life rather than as storage. The
+diary is that, deliberately: your own past, private, in order, and worth
+opening — not a feed, not a "memories" notification that picks for you, and not
+something anyone else is looking at.
+
+## A whole album, phone to phone, free
+
+Sharing is the part most photo apps quietly turn into a subscription. Memojo
+sends the album directly to the other phone over local Wi-Fi: no upload, no
+link, no third machine holding a copy, no cap on how much goes, and nothing to
+pay. Android to iPhone and back again — the two of you being in the same room
+is the whole requirement.
+
+That is what makes it work for the reason people actually share photographs:
+the weekend everybody shot on four different phones, and nobody has all of it.
+Each person hands over their side and everybody ends up with the whole thing.
+
+## Private because there is nowhere else for it to be
+
+"Private" here is not a policy, it is the architecture. The intelligence that
+reads your photographs runs on your phone. Nothing is sent away to be looked
+at, so there is no server that has seen your pictures, no account to breach and
+nothing to subscribe to when the free storage runs out. Aeroplane mode changes
+nothing about what the app can do.
+
+The honest consequence, said out loud: it is not a backup. Nothing leaves the
+phone, which is the point, and it means Memojo is not the thing that saves your
+photographs if the phone goes in the sea. Keep whatever you already use for
+that.
+
+## What is here and what is not
+
+It is a phone app, on both platforms, free, with no paid tier to reach. Sharing
+needs both phones on the same local network, because that is what "no middle"
+costs. New arrivals get a walkthrough on first launch, which was the thing
+version 1.2 was missing.
+
+And a note about this page. The case studies beside it say what I chose, what I
+rejected and what it cost. Memojo's source is private, so this one is
+the app rather than the build: what it does and what it refuses to do. The
+interesting arguments behind it — what runs on a phone against what would run
+on a server, and what that trade actually costs a feature list — are not mine
+alone to publish.
+
+The two links above go to it. It is free; the fastest review is your own
+gallery.

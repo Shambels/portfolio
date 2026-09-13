@@ -29,8 +29,8 @@ const en = {
 
   homeWorkHeading: 'Selected work',
   workTitle: 'Work',
-  workIntro: 'Four case studies. Each one says what I chose, what I rejected, and what it cost.',
-  workDescription: 'Case studies: a VS Code extension that reads data schemas without running your code, a trilingual site for an artist, a Scrabble analysis board, and an on-device photo app.',
+  workIntro: 'Five projects. Four say what I chose, what I rejected and what it cost; the fifth is closed source, so it says what it does instead.',
+  workDescription: 'Five projects: a VS Code extension that reads data schemas without running your code, a trilingual site for an artist, a Scrabble analysis board, an on-device photo app, and a sudoku solver written twice.',
 
   readCaseStudy: 'Read the case study',
   // The two ways out of a case study opened from the world, and both of them
@@ -118,8 +118,8 @@ const fr: Strings = {
 
   homeWorkHeading: 'Projets choisis',
   workTitle: 'Projets',
-  workIntro: "Quatre études de cas. Chacune dit ce que j'ai choisi, ce que j'ai écarté, et ce que ça a coûté.",
-  workDescription: "Études de cas : une extension VS Code qui lit les schémas de données sans exécuter votre code, un site trilingue pour une artiste, un analyseur de parties de Scrabble, et une application photo qui tourne sur l'appareil.",
+  workIntro: "Cinq projets. Quatre disent ce que j'ai choisi, ce que j'ai écarté et ce que ça a coûté ; le cinquième est à code fermé, alors il dit ce qu'il fait.",
+  workDescription: "Cinq projets : une extension VS Code qui lit les schémas de données sans exécuter votre code, un site trilingue pour une artiste, un analyseur de parties de Scrabble, une application photo qui tourne sur l'appareil, et un solveur de sudoku écrit deux fois.",
 
   readCaseStudy: "Lire l'étude de cas",
   closeStudy: "Fermer l'étude de cas",
@@ -172,8 +172,8 @@ const nl: Strings = {
 
   homeWorkHeading: 'Geselecteerd werk',
   workTitle: 'Werk',
-  workIntro: 'Vier casestudy’s. Elke zegt wat ik koos, wat ik verwierp, en wat het kostte.',
-  workDescription: 'Casestudy’s: een VS Code-extensie die dataschema’s leest zonder je code uit te voeren, een drietalige site voor een kunstenares, een Scrabble-analysebord, en een fotoapp die op het toestel draait.',
+  workIntro: 'Vijf projecten. Vier zeggen wat ik koos, wat ik verwierp en wat het kostte; de vijfde is closed source, en zegt dus wat hij doet.',
+  workDescription: 'Vijf projecten: een VS Code-extensie die dataschema’s leest zonder je code uit te voeren, een drietalige site voor een kunstenares, een Scrabble-analysebord, een fotoapp die op het toestel draait, en een sudoku-oplosser die twee keer geschreven is.',
 
   readCaseStudy: 'Lees de casestudy',
   closeStudy: 'Sluit de casestudy',

@@ -5322,13 +5322,18 @@ the settle adds is 30% and goes).
 Seb's brief: a new project in the world; its island carries a ramp the surfer
 can ride and jump off, and a giant camera aimed at the end of that ramp; its
 panel carries a summary of the Play Store description and links to both
-stores. Asked, and answered: the panel is a **stub** for now rather than a
-fourth essay, and says so in its own prose — the other three are written
-because their interesting decisions are settled and Memojo's are not written
-down yet; the two store links are **two new frontmatter keys** with their own
-labels rather than a reused `site`; the lens **fires** — a shutter when sound
-is on and a flash off the bloom pass — when the rider is in the air in front
-of it; and FR and NL are written, unreviewed, and join the pile.
+stores. Asked, and answered: the two store links are **two new frontmatter
+keys** with their own labels rather than a reused `site`; the lens **fires** —
+a shutter when sound is on and a flash off the bloom pass — when the rider is
+in the air in front of it; and FR and NL are written, unreviewed, and join the
+pile.
+
+The panel went through two shapes. It shipped as a **stub** — a condensed
+store description saying in its own prose that the decisions were not written
+down yet — and a day later became what it is now: the App Store's own
+promotional line as the summary, and a **description of the app** in place of
+a case study, because the source is private and there are no technical
+decisions to publish. The second shape is the one to read below.
 
 - [x] `src/content/projects/memojo.{en,fr,nl}.mdx` — the fourth project, at
       `pos: [24, 18]`, `order: 4`, `landmark: ramp`
@@ -5343,17 +5348,39 @@ of it; and FR and NL are written, unreviewed, and join the pile.
 - [x] `src/plateau.check.ts` holds the shape, the file, the ride and the shot
 - [ ] Judged on real hardware: whether the jump is the right size, whether the
       flash is a flash or a strobe, whether the shutter sits in the mix — Seb
-- [ ] The essay that replaces the stub — Seb, and it needs his decisions
-- [ ] The FR and NL prose, and the two new UI strings in each — Seb
+- [x] The page is a **feature description**, not a case study — six sections
+      off the two store listings, and a closing paragraph that says why this
+      one is not a case study
+- [x] FR and NL translated from it, and `workIntro` / `workDescription`
+      reworded in all three: five projects now, and four of them case studies
+- [ ] The FR and NL prose, and the six new or reworded UI strings — Seb
 
-### The stack line is a guess, and it is on the page
+### The page describes the app, because there is no build to describe
 
-`stack: [Flutter, Dart, on-device ML, peer-to-peer sync]`. The store listing
-says cross-platform Android and iOS, on-device intelligence and P2P sharing,
-and says nothing at all about a toolchain. Seb chose "assume Flutter, like
-Scrubble" over leaving it empty, knowing it was a guess. It is the one line in
-this repo that is asserted on a public page without a source behind it, so it
-is written down here: **check it before the first deploy.**
+The other four say what was chosen, rejected and cost. Memojo's source is
+private, so that page could only ever have been a stub or a fake. It is
+neither now: the summary is the App Store's promotional line verbatim, and the
+body is six sections of what the app *does* — search in plain language, albums
+that build themselves, the diary, phone-to-phone album sharing over local
+Wi-Fi, private-by-architecture, and what is here and what is not. Every claim
+in it traces to one of the two store listings. The two that do not are read
+rather than copied: that indexing can be scheduled (from 1.2.24's "auto-run
+scheduling options") and the first-launch walkthrough.
+
+It closes by saying out loud that it is not a case study and why, because the
+alternative is a page that quietly breaks the promise the work index makes.
+That promise is reworded to match: `workIntro` said "Four case studies", which
+was wrong twice over once Sudoku landed, and now says five projects, four of
+which say what was chosen, rejected and cost, and one of which is closed
+source and says what it does instead.
+
+**The stack line was a guess and is not one now.** It read
+`[Flutter, Dart, on-device ML, peer-to-peer sync]` — Seb's knowing assumption,
+flagged here as the one line in the repo asserted on a public page with no
+source behind it. With the page's whole premise being that the technical
+detail is not ours to publish, the guess had to go with it: it is
+`[iOS, Android, on-device, peer-to-peer]` now, and every item is stated on the
+store pages.
 
 ### The jump comes out of the ramp, not out of a rule
 
@@ -5467,11 +5494,11 @@ is exactly one line onto it, up the island's +Z beach.
 
 ### Needs Seb
 
-- The stack line (above). It is a guess on a public page.
-- The essay. The stub says out loud that Memojo's decisions are not written
-  down, which is honest for a week and thin for a year.
-- The FR and NL prose and the four new store strings, unreviewed like the ten
-  before them.
+- The FR and NL prose, the two store-link strings and the reworded
+  `workIntro` / `workDescription`, unreviewed like the ten before them.
+- Whether `iOS · Android · on-device · peer-to-peer` is the right meta row, or
+  whether the toolchain should be named after all. Nothing in the row is a
+  guess any more; naming Flutter would be one word and a decision.
 - Ride it and say whether the jump is right. `RAMPS.ramp.h` and `.ease` are
   the two levers; `SHUTTER_GAP` and `FLASH_FOR` are the other two.
 - The work is uncommitted, and the folder it was written in has no
