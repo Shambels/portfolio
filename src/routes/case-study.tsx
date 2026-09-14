@@ -36,6 +36,23 @@ export default function CaseStudy() {
     </p>
   )
 
+  // On this domain and outside this app. `/sudoku/` is five static files nginx
+  // serves out of the demo's own repository (`deploy/nginx.conf`), which is why
+  // this is an `<a>` and must never become a `<Link>`: a router navigation to a
+  // path outside `/:lang` matches `:lang` against `sudoku`, and `locale.tsx`
+  // answers a non-locale with the 404 — the SPA would render "not found" over a
+  // page that is sitting right there on the server.
+  //
+  // A new tab for the reason the off-site links take one, and `noopener` rather
+  // than the `noreferrer` they carry: this is our own page, so there is no
+  // referrer to withhold from ourselves, and a tab that cannot reach back into
+  // this one is worth having from anybody.
+  const demo = project.demo && (
+    <a href={project.demo} target="_blank" rel="noopener">
+      {t.linkDemo}
+    </a>
+  )
+
   // Off the site, so out of the site's way: a new tab leaves the panel open, the
   // ship where it was parked and the scene running behind it, which a same-tab
   // navigation to somebody else's server does not. `rel="noreferrer"` already
@@ -64,7 +81,7 @@ export default function CaseStudy() {
       )}
     </>
   )
-  const shipped = project.site || project.repo || project.play || project.appStore
+  const shipped = project.demo || project.site || project.repo || project.play || project.appStore
 
   if (world) {
     return (
@@ -92,6 +109,7 @@ export default function CaseStudy() {
           >
             {t.readCaseStudy}
           </Link>
+          {demo}
           {offsite}
         </p>
       </section>
@@ -107,6 +125,7 @@ export default function CaseStudy() {
         <h1>{project.title}</h1>
         <p className="lede">{project.summary}</p>
         <p className="links">
+          {demo}
           {offsite}
           {!shipped && <span className="fine">{t.noLink}</span>}
         </p>
