@@ -174,6 +174,13 @@ your Mac, in the repo:
 ssh "$SERVER" 'sudo tee /etc/nginx/sites-available/pinchs.be >/dev/null' < deploy/nginx.conf
 ```
 
+On a *fresh* box this file is ahead of the machine: it carries the six
+`# managed by Certbot` lines and the redirect block certbot wrote, and
+`ssl_certificate` naming a certificate that has not been issued yet fails
+`nginx -t` in step 4. Delete those lines and the second `server { }` block for
+now, finish the setup, run certbot at the TLS step below, and the file comes
+back — certbot writes the same lines itself.
+
 **4. Enable it** and drop nginx's placeholder:
 
 ```sh
@@ -244,14 +251,32 @@ sudo certbot --nginx -d pinchs.be -d www.pinchs.be
 ```
 
 Certbot rewrites the server block in place, adds the port 443 listener and the
-HTTP→HTTPS redirect, and installs its own renewal timer. **`deploy/nginx.conf` in
-this repo is the pre-TLS version** — re-copying it over the server would strip
-HTTPS off. After certbot has run once, pull the live file back down so the repo
-matches what is serving:
+HTTP→HTTPS redirect, and installs its own renewal timer. **`deploy/nginx.conf` is
+the post-certbot file** — its six `# managed by Certbot` lines and its second
+`server { }` block are certbot's own, kept verbatim so certbot still recognises
+them — so copying it up is safe and is the whole of installing a change. Renewal
+(`certbot renew`) only reloads and does not touch the file. Re-running
+`certbot --nginx`, though, edits the server's copy, and then the repo is behind:
 
 ```sh
 ssh "$SERVER" 'sudo cat /etc/nginx/sites-available/pinchs.be' > deploy/nginx.conf
+git diff deploy/nginx.conf     # read it — the server's copy is the older document if this deletes things
 ```
+
+That last point is worth taking seriously. This file spent a while ahead of the
+server — the security headers below were in the repo and not on the box, which
+nothing noticed because a missing header breaks no page. Before accepting a pull
+in that direction, read the diff.
+
+**Still outstanding:** the `444` catch-all answers on port 80 only. A request to
+the bare IP over HTTPS matches the one 443 block and is served the site behind a
+name-mismatch warning. The twin wants a certificate no real name is on:
+
+```sh
+ssh "$SERVER" 'sudo apt install -y ssl-cert'   # /etc/ssl/certs/ssl-cert-snakeoil.pem
+```
+
+then `listen 443 ssl default_server;` and the snakeoil pair in the catch-all.
 
 ### Deploying a new version
 
@@ -262,7 +287,7 @@ ssh "$SERVER" 'sudo cat /etc/nginx/sites-available/pinchs.be' > deploy/nginx.con
 It runs `npm run build` (which type-checks first, so a broken build never
 reaches the server), `chmod -R a+rX build/client` (files in `public/` are mode
 600 in the repo and `rsync -a` preserves that, which nginx serves as a 403),
-rsyncs with `--delete` so stale hashed assets are removed, then curls five URLs
+rsyncs with `--delete` so stale hashed assets are removed, then curls eight URLs
 and fails loudly if the routing is wrong. No sudo: step 2 gave `deploy` ownership
 of the web root. Overridable: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_URL`.
 
@@ -272,10 +297,52 @@ neither.
 Nothing on the server is generated or stateful — `/var/www/pinchs.be` is exactly
 the contents of `build/client/`, and a deploy is idempotent.
 
+That is still literally true, and it is why the demo below lives somewhere else.
+
+### The sudoku demo at `/sudoku`
+
+[`Shambels/sudoku`](https://github.com/Shambels/sudoku) is a dependency-free
+browser build of the Sudoku Solver — five static files, no build step, 64 KB
+gzipped — and it is served by this server block at `/sudoku/`, linked from the
+case study by a `demo` field in the English frontmatter.
+
+It is **not** part of this build, and deliberately so. `rsync --delete` would
+remove it from `/var/www/pinchs.be` on the next deploy, and vendoring a copy of
+it here would give two repositories one demo to keep in step. So it deploys
+itself: the demo repository has its own `deploy.sh` that rsyncs those five files
+to `/var/www/demos/sudoku/`, and updating the demo neither rebuilds nor
+redeploys this site. What lives here is the two `location` blocks that serve it.
+
+One-time setup, in this order:
+
+**1. The directory**, alongside step 2 above:
+
+```sh
+ssh "$SERVER" 'sudo mkdir -p /var/www/demos/sudoku && sudo chown -R "$USER:$USER" /var/www/demos'
+```
+
+**2. The two `location` blocks**, by copying this file up — it is the live
+server block, certbot's lines included, so there is nothing to splice:
+
+```sh
+ssh "$SERVER" 'sudo cp /etc/nginx/sites-available/pinchs.be{,.bak}'
+ssh "$SERVER" 'sudo tee /etc/nginx/sites-available/pinchs.be >/dev/null' < deploy/nginx.conf
+ssh "$SERVER" 'sudo nginx -t && sudo systemctl reload nginx'
+```
+
+A failed `nginx -t` reloads nothing;
+`sudo mv /etc/nginx/sites-available/pinchs.be{.bak,}` puts the old file back.
+
+**3. The demo**, from its own checkout: `./deploy.sh` there. Do that before
+running this repository's deploy, because the smoke test below now probes
+`/sudoku/` too — a site that ships with the block missing ships a dead link from
+the case study. Both scripts probe it, on purpose: this repository owns the
+nginx block and the link, that one owns the files.
+
 ### What nginx is doing
 
 `deploy/nginx.conf` does the two jobs Cloudflare's `_redirects` file did, plus
-caching:
+caching, plus the one path on this domain that is not this app:
 
 | | |
 |---|---|
@@ -283,6 +350,7 @@ caching:
 | `try_files $uri $uri/index.html` | `/en/work/scrubble` serves that folder's `index.html`, with no trailing-slash redirect |
 | `error_page 404 /404.html` | the prerendered English 404, served with a real 404 status |
 | `/assets/` | `immutable`, one year — filenames are content-hashed |
+| `/sudoku/` | `root /var/www/demos` — the demo, deployed from its own repository, `no-cache` because its filenames are not hashed |
 | everything else | `no-cache`, so a deploy is visible on the next reload |
 
 Conventions, invariants and budgets: [`CLAUDE.md`](CLAUDE.md).

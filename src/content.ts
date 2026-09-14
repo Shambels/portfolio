@@ -20,6 +20,11 @@ export type Project = {
   /** Structural, from the English file. */
   year: number
   stack: string[]
+  /** A running build of the thing, on this domain. Its own key rather than a
+   *  second `site`: `site` is somebody else's server and opens as such, and
+   *  this is a path — `/sudoku/`, a static demo nginx serves beside the site
+   *  out of its own repository, not a route this app knows how to render. */
+  demo?: string
   site?: string
   repo?: string
   /** The two stores, for a project that ships as an app. Their own keys rather
@@ -107,6 +112,7 @@ function build(slug: string, locale: Locale): Project {
     slug,
     year: Number(fm.year) || new Date().getFullYear(),
     stack: Array.isArray(stack) ? stack.map(String) : [],
+    demo: typeof fm.demo === 'string' ? fm.demo : undefined,
     site: typeof fm.site === 'string' ? fm.site : undefined,
     repo: typeof fm.repo === 'string' ? fm.repo : undefined,
     play: typeof fm.play === 'string' ? fm.play : undefined,
