@@ -2,9 +2,9 @@
 title: Sudoku Solver
 slug: sudoku
 year: 2019
-stack: [Python, JavaScript, HTML, CSS]
+stack: [Python, JavaScript, HTML, CSS, NumPy]
 repo: https://github.com/Shambels/sudoku
-summary: The same recursive backtracking search written twice — once for a terminal, once for a page with no build step — and kept exactly as it was written in 2019, defects included.
+summary: The same recursive backtracking search written twice — once for a terminal, once for a page with no build step — left alone for seven years, and then gone back to. The defects are fixed, and the page now reads a puzzle off a photograph of a newspaper with no dependencies at all.
 landmark: sudoku
 order: 5
 pos: [-19, 27]
@@ -57,46 +57,48 @@ in 2012. Below it, what comes back is *a* completed grid rather than *the*
 answer, and a solver that quietly hands you one of many is worse than one that
 says no.
 
-## What it gets wrong
+## What it got wrong
 
-Three things, and none of them is subtle once you look at it.
+Three things, and none of them is subtle once you look at it. This is the 2019
+source, which is where all three stood untouched for seven years; what happened
+when I finally went back is further down the page.
 
-**Neither version stops when it wins.** `sudokuSolver` prints the board when the
-board is full, and returns nothing at all; the caller's loop carries on through
-its remaining candidates. On a puzzle with one solution that means the search
-keeps walking the tree after it has already finished, and on an under-constrained
-board it prints every solution in turn. The JavaScript does the same thing into
-the DOM, so the grid left on the screen is the last one the search happened to
-reach rather than the first. The fix is a line each way: return `true` when the
-board is full, and `if (solve(grid)) return true` inside the candidate loop.
-Backtracking with no success channel is not backtracking, it is enumeration with
-a tidy-up.
+**Neither version stopped when it won.** `sudokuSolver` printed the board when
+the board was full and returned nothing at all; the caller's loop carried on
+through its remaining candidates. On a puzzle with one solution that means the
+search keeps walking the tree after it has already finished, and on an
+under-constrained board it prints every solution in turn. The JavaScript did the
+same thing into the DOM, so the grid left on the screen was the last one the
+search happened to reach rather than the first. The fix is a line each way:
+return `true` when the board is full, and `if (solve(grid)) return true` inside
+the candidate loop. Backtracking with no success channel is not backtracking, it
+is enumeration with a tidy-up.
 
-**The JavaScript looks for the first empty cell and keeps the last one.** The
-scan is a nested loop with a `break` in it, and `break` leaves the inner loop
-only — the outer loop runs on and overwrites `i` and `j` with some later empty
-cell. So it recurses on a cell chosen almost at random, and it still terminates,
-and it still returns correct grids, which is exactly why nobody noticed. The
-Python version gets it right, and what saves it is the `for … else: continue` /
+**The JavaScript looked for the first empty cell and kept the last one.** The
+scan was a nested loop with a `break` in it, and `break` leaves the inner loop
+only — the outer loop ran on and overwrote `i` and `j` with some later empty
+cell. So it recursed on a cell chosen almost at random, and it still terminated,
+and it still returned correct grids, which is exactly why nobody noticed. The
+Python version got it right, and what saved it is the `for … else: continue` /
 `break` idiom, which is Python's answer to this precise problem; JavaScript's
 answer is a labelled break, or lifting the scan into a function and returning out
 of it. Two languages, one algorithm, and the only difference between them was not
 the algorithm.
 
-**The solve blocks the page.** `start()` writes "Wait for It…" into the status
-line and then calls `solve` on the main thread. There is no opportunity to paint
+**The solve blocked the page.** `start()` wrote "Wait for It…" into the status
+line and then called `solve` on the main thread. There is no opportunity to paint
 between those two statements, so on a slow board the message the user is waiting
 for is the one message they never see — the tab simply stops answering. A Web
 Worker is the real fix; yielding once before the search starts is the free one,
-and either beats what is there. It is the same lesson I wrote down again seven
+and either beats what was there. It is the same lesson I wrote down again seven
 years later on a Scrabble solver: a search that janks the interface reads as a
 broken app rather than a busy one.
 
-There is a fourth, smaller and funnier: the status line is held in a variable
-called `alert`, declared with `var` at the top of the file, which shadows
-`window.alert` for the whole program. Nothing in there calls `alert()`, so it
-never bit — it just stands as a reminder that in 2019 I did not know what `var`
-at file scope was doing.
+There is a fourth, smaller and funnier: the status line was held in a variable
+called `alert`, declared with `var` at the top of the file, which shadowed
+`window.alert` for the whole program. Nothing in there called `alert()`, so it
+never bit — it just stood as a reminder that in 2019 I did not know what `var` at
+file scope was doing.
 
 ## What it cost
 
@@ -105,26 +107,154 @@ own numbered class, and the solution grid is another eighty-one `<div>`s beside
 them. A hundred and sixty-two elements in a file that four lines of the language
 already in the project would have produced. It is the most honest thing in the
 repository about where I was standing: I could write a recursive search before it
-occurred to me to generate markup.
+occurred to me to generate markup. They are still typed out by hand today, which
+says something about what a fix has to be worth before it happens.
 
 Writing it twice cost what writing anything twice costs. There is no shared
 test — there is no test — so the defect in the JavaScript scan could never be
 caught by the Python that does not have it. The two drifted the moment the second
 one was typed and nothing in the repository was ever going to say so.
 
-And the README is one line long: `# sudoku`. Every sentence above had to be read
+And the README was one line long: `# sudoku`. Every sentence above had to be read
 back out of the source to write this page, which is a cost paid seven years after
 the saving.
 
+## Going back to it
+
+Seventeen commits in two days, against six in 2019, and the first of them
+crosses off two thirds of this page's own list.
+
+One commit fixes the first two defects together, because they are the same
+mistake twice: a search with no way to say *done*. `findEmptySpot` is lifted out
+of `solve` and returns the pair it found, which is what the `break` could never
+do; `solve` returns `true` at the first full board and the candidate loop returns
+on it. Same change in both languages, and the caller is where the difference
+shows up — the page now displays a solution because the search said it had one,
+rather than because the recursion happened to stop.
+
+The third was fixed last and cheaply. The status line paints, the Solve button
+disables itself, and the search starts thirty milliseconds later on a timeout.
+That is the free fix this page named rather than the Web Worker it called the
+real one; the Worker is still the right answer and still not written.
+
+Two things that were not on the list came with them. Both versions now check for
+contradictory clues before searching, so an impossible board comes back as the
+cells that break the rule — highlighted on the page, listed in the terminal —
+instead of as a long wait ending in nothing. And the page has undo and redo,
+which hold whole-board snapshots rather than a list of edits: a board is
+eighty-one characters, so keeping every state outright costs nothing and removes
+a class of bug with it, because there is no inverse operation to get wrong.
+Undoing a photo import works exactly the way undoing a keystroke does.
+
+`sudoku.py`'s `main()` also stopped carrying its puzzle as eighty-one separate
+assignments. `parseBoard` takes an eighty-one-character string, which is exactly
+what the page's copy button emits — and that is the seam the next section needed.
+
+## Reading a puzzle from a photo
+
+Point the page at a photograph of a newspaper and the grid fills in. It is the
+same file you open from disk: no build step, no framework, and still not one
+runtime dependency.
+
+That constraint is what decided the shape. A photo-to-grid pipeline is four
+separable problems — find the grid, rectify it, cut eighty-one cells, classify
+each one — and only the last needs learning. `tesseract.js` is fifteen megabytes
+trained to read words in lines, and on isolated glyphs it is *worse* than a
+thirty-kilobyte digit model as well as far slower. `opencv.js` is eight
+megabytes of wasm to do a threshold, some connected components and a warp, which
+are about a hundred and fifty lines of JavaScript. A cloud vision API needs a
+key, a proxy to hide the key, a network, and it sends the photograph off the
+device — which kills the one property the 2019 page had.
+
+So: threshold each pixel against the mean of its own neighbourhood rather than
+against the image, because a global threshold dies on any photo with a shadow or
+a page curl in it, which is the normal case for a phone and a newspaper. Take
+the grid as the largest connected component and its corners as the extremes of
+*x+y* and *x−y* — or rather offer that as one candidate among several, along
+with a maximum-area quadrilateral fitted to the same blob and the whole frame,
+warp each of them and keep whichever turns out to contain the most grid lines,
+because a choice made on measured evidence cannot make a photo that already
+worked any worse. Warp with a homography onto a 432-pixel square — not an affine
+deskew, which leaves the far row of cells trapezoidal. Then cut the cells not on
+exact ninths but on the ten strongest lines the warped image actually has,
+chosen all together by dynamic programming rather than one at a time, because a
+grid drawn by hand is not evenly spaced and a line placed independently either
+finds the wrong peak or silently gives up. Each cell is normalised the way MNIST
+was built: crop to the digit, longest side to twenty pixels, centred in a 28×28
+field on its centre of mass. Matching that at test time is the difference
+between weights that transfer and weights that report seventy per cent.
+
+The classifier is a convolutional net of about twenty-seven thousand parameters
+— two convolutions, a dense layer, and ten classes rather than nine. The tenth
+is background, trained on grid-line fragments and dust, because a model with
+nowhere to put junk puts it confidently on the 1. It ships as `digit-model.js`:
+thirty-seven kilobytes of int8 weights and a hand-written forward pass, no
+runtime and nothing downloaded. It is trained offline in numpy with no PyTorch,
+because twenty-seven thousand parameters is twelve minutes on a CPU and the
+install would otherwise have been the largest thing in the project by three
+orders of magnitude. Eighty-one classifications take a few milliseconds; the
+whole pipeline is about a hundred and thirty.
+
+The accuracy is deliberately not the classifier's job alone. Every cell keeps
+its confidence and its runner-up, and three layers sit behind it: the rule check
+that was written for typed clues catches a misread digit that duplicates a value
+in its row, column or box; the solver tries the runner-ups for the least certain
+cells and adopts a combination only if exactly one of them leaves the board
+uniquely solvable; and anything still doubtful turns amber in a grid that was
+already editable. One glance at two amber cells beats any amount of model
+tuning.
+
+## What the photographs taught me
+
+The synthetic fixtures went to a hundred per cent and then stopped teaching me
+anything, which is its own finding: every generated grid is drawn on an exact
+ninth, and no hand ever draws one that way. The first real photo — a grid drawn
+by hand on creased paper — read twenty-four of thirty clues with seventeen wrong,
+because whole rows were being cut a third of a cell from where they belonged.
+Twenty-one fixtures and a perfect score had never once exercised uneven spacing.
+
+Three separate attempts to stop a thick grid line bleeding into a cell each
+measured *worse* and were each reverted. The framing was wrong: the problem is
+not that the line is there, it is that the digit is clipped. Eleven of seven
+hundred and forty-three cells have a digit box wider than tall, and seven of
+those eleven read wrong — so open up only the edge the ink actually touches,
+re-segment, and keep the result if it comes back taller. Two earlier ideas about
+letting grid lines bend were reverted the same way, for the same reason: they
+scored better on the photo that suggested them and worse on everything else.
+
+The plan I wrote called solver-assisted repair the highest-leverage item in the
+whole thing. Measured, it fixed one wrong cell of seven; confidence flagging
+caught seven of seven. The ranking was exactly backwards, and the only reason I
+know is that the harness came before the pipeline. Repair costs a millisecond
+and stayed, as a supplement rather than the foundation.
+
+And one photograph is refused. A folded newspaper on gravel, rotated twenty
+degrees, produced forty-two clues where there are twenty-eight — confident
+nonsense, because nothing downstream ever checked that the thing it had warped
+was a grid. The number of lines found inside the warped square separates
+cleanly: everything readable finds fifteen to twenty of twenty, that photo finds
+six. It now says so instead, and offers four clicks to place the corners by
+hand. A refusal is not eighty-one errors, so it is counted in its own column and
+not averaged into the accuracy.
+
 ## The outcome
 
-It solves the board. Both of them do — the Python one on the puzzle wired into
-`main()` as eighty-one separate assignments, thirty-one clues and a unique
-answer, and the JavaScript one on whatever you type into the page.
+Across twenty-six labelled photographs — twenty-one generated, five real — it
+reads nine cells wrong, gets nineteen of the twenty-five it accepts exactly
+right, marks
+every single wrong cell amber, and invents ink nowhere at all. About a hundred
+and thirty-six milliseconds a photo, on the main thread, from a file on disk.
 
-None of it is fixed. The three defects are a few lines each and I can point at
-every one of them; leaving them alone is the more useful thing, because a
-portfolio made only of the code that went well belongs to somebody who has never
-gone back and read their own. This is what the search looked like the first time
-I wrote it, and the value of it now is entirely in being able to say where it is
-wrong.
+This page used to end by saying that none of it was fixed, and that leaving the
+defects alone was the more useful thing, because a portfolio made only of the
+code that went well belongs to somebody who has never gone back and read their
+own. I still think that was right, and going back is what it was *for*: the
+reading came first and the fixes came out of it, seven years and two days apart.
+What is worth keeping is the shape of the difference. The three defects cost
+about twenty lines between them. The half of this repository written in 2026 was
+built the other way round — a harness and twenty-six labelled photographs before
+the pipeline they measure, a check on all three seams where Python meets
+JavaScript, and a design document kept open specifically to record the places it
+turned out to be wrong. In 2019 there was no test, so a defect in the JavaScript
+could never be caught by the Python that did not have it. That is still the whole
+difference, and it is still not the algorithm.

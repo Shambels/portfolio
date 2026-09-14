@@ -5531,7 +5531,10 @@ difference between them was not the algorithm. That is the sentence the page
 exists for.
 
 Nothing in the repository was changed. Leaving the defects and pointing at them
-is the position, and the page says so.
+is the position, and the page says so. *(That held until September 2026, when
+Seb fixed all three and added an optical reader — "The sudoku was fixed" at the
+end of this file has what changed and how the page was rewritten. The position
+above is not abandoned; it is what the rewrite ends on.)*
 
 ### A second square board of blank tiles, which is the whole difficulty
 
@@ -6134,3 +6137,95 @@ camera's own direction or the approach.
   browser run were done on a throwaway copy in the container. `npx tsc -b` and
   `npm run check` were run in the folder itself — both are pure JS and both
   pass there, once the stray character above was out of `sudoku.ts`.
+
+
+## The sudoku was fixed, and the case study is now then-and-now
+
+`https://github.com/Shambels/sudoku` gained seventeen commits on 13–14 September
+2026, against the six it had carried since 2019. The case study said none of it
+was fixed. That sentence is now false in three places, so all three locales are
+rewritten.
+
+### What changed in the repository
+
+Read out of the source, not out of the commit messages:
+
+- **Defects 1 and 2, one commit.** `findEmptySpot` is lifted out of `solve` and
+  *returns* the pair — which is the thing the inner `break` could never do — and
+  `solve` returns `true` at the first full board with the candidate loop
+  returning on it. The same change in both languages. The page now shows a
+  solution because the search said it had one rather than because the recursion
+  happened to stop.
+- **Defect 3, the free fix.** `start()` paints the status, disables the button
+  and defers the search thirty milliseconds on a `setTimeout`. The page named
+  this as the free one and the Web Worker as the real one; the Worker is still
+  not written, and the rewrite says so rather than quietly claiming the defect
+  is gone.
+- **The fourth, funnier one.** The status-line variable called `alert` is
+  `setAlert`; `window.alert` is unshadowed.
+- **Not on the list:** both versions check for contradictory clues before
+  searching (`findConflicts`, highlighted on the page and listed in the
+  terminal); the page has undo/redo over whole-board snapshots rather than an
+  edit list, so undoing a photo import works like undoing a keystroke; and
+  `sudoku.py`'s `main()` takes an 81-character string through `parseBoard`
+  instead of eighty-one separate assignments — which is the seam the photo
+  reader needed.
+- **Still not fixed:** the board is still 162 hand-typed elements. The rewrite
+  keeps that paragraph and adds one clause saying they are still there, which is
+  a better sentence than the original because it now has seven years of evidence
+  behind it.
+
+### The optical reader, which is the larger half
+
+`vision.js` (~1,600 lines) and `digit-model.js` (37 kB, 26,698 int8 parameters)
+read a photograph of a puzzle into the grid, with **zero runtime dependencies**
+and still openable from `file://` — adaptive threshold, largest-blob detection
+with several candidates scored by measured evidence, a homography onto a 432 px
+square, cells cut on the ten strongest lines found by dynamic programming rather
+than on exact ninths, MNIST-style normalisation, and a ~27k-parameter CNN with a
+tenth "background" class, trained offline in numpy with no PyTorch. About 130 ms
+a photo. Confidence flags, the existing rule check and solver-assisted repair
+sit behind it; the last of those was called the highest-leverage item in its own
+plan and measured 1 wrong cell of 7 against confidence flagging's 7 of 7.
+
+Measured across 26 labelled fixtures (21 generated, 5 real): **9 wrong cells,
+19/25 grids exact, every wrong cell flagged, no false ink, 136 ms per photo**,
+with one photo *refused* rather than guessed at — counted in its own column, and
+offering four clicks to place the corners by hand.
+
+### What the page does with all that
+
+Seb's call out of four options: **reframe as then-and-now**, with the reader
+given a full section including the numbers.
+
+- The 2019 half is kept nearly verbatim and moved into the past tense, because
+  it is the best writing on the page and the defects are now history rather than
+  a to-do list. One clause added about the 162 elements still being typed out.
+- Two new sections: "Going back to it" (the fixes, and the two things that were
+  not on the list) and "Reading a puzzle from a photo" (the four separable
+  problems, what was rejected and why — tesseract.js, opencv.js, a cloud API —
+  the pipeline, the classifier, and the three verification layers).
+- A third, "What the photographs taught me", carries the findings that reverse
+  something: synthetic fixtures stopped discriminating; three attempts to remove
+  a grid line each measured worse because the right framing was that the digit
+  is clipped; the solver-repair ranking was backwards; and the refusal.
+- "The outcome" keeps the old closing position and turns it into the argument
+  for having gone back: the reading came first and the fixes came out of it,
+  seven years and two days apart.
+
+Frontmatter: `summary` rewritten in all three locales, and English `stack` gains
+`NumPy`. `year` stays **2019** — it is typed `number` in `src/content.ts`, the
+project is a 2019 project, and the prose carries the return. The page is now
+~2,600 words against ~1,270 before, which makes it by some distance the longest
+on the site; **Seb's judgement** whether that is right, and the obvious lever is
+the "What the photographs taught me" section, which could lose half its length
+without losing a claim.
+
+### Needs Seb
+
+- Whether the page should be that long, and whether the reader deserves equal
+  billing with the solver or should stay the second half.
+- The FR and NL rewrites are unreviewed, like the ones they replace.
+- Nothing in the world changed. The hologram still settles into the same board
+  (`src/sudoku.ts` holds it, and its solver was already the fixed one), and no
+  check moved.

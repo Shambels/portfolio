@@ -600,13 +600,26 @@ backtracking search written twice, once for a terminal and once for a page
 with no build step, and the case study names the three things wrong with it —
 neither version stops when it has won, the JavaScript's scan for the first
 empty cell keeps the last one, and the solve blocks the page behind a message
-the browser never paints — and gives each one its fix. Nothing in that
-repository was changed. Its landmark was a **tray** — eighty-one wells sunk
+the browser never paints — and gives each one its fix. **That last part has
+changed, and the page is rewritten around it.** In September 2026 Seb went back
+to the repository: all three defects are fixed — one commit takes the first two,
+and the third yields to a `setTimeout` rather than to the Web Worker the page
+called the real fix, which is still not written — `window.alert` is its own
+again, both versions now report contradictory clues before searching, and the
+page grew an **optical reader**: a dependency-free canvas pipeline plus a 37 kB
+embedded digit CNN that fills the grid from a photograph, ~130 ms, still
+openable from `file://`. The case study is now then-and-now — the 2019 argument
+first, then "Going back to it" and two sections on the reader — and its closing
+position is kept rather than dropped: the value was in being able to say where
+it was wrong, and going back is what that was for. All three locales rewritten;
+FR and NL unreviewed as before, and the English `stack` gained `NumPy` (the
+classifier is trained in numpy, no PyTorch). `docs/STATUS.md`, "The sudoku was
+fixed", has it. Its landmark was a **tray** — eighty-one wells sunk
 into a lattice, a well as deep as its cell had candidates — and is now a
 **hologram**, which replaces that committed look: a panel of light standing
 off the plinth, digit rain from across the water, and inside the radius the
 rain settles cell by cell in the solver's own scan order into the puzzle
-hard-coded in that repository's `main()` — thirty-one clues large and steady,
+that repository's `main()` carries — thirty-one clues large and steady,
 fifty open cells small and dim and cycling through the candidates they have
 left, which is `possibleEntries` seen rather than counted. The puzzle, the
 candidates and a fixed solver are `src/sudoku.ts`; the glyphs are nine
@@ -616,7 +629,8 @@ scrambles the cells it passes through back to rain until, a moment after
 it has gone, they settle again in the same scan order (`pierce` and `holes`
 in `src/sudoku.ts`, held by its check). Digits in the canvas are the puzzle
 and not the prose, which is where invariant 2 draws its line. `docs/STATUS.md`, "A fifth
-project" and "The sudoku is a hologram", have it, including what the tray did
+project", "The sudoku is a hologram" and "The sudoku was fixed", have it,
+including what the tray did
 to the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now
 as much of the slug as it takes to be unambiguous.
 

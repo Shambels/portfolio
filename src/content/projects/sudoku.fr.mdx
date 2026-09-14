@@ -1,7 +1,7 @@
 ---
 title: Solveur de Sudoku
 slug: sudoku
-summary: La même recherche par retour sur trace écrite deux fois — une fois pour un terminal, une fois pour une page sans étape de build — et gardée telle qu'elle a été écrite en 2019, défauts compris.
+summary: La même recherche par retour sur trace écrite deux fois — une fois pour un terminal, une fois pour une page sans étape de build — laissée telle quelle pendant sept ans, puis reprise. Les défauts sont corrigés, et la page lit désormais une grille sur la photo d'un journal sans la moindre dépendance.
 ---
 
 ## Le problème
@@ -51,48 +51,51 @@ en 2012. En dessous, ce qui revient est *une* grille complète et non *la*
 réponse, et un solveur qui vous en tend discrètement une parmi d'autres est pire
 qu'un solveur qui dit non.
 
-## Ce qu'il rate
+## Ce qu'il ratait
 
-Trois choses, et aucune n'est subtile dès qu'on la regarde.
+Trois choses, et aucune n'est subtile dès qu'on la regarde. C'est le code de
+2019, là où les trois sont restées intactes pendant sept ans ; ce qui s'est passé
+quand j'y suis enfin revenu est plus bas dans la page.
 
-**Aucune des deux versions ne s'arrête quand elle a gagné.** `sudokuSolver`
-affiche le plateau quand le plateau est plein, et ne renvoie rien du tout ; la
-boucle de l'appelant continue avec ses candidats restants. Sur une grille à
-solution unique, la recherche continue donc de parcourir l'arbre après avoir déjà
-fini, et sur une grille sous-contrainte elle affiche toutes les solutions les
-unes après les autres. Le JavaScript fait la même chose dans le DOM : la grille
-qui reste à l'écran est la dernière que la recherche a atteinte, pas la première.
-Le correctif tient en une ligne de chaque côté : renvoyer `true` quand le plateau
-est plein, et `if (solve(grid)) return true` dans la boucle des candidats. Du
-retour sur trace sans canal de succès n'est pas du retour sur trace, c'est de
-l'énumération avec un rangement à la fin.
+**Aucune des deux versions ne s'arrêtait quand elle avait gagné.**
+`sudokuSolver` affichait le plateau quand le plateau était plein, et ne renvoyait
+rien du tout ; la boucle de l'appelant continuait avec ses candidats restants.
+Sur une grille à solution unique, la recherche continue donc de parcourir l'arbre
+après avoir déjà fini, et sur une grille sous-contrainte elle affiche toutes les
+solutions les unes après les autres. Le JavaScript faisait la même chose dans le
+DOM : la grille qui restait à l'écran était la dernière que la recherche avait
+atteinte, pas la première. Le correctif tient en une ligne de chaque côté :
+renvoyer `true` quand le plateau est plein, et `if (solve(grid)) return true`
+dans la boucle des candidats. Du retour sur trace sans canal de succès n'est pas
+du retour sur trace, c'est de l'énumération avec un rangement à la fin.
 
-**Le JavaScript cherche la première case vide et garde la dernière.** Le balayage
-est une boucle imbriquée avec un `break` dedans, et `break` ne quitte que la
-boucle intérieure — la boucle extérieure continue et écrase `i` et `j` avec une
-case vide plus loin. Il récurse donc sur une case choisie presque au hasard, il
-termine quand même, et il rend quand même des grilles correctes, ce qui est
-exactement pourquoi personne ne l'a vu. La version Python, elle, fait juste, et
-ce qui la sauve est l'idiome `for … else: continue` / `break`, qui est la réponse
-de Python à ce problème précis ; la réponse de JavaScript est un `break`
-étiqueté, ou sortir le balayage dans une fonction et en revenir. Deux langages,
-un algorithme, et la seule différence entre eux n'était pas l'algorithme.
+**Le JavaScript cherchait la première case vide et gardait la dernière.** Le
+balayage était une boucle imbriquée avec un `break` dedans, et `break` ne quitte
+que la boucle intérieure — la boucle extérieure continuait et écrasait `i` et `j`
+avec une case vide plus loin. Il récursait donc sur une case choisie presque au
+hasard, il terminait quand même, et il rendait quand même des grilles correctes,
+ce qui est exactement pourquoi personne ne l'a vu. La version Python, elle,
+faisait juste, et ce qui la sauve est l'idiome `for … else: continue` / `break`,
+qui est la réponse de Python à ce problème précis ; la réponse de JavaScript est
+un `break` étiqueté, ou sortir le balayage dans une fonction et en revenir. Deux
+langages, un algorithme, et la seule différence entre eux n'était pas
+l'algorithme.
 
-**Le calcul bloque la page.** `start()` écrit « Wait for It… » dans la ligne
-d'état puis appelle `solve` sur le thread principal. Il n'y a aucune occasion de
+**Le calcul bloquait la page.** `start()` écrivait « Wait for It… » dans la ligne
+d'état puis appelait `solve` sur le thread principal. Il n'y a aucune occasion de
 peindre entre ces deux instructions : sur une grille lente, le message que
 l'utilisateur attend est le seul qu'il ne verra jamais — l'onglet cesse
 simplement de répondre. Un Web Worker est le vrai correctif ; rendre la main une
 fois avant de lancer la recherche est le correctif gratuit, et les deux valent
-mieux que ce qui est là. C'est la leçon que j'ai réécrite sept ans plus tard sur
-un solveur de Scrabble : une recherche qui saccade l'interface se lit comme une
-application cassée plutôt que comme une application occupée.
+mieux que ce qui était là. C'est la leçon que j'ai réécrite sept ans plus tard
+sur un solveur de Scrabble : une recherche qui saccade l'interface se lit comme
+une application cassée plutôt que comme une application occupée.
 
-Il y en a une quatrième, plus petite et plus drôle : la ligne d'état est tenue
+Il y en a une quatrième, plus petite et plus drôle : la ligne d'état était tenue
 dans une variable appelée `alert`, déclarée avec `var` en tête de fichier, qui
-masque `window.alert` pour tout le programme. Rien là-dedans n'appelle `alert()`,
-donc ça n'a jamais mordu — ça reste simplement là pour rappeler qu'en 2019 je ne
-savais pas ce que faisait un `var` à la portée du fichier.
+masquait `window.alert` pour tout le programme. Rien là-dedans n'appelait
+`alert()`, donc ça n'a jamais mordu — c'était simplement là pour rappeler qu'en
+2019 je ne savais pas ce que faisait un `var` à la portée du fichier.
 
 ## Ce que ça a coûté
 
@@ -101,26 +104,170 @@ avec sa propre classe numérotée, et la grille de solution quatre-vingt-un `<di
 de plus à côté. Cent soixante-deux éléments dans un fichier que quatre lignes du
 langage déjà présent dans le projet auraient produites. C'est la chose la plus
 honnête du dépôt sur l'endroit où j'en étais : je savais écrire une recherche
-récursive avant d'avoir eu l'idée de générer du balisage.
+récursive avant d'avoir eu l'idée de générer du balisage. Ils sont d'ailleurs
+toujours tapés à la main aujourd'hui, ce qui en dit long sur ce que doit valoir
+un correctif avant d'être fait.
 
 L'écrire deux fois a coûté ce que coûte toujours écrire quelque chose deux fois.
 Il n'y a pas de test partagé — il n'y a pas de test — donc le défaut du balayage
 JavaScript ne pouvait pas être attrapé par le Python qui ne l'a pas. Les deux ont
 divergé dès que la seconde a été tapée, et rien dans le dépôt n'allait le dire.
 
-Et le README fait une ligne : `# sudoku`. Chaque phrase ci-dessus a dû être
+Et le README faisait une ligne : `# sudoku`. Chaque phrase ci-dessus a dû être
 relue dans le code source pour écrire cette page, ce qui est une dépense faite
 sept ans après l'économie.
 
+## Y revenir
+
+Dix-sept commits en deux jours, contre six en 2019, et le premier d'entre eux
+raye les deux tiers de la liste de cette page.
+
+Un seul commit corrige les deux premiers défauts ensemble, parce que c'est deux
+fois la même erreur : une recherche sans moyen de dire *fini*. `findEmptySpot`
+sort de `solve` et renvoie la paire qu'elle a trouvée, ce que le `break` ne
+pouvait pas faire ; `solve` renvoie `true` au premier plateau plein et la boucle
+des candidats sort dessus. Le même changement dans les deux langages, et c'est
+chez l'appelant que la différence se voit — la page affiche maintenant une
+solution parce que la recherche a dit qu'elle en avait une, et non parce que la
+récursion s'est arrêtée là.
+
+Le troisième a été corrigé en dernier et à peu de frais. La ligne d'état
+s'affiche, le bouton se désactive, et la recherche démarre trente millisecondes
+plus tard sur un `setTimeout`. C'est le correctif gratuit que cette page avait
+nommé, pas le Web Worker qu'elle appelait le vrai ; le Worker reste la bonne
+réponse et n'est toujours pas écrit.
+
+Deux choses qui n'étaient pas sur la liste sont venues avec. Les deux versions
+vérifient maintenant les indices contradictoires avant de chercher : une grille
+impossible revient sous la forme des cases qui cassent la règle — surlignées sur
+la page, listées dans le terminal — au lieu d'une longue attente qui ne donne
+rien. Et la page a un annuler/rétablir qui garde des instantanés de plateau
+entiers plutôt qu'une liste de modifications : un plateau fait quatre-vingt-un
+caractères, donc tout garder ne coûte rien et supprime au passage une classe de
+bugs, puisqu'il n'y a aucune opération inverse à rater. Annuler l'import d'une
+photo se fait exactement comme annuler une frappe.
+
+Le `main()` de `sudoku.py` a aussi cessé de porter son puzzle en quatre-vingt-une
+affectations séparées. `parseBoard` prend une chaîne de quatre-vingt-un
+caractères, ce qui est exactement ce que le bouton de copie de la page produit —
+et c'est la couture dont la section suivante avait besoin.
+
+## Lire une grille sur une photo
+
+On pointe la page sur une photo de journal et la grille se remplit. C'est le même
+fichier qu'on ouvre depuis le disque : pas d'étape de build, pas de framework, et
+toujours pas une seule dépendance à l'exécution.
+
+C'est cette contrainte qui a décidé de la forme. Une chaîne photo → grille, ce
+sont quatre problèmes séparables — trouver la grille, la redresser, découper
+quatre-vingt-une cases, classer chacune — et seul le dernier demande de
+l'apprentissage. `tesseract.js`, c'est quinze mégaoctets entraînés à lire des
+mots en lignes, et sur des glyphes isolés il fait *pire* qu'un modèle de chiffres
+de trente kilooctets, en plus d'être bien plus lent. `opencv.js`, c'est huit
+mégaoctets de wasm pour un seuillage, des composantes connexes et une
+transformation, soit environ cent cinquante lignes de JavaScript. Une API de
+vision dans le cloud demande une clé, un proxy pour cacher la clé, un réseau, et
+elle envoie la photo hors de l'appareil — ce qui tue la seule propriété qu'avait
+la page de 2019.
+
+Donc : seuiller chaque pixel contre la moyenne de son propre voisinage plutôt que
+contre l'image, parce qu'un seuil global meurt sur toute photo avec une ombre ou
+une page qui gondole, c'est-à-dire le cas normal d'un téléphone et d'un journal.
+Prendre la grille comme la plus grande composante connexe et ses coins aux
+extrêmes de *x+y* et *x−y* — ou plutôt en faire un candidat parmi plusieurs,
+avec un quadrilatère d'aire maximale ajusté sur la même tache et l'image
+entière, redresser chacun et garder celui qui contient le plus de lignes de
+grille, parce qu'un choix fait sur une mesure ne peut pas dégrader une photo qui
+marchait déjà. Redresser par une homographie sur un carré de
+quatre cent trente-deux pixels — pas une correction affine, qui laisse la
+dernière rangée de cases trapézoïdale. Puis découper les cases non pas sur des
+neuvièmes exacts mais sur les dix lignes les plus fortes que l'image redressée
+possède réellement, choisies toutes ensemble par programmation dynamique plutôt
+qu'une à une, parce qu'une grille tracée à la main n'est pas régulière et qu'une
+ligne placée indépendamment se cale sur le mauvais pic ou abandonne en silence.
+Chaque case est normalisée comme MNIST a été construit : recadrer sur le chiffre,
+plus grand côté à vingt pixels, centré dans un champ de 28×28 sur son centre de
+masse. Reproduire ça au moment du test est toute la différence entre des poids
+qui se transfèrent et des poids qui annoncent soixante-dix pour cent.
+
+Le classifieur est un réseau convolutif d'environ vingt-sept mille paramètres —
+deux convolutions, une couche dense, et dix classes plutôt que neuf. La dixième
+est le fond, entraînée sur des fragments de lignes de grille et de la poussière,
+parce qu'un modèle qui n'a nulle part où mettre le rebut le met, avec assurance,
+sur le 1. Il est livré dans `digit-model.js` : trente-sept kilooctets de poids
+en int8 et une passe avant écrite à la main, aucun runtime et rien à télécharger.
+Il est entraîné hors ligne en numpy, sans PyTorch, parce que vingt-sept mille
+paramètres, c'est douze minutes sur un CPU, et que l'installation aurait sinon
+été la plus grosse chose du projet de trois ordres de grandeur. Les
+quatre-vingt-une classifications prennent quelques millisecondes ; toute la
+chaîne, environ cent trente.
+
+La justesse n'est délibérément pas l'affaire du seul classifieur. Chaque case
+garde sa confiance et son second choix, et trois couches sont derrière : le
+contrôle des règles, écrit pour les indices tapés, attrape un chiffre mal lu qui
+double une valeur dans sa ligne, sa colonne ou son carré ; le solveur essaie les
+seconds choix des cases les moins sûres et n'adopte une combinaison que si une
+seule laisse la grille à solution unique ; et tout ce qui reste douteux passe en
+ambre dans une grille déjà éditable. Un coup d'œil sur deux cases ambre vaut
+mieux que n'importe quel réglage de modèle.
+
+## Ce que les photos m'ont appris
+
+Les fixtures synthétiques sont montées à cent pour cent puis ont cessé de
+m'apprendre quoi que ce soit, ce qui est déjà un résultat : chaque grille générée
+est tracée sur un neuvième exact, et aucune main ne trace comme ça. La première
+vraie photo — une grille dessinée à la main sur du papier froissé — a lu
+vingt-quatre indices sur trente avec dix-sept erreurs, parce que des rangées
+entières étaient découpées à un tiers de case de leur place. Vingt et une
+fixtures et un score parfait n'avaient jamais exercé l'irrégularité une seule
+fois.
+
+Trois tentatives distinctes d'empêcher une ligne épaisse de baver dans une case
+ont chacune mesuré *pire* et ont chacune été annulées. Le cadrage était faux : le
+problème n'est pas que la ligne soit là, c'est que le chiffre est coupé. Onze
+cases sur sept cent quarante-trois ont une boîte de chiffre plus large que haute,
+et sept de ces onze étaient mal lues — donc rouvrir uniquement le bord que
+l'encre touche réellement, re-segmenter, et garder le résultat s'il revient plus
+haut. Deux idées antérieures pour laisser les lignes se courber ont été annulées
+de la même manière, pour la même raison : elles amélioraient la photo qui les
+avait suggérées et dégradaient tout le reste.
+
+Le plan que j'avais écrit appelait la réparation par le solveur l'élément le plus
+rentable de tout le projet. Mesuré : elle a corrigé une case fausse sur sept ;
+le marquage par confiance en a attrapé sept sur sept. Le classement était
+exactement à l'envers, et la seule raison pour laquelle je le sais est que le
+banc de mesure a été écrit avant la chaîne. La réparation coûte une milliseconde
+et elle est restée, comme complément et non comme fondation.
+
+Et une photo est refusée. Un journal plié sur du gravier, tourné de vingt degrés,
+a produit quarante-deux indices là où il y en a vingt-huit — du grand n'importe
+quoi bien assuré, parce que rien en aval ne vérifiait jamais que ce qu'on avait
+redressé était une grille. Le nombre de lignes trouvées dans le carré redressé
+sépare proprement : tout ce qui est lisible en trouve quinze à vingt sur vingt,
+cette photo-là en trouve six. Elle le dit maintenant, et propose quatre clics
+pour placer les coins à la main. Un refus n'est pas quatre-vingt-une erreurs : il
+est compté dans sa propre colonne et non moyenné dans la justesse.
+
 ## Le résultat
 
-Ça résout la grille. Les deux le font — le Python sur le puzzle câblé dans
-`main()` en quatre-vingt-une affectations séparées, trente et un indices et une
-réponse unique, et le JavaScript sur ce que vous tapez dans la page.
+Sur vingt-six photos étiquetées — vingt et une générées, cinq réelles — il lit
+neuf cases fausses, rend exactement justes dix-neuf des vingt-cinq grilles
+qu'il accepte,
+marque en ambre chacune des cases fausses, et n'invente d'encre nulle part. Cent
+trente-six millisecondes par photo environ, sur le thread principal, depuis un
+fichier sur le disque.
 
-Rien n'est corrigé. Les trois défauts font quelques lignes chacun et je peux
-pointer chacun d'eux ; les laisser est la chose la plus utile, parce qu'un
-portfolio fait uniquement du code qui s'est bien passé appartient à quelqu'un qui
-n'est jamais revenu lire le sien. Voilà à quoi ressemblait cette recherche la
-première fois que je l'ai écrite, et toute sa valeur aujourd'hui est de pouvoir
-dire où elle se trompe.
+Cette page se terminait autrefois en disant que rien n'était corrigé, et que
+laisser les défauts était la chose la plus utile, parce qu'un portfolio fait
+uniquement du code qui s'est bien passé appartient à quelqu'un qui n'est jamais
+revenu lire le sien. Je pense toujours que c'était juste, et y revenir est
+précisément ce *à quoi* ça servait : la lecture est venue d'abord et les
+correctifs en sont sortis, à sept ans et deux jours d'écart. Ce qu'il faut garder
+est la forme de l'écart. Les trois défauts ont coûté une vingtaine de lignes à
+eux trois. La moitié de ce dépôt écrite en 2026 a été construite dans l'autre
+sens — un banc de mesure et vingt-six photos étiquetées avant la chaîne qu'elles
+mesurent, un contrôle sur les trois coutures où Python rencontre JavaScript, et
+un document de conception tenu ouvert précisément pour noter les endroits où il
+avait tort. En 2019 il n'y avait pas de test, donc un défaut du JavaScript ne
+pouvait pas être attrapé par le Python qui ne l'avait pas. C'est toujours toute
+la différence, et ce n'est toujours pas l'algorithme.
