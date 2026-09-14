@@ -1,7 +1,7 @@
 ---
 title: Sudoku-oplosser
 slug: sudoku
-summary: Dezelfde recursieve backtracking-zoektocht twee keer geschreven — één keer voor een terminal, één keer voor een pagina zonder buildstap — en bewaard precies zoals ze in 2019 geschreven werd, gebreken incluis.
+summary: Dezelfde recursieve backtracking-zoektocht twee keer geschreven — één keer voor een terminal, één keer voor een pagina zonder buildstap — zeven jaar onaangeroerd gelaten en daarna weer opgepakt. De gebreken zijn gerepareerd, en de pagina leest nu een puzzel van de foto van een krant zonder ook maar één dependency.
 ---
 
 ## Het probleem
@@ -49,46 +49,48 @@ een uitputtende zoektocht. Daaronder is wat terugkomt *een* ingevuld rooster en
 niet *het* antwoord, en een oplosser die je er stilletjes één van vele aanreikt is
 erger dan een die nee zegt.
 
-## Wat er misgaat
+## Wat er misging
 
-Drie dingen, en geen ervan is subtiel zodra je ernaar kijkt.
+Drie dingen, en geen ervan is subtiel zodra je ernaar kijkt. Dit is de broncode
+van 2019, waar alle drie zeven jaar lang onaangeroerd stonden; wat er gebeurde
+toen ik eindelijk terugging staat verderop op deze pagina.
 
-**Geen van beide versies stopt wanneer ze gewonnen heeft.** `sudokuSolver` drukt
-het bord af wanneer het bord vol is, en geeft helemaal niets terug; de lus van de
-aanroeper gaat door met zijn resterende kandidaten. Op een puzzel met één
+**Geen van beide versies stopte wanneer ze gewonnen had.** `sudokuSolver` drukte
+het bord af wanneer het bord vol was, en gaf helemaal niets terug; de lus van de
+aanroeper ging door met zijn resterende kandidaten. Op een puzzel met één
 oplossing blijft de zoektocht dus door de boom lopen nadat ze al klaar was, en op
-een onderbepaald bord drukt ze elke oplossing na elkaar af. De JavaScript doet
-hetzelfde in de DOM, dus het rooster dat op het scherm blijft staan is het
+een onderbepaald bord drukt ze elke oplossing na elkaar af. De JavaScript deed
+hetzelfde in de DOM, dus het rooster dat op het scherm bleef staan was het
 laatste dat de zoektocht toevallig bereikte en niet het eerste. De fix is aan
 beide kanten één regel: geef `true` terug als het bord vol is, en
 `if (solve(grid)) return true` binnen de kandidatenlus. Backtracking zonder
 succeskanaal is geen backtracking, het is opsomming met een opruimbeurt.
 
-**De JavaScript zoekt het eerste lege vakje en houdt het laatste.** De scan is
+**De JavaScript zocht het eerste lege vakje en hield het laatste.** De scan was
 een geneste lus met een `break` erin, en `break` verlaat alleen de binnenste lus
-— de buitenste loopt door en overschrijft `i` en `j` met een leeg vakje verderop.
-Hij recurseert dus op een bijna willekeurig gekozen vakje, hij termineert
-niettemin, en hij levert niettemin correcte roosters, wat precies is waarom
-niemand het zag. De Python-versie doet het wel goed, en wat haar redt is het
+— de buitenste liep door en overschreef `i` en `j` met een leeg vakje verderop.
+Hij recurseerde dus op een bijna willekeurig gekozen vakje, hij termineerde
+niettemin, en hij leverde niettemin correcte roosters, wat precies is waarom
+niemand het zag. De Python-versie deed het wel goed, en wat haar redt is het
 idioom `for … else: continue` / `break`, Pythons antwoord op precies dit
 probleem; JavaScripts antwoord is een gelabelde `break`, of de scan in een
 functie zetten en eruit terugkeren. Twee talen, één algoritme, en het enige
 verschil tussen de twee was niet het algoritme.
 
-**Het oplossen blokkeert de pagina.** `start()` schrijft "Wait for It…" in de
-statusregel en roept dan `solve` aan op de main thread. Er is tussen die twee
+**Het oplossen blokkeerde de pagina.** `start()` schreef "Wait for It…" in de
+statusregel en riep dan `solve` aan op de main thread. Er is tussen die twee
 statements geen gelegenheid om te tekenen, dus op een traag bord is de boodschap
 waar de gebruiker op wacht de enige die hij nooit te zien krijgt — het tabblad
 houdt gewoon op met antwoorden. Een Web Worker is de echte fix; één keer de
 controle teruggeven voor de zoektocht begint is de gratis fix, en allebei zijn ze
-beter dan wat er staat. Het is dezelfde les die ik zeven jaar later opnieuw
+beter dan wat er stond. Het is dezelfde les die ik zeven jaar later opnieuw
 opschreef bij een Scrabble-oplosser: een zoektocht die de interface laat haperen
 leest als een kapotte app in plaats van een drukke.
 
-Er is er een vierde, kleiner en grappiger: de statusregel zit in een variabele
-die `alert` heet, met `var` bovenaan het bestand gedeclareerd, waardoor ze
-`window.alert` voor het hele programma afschermt. Niets daarin roept `alert()`
-aan, dus het heeft nooit gebeten — het staat er alleen als herinnering dat ik in
+Er is er een vierde, kleiner en grappiger: de statusregel zat in een variabele
+die `alert` heette, met `var` bovenaan het bestand gedeclareerd, waardoor ze
+`window.alert` voor het hele programma afschermde. Niets daarin riep `alert()`
+aan, dus het heeft nooit gebeten — het stond er alleen als herinnering dat ik in
 2019 niet wist wat een `var` op bestandsniveau deed.
 
 ## Wat het kostte
@@ -98,7 +100,9 @@ met zijn eigen genummerde class, en het oplossingsrooster uit nog eens
 eenentachtig `<div>`s ernaast. Honderdtweeënzestig elementen in een bestand dat
 vier regels van de taal die al in het project zat had kunnen voortbrengen. Het is
 het eerlijkste wat de repository zegt over waar ik stond: ik kon een recursieve
-zoektocht schrijven voor het me inviel om markup te genereren.
+zoektocht schrijven voor het me inviel om markup te genereren. Ze staan er
+vandaag trouwens nog altijd met de hand getypt, wat iets zegt over hoeveel een
+fix waard moet zijn voor hij er komt.
 
 Het twee keer schrijven kostte wat iets twee keer schrijven altijd kost. Er is
 geen gedeelde test — er is geen test — dus het gebrek in de JavaScript-scan kon
@@ -106,18 +110,161 @@ onmogelijk gevangen worden door de Python die het niet heeft. De twee dreven uit
 elkaar op het moment dat de tweede getypt werd, en niets in de repository ging
 dat ooit zeggen.
 
-En de README is één regel lang: `# sudoku`. Elke zin hierboven moest uit de
+En de README was één regel lang: `# sudoku`. Elke zin hierboven moest uit de
 broncode teruggelezen worden om deze pagina te schrijven, een uitgave gedaan
 zeven jaar na de besparing.
 
+## Teruggaan
+
+Zeventien commits in twee dagen, tegenover zes in 2019, en de eerste ervan
+streept twee derde van het lijstje van deze pagina weg.
+
+Eén commit repareert de eerste twee gebreken samen, want het is twee keer
+dezelfde fout: een zoektocht zonder manier om *klaar* te zeggen. `findEmptySpot`
+komt uit `solve` en geeft het paar terug dat ze gevonden heeft, wat de `break`
+nooit kon; `solve` geeft `true` terug bij het eerste volle bord en de
+kandidatenlus keert daarop terug. Dezelfde wijziging in beide talen, en het is
+bij de aanroeper dat het verschil zichtbaar wordt — de pagina toont nu een
+oplossing omdat de zoektocht zei dat ze er een had, en niet omdat de recursie
+toevallig ophield.
+
+De derde werd als laatste en goedkoop gerepareerd. De statusregel wordt getekend,
+de knop schakelt zichzelf uit, en de zoektocht start dertig milliseconden later
+op een `setTimeout`. Dat is de gratis fix die deze pagina had genoemd, niet de
+Web Worker die ze de echte noemde; de Worker blijft het juiste antwoord en is nog
+altijd niet geschreven.
+
+Twee dingen die niet op het lijstje stonden kwamen mee. Beide versies
+controleren nu op tegenstrijdige aanwijzingen voor ze zoeken, dus een onmogelijk
+bord komt terug als de vakjes die de regel breken — gemarkeerd op de pagina,
+opgesomd in de terminal — in plaats van als een lange wachttijd die niets
+oplevert. En de pagina heeft ongedaan maken en opnieuw uitvoeren, die hele
+bordmomentopnamen bewaren in plaats van een lijst bewerkingen: een bord is
+eenentachtig tekens, dus alles bewaren kost niets en het haalt meteen een hele
+klasse bugs weg, want er is geen inverse bewerking om fout te doen. Een
+foto-import ongedaan maken werkt precies zoals een toetsaanslag ongedaan maken.
+
+Ook `main()` in `sudoku.py` draagt zijn puzzel niet langer als eenentachtig losse
+toewijzingen. `parseBoard` neemt een string van eenentachtig tekens, precies wat
+de kopieerknop van de pagina produceert — en dat is de naad die de volgende
+sectie nodig had.
+
+## Een puzzel van een foto lezen
+
+Je richt de pagina op een foto van een krant en het rooster vult zich. Het is
+hetzelfde bestand dat je van schijf opent: geen buildstap, geen framework, en nog
+altijd geen enkele runtime-dependency.
+
+Die beperking bepaalde de vorm. Een foto-naar-rooster-pijplijn bestaat uit vier
+scheidbare problemen — het rooster vinden, het rechttrekken, eenentachtig vakjes
+uitsnijden, elk vakje classificeren — en alleen het laatste vraagt om leren.
+`tesseract.js` is vijftien megabyte, getraind om woorden in regels te lezen, en
+op losse glyphs doet het het *slechter* dan een cijfermodel van dertig kilobyte,
+en veel trager. `opencv.js` is acht megabyte wasm voor een drempelwaarde, wat
+samenhangende componenten en een transformatie, samen zo'n honderdvijftig regels
+JavaScript. Een vision-API in de cloud vraagt een sleutel, een proxy om die
+sleutel te verbergen, een netwerk, en ze stuurt de foto van het toestel af — wat
+de enige eigenschap doodt die de pagina van 2019 had.
+
+Dus: elke pixel afwegen tegen het gemiddelde van zijn eigen omgeving in plaats
+van tegen het beeld, want een globale drempel sneuvelt op elke foto met een
+schaduw of een bollende bladzijde erin, en dat is het normale geval bij een
+telefoon en een krant. Het rooster nemen als de grootste samenhangende component
+en zijn hoeken als de uitersten van *x+y* en *x−y* — of liever: dat één kandidaat
+van meerdere maken, samen met een vierhoek van maximale oppervlakte op dezelfde
+vlek en het hele beeld, ze allemaal rechttrekken en degene houden die de meeste
+roosterlijnen blijkt te bevatten, want een keuze op basis van een meting kan een
+foto die het al deed niet slechter maken. Rechttrekken met een
+homografie naar een vierkant van vierhonderdtweeëndertig pixels — geen affiene
+correctie, die de verste rij vakjes trapeziumvormig laat. Dan de vakjes niet op
+exacte negenden snijden maar op de tien sterkste lijnen die het rechtgetrokken
+beeld werkelijk heeft, allemaal samen gekozen met dynamisch programmeren in
+plaats van één voor één, want een met de hand getekend rooster is niet
+regelmatig en een afzonderlijk geplaatste lijn pakt de verkeerde piek of geeft
+het stilletjes op. Elk vakje wordt genormaliseerd zoals MNIST gebouwd is:
+bijsnijden op het cijfer, langste zijde naar twintig pixels, gecentreerd in een
+veld van 28×28 op zijn massamiddelpunt. Dat bij het testen nabootsen is het hele
+verschil tussen gewichten die overdragen en gewichten die zeventig procent
+melden.
+
+De classifier is een convolutioneel netwerk van ongeveer zevenentwintigduizend
+parameters — twee convoluties, een dense laag, en tien klassen in plaats van
+negen. De tiende is achtergrond, getraind op stukjes roosterlijn en stof, want
+een model dat nergens heen kan met rommel legt die vol vertrouwen op de 1. Het
+wordt geleverd als `digit-model.js`: zevenendertig kilobyte int8-gewichten en een
+met de hand geschreven forward pass, geen runtime en niets om te downloaden. Het
+wordt offline getraind in numpy, zonder PyTorch, want zevenentwintigduizend
+parameters is twaalf minuten op een CPU en de installatie zou anders met drie
+ordes van grootte het grootste ding in het project geweest zijn. De eenentachtig
+classificaties duren een paar milliseconden; de hele pijplijn ongeveer
+honderddertig.
+
+De juistheid is bewust niet alleen de taak van de classifier. Elk vakje bewaart
+zijn vertrouwen en zijn tweede keuze, en er zitten drie lagen achter: de
+regelcontrole die voor getypte aanwijzingen geschreven was vangt een verkeerd
+gelezen cijfer dat een waarde in zijn rij, kolom of vierkant verdubbelt; de
+oplosser probeert de tweede keuzes van de minst zekere vakjes en neemt een
+combinatie alleen over als er precies één een uniek oplosbaar bord oplevert; en
+alles wat dan nog twijfelachtig is wordt amber in een rooster dat toch al
+bewerkbaar was. Eén blik op twee ambervakjes is meer waard dan eender hoeveel
+modeltuning.
+
+## Wat de foto's me leerden
+
+De synthetische fixtures gingen naar honderd procent en leerden me daarna niets
+meer, wat op zich al een bevinding is: elk gegenereerd rooster is op een exact
+negende getekend, en geen enkele hand tekent zo. De eerste echte foto — een met
+de hand getekend rooster op gekreukt papier — las vierentwintig van de dertig
+aanwijzingen met zeventien fouten, omdat hele rijen een derde vakje naast hun
+plaats werden gesneden. Eenentwintig fixtures en een perfecte score hadden
+onregelmatige afstanden nooit één keer op de proef gesteld.
+
+Drie afzonderlijke pogingen om te beletten dat een dikke roosterlijn in een vakje
+doorloopt, maten elk *slechter* en werden elk teruggedraaid. De insteek was fout:
+het probleem is niet dat de lijn er is, het is dat het cijfer is afgesneden. Elf
+van de zevenhonderddrieënveertig vakjes hebben een cijferkader dat breder is dan
+hoog, en zeven van die elf werden verkeerd gelezen — dus alleen de rand openen
+die de inkt werkelijk raakt, opnieuw segmenteren, en het resultaat houden als het
+hoger terugkomt. Twee eerdere ideeën om roosterlijnen te laten buigen werden op
+dezelfde manier teruggedraaid, om dezelfde reden: ze verbeterden de foto die ze
+had ingegeven en verslechterden al de rest.
+
+Het plan dat ik geschreven had noemde de reparatie door de oplosser het meest
+renderende onderdeel van het geheel. Gemeten: ze repareerde één fout vakje van de
+zeven; het markeren op vertrouwen ving er zeven van de zeven. De rangschikking
+stond precies omgekeerd, en de enige reden dat ik het weet is dat de meetbank
+voor de pijplijn geschreven werd. De reparatie kost een milliseconde en is
+gebleven, als aanvulling en niet als fundament.
+
+En één foto wordt geweigerd. Een opgevouwen krant op grind, twintig graden
+gedraaid, leverde tweeënveertig aanwijzingen op waar er achtentwintig zijn —
+zelfverzekerde onzin, want verderop werd nooit gecontroleerd of wat er
+rechtgetrokken was wel een rooster was. Het aantal lijnen dat binnen het
+rechtgetrokken vierkant gevonden wordt scheidt netjes: alles wat leesbaar is
+vindt er vijftien tot twintig van de twintig, die foto zes. Nu zegt hij dat, en
+biedt vier klikken aan om de hoeken met de hand te plaatsen. Een weigering is
+geen eenentachtig fouten: ze wordt in haar eigen kolom geteld en niet in de
+juistheid uitgemiddeld.
+
 ## Het resultaat
 
-Het lost het bord op. Allebei doen ze dat — de Python op de puzzel die in
-`main()` als eenentachtig losse toewijzingen is ingebakken, eenendertig
-aanwijzingen en één antwoord, en de JavaScript op wat je ook in de pagina typt.
+Over zesentwintig gelabelde foto's — eenentwintig gegenereerd, vijf echt — leest
+hij negen vakjes fout, krijgt hij negentien van de vijfentwintig roosters die
+hij aanneemt exact goed, markeert hij elk fout vakje amber, en verzint hij nergens inkt. Ongeveer
+honderdzesendertig milliseconden per foto, op de main thread, vanuit een bestand
+op schijf.
 
-Niets ervan is gerepareerd. De drie gebreken zijn elk een paar regels en ik kan
-ze alle drie aanwijzen; ze laten staan is het nuttigere, want een portfolio dat
-alleen uit de code bestaat die goed ging, is van iemand die nooit is teruggegaan
-om zijn eigen code te lezen. Zo zag deze zoektocht eruit de eerste keer dat ik
-haar schreef, en heel haar waarde nu zit in kunnen zeggen waar ze ernaast zit.
+Deze pagina eindigde vroeger met de vaststelling dat niets ervan gerepareerd was,
+en dat de gebreken laten staan het nuttigere was, want een portfolio dat alleen
+uit de code bestaat die goed ging, is van iemand die nooit is teruggegaan om zijn
+eigen code te lezen. Ik vind dat nog altijd juist, en teruggaan is precies
+*waarvoor* het diende: het lezen kwam eerst en de fixes kwamen eruit voort, zeven
+jaar en twee dagen uit elkaar. Wat de moeite waard is om te onthouden is de vorm
+van het verschil. De drie gebreken kostten samen een regel of twintig. De helft
+van deze repository die in 2026 geschreven is, is andersom gebouwd — een meetbank
+en zesentwintig gelabelde foto's voor de pijplijn die ze meten, een controle op
+alle drie de naden waar Python en JavaScript elkaar raken, en een ontwerpdocument
+dat juist openstond om te noteren waar het ernaast zat. In 2019 was er geen test,
+dus een gebrek in de JavaScript kon onmogelijk gevangen worden door de Python die
+het niet had. Dat is nog altijd het hele verschil, en het is nog altijd niet het
+algoritme.
