@@ -98,7 +98,8 @@ const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1
  * one of the three things that read it. */
 
 /** The proximity tint, applied to every colour the same way. */
-const shade = (hex: string, hi: boolean) => new THREE.Color(hex).lerp(HI, hi ? 0.72 : 0)
+const shade = (hex: string, hi: boolean, k = 0.72) =>
+  new THREE.Color(hex).lerp(HI, hi ? k : 0)
 
 type Vec2 = THREE.Node<'vec2'>
 type Num = THREE.Node<'float'>
@@ -396,6 +397,229 @@ const HOLO_MATS = makeHolo()
 const HOLO_QUAD = new THREE.PlaneGeometry(HOLO.side, HOLO.side)
   .translate(0, HOLO.foot + HOLO.side / 2, HOLO.z)
 
+// ------------------------------------------------- Memojo, made of things
+/**
+ * The one landmark shaded by what it is *made of* rather than by a tone.
+ *
+ * A camera the size of a house in the same two greys as a mine reads as a
+ * blockout of a camera, and Memojo is the project about photographs. So this
+ * set is leatherette, chrome, brass, coated glass, a red release, oxide-painted
+ * steel, birch ply and varnished ash — and every one of them is drawn off the
+ * mesh's own local position, the way the Scrabble grid and the mine's veins
+ * are. `src/models/memojo.glb` did not change: a chrome top plate, a knurled
+ * focus ring and an 11 cm red button cost no geometry, no bytes and no second
+ * model.
+ *
+ * Two things make that possible. A mesh name is already the material channel
+ * (`matFor`), and `tools/memojo.py` measured every part of the machine back
+ * down the lens's own axis — so rebuilding that axis here from `LENSES.ramp`
+ * puts a shader exactly where the modeller put a slab, and there is no third
+ * place for those numbers to drift.
+ *
+ * These are `byName` and not prefixes on purpose: they shade the *model*, whose
+ * vertices are in the landmark's own space. The blockout is unit boxes with a
+ * transform each, where `positionLocal` means something else entirely, so it
+ * keeps the plain greys it always had and nothing pops when the file lands.
+ */
+const CAM = LENSES.ramp!
+const MRAMP = RAMPS.ramp!
+
+/** `positionLocal - o` projected on `a` — the body's own up, right and fore. */
+const onAxis = (o: P3, a: P3) =>
+  positionLocal.x.sub(o[0]).mul(a[0])
+    .add(positionLocal.y.sub(o[1]).mul(a[1]))
+    .add(positionLocal.z.sub(o[2]).mul(a[2]))
+
+const unit = (v: P3): P3 => {
+  const n = Math.hypot(v[0], v[1], v[2])
+  return [v[0] / n, v[1] / n, v[2] / n]
+}
+/** `tools/memojo.py`'s `back()`, `RIGHT` and `UP`, to the number. */
+const camBack = (d: number): P3 => [CAM.x - CAM.dx * d, CAM.y - CAM.dy * d, CAM.z - CAM.dz * d]
+const CAM_BODY = camBack(1.55)
+const CAM_HIP_Y = CAM_BODY[1] - 0.72
+const CAM_RIGHT = unit([-CAM.dz, 0, CAM.dx])
+const CAM_UP = unit([
+  CAM_RIGHT[1] * CAM.dz - CAM_RIGHT[2] * CAM.dy,
+  CAM_RIGHT[2] * CAM.dx - CAM_RIGHT[0] * CAM.dz,
+  CAM_RIGHT[0] * CAM.dy - CAM_RIGHT[1] * CAM.dx,
+])
+
+// How far back down the lens's axis a fragment is, and how far off it — which
+// is the whole coordinate system the barrel, the hood, the focus ring and the
+// glass are told apart by.
+const CAM_D = onAxis([CAM.x, CAM.y, CAM.z], [-CAM.dx, -CAM.dy, -CAM.dz])
+const CAM_R = length(vec3(
+  positionLocal.x.sub(CAM.x).add(CAM_D.mul(CAM.dx)),
+  positionLocal.y.sub(CAM.y).add(CAM_D.mul(CAM.dy)),
+  positionLocal.z.sub(CAM.z).add(CAM_D.mul(CAM.dz)),
+))
+// And in the body's own frame: up from its middle, and across it. The release
+// is the one thing high and central, the film crank the one thing far to the
+// side, and neither needed a mesh of its own to say so.
+const CAM_UPQ = onAxis(CAM_BODY, CAM_UP)
+const CAM_SIDE = onAxis(CAM_BODY, CAM_RIGHT)
+// And across the lens's own face, which is what a coating and a highlight on it
+// are measured in.
+const CAM_U = onAxis([CAM.x, CAM.y, CAM.z], CAM_RIGHT)
+const CAM_V = onAxis([CAM.x, CAM.y, CAM.z], CAM_UP)
+
+/**
+ * A fifth of the way to the proximity blue instead of the usual .72. At .72 the
+ * leather, the brass and the red are cyan by the time the visitor is near
+ * enough to see them at all — which is the problem Sandra's canvas has, and
+ * this takes her answer: the landmark still announces itself on approach, but
+ * it stays made of something while it does.
+ */
+const MEMOJO_HI = 0.14
+
+const MEMOJO = {
+  leather: '#58504a', // the body's covering — "black", which in a scene with
+  grain: '#7b6e62', //   one sun behind it and one cool fill is this
+  chrome: '#ced3d8', // the top plate, the focus ring, the rollers
+  brass: '#c9a45f', // the seam round the body, and the tripod's collars
+  barrel: '#3b3e43', // anodised, and cooler than the leather is warm
+  trap: '#171412', // the felt in the mouth the print comes out of
+  coat: '#5b7fc4', // the lens coating down the axis...
+  flare: '#e0a552', // ...and at the rim, which is what says multicoated
+  steel: '#b8bec4', // the coping — bare, and polished by the boards
+  paint: '#8f5541', // oxide red, which is what an outdoor steel frame is
+  rust: '#6d4630',
+  ply: '#c19a6b', // the deck — birch ply, a summer of sun on it
+  plyDark: '#8d6a46',
+  ash: '#a87c4e', // the tripod's legs, varnished
+  ashDark: '#6f4d2e',
+  fitting: '#46403a', // and the castings they meet in
+}
+
+/** The ten meshes of `memojo.glb`, one material each. `hi` is the same near/far
+ *  switch every other material takes, on `MEMOJO_HI` instead of `shade`'s. */
+function makeMemojo(hi: boolean): Record<string, THREE.Material> {
+  const c = Object.fromEntries(
+    Object.entries(MEMOJO).map(([k, v]) => [k, shade(v, hi, MEMOJO_HI)]),
+  ) as Record<keyof typeof MEMOJO, THREE.Color>
+
+  // ---- the ramp. Birch ply laid the strong way, so the grain runs up the run
+  // and the sheets butt across it; and the strip up the middle where the boards
+  // have been is a shade lighter than the rest, because that is the one part of
+  // a ramp nothing grows on.
+  const deck = new THREE.MeshStandardNodeMaterial({ roughness: 0.82 })
+  const sheet = fract(positionLocal.z.div(0.78))
+  const butt = smoothstep(0, 0.03, min(sheet, oneMinus(sheet)))
+  // Each sheet a shade off its neighbour: no two came off the pile the same.
+  const lot = fract(sin(floor(positionLocal.z.div(0.78)).mul(21.31)).mul(4318.7)).mul(0.14).add(0.93)
+  const veneer = mx_fractal_noise_float(positionLocal.mul(vec3(26, 2.2, 1.6)), 2).mul(0.06)
+  const worn = oneMinus(smoothstep(0.24, 0.62, abs(positionLocal.x.sub(MRAMP.x))))
+  deck.colorNode = mix(color(c.plyDark), color(c.ply), butt)
+    .mul(veneer.add(1))
+    .mul(lot)
+    .mul(worn.mul(0.09).add(1))
+
+  // The kerbs and the ribs under them: painted steel, and rusting from the
+  // ground up, which is the only part of this island the sea gets at.
+  const rib = new THREE.MeshStandardNodeMaterial({ roughness: 0.74, metalness: 0.12 })
+  const speck = mx_fractal_noise_float(positionLocal.mul(6.5), 3).mul(0.5).add(0.5)
+  const damp = oneMinus(smoothstep(0.05, 0.95, positionLocal.y))
+  rib.colorNode = mix(color(c.paint), color(c.rust), smoothstep(0.5, 0.86, speck.mul(damp.mul(0.5).add(0.5))))
+
+  // And the lip, which was the dark line that says where the deck stops and is
+  // now the one thing on the ramp that catches the sun: steel coping.
+  const lip = new THREE.MeshStandardNodeMaterial({ color: c.steel, roughness: 0.3, metalness: 0.28 })
+
+  // ---- the body. Leatherette below the seam, a satin top plate above it, and
+  // a brass band on the seam itself — three materials out of one slab, told
+  // apart by height in the body's own tilted frame and by nothing else.
+  const body = new THREE.MeshStandardNodeMaterial({ roughness: 0.86 })
+  const pebble = mx_fractal_noise_float(positionLocal.mul(24), 2).mul(0.5).add(0.5)
+  const hide = mix(color(c.leather), color(c.grain), smoothstep(0.42, 0.86, pebble).mul(0.42))
+  const plate = smoothstep(0.4, 0.46, CAM_UPQ)
+  const seam = oneMinus(smoothstep(0.004, 0.024, abs(CAM_UPQ.sub(0.4))))
+  body.colorNode = mix(mix(hide, color(c.chrome), plate), color(c.brass), seam)
+  body.roughnessNode = mix(float(0.88), float(0.33), plate)
+  body.metalnessNode = mix(float(0.02), float(0.28), max(plate, seam))
+
+  // ---- the barrel, and the four things in it that are not the barrel: the
+  // hood at the front (matte, because a hood that shines is a hood that does
+  // nothing), the knurled focus ring, the film crank out to one side, and the
+  // release on top — the one red on the island, and the only part of this
+  // machine a person would touch.
+  const barrel = new THREE.MeshStandardNodeMaterial()
+  const ring = smoothstep(0.2, 0.23, CAM_D).mul(oneMinus(smoothstep(0.31, 0.34, CAM_D))).mul(smoothstep(0.4, 0.43, CAM_R))
+  const hood = oneMinus(smoothstep(0.15, 0.19, CAM_D))
+  const crank = smoothstep(0.46, 0.54, abs(CAM_SIDE))
+  // There is no red release here, and there was going to be: `tools/memojo.py`
+  // puts a shutter button on the body at +0.66 to +0.84 and the finder hump
+  // sits at +0.82 and is 0.36 deep, so the button is *inside* the hump and has
+  // never been visible from any angle. Shading a knob nobody can see is how a
+  // material set starts lying about the model. It is two lines in the script if
+  // Seb wants it out where a hand could reach it.
+  const knurl = sin(positionLocal.y.mul(150)).mul(0.09).add(0.94)
+  const bright = max(ring, crank)
+  // The one thing here that is a lie, and it is the file's fault: the hood is
+  // capped, so the glass 5 cm behind it is never seen and the front of the
+  // machine is a black disc. So the cap *is* the glass — the same coating the
+  // lens carries, a dark rim where the hood's own wall stands, and one
+  // highlight off the axis, which is the whole difference between a lens and a
+  // hole. Cheaper than reopening the model, and it cannot drift: both faces
+  // read the same `CAM_D` and `CAM_R`.
+  const face = oneMinus(smoothstep(0.03, 0.055, CAM_D)).mul(oneMinus(smoothstep(0.4, 0.46, CAM_R)))
+  const du = CAM_U.sub(0.17)
+  const dv = CAM_V.sub(0.15)
+  const spot = exp(du.mul(du).add(dv.mul(dv)).mul(-95))
+  // Dark glass first, and the coating *added* to it rather than being it: an
+  // amber ring where the light rakes the edge of the element, and one cool
+  // highlight off the axis. A lens that is a two-colour bullseye is a target.
+  const coating = color(c.coat).mul(0.14)
+    .add(color(c.flare).mul(smoothstep(0.55, 0.98, CAM_R.div(0.46)).mul(0.5)))
+    .add(color(c.coat).mul(spot.mul(0.85)))
+  barrel.colorNode = mix(
+    mix(color(c.barrel), color(c.chrome), bright).mul(mix(float(1), knurl, ring)),
+    coating, face,
+  )
+  barrel.roughnessNode = mix(
+    mix(mix(float(0.44), float(0.26), bright), float(0.78), hood), float(0.36), face)
+  barrel.metalnessNode = mix(
+    mix(mix(float(0.16), float(0.28), bright), float(0.03), hood), float(0.12), face)
+
+  // ---- the glass. A lens this size is not a dark disc: it is the sky with a
+  // bloom of coating in it, blue-violet down the axis and amber at the rim. The
+  // flash is untouched — `Shutter.tsx` still owns how bright it goes, and at
+  // rest it declares nothing, which is what keeps it free of the bloom pass.
+  const lens = new THREE.MeshStandardNodeMaterial({ roughness: 0.38, metalness: 0.12 })
+  lens.colorNode = mix(color(c.coat), color(c.flare), smoothstep(0.3, 1, CAM_R.div(0.42)))
+  lens.emissiveNode = color('#eaf4ff').mul(flashLevel.mul(9))
+
+  // ---- the finder hump: the same satin plate as the top of the body, with the
+  // little window at the front of it in glass instead.
+  const finder = new THREE.MeshStandardNodeMaterial({ metalness: 0.28 })
+  const window_ = oneMinus(smoothstep(0.94, 1.0, CAM_D))
+  finder.colorNode = mix(color(c.chrome), color(c.barrel), window_)
+  finder.roughnessNode = mix(float(0.33), float(0.12), window_)
+
+  // ---- and what the print comes out of: felt in the mouth, chrome on the two
+  // rollers, because a roller that is not metal is a roller that is decoration.
+  const slot = new THREE.MeshStandardNodeMaterial({ color: c.trap, roughness: 1 })
+  const roller = new THREE.MeshStandardNodeMaterial({ color: c.chrome, roughness: 0.26, metalness: 0.3 })
+
+  // ---- the tripod. Varnished ash with the grain down the leg, a dark casting
+  // where the three of them meet, and brass on the feet — which is what a
+  // tripod that holds a camera this heavy has always been made of.
+  const tripod = new THREE.MeshStandardNodeMaterial()
+  const grain = mx_fractal_noise_float(positionLocal.mul(vec3(24, 2.2, 24)), 2).mul(0.5).add(0.5)
+  const foot = oneMinus(smoothstep(0.1, 0.15, positionLocal.y))
+  const casting = smoothstep(CAM_HIP_Y - 0.12, CAM_HIP_Y + 0.02, positionLocal.y)
+  const timber = mix(color(c.ash), color(c.ashDark), smoothstep(0.34, 0.78, grain))
+  tripod.colorNode = mix(mix(timber, color(c.fitting), casting), color(c.brass), foot)
+  tripod.roughnessNode = mix(float(0.72), float(0.36), max(casting, foot))
+  tripod.metalnessNode = max(casting, foot).mul(0.26)
+
+  return {
+    frame_deck: deck, frame_rib: rib, dark_lip: lip,
+    dark_body: body, frame_barrel: barrel, glass_lens: lens, panel_finder: finder,
+    dark_slot: slot, frame_roller: roller, frame_tripod: tripod,
+  }
+}
+
 function makeMats(hi: boolean) {
   const c = Object.fromEntries(
     Object.entries(PALETTE).map(([k, v]) => [k, shade(v, hi)]),
@@ -533,6 +757,10 @@ function makeMats(hi: boolean) {
     /** Overrides keyed by the whole mesh name, tried before the name's prefix —
      *  a mesh that wants its own shader gets one without a second model. */
     byName: {
+      // Memojo's ten, which are a set rather than a handful of exceptions:
+      // `makeMemojo` above says why the one landmark made of things is here
+      // and not in the prefixes.
+      ...makeMemojo(hi),
       panel_canvases: canvas,
       panel_found: found,
       board_palette: palette,
