@@ -195,7 +195,20 @@ Breaking one is allowed. Doing it without saying so is not.
   of parts `Isle.tsx` instances, and it argues its own case at the top of the
   file the way `surfer.py` does.
   Geometry only: materials stay in TSL, and a mesh's name prefix picks which one
-  it gets. The surfer's two files are the exception and the only one — a face,
+  it gets — or, where a mesh wants its own, `byName` in `Landmarks.tsx`, keyed
+  on the whole name. Memojo is the one landmark that is a *set* of those rather
+  than a handful of exceptions: `makeMemojo(hi)` gives all ten of its meshes a
+  material of their own — leatherette, chrome, brass, coated glass, felt, oxide
+  steel, birch ply, varnished ash — drawn off each mesh's `positionLocal` in the
+  frame `tools/memojo.py` wrote the machine in, rebuilt from `LENSES.ramp`. The
+  .glb did not change and no key was added. Two things to know before shading
+  anything else here: there is **no environment map** (one directional, one
+  ambient), so `metalness` over about 0.3 renders black; and the sun is behind
+  every landmark, so the face the visitor sees is lit by the cool fill alone and
+  a "black" is about `#58504a`. Memojo also takes a weaker proximity tint —
+  `shade()`'s strength argument, `MEMOJO_HI` 0.14 against the usual 0.72 —
+  because at 0.72 a colour is cyan by the time anyone is close enough to see it.
+  `docs/STATUS.md`, "Memojo's island is made of something". The surfer's two files are the exception and the only one — a face,
   a suit and a board graphic are not materials a prefix can name, so each
   carries a basecolour texture (2048² on him, 1024² on the board, JPEG, with
   no lighting painted in) and its own UVs, and both are lit like the world —

@@ -6297,3 +6297,98 @@ quarter — and it still ends up astern.
   motion says which.
 - **The surfer on foot**, who is still the slowest thing here and therefore the
   craft the distance-spent swing is hardest on.
+
+## Memojo's island is made of something
+
+The camera the size of a house and the kicker under it were `frame`, `dark`,
+`panel` and `glass` — the world's two greys and a hole — which is the right
+answer for a mine and the wrong one for the project about photographs. A
+house-sized camera in the same grey as a head-frame reads as a blockout of a
+camera. So Memojo is now the one landmark shaded by **what it is made of**:
+leatherette, chrome, brass, coated glass, felt, oxide-painted steel, birch ply
+and varnished ash.
+
+**No model changed.** `src/models/memojo.glb` is byte-for-byte the file it was,
+`tools/memojo.py` was not run, and nothing was added to `MATERIAL_KEYS`. It is
+all `makeMemojo(hi)` in `src/Landmarks.tsx`: ten materials in `byName`, one per
+mesh the script already writes, each one drawn off the mesh's own
+`positionLocal` the way the Scrabble grid and the mine's veins are. A chrome top
+plate, a knurled focus ring, a brass seam and a lens coating cost no geometry
+and no bytes.
+
+What made that possible is that `tools/memojo.py` measured every part of the
+machine back down the lens's own axis. Rebuilding that axis here from
+`LENSES.ramp` — `back()`, `RIGHT`, `UP`, to the number — puts a shader exactly
+where the modeller put a slab, so there is no third place for those numbers to
+drift. `CAM_D` (back down the axis) and `CAM_R` (off it) tell the hood from the
+focus ring from the housing; `CAM_UPQ` and `CAM_SIDE`, in the body's own tilted
+frame, tell the top plate from the leather and the film crank from both.
+
+### Three things the renders decided, not the thinking
+
+- **Metal is black here.** `Scenery.tsx` is one directional and one ambient and
+  nothing else — there is no environment map — so a metal has nothing to
+  reflect. The first pass had chrome at `metalness` 0.8 and the whole top of the
+  machine rendered as a silhouette. Every "metal" in the set is now a light
+  value at a low roughness with a *little* metalness, which is the same trick
+  `PALETTE`'s own `frame` (0.15) has always used. Nothing here goes over 0.3.
+- **"Black" leather is `#58504a`.** The sun is behind every landmark, so the
+  face the visitor sees is lit by the cool fill alone. At `#211c19` the body was
+  a hole in the sea; it took two passes to get it up to where the pebble grain
+  reads at all.
+- **The hood is capped, so the lens was a black disc.** The glass sits 5 cm
+  behind a solid cap and is never seen from the front. Rather than reopen the
+  model, the cap *is* the glass: the same coating gradient, a dark rim where the
+  hood's wall stands, and one highlight off the axis. The first version of that
+  was a blue-and-gold bullseye — a target, not a lens — and is now dark glass
+  with the coating *added* to it.
+
+### The proximity tint is a fifth, not three quarters
+
+`shade()` grew a strength argument; `MEMOJO_HI` is **0.14** against the usual
+0.72. At 0.72 the leather, the brass and the ply are all cyan by the time the
+visitor is near enough to see them, which is exactly the problem Sandra's canvas
+has and this takes her answer. The landmark still announces itself on approach.
+It stays made of something while it does.
+
+### What is deliberately not there
+
+**A red shutter release.** `tools/memojo.py` puts a button on the body at +0.66
+to +0.84 and the finder hump sits at +0.82 and is 0.36 deep, so that button is
+*inside* the hump and has never been visible from any angle, in any render,
+since the day it was written. Shading a knob nobody can see is how a material
+set starts lying about the model, so the branch came out and the comment stayed.
+It is two lines in the script if it should be out where a hand could reach it.
+
+### The blockout keeps its greys
+
+These are `byName` and not prefixes on purpose. They shade the *model*, whose
+vertices are in the landmark's own space; the blockout is unit boxes with a
+transform each, where `positionLocal` means something else entirely. So the
+fallback is unchanged and nothing pops when the file lands.
+
+### Verified
+
+`npx tsc -b` and `npm run check` (all ten) on a throwaway copy in Claude's
+container with a real `npm install` — nothing here is read by a check, but the
+plateau check still reads the same `.glb` and still passes, which is the point:
+the model did not move. Judged by headless swiftshader renders of `/en/world`
+and `/en/work/memojo` on that copy, with a temporary `?eye=/at=` camera override
+in `Ship.tsx` that was **not** brought back. `Claude outputs/memojo-colour-quarter.png`
+(the cold set, from the deck's open side), `memojo-colour-front.png` (the lens)
+and `memojo-colour-near.png` (the hot set, the frame the case study actually
+opens on).
+
+### Needs Seb
+
+- **The whole call**, on hardware and in motion. Swiftshader has no opinion
+  about how a coating reads when the camera swings past it.
+- **`MEMOJO_HI` at 0.14.** It was 0.22 for one pass and the near frame was
+  washed; 0.14 may now be too quiet a "you are here" for the one landmark that
+  is already the loudest thing on its island.
+- **The kerbs.** `paint` `#8f5541` reads as stained timber rather than as
+  painted steel, and the rust mottling under it does not show at the size the
+  ribs are drawn. Either is fine; only one of them is what the comment says.
+- **The back of the machine**, which is the side the case study frames, and
+  which the model gives as a plain slab with a chrome plate on top. No material
+  fixes that — it is `tools/memojo.py`'s to answer if it should be answered.
