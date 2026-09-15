@@ -6229,3 +6229,71 @@ without losing a claim.
 - Nothing in the world changed. The hologram still settles into the same board
   (`src/sudoku.ts` holds it, and its solver was already the fixed one), and no
   check moved.
+
+## The camera comes round sooner — the swing, retuned
+
+"The camera waits for the craft to get somewhere" left two numbers behind as
+Seb's to judge, and said which lever was which: *if the camera feels like it is
+dragging behind a turn rather than waiting for it, `CAM_SWING` is the number;
+if the circle is too lazy, `CAM_SWING_MAX` is.* Flown, it was both — the frame
+took too much ground and too many changes of direction to come astern — so both
+moved.
+
+| | first pass | now | what it is |
+|---|---|---|---|
+| `CAM_SWING` (lag) | 0.18 /unit | **0.45 /unit** | e-folds over 2.2 units, not 5.6 |
+| `CAM_SWING_MAX` (cap) | 0.09 rad/unit | **0.20 rad/unit** | the sustained carve is 5 units of radius, not 11.1 |
+| `CAM_SWING_SPIN` | 0.9 rad/s | **1.7 rad/s** | still a ceiling and not a lag; still binds only above cruise |
+
+Nothing about the mechanism changed: the swing is still spent out of distance
+advanced *along the heading*, so a craft that turns on the spot, gets shoved off
+a shoreline or slides down a roller still holds its frame, and the carve is
+still one radius at every speed.
+
+### What the numbers cost before
+
+A quarter turn is 1.57 rad, and at 0.09 a unit that is **17.5 units of ground** —
+most of the way from one island to the next. On foot it is worse than it sounds,
+because the per-unit cap makes the wait a distance and the surfer walks at 2.7
+units a second: **six and a half seconds** of walking to get the camera round a
+right-angle, which is what "too many manoeuvres" was. At 0.20 the same quarter
+turn is **7.9 units**, 2.9 s on foot and 1.0 s at cruise.
+
+The lag moved with it because the cap only governs while the error is large —
+below about half a radian the `1 - exp(-rate · ds)` term is the smaller of the
+two, and it was the part that made the last thirty degrees of a turn take as
+long as the first sixty. At 0.45 the tail e-folds over 2.2 units.
+
+### Why the ceiling moved too
+
+`CAM_SWING_SPIN` exists so that boost is not a pirouette, and it is only honest
+as a ceiling if the per-unit cap is what governs everywhere below it. 0.20 × 7.5
+is 1.5 rad/s at cruise, so the old 0.9 would have bound *at* cruise and the
+carve would have started opening out with speed again — the exact thing the
+per-unit cap was written to remove. 1.7 keeps the ordering: per-unit from a
+standstill to cruise, ceiling above it, and the worst case under boost is held
+to 1.7 rad/s instead of 3.6.
+
+### Reduced motion is untouched
+
+0.048, 0.022 and the 0.22 rad/s ceiling are exactly what they were (invariant
+6). A visitor who asked for less motion did not ask for this retune, so the
+reduced swing is now about a ninth of the full one where it used to be a
+quarter — and it still ends up astern.
+
+### Verified
+
+- `camera.check.ts` at the new numbers: the carve radius assert is now "over
+  4.5 units", the ceiling asserts still hold in both directions (it binds under
+  boost, it does not bind at cruise), and the assertion the first pass exists
+  for — ten seconds of a quarter-turn error with `ds` at zero leaves `camYaw`
+  bit-identical — is unchanged and still passes.
+
+### Needs Seb
+
+- **Whether 0.20 is now too eager.** The carve is 5 units of radius, which is
+  about one landmark's proximity radius: a held sideways push circles inside the
+  space a landmark occupies. That reads as a tight turn or as a swivel, and only
+  motion says which.
+- **The surfer on foot**, who is still the slowest thing here and therefore the
+  craft the distance-spent swing is hardest on.

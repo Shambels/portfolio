@@ -47,9 +47,9 @@ for (const yaw of HEADINGS) {
 // The swing takes the short way round, including across the wrap, and never
 // overshoots the heading it is chasing. `ds` is the distance advanced along the
 // heading this frame — at cruise, 7.5 units a second, a sixtieth is 0.125.
-const RATE = 0.18
-const MAX = 0.09
-const SPIN = 0.9
+const RATE = 0.45
+const MAX = 0.20
+const SPIN = 1.7
 const DT = 1 / 60
 const CRUISE = 7.5 * DT
 const BOOST = 7.5 * 2.4 * DT
@@ -78,9 +78,10 @@ for (let i = 0, cam = 1.2; i < 600; i++) {
 // every frame, which is the fastest the loop can ever be driven. The camera
 // must not spin, and the circle the ship draws must be big enough to read as a
 // turn rather than as a pirouette. Because the cap is spent per unit travelled,
-// that circle is `1 / MAX` — 11.1 units of radius, a good deal wider than the
-// world's biggest landmark — at cruise *and* under boost, where the old
-// per-second cap gave 8.3 and 20.
+// that circle is `1 / MAX` — 5 units of radius at cruise *and* under boost,
+// about what the biggest landmark's own radius is. It was 11.1 for a pass and
+// that is what made coming astern cost a quarter of the island: the hold is
+// meant to carve, and a carve this world can finish is a tighter one.
 const held = (ds: number) => {
   let cam = Math.PI
   let turned = 0
@@ -93,12 +94,12 @@ const held = (ds: number) => {
 }
 near(held(CRUISE), MAX * 7.5, 'a held sideways push turns the camera at exactly the cap')
 near(7.5 / held(CRUISE), 1 / MAX, 'the sustained carve is 1 / MAX units of radius')
-assert.ok(1 / MAX > 11, 'the tightest sustained circle is over 11 units of radius')
+assert.ok(1 / MAX > 4.5, 'the tightest sustained circle is over 4.5 units of radius')
 
 // And the ceiling is what keeps boost from being a pirouette: the same hold at
-// 2.4x cruise would be 1.6 rad/s on the per-unit cap alone.
+// 2.4x cruise would be 3.6 rad/s on the per-unit cap alone.
 near(held(BOOST), SPIN, 'boost is held at the per-second ceiling')
 assert.ok(MAX * 7.5 * 2.4 > SPIN, 'the ceiling would not bind under boost')
-assert.ok(MAX * 7.5 < SPIN, 'the ceiling binds at cruise, where the distance cap should')
+assert.ok(MAX * 7.5 < SPIN, 'the ceiling binds at cruise, where the distance cap should govern')
 
 console.log('camera: ok')
