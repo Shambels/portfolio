@@ -678,21 +678,32 @@ const DAMPING = REDUCED ? 2 * Math.sqrt(SPRING) : DAMP
  * measured against where the camera points, so a held sideways push turns the
  * ship, which turns the camera, which re-aims the push. That loop is what a
  * sustained sideways hold is *for* — it carves a circle rather than sliding
- * across the frame — and 0.09 rad a unit makes that circle 11 units in radius
- * at *every* speed, cruise and boost alike, where a per-second cap made it 8
- * at cruise and 20 under boost.
+ * across the frame — and 0.20 rad a unit makes that circle 5 units in radius
+ * at *every* speed, cruise and boost alike.
+ *
+ * Retuned from 0.18 and 0.09 on Seb's eye, which is the lever the first pass
+ * wrote down for exactly this. At those numbers a quarter turn cost 17 units
+ * of ground — on foot, at 2.7 units a second, six seconds of walking and a
+ * couple of changes of direction before the frame agreed. The cap is doubled,
+ * which halves the carve to about a landmark's own radius and brings the
+ * quarter turn down to eight units, and the lag is raised with it: it e-folds
+ * over 2.2 units rather than 5.6, so the camera answers a turn instead of
+ * arriving after it. Both are still per unit, so all of that holds at a walk
+ * and under boost alike. `docs/STATUS.md`, "The camera comes round sooner".
  *
  * `CAM_SWING_SPIN` is the one number still in seconds and it is a ceiling, not
- * a lag. 0.09 a unit at full boost is 1.6 rad/s, which is a world revolving
- * about the hull; below cruise speed it never binds.
+ * a lag. 0.20 a unit at full boost is 3.6 rad/s, which is a world revolving
+ * about the hull; 1.7 holds it to something a head can follow, and it binds
+ * nowhere at or below cruise, where the per-unit cap is what should govern.
  *
  * Invariant 6: a rotating world is the one thing on this page that can make
- * somebody ill, so a visitor who asked for less motion gets a camera that still
- * ends up astern and takes four times as long about it.
+ * somebody ill, so a visitor who asked for less motion keeps the camera they
+ * had — 0.048 and 0.022 are untouched by this retune, which leaves the reduced
+ * swing about a ninth of the full one rather than a quarter.
  */
-const CAM_SWING = REDUCED ? 0.048 : 0.18     // per unit advanced: e-folds over 5.6
-const CAM_SWING_MAX = REDUCED ? 0.022 : 0.09 // rad per unit advanced
-const CAM_SWING_SPIN = REDUCED ? 0.22 : 0.9  // rad/sec, whatever the speed
+const CAM_SWING = REDUCED ? 0.048 : 0.45     // per unit advanced: e-folds over 2.2
+const CAM_SWING_MAX = REDUCED ? 0.022 : 0.20 // rad per unit advanced
+const CAM_SWING_SPIN = REDUCED ? 0.22 : 1.7  // rad/sec, whatever the speed
 
 const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
