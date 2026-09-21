@@ -51,11 +51,19 @@ export type Project = {
   Body: ComponentType<MDXProps>
   /** False when this locale has no file yet and English is standing in. */
   translated: boolean
+  /** The project's signature — `{slug}.svg` beside its MDX, inlined by the flat
+   *  index as a drawing of what the thing does. Optional: a project without one
+   *  gets an entry without a panel. Language-neutral, so one file per slug. */
+  sig?: string
 }
 
 type Module = { default: ComponentType<MDXProps>; frontmatter: unknown }
 
 const modules = import.meta.glob<Module>('./content/projects/*.mdx', { eager: true })
+
+/** Raw markup, not a URL: the index inlines it, so its own `<style>` can animate
+ *  it off the entry's hover and it paints with no request. ~6 kB gz for five. */
+const sigs = import.meta.glob<string>('./content/projects/*.svg', { query: '?raw', import: 'default', eager: true })
 
 type Entry = { slug: string; locale: Locale; fm: Record<string, unknown>; Body: ComponentType<MDXProps> }
 
@@ -128,12 +136,72 @@ function build(slug: string, locale: Locale): Project {
     summary: str(entry.fm.summary, `${slug}.${entry.locale}.mdx`, 'summary'),
     Body: entry.Body,
     translated: entry.locale === locale,
+    sig: sigs[`./content/projects/${slug}.svg`],
   }
 }
 
 export const PROJECTS = Object.fromEntries(
   LOCALES.map((locale) => [locale, slugs.map((slug) => build(slug, locale))]),
 ) as Record<Locale, Project[]>
+
+/**
+ * What a project's disc says, on the minimap and on the index's chart. The slug
+ * and not the title: it is the one name a project has that is the same in all
+ * three locales, so "Arts by Sandra" is an A in Dutch too and a letter can never
+ * collide with itself.
+ *
+ * One letter where that tells them apart and as many as it takes where it does
+ * not — `scrubble` and `sudoku` are both S, and on a map whose whole job is to
+ * be the way to a project, two identical discs are worse than one busier one.
+ * Derived from the slugs rather than written down, so a sixth project starting
+ * with an S gets three letters instead of a collision, and the assert is what
+ * says the derivation still works.
+ */
+export const LABEL = (() => {
+  const out = new Map<string, string>()
+  for (const slug of slugs) {
+    let n = 1
+    while (n < slug.length && slugs.some((o) => o !== slug && o.slice(0, n) === slug.slice(0, n))) n++
+    out.set(slug, slug.slice(0, n).toUpperCase())
+  }
+  return out
+})()
+
+if (import.meta.env.DEV) {
+  console.assert(new Set(LABEL.values()).size === LABEL.size, 'two projects share a map label')
+}
+
+/**
+ * A project's ways out, in the order they are offered: the running build first,
+ * then somebody else's server, the source, the two stores. Data rather than
+ * markup because two pages draw it — the case study and the flat index — and
+ * each draws it its own way; the key names the string in `STRINGS`.
+ *
+ * `demo` is on this domain and outside this app. `/sudoku/` is five static files
+ * nginx serves out of the demo's own repository (`deploy/nginx.conf`), which is
+ * why it must be an `<a>` and never a `<Link>`: a router navigation to a path
+ * outside `/:lang` matches `:lang` against `sudoku`, and `locale.tsx` answers a
+ * non-locale with the 404 — the SPA would render "not found" over a page that is
+ * sitting right there on the server. `noopener` rather than `noreferrer`: this is
+ * our own page, so there is no referrer to withhold from ourselves, and a tab
+ * that cannot reach back into this one is worth having from anybody.
+ *
+ * Everything else is off the site, so out of the site's way: a new tab leaves
+ * the panel open, the ship where it was parked and the scene running behind it,
+ * which a same-tab navigation to somebody else's server does not.
+ * `rel="noreferrer"` already implies `noopener`, which is what makes handing a
+ * tab over safe.
+ */
+export function linksOf(p: Project) {
+  const all = [
+    { key: 'linkDemo', href: p.demo, rel: 'noopener' },
+    { key: 'linkSite', href: p.site, rel: 'noreferrer' },
+    { key: 'linkRepo', href: p.repo, rel: 'noreferrer' },
+    { key: 'linkPlay', href: p.play, rel: 'noreferrer' },
+    { key: 'linkAppStore', href: p.appStore, rel: 'noreferrer' },
+  ] as const
+  return all.filter((l): l is (typeof all)[number] & { href: string } => !!l.href)
+}
 
 export function getProject(locale: Locale, slug: string | undefined): Project | undefined {
   return PROJECTS[locale].find((p) => p.slug === slug)

@@ -91,6 +91,9 @@ Breaking one is allowed. Doing it without saying so is not.
    project — no year, no stack, no case study — so it is `ISLES` in
    `src/isles.ts` and a component of its own, rather than a fake MDX file
    sitting in `/work` beside three real ones. `docs/STATUS.md` has the argument.
+   *Bent twice:* a project may also carry `{slug}.svg`, its signature on the
+   flat index — a file beside the content, not code keyed on a slug, but one
+   more thing a project can bring. `docs/STATUS.md`, "The index is a chart".
 8. **All input goes through `useInput()`.** The one permitted early abstraction,
    and it paid: Phase 6's touch controls are a thumb stick written into the same
    `move` vector, and the flight controller, the spray and the sound did not
@@ -264,7 +267,9 @@ src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shor
                         one button, and the dolly that flies all of it past the
                         camera on the way into the world
 src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
-src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it
+src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it:
+                        a chart of the islands drawn from the frontmatter, and a
+                        ledger of cards with each project's signature SVG
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
                         without, and one `view-transition-name` on <main> that
                         grows the first into the second
@@ -361,7 +366,7 @@ src/world.ts            landmark layout + proximity, read from the content;
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea
-src/content/projects/   {slug}.{lang}.mdx  (Phase 1, not yet written)
+src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
 deploy.sh               build + rsync to the server, then a routing smoke test

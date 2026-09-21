@@ -9,7 +9,7 @@ import { LOCALES } from './src/i18n/locales.ts'
  * so this cannot import anything that touches MDX.
  */
 const dir = fileURLToPath(new URL('./src/content/projects', import.meta.url))
-const slugs = [...new Set(readdirSync(dir).map((f) => f.split('.')[0]))].sort()
+const slugs = [...new Set(readdirSync(dir).filter((f) => f.endsWith('.mdx')).map((f) => f.split('.')[0]))].sort()
 
 export default {
   appDirectory: 'src',

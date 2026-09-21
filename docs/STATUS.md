@@ -6468,3 +6468,76 @@ backend could not be exercised here.
   compile was landing in the same frames. Either way it is before the ramp and
   not on the jump; if it shows, `compileAsync` takes one object at a time as
   well, and that is the next lever.
+
+## The index is a chart
+
+`/{lang}/work` was an `<ol>` of headings and paragraphs. It is two columns now
+that answer each other, and still the page the skip link lands on, still
+complete with JS off and with no WebGL.
+
+- [x] **The chart** — the archipelago from above, inline SVG drawn in
+  `routes/work.tsx` from each project's `pos`, `radius` and `order`: the coast
+  at `radius * 1.9` (`ISLAND_SPREAD`, copied rather than imported — see the
+  comment on `SPREAD`), the minimap's letter on each island, the route between
+  them in world order, a rose and a 10 m bar. A label goes on the side of its
+  island facing away from the group's middle, so none meets another. Sticky
+  beside the ledger with room; a strip over it on a phone. Hidden from a
+  screen reader — the ledger says all of it in words — and its islands are
+  links for a pointer only, scrolling to the entry.
+- [x] **The ledger** — one card per project: order in gold, title, summary,
+  year and the stack as chips, the ways out, and the whole card the case
+  study's link (`h2 a::after`), with the ways out on a layer above it.
+- [x] **Hover lights both** — an entry hovered or focused lights its island, an
+  island hovered lights its entry. CSS only: one `--lit` custom property that
+  every lit colour is a `color-mix` on, and a `:has()` rule per slug that
+  `routes/work.tsx` writes from the content into a `<style>`, so a sixth project
+  lights up without the stylesheet being touched.
+- [x] **Signatures** — `{slug}.svg` beside the MDX, inlined by `content.ts`
+  (`?raw` glob, optional per project): a drawing of what the project does,
+  carrying its own `<style>` and a short animation keyed off
+  `.entry:is(:hover, :focus-within)`. Final frame at rest; no motion at all
+  under reduced motion (a rule in `index.css`, because the global one keeps
+  animation delays). The sudoku's is the repository's puzzle with every
+  candidate as a pencil mark, and `sudoku.check.ts` holds every digit in it to
+  `PUZZLE` and `candidates()`.
+- [x] **The card grows into the case study** — `<Link viewTransition>` and
+  `useViewTransitionState`, which names the clicked card `study` for the length
+  of the transition; `/work`'s own `<main>` gives the name up
+  (`main:has(.atlas)`). The same morph the world's panel makes.
+- [x] `linksOf()` in `content.ts` — the demo / site / source / stores list and
+  its `rel` reasoning, moved out of `case-study.tsx` because two pages draw it
+  now. `LABEL` moved there from `MiniMap.tsx` for the same reason.
+- [x] `react-router.config.ts` reads only `.mdx` for slugs, since the directory
+  holds other files now.
+
+### Invariant 7, bent a second time
+
+A new project is an MDX file plus a model **and, if it wants one, a signature
+SVG**. That is data rather than a scene component — a file beside the content,
+no code keyed on its slug — but it is one more thing a project can carry, and
+the site's only per-project artwork outside the world. A project without one
+gets an entry without a panel.
+
+### Costs
+
+No dependency, no new route, no new string. The work route chunk is 3.6 kB
+(1.4 kB gz); the five signatures ride in the content, about 6 kB gz together;
+the stylesheet grew by about 1 kB gz.
+
+### Verified
+
+`npx tsc -b`, `npm run check` and `npm run build` on the throwaway copy;
+screenshots at 1440 and 390 wide, hover both ways, a click through to the case
+study with no console errors, and `/en/work/` with JavaScript disabled.
+
+### Needs Seb
+
+- **Three signatures are illustrations, not data.** PolarSense's columns are
+  the case study's `sales.parquet` with made-up names, Scrubble's move is a
+  position for the picture (RETAINS on a triple word, 71 — the arithmetic is
+  right, the game is invented), and Sandra's three channels are drawn as
+  ☎ / @ / “” in FR / NL / EN. Replace any of them with the real thing.
+- **The card growing into the prose** on a real Chrome and Safari — headless
+  shows the navigation, not the morph.
+- Whether the chart earns its column once scrolled past, and whether the gold
+  is too loud.
