@@ -6573,3 +6573,10 @@ picks `logo-29` and `logo-72`), the world with the tile over the sky (picks
 - Whether the mark wants a favicon and a social card from the same master —
   `public/favicon.svg` is still the old one.
 - The sizes: 2.4rem on the index, 1.45rem in the world's tile.
+
+## The order is reversed
+
+`order` in the five English frontmatters runs the other way now — Sudoku
+Solver 1, Memojo 2, Scrubble 3, Arts by Sandra 4, PolarSense 5 — so the index,
+its numbers, the chart's labels and the route between the islands all read in
+that sequence. No `pos` moved: every island is where it was.
