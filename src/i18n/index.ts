@@ -9,7 +9,7 @@ export * from './locales'
  * is not a library.
  */
 const en = {
-  name: 'Seb Pinchetti',
+  name: 'Sebastien Pinchetti',
   role: 'Software developer',
   bio: 'Software developer. ',
 
@@ -106,7 +106,7 @@ const en = {
 export type Strings = { -readonly [K in keyof typeof en]: string }
 
 const fr: Strings = {
-  name: 'Seb Pinchetti',
+  name: 'Sebastien Pinchetti',
   role: 'Développeur web',
   bio: "Développeur web",
 
@@ -161,7 +161,7 @@ const fr: Strings = {
 }
 
 const nl: Strings = {
-  name: 'Seb Pinchetti',
+  name: 'Sebastien Pinchetti',
   role: 'Web developer',
   bio: 'Web developer.',
 
