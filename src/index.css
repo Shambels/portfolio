@@ -353,6 +353,50 @@ a:hover {
   height: 2rem;
 }
 
+/* The mark, in the corner the menu is not in. On the flat index it scrolls away
+   with the page — fixed, it would sit over the chart when that sticks — and
+   stands bare on the ink. Over the world it stays, on the same glass as the
+   menu, because cyan on a cyan sky is not a mark (`tools/logo.py`). Tops
+   line up with the menu's. */
+.brand {
+  position: absolute;
+  z-index: 3;
+  top: 0.85rem;
+  left: clamp(1.25rem, 5vw, 3rem);
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  transition: opacity 140ms ease;
+}
+
+.brand img {
+  display: block;
+  width: auto;
+  height: 2rem;
+}
+
+.brand:hover {
+  opacity: 0.8;
+}
+
+.world .brand {
+  position: fixed;
+  padding: 0.22rem 0.4rem;
+  border: 1px solid #ffffff2e;
+  background: #0b0c0f8c;
+  backdrop-filter: blur(14px);
+}
+
+.world .brand img {
+  height: 1.45rem; /* the tile comes out at the menu square's height */
+}
+
+@media (min-width: 40rem) {
+  .brand img {
+    height: 2.4rem;
+  }
+}
+
 /* --- frame, continued --------------------------------------------------- */
 
 main {

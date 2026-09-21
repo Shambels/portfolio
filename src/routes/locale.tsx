@@ -3,6 +3,19 @@ import { CONTACT, LOCALES, SITE_URL, SOURCE_LOCALE, STRINGS, canonicalPath, isLo
 import { Menu } from '../Menu'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
+import logo24 from '../assets/logo/logo-24.webp?no-inline'
+import logo29 from '../assets/logo/logo-29.webp?no-inline'
+import logo48 from '../assets/logo/logo-48.webp?no-inline'
+import logo58 from '../assets/logo/logo-58.webp?no-inline'
+import logo72 from '../assets/logo/logo-72.webp?no-inline'
+import logo87 from '../assets/logo/logo-87.webp?no-inline'
+
+/** The mark at the widths `tools/logo.py` writes — 24 and 29 CSS pixels (2rem
+ *  and 2.4rem tall, `.brand` in `index.css`) at 1x, 2x and 3x; over the world
+ *  it is drawn smaller, in a tile, and `sizes` says so. `?no-inline`, or Vite
+ *  turns the four under 4 kB into base64 inside this chunk — the first route's —
+ *  and every visitor downloads all four instead of the one their screen wants. */
+const LOGO = `${logo24} 24w, ${logo29} 29w, ${logo48} 48w, ${logo58} 58w, ${logo72} 72w, ${logo87} 87w`
 
 /**
  * The chrome every page shares, and the only place the locale is validated.
@@ -36,6 +49,24 @@ export default function LocaleLayout() {
         <a className="skip" href="#content">
           {t.skipToContent}
         </a>
+      )}
+
+      {/* The mark, top left, and the way back to the landing page — on the
+          flat index and over the world, the two places with no other way to
+          the front door but the menu. Not on a case study the world opened:
+          that corner is its arrow's. Hashed and fingerprinted by Vite, so it
+          caches forever and costs the first route nothing but a request. */}
+      {(world || pathname === `/${lang}/work`) && (
+        <Link className="brand" to={`/${lang}`} aria-label={`${t.name} — ${t.navHome}`}>
+          <img
+            srcSet={LOGO}
+            sizes={world ? '18px' : '(min-width: 40rem) 29px, 24px'}
+            src={logo29}
+            alt=""
+            width={29}
+            height={39}
+          />
+        </Link>
       )}
 
       {/* The two ways out of a case study the world opened, and the only chrome
@@ -107,11 +138,10 @@ export default function LocaleLayout() {
         </p>
         <p className="contact">
           <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-          <a href={CONTACT.github} rel="me noreferrer">
+          <a href={CONTACT.github} target="_blank" rel="me noreferrer">
             GitHub
           </a>
         </p>
-        <p className="fine">{t.footerNote}</p>
       </footer>
     </>
   )

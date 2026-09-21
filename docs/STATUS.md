@@ -6541,3 +6541,35 @@ study with no console errors, and `/en/work/` with JavaScript disabled.
   shows the navigation, not the morph.
 - Whether the chart earns its column once scrolled past, and whether the gold
   is too loud.
+
+## The mark
+
+- [x] **The logo is an asset** — `tools/logo-source.jpg` is Seb's file (2766 ×
+  3320, a mark on a flat charcoal ground) and `tools/logo.py` turns it into
+  `src/assets/logo/logo-{24,29,48,58,72,87}.webp` plus a 512 master nothing
+  references yet. The ground comes out by colour-to-alpha against its own
+  median, so the edge stays soft on the site's darker ink instead of carrying
+  a grey halo; resized premultiplied. 1–5 kB each.
+- [x] **Top left of `/work` and of the world, linking to the landing page** —
+  `.brand` in `routes/locale.tsx`, one `<img srcset sizes>` so a screen fetches
+  the one width it draws: 24 or 29 CSS px wide (2rem on a phone, 2.4rem from
+  40rem) on the index, bare on the ink and scrolling with the page — fixed, it
+  would sit over the sticky chart; 18 px over the world, fixed, in the menu's
+  glass tile at the menu's height, because a cyan mark on a cyan sky is not a
+  mark. Absent on a case study the world opened (that corner is its arrow's)
+  and on the landing page itself. Labelled "{name} — {navHome}", both strings
+  that exist already.
+- [x] `?no-inline` on the imports: without it Vite base64s the four files
+  under 4 kB into the first-route chunk and every visitor downloads all four.
+
+### Verified
+
+`npm run build` on the throwaway copy; the index at 1440 and at 390 × 3 (it
+picks `logo-29` and `logo-72`), the world with the tile over the sky (picks
+`logo-24`), and a click on it landing on `/en`.
+
+### Needs Seb
+
+- Whether the mark wants a favicon and a social card from the same master —
+  `public/favicon.svg` is still the old one.
+- The sizes: 2.4rem on the index, 1.45rem in the world's tile.

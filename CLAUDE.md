@@ -350,6 +350,9 @@ tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
 tools/pirate_ship.py    not a landmark either — the boat: strips the two maps
                         this site never samples off the generated source beside
                         it, resizes the third and packs it
+tools/logo.py           not a landmark and not Blender — the site's mark:
+                        tools/logo-source.jpg, keyed off its ground, out to
+                        src/assets/logo/ at the widths `.brand` draws (Pillow)
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
