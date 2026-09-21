@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { color, frontFacing, mix, smoothstep, step, texture, uniform, uv, vec2 } from 'three/tsl'
 import { FLASH } from './world'
 import { printAt, type Lens, type Print } from './plateau'
+import { SHIP } from './Ship'
 
 /**
  * The giant camera going off: the burst, the photograph it takes, and the
@@ -57,8 +58,44 @@ const CONE_GAIN = 0.42
  *  eye, because a flash that does not overexpose him is not a flash. */
 const FLASH_WATTS = 45
 
+/**
+ * How near the visitor has to come before the photograph's pass is compiled,
+ * and how far away before it is armed again — in world units, from the lens.
+ *
+ * The first shutter used to freeze the world for a moment, and it was not the
+ * flash, the light, the burst or the click. It was the shader compiler: this
+ * pass renders into its own target, one half-float attachment and no MRT, and
+ * `Post`'s scene pass renders into two — so not one program the world had
+ * already built could be reused, and every material in the lens's view was
+ * compiled on the spot, inside `shoot()`, on the frame he was in the air. 22
+ * programs, measured, and the next shot compiled none and cost a millisecond.
+ *
+ * So the compile is done before anyone needs it, on approach, with
+ * `compileAsync` — which generates the shaders a stage at a time, yielding to
+ * the frame between them, and links them on the driver's own threads where the
+ * browser allows it (`KHR_parallel_shader_compile` on WebGL2, async pipelines
+ * on WebGPU) — and the shutter only ever reuses them. 45 is six seconds out at
+ * cruise, and nobody reaches the lip without crossing it; 70 is the
+ * hysteresis, so a visitor circling at the edge does not re-arm it every lap. Re-arming is cheap — whatever is
+ * already built is found, not built again — and it is what catches a model
+ * that was still on the wire the first time round.
+ */
+const WARM_AT = 45
+const REARM_AT = 70
+
+/**
+ * And how often, in seconds, a warm pass is checked against the scene while
+ * the visitor is in range. The world arrives in pieces — a deep link to Memojo
+ * parks him in range on the first frame, before his own file has loaded — and a
+ * pass compiled then has nobody in it. So while he is near, the scene is
+ * counted once a second, and a count that moved compiles again. What was built
+ * already is found, not rebuilt; only what arrived is new work.
+ */
+const RECHECK = 1
+
 const _up = new THREE.Vector3(0, 1, 0)
 const _m = new THREE.Matrix4()
+const _at = new THREE.Vector3()
 
 export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
   const gl = useThree((s) => s.gl)
@@ -72,6 +109,13 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
    *  last age we saw — a shot is `FLASH.age` going *backwards*. */
   const since = useRef(-1)
   const wasAge = useRef(FLASH.age)
+  /** Whether the pass is compiled for this approach: `idle` out of range,
+   *  `warming` while `compileAsync` works through it, `warm` once it has. */
+  const warm = useRef<'idle' | 'warming' | 'warm'>('idle')
+  /** How many objects the scene had when it was last compiled, and when it
+   *  was last counted — see `RECHECK`. */
+  const warmed = useRef(0)
+  const counted = useRef(0)
 
   // Where it stands and what it looks at, once. `lookAt` rather than the
   // shortest rotation from -Z, because the shortest one rolls the horizon and
@@ -194,8 +238,76 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
       devAt.value = p.dev
       if (card.current) card.current.scale.set(print.w, print.h * Math.max(p.out, 1e-4), 1)
     }
-    if (card.current) card.current.visible = since.current >= 0
+
+    // Compile the photograph before it is taken. Measured from the lens, in
+    // the world, because this is mounted in the landmark's own group.
+    const c = cam.current
+    if (c) {
+      const d = c.getWorldPosition(_at).distanceTo(SHIP.pos)
+      if (warm.current === 'idle' && d < WARM_AT) warmUp(c)
+      else if (warm.current === 'warm' && d > REARM_AT) warm.current = 'idle'
+      else if (warm.current === 'warm' && (counted.current += dt) > RECHECK) {
+        counted.current = 0
+        if (census() !== warmed.current) warm.current = 'idle'
+      }
+    }
   })
+
+  /** Hide what the photograph never contains, run `body`, put them back. */
+  function without<T>(body: () => T): T {
+    const showCard = card.current?.visible ?? false
+    const showCone = cone.current?.visible ?? false
+    if (card.current) card.current.visible = false
+    if (cone.current) cone.current.visible = false
+    try {
+      return body()
+    } finally {
+      if (card.current) card.current.visible = showCard
+      if (cone.current) cone.current.visible = showCone
+    }
+  }
+
+  /** Every object in the scene, visible or not. Cheap next to a frame. */
+  function census() {
+    let n = 0
+    scene.traverse(() => { n++ })
+    return n
+  }
+
+  /**
+   * Every pipeline `shoot()` will need, built ahead of it and a piece at a
+   * time. The target is only read on `compileAsync`'s first, synchronous
+   * stretch — everything after its first `await` works from what it captured
+   * — so setting it back straight away is safe, and the frame that follows
+   * renders to the screen as usual.
+   *
+   * Everything in the scene is compiled, not only what the lens sees now: the
+   * rider is the point of the picture and he is not in it yet. Culling is off
+   * for the same synchronous stretch and back on before anything draws.
+   */
+  function warmUp(c: THREE.PerspectiveCamera) {
+    warm.current = 'warming'
+    warmed.current = census()
+    counted.current = 0
+    const r = gl as unknown as THREE.Renderer
+    const culled: THREE.Object3D[] = []
+    const done = without(() => {
+      scene.traverse((o) => { if (o.frustumCulled) { o.frustumCulled = false; culled.push(o) } })
+      c.updateMatrixWorld()
+      r.setRenderTarget(rt)
+      try {
+        return r.compileAsync(scene, c)
+      } finally {
+        r.setRenderTarget(null)
+        for (const o of culled) o.frustumCulled = true
+      }
+    })
+    // A pass that fails to build is not retried every frame: it is left as
+    // it was before any of this — compiled on the shot, if at all — until the
+    // visitor leaves and comes back.
+    const settle = () => { if (warm.current === 'warming') warm.current = 'warm' }
+    done.then(settle, settle)
+  }
 
   /** One frame through the lens, into the card. The card and the burst are out
    *  of it — a print of a print is a hall of mirrors, and the beam is drawn
@@ -203,19 +315,15 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
   function shoot() {
     const c = cam.current
     if (!c) return
-    const showCard = card.current?.visible ?? false
-    const showCone = cone.current?.visible ?? false
-    if (card.current) card.current.visible = false
-    if (cone.current) cone.current.visible = false
-    c.updateMatrixWorld()
-    // Narrow cast at a library boundary, as in `Post.tsx`: r3f types `gl` as a
-    // WebGLRenderer and `Scene.tsx` hands it a WebGPURenderer.
-    const r = gl as unknown as THREE.Renderer
-    r.setRenderTarget(rt)
-    r.render(scene, c)
-    r.setRenderTarget(null)
-    if (card.current) card.current.visible = showCard
-    if (cone.current) cone.current.visible = showCone
+    without(() => {
+      c.updateMatrixWorld()
+      // Narrow cast at a library boundary, as in `Post.tsx`: r3f types `gl` as a
+      // WebGLRenderer and `Scene.tsx` hands it a WebGPURenderer.
+      const r = gl as unknown as THREE.Renderer
+      r.setRenderTarget(rt)
+      r.render(scene, c)
+      r.setRenderTarget(null)
+    })
   }
 
   return (
@@ -229,10 +337,13 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
       <pointLight ref={lamp} position={pose.at} color="#eaf4ff" intensity={0} distance={26} decay={2} />
       <mesh ref={cone} geometry={burst.g} material={burst.m}
         position={pose.mid} quaternion={pose.along} />
-      <mesh ref={card} geometry={paper.g} material={paper.m} visible={false}
+      {/* Drawn from the first frame at no height at all — zero-area, so it
+          covers no pixel — so that its material is compiled with the rest of
+          the world at load, and not on the frame the first print comes out. */}
+      <mesh ref={card} geometry={paper.g} material={paper.m} frustumCulled={false}
         position={[print.x, print.y, print.z]}
         rotation-y={Math.atan2(lens.dx, lens.dz)}
-        scale={[print.w, print.h, 1]} />
+        scale={[print.w, 0, 1]} />
     </>
   )
 }
