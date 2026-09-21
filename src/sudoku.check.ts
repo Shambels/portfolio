@@ -5,6 +5,7 @@
 // the bytes the shader samples, and the hole a hull leaves through the panel.
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, holes, pierce, solve, table } from './sudoku.ts'
 
 // The board is the repository's: 81 cells, 31 clues, 50 open.
@@ -103,3 +104,24 @@ console.log('sudoku: ok —', BOARD.filter((n) => !n).length, 'open cells, one s
   assert.deepEqual(cellAt(80).map((v) => +v.toFixed(3)), [1.6, 0.71])
 }
 console.log('sudoku: pierce ok')
+
+// The index's signature (`src/content/projects/sudoku.svg`) is this puzzle and
+// not a picture of one: every clue where the board has it, in scan order, and
+// every pencil mark a candidate that cell really has left — all of them.
+{
+  const svg = readFileSync(new URL('./content/projects/sudoku.svg', import.meta.url), 'utf8')
+  const X0 = 36, Y0 = 8, C = 16
+  const at = (x: string, y: string) => Math.floor((+y - Y0) / C) * 9 + Math.floor((+x - X0) / C)
+  const clues = [...svg.matchAll(/<text class="k" x="([\d.]+)" y="([\d.]+)"[^>]*>(\d)</g)]
+  assert.deepEqual(clues.map((m) => at(m[1]!, m[2]!)), BOARD.flatMap((n, i) => (n ? [i] : [])), 'svg clues in scan order')
+  for (const m of clues) assert.equal(+m[3]!, BOARD[at(m[1]!, m[2]!)], 'svg clue digit')
+  const marks = new Map<number, number[]>()
+  for (const m of svg.matchAll(/<text class="m" x="([\d.]+)" y="([\d.]+)">(\d)</g)) {
+    const i = at(m[1]!, m[2]!)
+    marks.set(i, [...(marks.get(i) ?? []), +m[3]!])
+  }
+  for (let i = 0; i < 81; i++) {
+    assert.deepEqual(marks.get(i) ?? [], BOARD[i] ? [] : candidates(BOARD, i), `svg marks at ${i}`)
+  }
+}
+console.log('sudoku: signature ok')

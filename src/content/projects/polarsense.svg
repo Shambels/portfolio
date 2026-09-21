@@ -1,0 +1,31 @@
+<svg class="sig sig-polarsense" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
+<!-- PolarSense: autocomplete at the quote mark, the column names read out of the
+     Parquet footer on disk. The file and its columns are the case study's own
+     sales.parquet, illustrative — nothing here is read from a real schema. -->
+<style>
+.sig-polarsense text { font: 400 8.2px var(--mono); fill: var(--paper-dim); }
+.sig-polarsense .code { fill: var(--paper); }
+.sig-polarsense .str { fill: #9ec7a0; }
+.sig-polarsense .caret { fill: var(--gold); }
+.sig-polarsense .pop rect { fill: var(--ink-2); stroke: #ffffff26; stroke-width: 0.7; }
+.sig-polarsense .pop .sel { fill: color-mix(in srgb, var(--gold) 16%, transparent); stroke: none; }
+.sig-polarsense .pop .ty { fill: var(--paper-faint); text-anchor: end; }
+.sig-polarsense .pop .hi { fill: var(--paper); }
+.sig-polarsense .src { font-size: 6.4px; fill: var(--paper-faint); }
+@keyframes sig-pop { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes sig-blink { 50% { opacity: 0; } }
+.entry:is(:hover, :focus-within) .sig-polarsense .pop { animation: sig-pop 0.3s 0.15s both; }
+.entry:is(:hover, :focus-within) .sig-polarsense .row { animation: sig-pop 0.25s calc(0.25s + var(--i) * 70ms) both; }
+.entry:is(:hover, :focus-within) .sig-polarsense .caret { animation: sig-blink 1s steps(1) infinite; }
+</style>
+<text class="code" x="16" y="46">df.filter(pl.col(<tspan class="str">"re</tspan></text>
+<rect class="caret" x="115.5" y="38.5" width="1" height="9"/>
+<g class="pop">
+  <rect x="56" y="54" width="126" height="54" rx="3"/>
+  <rect class="sel" x="56.5" y="54.5" width="125" height="17"/>
+  <g class="row" style="--i:0"><text class="hi" x="64" y="66">region</text><text class="ty" x="174" y="66">str</text></g>
+  <g class="row" style="--i:1"><text x="64" y="83">revenue</text><text class="ty" x="174" y="83">f64</text></g>
+  <g class="row" style="--i:2"><text x="64" y="100">returned</text><text class="ty" x="174" y="100">bool</text></g>
+</g>
+<text class="src" x="56" y="124">↳ sales.parquet · footer only</text>
+</svg>

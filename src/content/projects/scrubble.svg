@@ -1,0 +1,53 @@
+<svg class="sig sig-scrubble" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
+<!-- Scrubble: the move that was there. All-one-point letters, the S on a triple word:
+     7 x 3 + the 50-point bingo bonus is 71. A position for the picture, not one from a game. -->
+<style>
+.sig-scrubble .sq { fill: #ffffff0b; }
+.sig-scrubble .tw { fill: #8e3b3455; }
+.sig-scrubble .dw { fill: #8e5a3444; }
+.sig-scrubble .dl { fill: #3b6f8e55; }
+.sig-scrubble .tile rect { fill: #e8d9b8; }
+.sig-scrubble .tile text { font: 700 11px var(--sans); fill: #2a2219; text-anchor: middle; dominant-baseline: central; }
+.sig-scrubble .tile .pt { font-size: 4.6px; font-weight: 600; text-anchor: end; }
+.sig-scrubble .score { font: 400 7px var(--mono); fill: var(--paper-faint); letter-spacing: 0.06em; text-anchor: middle; }
+.sig-scrubble .score tspan { fill: var(--gold); font-weight: 600; }
+.sig-scrubble .tile { transform-box: fill-box; transform-origin: center; }
+@keyframes sig-drop { from { opacity: 0; transform: translateY(-120%) rotate(-8deg); } }
+.entry:is(:hover, :focus-within) .sig-scrubble .tile { animation: sig-drop 0.32s calc(var(--i) * 60ms) both cubic-bezier(0.2, 0.8, 0.3, 1.2); }
+</style>
+<rect class="sq tw" x="9" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="31" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="53" y="34" width="19" height="19" rx="2"/>
+<rect class="sq dl" x="75" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="97" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="119" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="141" y="34" width="19" height="19" rx="2"/>
+<rect class="sq dl" x="163" y="34" width="19" height="19" rx="2"/>
+<rect class="sq" x="185" y="34" width="19" height="19" rx="2"/>
+<rect class="sq dw" x="9" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="31" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="53" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="75" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="97" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="119" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="141" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="163" y="56" width="19" height="19" rx="2"/>
+<rect class="sq tw" x="185" y="56" width="19" height="19" rx="2"/>
+<rect class="sq" x="9" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="31" y="78" width="19" height="19" rx="2"/>
+<rect class="sq dl" x="53" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="75" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="97" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="119" y="78" width="19" height="19" rx="2"/>
+<rect class="sq dl" x="141" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="163" y="78" width="19" height="19" rx="2"/>
+<rect class="sq" x="185" y="78" width="19" height="19" rx="2"/>
+<g class="tile" style="--i:0"><rect x="53" y="56" width="19" height="19" rx="2"/><text x="62.0" y="65.5">R</text><text class="pt" x="70.4" y="72">1</text></g>
+<g class="tile" style="--i:1"><rect x="75" y="56" width="19" height="19" rx="2"/><text x="84.0" y="65.5">E</text><text class="pt" x="92.4" y="72">1</text></g>
+<g class="tile" style="--i:2"><rect x="97" y="56" width="19" height="19" rx="2"/><text x="106.0" y="65.5">T</text><text class="pt" x="114.4" y="72">1</text></g>
+<g class="tile" style="--i:3"><rect x="119" y="56" width="19" height="19" rx="2"/><text x="128.0" y="65.5">A</text><text class="pt" x="136.4" y="72">1</text></g>
+<g class="tile" style="--i:4"><rect x="141" y="56" width="19" height="19" rx="2"/><text x="150.0" y="65.5">I</text><text class="pt" x="158.4" y="72">1</text></g>
+<g class="tile" style="--i:5"><rect x="163" y="56" width="19" height="19" rx="2"/><text x="172.0" y="65.5">N</text><text class="pt" x="180.4" y="72">1</text></g>
+<g class="tile" style="--i:6"><rect x="185" y="56" width="19" height="19" rx="2"/><text x="194.0" y="65.5">S</text><text class="pt" x="202.4" y="72">1</text></g>
+<text class="score" x="108" y="116">RETAINS · <tspan>+71</tspan> · BINGO</text>
+</svg>

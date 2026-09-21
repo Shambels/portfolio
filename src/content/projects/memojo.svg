@@ -1,0 +1,40 @@
+<svg class="sig sig-memojo" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
+<!-- Memojo: the landmark's giant camera, and the print that feeds out of the slot
+     under it and develops as it comes — `Shutter.tsx` in the world, this on paper.
+     Ids are prefixed: every signature is inlined into one document. -->
+<defs>
+  <linearGradient id="memojo-sig-sea" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#2f81ba"/><stop offset="0.55" stop-color="#a9c8cb"/>
+    <stop offset="0.56" stop-color="#44a0b6"/><stop offset="1" stop-color="#053c46"/>
+  </linearGradient>
+  <clipPath id="memojo-sig-below"><rect x="0" y="52" width="216" height="120"/></clipPath>
+</defs>
+<style>
+.sig-memojo .cam { fill: #2a2622; stroke: #ffffff22; }
+.sig-memojo .lens { fill: #15181c; stroke: #58504a; stroke-width: 2; }
+.sig-memojo .glass { fill: #0e3a44; }
+.sig-memojo .slot { fill: #050607; }
+.sig-memojo .flash { fill: #f5ecd4; opacity: 0.5; }
+.sig-memojo .paper { fill: #efe9dc; }
+@keyframes sig-feed { from { transform: translateY(-58px); } }
+@keyframes sig-develop { from { opacity: 0; } }
+@keyframes sig-flash { from { opacity: 1; } }
+.entry:is(:hover, :focus-within) .sig-memojo .print { animation: sig-feed 1.4s both cubic-bezier(0.3, 0, 0.2, 1); }
+.entry:is(:hover, :focus-within) .sig-memojo .photo { animation: sig-develop 1.8s 0.6s both; }
+.entry:is(:hover, :focus-within) .sig-memojo .flash { animation: sig-flash 0.5s both; }
+</style>
+<g clip-path="url(#memojo-sig-below)">
+  <g class="print">
+    <rect class="paper" x="80" y="50" width="56" height="66" rx="1.5"/>
+    <g class="photo">
+      <rect x="85" y="55" width="46" height="46" fill="url(#memojo-sig-sea)"/>
+      <circle cx="118" cy="72" r="4.5" fill="#f4c2a5"/>
+      <path d="M100 84l4-7 3 4 2-2 3 5z" fill="#101218"/>
+    </g>
+  </g>
+</g>
+<rect class="cam" x="58" y="14" width="100" height="40" rx="5"/>
+<rect class="flash" x="66" y="20" width="14" height="7" rx="1.5"/>
+<circle class="lens" cx="108" cy="34" r="14"/><circle class="glass" cx="108" cy="34" r="7"/>
+<rect class="slot" x="76" y="49" width="64" height="3" rx="1.5"/>
+</svg>

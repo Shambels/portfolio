@@ -1,5 +1,5 @@
 import { Link, useOutletContext, useParams } from 'react-router'
-import { getProject } from '../content'
+import { getProject, linksOf } from '../content'
 import { STRINGS, type Locale } from '../i18n'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
@@ -36,52 +36,13 @@ export default function CaseStudy() {
     </p>
   )
 
-  // On this domain and outside this app. `/sudoku/` is five static files nginx
-  // serves out of the demo's own repository (`deploy/nginx.conf`), which is why
-  // this is an `<a>` and must never become a `<Link>`: a router navigation to a
-  // path outside `/:lang` matches `:lang` against `sudoku`, and `locale.tsx`
-  // answers a non-locale with the 404 — the SPA would render "not found" over a
-  // page that is sitting right there on the server.
-  //
-  // A new tab for the reason the off-site links take one, and `noopener` rather
-  // than the `noreferrer` they carry: this is our own page, so there is no
-  // referrer to withhold from ourselves, and a tab that cannot reach back into
-  // this one is worth having from anybody.
-  const demo = project.demo && (
-    <a href={project.demo} target="_blank" rel="noopener">
-      {t.linkDemo}
+  // Demo first, then off the site — `linksOf` in `content.ts` has why each
+  // carries the `rel` it does, and why the demo is an `<a>` and never a `<Link>`.
+  const links = linksOf(project).map((l) => (
+    <a key={l.key} href={l.href} target="_blank" rel={l.rel}>
+      {t[l.key]}
     </a>
-  )
-
-  // Off the site, so out of the site's way: a new tab leaves the panel open, the
-  // ship where it was parked and the scene running behind it, which a same-tab
-  // navigation to somebody else's server does not. `rel="noreferrer"` already
-  // implies `noopener`, which is what makes handing a tab over safe.
-  const offsite = (
-    <>
-      {project.site && (
-        <a href={project.site} target="_blank" rel="noreferrer">
-          {t.linkSite}
-        </a>
-      )}
-      {project.repo && (
-        <a href={project.repo} target="_blank" rel="noreferrer">
-          {t.linkRepo}
-        </a>
-      )}
-      {project.play && (
-        <a href={project.play} target="_blank" rel="noreferrer">
-          {t.linkPlay}
-        </a>
-      )}
-      {project.appStore && (
-        <a href={project.appStore} target="_blank" rel="noreferrer">
-          {t.linkAppStore}
-        </a>
-      )}
-    </>
-  )
-  const shipped = project.demo || project.site || project.repo || project.play || project.appStore
+  ))
 
   if (world) {
     return (
@@ -109,8 +70,7 @@ export default function CaseStudy() {
           >
             {t.readCaseStudy}
           </Link>
-          {demo}
-          {offsite}
+          {links}
         </p>
       </section>
     )
@@ -125,9 +85,7 @@ export default function CaseStudy() {
         <h1>{project.title}</h1>
         <p className="lede">{project.summary}</p>
         <p className="links">
-          {demo}
-          {offsite}
-          {!shipped && <span className="fine">{t.noLink}</span>}
+          {links.length ? links : <span className="fine">{t.noLink}</span>}
         </p>
       </header>
 
