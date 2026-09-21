@@ -316,7 +316,10 @@ src/Isle.tsx            that height function as a mesh, its colours, and where
 src/Shutter.tsx         what the giant camera does when it goes off: the
                         burst, the frame it takes — a second camera at the
                         lens, one render into a target — and the print that
-                        feeds out of the slot under the body
+                        feeds out of the slot under the body. That target shares
+                        no programs with `Post`'s MRT pass, so the pass is
+                        compiled on approach (`compileAsync`, `WARM_AT`) and
+                        never on the shutter frame
 src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
                         camera, the sudoku's hologram — blockout in primitives
                         + TSL, and the detailed model where one exists (`MODEL`);

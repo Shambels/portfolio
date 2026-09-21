@@ -6392,3 +6392,79 @@ opens on).
 - **The back of the machine**, which is the side the case study frames, and
   which the model gives as a plain slab with a chrome plate on top. No material
   fixes that — it is `tools/memojo.py`'s to answer if it should be answered.
+
+## The first photograph no longer stops the world
+
+The world froze for a moment the first time the giant camera went off. It was
+not the flash, the point light, the burst or the click — it was the shader
+compiler.
+
+### What it was
+
+`shoot()` renders the scene through the lens into its own target: one
+half-float attachment, no MRT. `Post`'s scene pass renders into two
+(`output` and `emissive`). A program built for one cannot be used for the
+other, so on the first shutter every material in the lens's view was compiled
+from nothing, synchronously, inside `shoot()`, on the frame the rider was in
+the air. Measured on a throwaway copy (WebGL2, swiftshader), with
+`linkProgram` counted and the shot fired by hand:
+
+| | programs linked on the shot frame | CPU in `shoot()` |
+|---|---|---|
+| first shot, before | 22 | 1,730–3,400 ms |
+| second and third shot, before | 0 | ~1 ms |
+| first shot, after | 0 | 1.6 ms |
+
+Swiftshader is slow at everything, so the milliseconds are only a ratio; the
+program count is the finding. On real hardware 22 blocking compiles is a
+visible hitch of a few hundred milliseconds, once per visit.
+
+The rest was ruled out: light intensity is not part of three's lights cache key
+(`LightsNode.customCacheKey` hashes ids and `castShadow`), so the 45 W flash
+recompiles nothing; the burst and the glass read `flashLevel`, a uniform; and
+the shutter sound is three `strike()`s on nodes built when sound was switched
+on, scheduled on the audio thread — and it was off in every measurement. The
+card was the twenty-second program: it was invisible until the first print, so
+its material compiled on that frame too.
+
+### What changed — `src/Shutter.tsx` only
+
+- **The photograph's pass is compiled on approach.** Within `WARM_AT` (45) of
+  the lens, `warmUp()` sets the target and calls `compileAsync` with the lens's
+  own camera, so the render objects it builds are the ones `shoot()` looks up.
+  three generates the shaders a stage at a time and yields to the frame between
+  them, and links on the driver's threads where the browser allows it
+  (`KHR_parallel_shader_compile`, async pipelines on WebGPU). Culling is off for
+  the call's synchronous stretch, because the rider is not in the lens yet.
+- **It re-checks while the visitor is near.** A deep link to `/work/memojo`
+  parks him in range on frame one, before his own file has loaded — the first
+  measurement of the fix still compiled 12 programs, all of them the surfer, his
+  outline and meshes that arrived after the warm-up. So the scene is counted
+  once a second while in range (`RECHECK`) and a changed count compiles again;
+  what is already built is found, not rebuilt. `REARM_AT` (70) re-arms it after
+  he leaves. A failed compile is not retried every frame.
+- **The card is drawn from the first frame at zero height** — no area, no
+  pixels — so its material compiles with the rest of the world at load.
+- `without()` holds the hide-the-card-and-burst dance both passes share.
+
+### Verified
+
+`npx tsc -b` and `npm run check` on the throwaway copy; the table above, with
+the ship parked at Memojo and the shutter fired three times. **Not verified on
+WebGPU:** the headless Chromium in Claude's container rejects three's
+`createView({ swizzle })` on every frame with or without this change, so that
+backend could not be exercised here.
+
+### Needs Seb
+
+- **The first jump on real hardware**, on both backends — the hitch should be
+  gone; any frame that still drops on the shutter is the second scene render
+  itself, which is a whole frame's worth of draw calls into 512² and is the one
+  cost here that cannot be moved off the frame the picture is of.
+- **Whether the approach itself hitches** on a browser without
+  `KHR_parallel_shader_compile`. On one, the links are still synchronous, and
+  swiftshader (which has no such extension) showed up to 19 in a single frame
+  of the warm-up — though that run was a deep link, so the world's own first
+  compile was landing in the same frames. Either way it is before the ramp and
+  not on the jump; if it shows, `compileAsync` takes one object at a time as
+  well, and that is the next lever.
