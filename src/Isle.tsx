@@ -3,7 +3,7 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
   clamp, mix, mx_fractal_noise_float, normalWorld, oneMinus, positionLocal, positionWorld,
-  sin, smoothstep, vec3,
+  sin, smoothstep, vec3, vertexStage,
 } from 'three/tsl'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
 import { STAIR, stairDoor, stairPortal } from './stairs'
@@ -152,7 +152,12 @@ function materials() {
   // Two scales of noise, and they do different jobs: the wide one moves the
   // treeline so it is not a contour, the fine one keeps a band from reading as
   // paint.
-  const blotch = mx_fractal_noise_float(positionWorld.mul(0.045), 3)
+  //
+  // The wide one is worked out per vertex and interpolated. Its wavelength is
+  // about twenty metres and the grid is a vertex every metre and a half or so, so
+  // the interpolation is the same field; per pixel it was three octaves of 3D
+  // noise on the largest surface on screen, for nothing the eye could find.
+  const blotch = vertexStage(mx_fractal_noise_float(positionWorld.mul(0.045), 3))
   const clump = mx_fractal_noise_float(positionWorld.mul(0.26), 3)
   const grain = mx_fractal_noise_float(positionWorld.mul(0.95), 2)
 

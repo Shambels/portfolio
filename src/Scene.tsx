@@ -50,8 +50,23 @@ export default function Scene({
       // camera move over the cut from the landing page. This is only the
       // offset it will have; see `CAM_OFFSET` and `spawn` in `Ship.tsx`.
       camera={{ position: [0, 2.4, 7.2], fov: 45 }}
+      // Capped under the display's own ratio. Every pixel here runs a long
+      // shader into two HDR targets and through the bloom and FXAA after them,
+      // so a 2x display paid four times what a 1x one does. 1.5 is 44% fewer
+      // pixels than 2; what it costs is a little softness, and the palm fronds
+      // are where it shows. A 1x screen is untouched. `docs/STATUS.md`,
+      // "Frame cost".
+      dpr={[1, 1.5]}
       gl={(props) => {
-        const r = new THREE.WebGPURenderer(props as never)
+        // No MSAA. r3f asks for `antialias: true` by default, and a
+        // WebGPURenderer passes its sample count on to every `pass()` that does
+        // not name one — so `Post`'s scene pass was rendering four samples into
+        // both of its half-float targets, and then running FXAA over the
+        // resolve. Two anti-aliasers, and the one nobody had chosen was the
+        // expensive one: four times the colour, emissive and depth storage, at
+        // the canvas's full pixel ratio. `Post` says FXAA is what this world
+        // uses, and now it is the only one.
+        const r = new THREE.WebGPURenderer({ ...props, antialias: false } as never)
         return r.init().then(() => {
           onBackend((r.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2')
           return r

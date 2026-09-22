@@ -6580,3 +6580,91 @@ picks `logo-29` and `logo-72`), the world with the tile over the sky (picks
 Solver 1, Memojo 2, Scrubble 3, Arts by Sandra 4, PolarSense 5 — so the index,
 its numbers, the chart's labels and the route between the islands all read in
 that sequence. No `pos` moved: every island is where it was.
+
+## Frame cost
+
+A pass at what the world costs to draw, with the rule that the look does not
+move. Four changes, one of them the whole of the win, and one tried and taken
+back.
+
+### What was measured, and how far to trust it
+
+A throwaway copy in Claude's container, built for real, driven by headless
+Chromium on the WebGL2 backend over swiftshader, 640×360, the spawn frame
+under reduced motion (a frozen sea, so the frames can be diffed). Swiftshader
+is a CPU rasteriser: the milliseconds are ratios between builds of the same
+scene, not a frame rate, and one finding below is flagged where it is plainly
+not what a GPU would do.
+
+| | spawn, 1x | spawn, 2x display |
+|---|---|---|
+| before | 1,683 ms | 5,533 ms |
+| after | 750 ms | 1,825 ms |
+
+### What changed
+
+- **MSAA is off — `src/Scene.tsx`.** r3f creates the renderer with
+  `antialias: true`, and a `WebGPURenderer` hands its sample count to every
+  `pass()` that does not name one. So `Post`'s scene pass has been rendering
+  4× MSAA into both half-float targets (`output` and `emissive`) and then
+  running FXAA over the resolve — two anti-aliasers, where `Post.tsx` says
+  FXAA is the one. The renderer is created with `antialias: false` now, which
+  takes it off the pass and off the canvas (which only ever receives one
+  full-screen quad). About 40% of the frame on its own.
+- **The canvas's pixel ratio is capped at 1.5** (`dpr={[1, 1.5]}`); r3f's
+  default was the display's own, up to 2. 44% fewer pixels on a retina panel,
+  a 1x screen untouched. With the MSAA change, this is the 3× in the right-hand
+  column.
+- **The water reflects the cheap sky** — `sky(bounce, { lit: false })` in
+  `Scenery.tsx`: no clouds and no sun disc in the reflection. The clouds were
+  three octaves of 3D noise per pixel of sea; with them and without them the
+  frames could not be told apart at 3× zoom. The disc is behind the camera.
+  About 10%. `disc`, the option that dimmed it, had no caller left and went.
+- **The isle's treeline noise is per vertex** — `blotch` in `Isle.tsx` is
+  wrapped in `vertexStage`. A ~20 m field on a ~1.5 m grid interpolates to the
+  same field, and it was three octaves per pixel on the biggest surface in
+  frame. No visible change; the gain is inside the noise of this harness.
+- **The galleon is not downloaded until the boat is chosen** — `Boat` in
+  `Ship.tsx` latches `wanted` on the first `visible` and mounts `Hull` from
+  then on. Load, not frame: the default visit fetches 2.00 MB of models
+  instead of 3.21 MB. Switching to the boat for the first time now shows its
+  running lights for as long as the file takes before the hull appears.
+
+### Tried and taken back
+
+**The rollers per vertex.** `rollerNode` runs in the vertex stage (to
+displace) and again per pixel (to shade), so the obvious cut was to pass its
+slope down as a varying. It measured nothing — swiftshader could not tell the
+two apart — and it cost the look: interpolated over the 3.75-unit grid, the
+gold streaks down the back of a roller came out thinner and fewer. Reverted.
+
+### Not changed, and worth knowing
+
+- **`mrt()` is most of what is left on swiftshader**: 33 ms a frame with a
+  plain pass, 600 ms with the two-target MRT and nothing else. That is almost
+  certainly swiftshader's half-float MRT path and not a GPU's, where the
+  second target is an extra 8 bytes a pixel. `?debug`'s fps on hardware is the
+  way to know.
+- **The isle's `alphaTest`** puts the whole of the largest mesh on the
+  discard path for two door-sized holes. Splitting the triangles near the
+  doors into their own mesh would give the rest back early depth.
+- **The saucer's glass** is `transmission: 0.9`, which copies the framebuffer
+  every frame the saucer is drawn. Only for visitors who pick it.
+- **Adaptive pixel ratio** — drei's `PerformanceMonitor` is already in the
+  bundle and could drop the ratio to 1 on a machine that cannot hold 60.
+- **Bloom** already runs at half resolution; a quarter is the next step and
+  would change the glow's width, so it is a look decision.
+
+### Verified
+
+`npx tsc -b`, `npm run check` and `npm run build` on the throwaway copy;
+screenshots before and after at 1x and 2x diffed by eye at 3× zoom; the boat
+switched to from the menu, fetched on the switch and drawn.
+
+### Needs Seb
+
+- **The softness at 1.5x on a retina screen**, the palm fronds first — FXAA
+  alone at 1.5 is a touch softer than 4× MSAA plus FXAA at 2. If it reads
+  badly, `2` in `dpr` puts the pixels back and keeps the MSAA saving.
+- **The frame rate on real hardware**, both backends, which swiftshader
+  cannot give.
