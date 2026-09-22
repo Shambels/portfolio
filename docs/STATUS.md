@@ -6668,3 +6668,12 @@ switched to from the menu, fetched on the switch and drawn.
   badly, `2` in `dpr` puts the pixels back and keeps the MSAA saving.
 - **The frame rate on real hardware**, both backends, which swiftshader
   cannot give.
+
+## The index counts down, and its islands are sized for the chart
+
+- [x] The ledger lists the highest number first (`reversed` on the `<ol>`, so a
+  screen reader counts down too). The chart's route still runs in world order.
+- [x] `mapScale` — optional English frontmatter, 1 by default: how big an
+  island is drawn on the index's chart as a fraction of its coast in the world.
+  Arts by Sandra, Scrubble and the Sudoku Solver are 0.7, PolarSense 0.88,
+  Memojo 1. The world does not read it.

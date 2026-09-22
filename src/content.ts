@@ -40,6 +40,11 @@ export type Project = {
   size: [number, number, number]
   /** Proximity trigger, XZ. */
   radius: number
+  /** How big the island is drawn on the flat index's chart, as a fraction of
+   *  its coast in the world. Optional, 1 by default — the chart is a picture of
+   *  the archipelago, not a survey, and this is its one knob that the world
+   *  does not share. */
+  mapScale: number
   /** Where a deep link puts the ship. Must be inside `radius` — `world.ts` checks. */
   waypoint: [number, number]
   /** Reading order, in the flat index and around the world. */
@@ -129,6 +134,7 @@ function build(slug: string, locale: Locale): Project {
     pos: [px, pz],
     size: [sx, sy, sz],
     radius: num(fm.radius, file, 'radius'),
+    mapScale: fm.mapScale === undefined ? 1 : num(fm.mapScale, file, 'mapScale'),
     waypoint: [wx, wz],
     order: orderOf(slug),
     locale,
