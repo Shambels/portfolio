@@ -6677,3 +6677,70 @@ switched to from the menu, fetched on the switch and drawn.
   island is drawn on the index's chart as a fraction of its coast in the world.
   Arts by Sandra, Scrubble and the Sudoku Solver are 0.7, PolarSense 0.88,
   Memojo 1. The world does not read it.
+
+## The phone tier
+
+The desktop pass ("Frame cost") left phones where they were: the same shader
+work, the same post chain, on a GPU a fraction of a laptop's and a panel with
+three device pixels to the CSS pixel. `src/device.ts` is the whole of the
+answer — `PHONE`, a primary pointer that is a finger with no hover, and
+`octaves()`, which picks a noise field's octave count off it.
+
+**What differs on a phone is only what a frame costs.** Every landmark, both
+hulls and the rider, the sound, the spray, the physics and every number the
+world is built on are the same. Nothing here is a feature that is missing on
+a phone.
+
+| Spawn frame, 390×844 at 3x | |
+|---|---|
+| before | 1,367 ms |
+| after | 800 ms |
+
+Same harness as "Frame cost": a built copy, headless Chromium on swiftshader,
+reduced motion, ratios and not frame rates. **The desktop build is unchanged
+to the pixel** — the same page rendered in a desktop context before and after
+is byte-identical, and its frame time is the same 967 ms either way.
+
+### What the tier changes
+
+- **Pixel ratio 1.25 rather than 1.5** (`Scene.tsx`). On a 3x panel held at a
+  hand's length this is the cheapest quality there is to buy: 487 device
+  pixels across instead of 585. Most of the win.
+- **Bloom at a quarter of the frame rather than half** (`Post.tsx`). It blurs
+  a lamp, a flash and a vein of ore. The mips are a fraction of the screen,
+  so the glow comes out a little wider on a phone — the one difference that
+  can be seen at all, on a lamp the size of a thumbnail.
+- **One octave off five noise fields.** The clouds (3→2), the water's whitecap
+  breakup (3→2) and its ripple (2→1) in `Scenery.tsx`; the isle's canopy
+  clump, its grain, the bark, the fronds and the boulders in `Isle.tsx`. Each
+  octave is a 3D noise lookup per pixel, and the ones dropped are the finest —
+  detail below what a 400-point screen resolves.
+
+### Tried and not kept
+
+**A coarser water mesh on a phone** (240 → 160 segments, 58k vertices to 26k):
+783 ms against 800, which is inside the harness's noise, for a change to the
+silhouette of every roller. A CPU rasteriser is the wrong instrument for
+vertex cost — a phone's tiler is not — so this is worth a second look on real
+hardware before it is ruled out, not after.
+
+### The next lever, if a phone still struggles
+
+**Pixel ratio 1 on a phone** — one character in `Scene.tsx`. It measured 600 ms
+against 800, a further quarter. At 1.0 the mine's head-frame lattice and the
+rigging go soft in a way 1.25 does not; on a 3x panel that may well be
+invisible, and it cannot be judged from a screenshot of an upscaled emulator.
+
+### Verified
+
+`npx tsc -b`, `npm run check`, `npm run build`; the flag read back in the page
+(`(hover: none) and (pointer: coarse)` true, canvas 487×1055 on the emulated
+phone, 960×540 unchanged on the desktop context); the desktop frame compared
+pixel for pixel against the build before this.
+
+### Needs Seb
+
+- **A real phone.** Which one, and whether 1.25 reads as soft on it.
+- **A tablet is in this tier too** — the media query does not distinguish one
+  from a phone, and an iPad's GPU could carry the desktop settings. If that
+  matters, the query gains a width.

@@ -9,6 +9,7 @@ import { Particles } from './Particles'
 import { Sound } from './Sound'
 import { Debug } from './Debug'
 import { Post } from './Post'
+import { PHONE } from './device'
 import type { Sea, ShipModel } from './WorldGate'
 
 extend(THREE as never)
@@ -56,7 +57,13 @@ export default function Scene({
       // pixels than 2; what it costs is a little softness, and the palm fronds
       // are where it shows. A 1x screen is untouched. `docs/STATUS.md`,
       // "Frame cost".
-      dpr={[1, 1.5]}
+      //
+      // A phone gets 1.25, because its panel is three times a CSS pixel and a
+      // hand's length away: the same ratio that is visible on a laptop at
+      // arm's length is not on a 400-point screen, and the GPU under it is a
+      // fraction of the one it is being asked to feed. `docs/STATUS.md`, "The
+      // phone tier".
+      dpr={[1, PHONE ? 1.25 : 1.5]}
       gl={(props) => {
         // No MSAA. r3f asks for `antialias: true` by default, and a
         // WebGPURenderer passes its sample count on to every `pass()` that does
