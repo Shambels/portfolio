@@ -117,11 +117,10 @@ function clouds(dir: Vec3) {
 
 /**
  * Colour of the sky in a direction. `lit: false` skips the clouds and the sun
- * disc — the cheap version, used for the water's horizon haze. `disc` dims the
- * sun itself: at full strength, reflected off a thousand wave normals, it turns
- * the sea into a white smear.
+ * disc — the cheap version, used for the water's horizon haze and for what
+ * the water reflects.
  */
-function sky(dir: Vec3, { lit = true, disc = 1 } = {}): Vec3 {
+function sky(dir: Vec3, { lit = true } = {}): Vec3 {
   const up = clamp(dir.y, 0, 1)
   const toSun = clamp(dot(dir, sunDir), 0, 1)
 
@@ -144,7 +143,7 @@ function sky(dir: Vec3, { lit = true, disc = 1 } = {}): Vec3 {
 
   const c = clouds(dir)
   col = mix(col, mix(CLOUD_DARK, CLOUD_LIT, c.shade.mul(pow(toSun, 0.5).mul(0.6).add(0.4))), c.cover)
-  return col.add(SUN_TINT.mul(smoothstep(0.99955, 0.99992, toSun).mul(1.9 * disc)))
+  return col.add(SUN_TINT.mul(smoothstep(0.99955, 0.99992, toSun).mul(1.9)))
 }
 
 /* ---------------------------------------------------------------------------
@@ -556,6 +555,13 @@ function useMaterials() {
     const bounce = reflect(view, n)
 
     // Grazing angles mirror the sky, steep ones show the water's own colour.
+    // The sky it mirrors is the cheap one, with no clouds and no disc. The
+    // clouds were three octaves of 3D noise on every pixel of sea, and under
+    // the chop's normals a reflected cloud is not a cloud: side by side, the
+    // frames with and without it could not be told apart. The disc is behind
+    // the camera (`SUN`). The glow and the horizon's gold — the streaks down
+    // the back of a roller, which are most of what the water mirrors — are
+    // both in the cheap sky and both kept. `docs/STATUS.md`, "Frame cost".
     const fresnel = pow(oneMinus(clamp(dot(n, view.negate()), 0, 1)), 4.5).mul(0.92).add(0.06)
     // Deep in the troughs, lighter on the crests. The normal's own tilt says
     // that for the chop; a roller's face is steep the whole way up, so its crest
@@ -604,7 +610,7 @@ function useMaterials() {
 
     water.colorNode = mix(
       mix(
-        mix(body, sky(bounce, { disc: 0.3 }), fresnel).add(SUN_TINT.mul(glitter)),
+        mix(body, sky(bounce, { lit: false }), fresnel).add(SUN_TINT.mul(glitter)),
         FOAM,
         foam.mul(0.85),
       ),

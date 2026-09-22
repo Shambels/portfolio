@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three/webgpu'
 import { color, normalLocal, positionLocal, sin, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
@@ -1688,6 +1688,14 @@ function Saucer({ visible }: { visible: boolean }) {
  * and the hull's own numbers decide how much of it is wet.
  */
 function Boat({ visible }: { visible: boolean }) {
+  // The file is not asked for until the boat is. It is the largest thing in
+  // the world — a megabyte of galleon and 117k triangles to upload — and the
+  // world opens on the surfer, so most visits never draw it and every one of
+  // them used to download it. Latched rather than tied to `visible`: once it
+  // is here it stays mounted, which is the arrangement the comment in `Ship`
+  // argues for, and a second switch to the boat costs nothing.
+  const [wanted, setWanted] = useState(visible)
+  if (visible && !wanted) setWanted(true)
   return (
     <group visible={visible}>
       {/* The file behind its own `Suspense`, the way the board is. All three
@@ -1696,7 +1704,7 @@ function Boat({ visible }: { visible: boolean }) {
           and the rider's opening run, which is already waiting on his own
           file, would wait on this one too. */}
       <Suspense fallback={null}>
-        <Hull />
+        {wanted && <Hull />}
       </Suspense>
 
       {/* Running lights, on the same pulse as the saucer's — the bloom pass
