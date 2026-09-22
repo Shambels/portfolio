@@ -34,8 +34,8 @@ Breaking one is allowed. Doing it quietly is not.
 | Project | Landmark | What it is |
 |---|---|---|
 | **PolarSense** | A mine | VS Code extension: column autocompletion for Polars / pandas / DuckDB, read from file schemas without executing code. TypeScript, tree-sitter, hyparquet. Released on the Marketplace. [Repo](https://github.com/Shambels/polarSense) |
-| **Arts by Sandra** | An easel and canvas | Trilingual site for an artist — courses, artwork sales, studio rental. [Live](https://artsbysandra.be/) |
-| **Scrubble** | A Scrabble board | Scrabble game app. **Not deployed** — no live URL, no store listing. The case study carries it on the writing alone |
+| **Arts by Sandra** | An easel and canvas | Artist Website — Courses, artwork sales, studio rental. [Live](https://artsbysandra.be/) |
+| **Scrubble** | A Scrabble board | Scrabble game analysis app. **Not deployed** — no live URL, no store listing. The case study carries it on the writing alone |
 
 ### The shape of the world — islands
 
