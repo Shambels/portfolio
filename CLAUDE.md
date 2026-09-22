@@ -366,6 +366,9 @@ src/camera.ts           the follow camera's two sums — a push read against the
                         astern of the heading — with its check beside it
 src/world.ts            landmark layout + proximity, read from the content;
                         coastlines, moorings and lagoons, isles included
+src/device.ts           `PHONE` — a finger and no hover — and `octaves()`.
+                        The only thing that may differ between a phone and a
+                        computer is what a frame costs, never what is in it
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea

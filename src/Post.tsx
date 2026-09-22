@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { emissive, mrt, output, pass, renderOutput } from 'three/tsl'
 import { bloom } from 'three/addons/tsl/display/BloomNode.js'
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js'
+import { PHONE } from './device'
 
 /**
  * Phase 4's post-processing. Two effects, and neither of them is a look.
@@ -44,6 +45,14 @@ export function Post() {
     // The lamp peaks near 1 and the ore sits at 0.14, so the same two numbers
     // give the ship a halo and the veins a wash.
     const glow = bloom(scenePass.getTextureNode('emissive'), 1.1, 0.7, 0)
+    // Half the frame's width by default, a quarter of it on a phone. What is
+    // being blurred is a lamp, a flash and a vein of ore, already blurry by
+    // the second of five mips, so a quarter of the pixels is not a quarter of
+    // the picture — but the mips are a fraction of the screen and not a fixed
+    // number of pixels, so the glow does come out a little wider there. It is
+    // the one thing the phone tier changes that can be seen at all, and what
+    // it can be seen on is a lamp the size of a thumbnail.
+    if (PHONE) glow.setResolutionScale(0.25)
 
     // Narrow cast at a library boundary: r3f types `gl` as a WebGLRenderer, and
     // `Scene.tsx` hands it a WebGPURenderer.
