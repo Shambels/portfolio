@@ -30,7 +30,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
 /**
  * The archipelago from above, in world units: +x right, +z down, which is what
  * the SVG's own axes already are and what the minimap draws. Each island at its
- * `pos`, its coast at `radius * SPREAD`, the minimap's letter on it, and the
+ * `pos`, its coast at `radius * SPREAD * mapScale`, the minimap's letter on it, and the
  * route between them in `order`. A label sits on the side of its island that
  * faces away from the middle of the group, so no two meet over the water.
  *
@@ -39,7 +39,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * scrolls to the entry, which is where the keyboard already is.
  */
 function Chart({ projects }: { projects: Project[] }) {
-  const coast = (p: Project) => p.radius * SPREAD
+  const coast = (p: Project) => p.radius * SPREAD * p.mapScale
   const cz = projects.reduce((s, p) => s + p.pos[1], 0) / projects.length
   const x0 = Math.min(...projects.map((p) => p.pos[0] - coast(p))) - 3
   const x1 = Math.max(...projects.map((p) => p.pos[0] + coast(p))) + 3
@@ -166,8 +166,10 @@ export default function Work() {
       <div className="atlas">
         <div className="spread">
           <Chart projects={projects} />
-          <ol className="ledger">
-            {projects.map((p) => (
+          {/* Highest number first. `reversed` so a screen reader counts down with
+              the numbers drawn beside it. The chart's route keeps world order. */}
+          <ol className="ledger" reversed>
+            {[...projects].reverse().map((p) => (
               <Entry key={p.slug} p={p} locale={locale} />
             ))}
           </ol>

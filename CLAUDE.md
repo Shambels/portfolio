@@ -383,7 +383,8 @@ deploy/nginx.conf       the server block — root redirect, 404, caching
 
 English carries the structural frontmatter (`year`, `stack`, `site`, `repo`,
 `play` and `appStore` for a project that ships as an app, and
-the world's `landmark`, `order`, `pos`, `size`, `radius`, `waypoint`); `fr` and
+the world's `landmark`, `order`, `pos`, `size`, `radius`, `waypoint`, and the
+index chart's optional `mapScale`); `fr` and
 `nl` carry only `title` and `summary` beside their prose. A URL is never written
 down three times. A locale with no file for a slug falls back to English rather
 than 404ing.
