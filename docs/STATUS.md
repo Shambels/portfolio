@@ -6932,3 +6932,18 @@ its own matrix now (`_pelvis`). Checked in the harness with `RIDE.rise` 0.15
 and `RIDE.cant` 0.1 at the cruise, before and after, and in the world running
 along the isle's beach: feet on the sand.
 
+### Seb's second look: the legs turned over too fast running
+
+At the boost the pace (6.5 m/s) outran every clip's stride, and a phase
+locked to the ground made up the difference in rate: the sprint clip at 2.4
+strides a second, nearly five steps. A faster runner does not cycle faster;
+he spends less time on the ground and more in the air. So `afoot()` now
+knows where in each gait a foot is down (`rigOf` reads both ankles round the
+cycle, `CONTACT` steps: the walk is down throughout, the jog 71% of it, the
+run and the sprint 52%), and past `CADENCE` — 1.4 strides a second, 2.8
+steps, a runner's 168 a minute — the phase goes at the planted rate only
+while a foot is down, so it still does not slide, and slows through the
+flight until the cycle takes `1 / CADENCE`. At the boost that is a 0.25 s
+float between footfalls. Nothing changes at or below the run: the 2.7 m/s
+cruise is 1.28 strides a second, under the cap, as before.
+

@@ -2167,6 +2167,8 @@ type Clip = {
   travel: number // board units along +z, one pass
   speed: number  // travel / dur: the pace it was captured at
   z0: number     // where along z the hips start, board space: the stand-in's own spot
+  down: Float32Array // per `CONTACT` step through the cycle, 1 with a foot on the ground
+  duty: number   // and the share of the cycle that is
 }
 
 type Rig = {
@@ -2299,7 +2301,10 @@ function rigOf(scene: THREE.Object3D, animations: THREE.AnimationClip[]): Rig {
     const a = new THREE.Vector3().fromArray(pos.evaluate(0)).applyQuaternion(hipsTurn)
     const b = new THREE.Vector3().fromArray(pos.evaluate(anim.duration)).applyQuaternion(hipsTurn)
     const travel = b.z - a.z
-    clips[name] = { dur: anim.duration, rot, pos, travel, speed: travel / anim.duration, z0: _v.fromArray(pos.evaluate(0)).applyMatrix4(hipsFrom).z }
+    clips[name] = {
+      dur: anim.duration, rot, pos, travel, speed: travel / anim.duration,
+      z0: _v.fromArray(pos.evaluate(0)).applyMatrix4(hipsFrom).z, down: new Float32Array(CONTACT), duty: 1,
+    }
   }
   const gaits = GAITS.map((n) => clips[n])
   if (import.meta.env.DEV) {
@@ -2333,6 +2338,21 @@ function rigOf(scene: THREE.Object3D, animations: THREE.AnimationClip[]): Rig {
     pose(rig)
     restOf(rig.chest.bone, scene, _mat).decompose(_v, rig.chestIdle, _scale)
     rig.chestIdle.invert()
+    // And where in each gait a foot is on the ground: both ankles read off
+    // the posed clip at `CONTACT` steps round the cycle, down where the
+    // lower of the two is within a few centimetres of its lowest.
+    for (const c of gaits) {
+      const low = new Float32Array(CONTACT)
+      for (let i = 0; i < CONTACT; i++) {
+        sample(rig, c, (i / CONTACT) * c.dur, 1)
+        pose(rig)
+        low[i] = Math.min(...rig.legs.map((l) => _v.setFromMatrixPosition(restOf(l.foot, scene, _mat)).y))
+      }
+      const floor = Math.min(...low)
+      let n = 0
+      for (let i = 0; i < CONTACT; i++) n += c.down[i] = low[i] < floor + 0.03 ? 1 : 0
+      c.duty = n / CONTACT
+    }
     bones.forEach((b, i) => b.quaternion.copy(rig.rest[i]))
     hips.bone.position.copy(hipsHome)
   }
@@ -2586,6 +2606,25 @@ function pose(r: Rig): void {
  * holds whatever the clip was doing with it (`carry`).
  */
 const LAND_FADE = 0.55
+/**
+ * How many strides a second the legs may turn over, and it is the one
+ * number in the locomotion that is not the capture's. Up to the run the
+ * rate that keeps a planted foot still is a natural one — 1.28 strides a
+ * second at the 2.7 m/s cruise, 2.6 steps — but past it the pace outruns
+ * every clip's stride and the legs spun: the sprint clip at the 6.5 m/s
+ * boost was 2.4 strides a second, nearly five steps, which Seb saw.
+ *
+ * A faster runner does not cycle faster, he flies further: the time his
+ * foot is down shrinks with the pace and the time he is off the ground
+ * grows. So that is what happens here. While a foot is down the phase goes
+ * at the planted rate, so it still does not slide; while none is, it goes
+ * as slowly as it has to for the whole cycle to take `1 / CADENCE`. At the
+ * boost that is 1.4 strides a second — 2.8 steps, a runner's 168 a minute —
+ * with a longer float between the footfalls.
+ */
+const CADENCE = 1.4
+/** How finely `rigOf` reads each gait's footfalls round its cycle. */
+const CONTACT = 48
 const _pelvis = new THREE.Matrix4()
 function afoot(r: Rig, t: number, dt: number): void {
   const pace = RIDE.pace
@@ -2606,9 +2645,25 @@ function afoot(r: Rig, t: number, dt: number): void {
       }
     }
   }
-  // The stride the blend covers, and the phase advanced over it.
+  // The stride the blend covers, and the phase advanced over it — at the
+  // rate that keeps a planted foot planted, and past `CADENCE` only while
+  // one is: see `CADENCE`.
   const stride = lo === r.clips.idle ? hi.travel : lo.travel + (hi.travel - lo.travel) * k
-  if (RIDE.air < 0.5) r.phase = (r.phase + (pace * dt) / stride) % 1
+  if (RIDE.air < 0.5) {
+    const planted = pace / stride
+    let rate = planted
+    if (planted > CADENCE && lo !== r.clips.idle) {
+      const at = Math.floor(r.phase * CONTACT) % CONTACT
+      const down = lo.down[at] + (hi.down[at] - lo.down[at]) * k
+      const duty = lo.duty + (hi.duty - lo.duty) * k
+      // The cycle takes 1 / CADENCE: the stance at the planted rate, and the
+      // flight at whatever is left over, but never faster than planted.
+      const left = 1 / CADENCE - duty / planted
+      const flying = left > 1e-3 ? Math.min((1 - duty) / left, planted) : planted
+      rate = down * planted + (1 - down) * flying
+    }
+    r.phase = (r.phase + rate * dt) % 1
+  }
   // Standing still is the idle, and invariant 6 holds it on its first frame.
   const idle = r.clips.idle
   if (lo === idle) sample(r, idle, REDUCED ? 0 : t % idle.dur, 1)
