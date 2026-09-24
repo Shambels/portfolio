@@ -173,11 +173,16 @@ Breaking one is allowed. Doing it without saying so is not.
   AI-generated sources, and the script is what rigs, poses, slims and exports
   them. The rider is still the only thing in the world with bones in it —
   seventeen, laid on the A-pose the generator delivered and then posed into
-  the crouch, which is applied as the rest pose — and the only animation in
-  the file is none: `Ship.tsx` bends him from the flight controller's own
-  numbers every frame, the upper body by FK and the legs by a two-bone solve
-  against ankles that are fixed to the deck. With no input every bone is at
-  rest, which is the model exactly. The leash, its cuff and the wake are still
+  the crouch, which is applied as the rest pose. On the board there is still
+  no clip: `Ship.tsx` bends him from the flight controller's own numbers
+  every frame, the upper body by FK and the legs by a two-bone solve against
+  ankles that are fixed to the deck, and with no input every bone is at rest,
+  which is the model exactly. **On foot, since the fourth pass, he plays
+  motion capture**: seven clips in the file — idle, walk, jog, run, sprint,
+  and the jump's flight and landing — retargeted from Mixamo by
+  `tools/surfer.py` and blended by `afoot()` by the pace over the ground,
+  the phase still advanced by distance so a planted foot does not slide; the
+  board and the arm that holds it are solved on top. The leash, its cuff and the wake are still
   built in `Ship.tsx`, because they run between the two files.
 - No i18n library. Typed string objects per locale in `src/i18n/`.
 - Canvas and models load via dynamic `import()`, never in the first-route chunk.
@@ -193,7 +198,8 @@ Breaking one is allowed. Doing it without saying so is not.
   where the geometry came from. The one thing that does not bend: whatever makes
   it, the result still has to meet the contract `Ship.tsx` and the landmark
   pipeline assert on — the rider's seventeen bone names, no scale on a bone,
-  a basecolour texture on him and on his board.
+  his seven named clips with a track on every bone, a basecolour texture on
+  him and on his board.
   `tools/palm.py` is the one script that is not a landmark: it exports a library
   of parts `Isle.tsx` instances, and it argues its own case at the top of the
   file the way `surfer.py` does.
@@ -241,10 +247,10 @@ Breaking one is allowed. Doing it without saying so is not.
 | First-route JS | ≤ 200 kB gz, excluding canvas chunk |
 | Canvas chunk | ≤ 600 kB gz |
 | Per landmark model | ≤ 300 kB compressed, ≤ 25k triangles |
-| The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass" |
+| The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass". **1.09 MB (914 kB gz) since the fourth**, with seven motion-capture clips in it — "The rider, fourth pass" |
 | The board, `surfboard.glb` | 10k triangles, ~180 kB — decimated from the generator's 95k; nobody looks at it for long |
 | The ship, `pirate_ship.glb` | 117k triangles, 1.15 MB — 1.00 MB gz. **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
-| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.31 MB of it spent |
+| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.41 MB of it spent |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
 | Frame rate | 60fps on a 2022 mid-tier laptop, or cut the effect |
@@ -346,7 +352,10 @@ tools/sudoku.py         the same, for the sudoku's projector: the plinth, a
                         landmark that is mostly not geometry
 tools/surfer.py         the rider and his surfboard — rigs, poses, slims and
                         exports the two generated sources beside it,
-                        tools/surfer-tripo.glb and tools/surfboard-tripo.glb
+                        tools/surfer-tripo.glb and tools/surfboard-tripo.glb;
+                        paints the drawing they came from,
+                        tools/surfer-reference.jpg, back onto his front; and
+                        retargets the clips in tools/mixamo/ onto his rig
 tools/pirate_ship.py    not a landmark either — the boat: strips the two maps
                         this site never samples off the generated source beside
                         it, resizes the third and packs it
@@ -440,16 +449,15 @@ a visitor can miss, which is why `?debug` names the backend.
 The surfer comes ashore. Riding onto the isle's beach brings the board up under
 his arm and puts him on foot; walking back into the sea puts him on it again.
 Space is a jump for him and for nothing else, on the water and on the sand
-alike. He walks or runs, and which one is the **duty factor** — the fraction of
-the cycle a foot is on the ground, 0.46 walking and 0.24 running. Step length is
-`stride / duty`, so a run covers more ground by spending *less time down* rather
-than by swinging further or cycling faster: the running step is 2.0 units where
-the walking one is 0.87 (1.71 and 0.85 on the second rider; the third rider's
-run also carries its hips 4 cm lower, `RUN_SINK`, which is what pays for the
-longer step under the same legs), and the legs go round slower doing it. The rate is not
-chosen anywhere — it is whatever makes the planted foot travel backward at
-exactly the speed the body travels forward, which is what makes sliding
-impossible instead of merely capped. One ramped number, `RIDE.land`, drives the craft, the board and the man,
+alike. He walks, jogs, runs or sprints, and since the fourth pass that is
+motion capture and not a procedural gait: the pace picks two of four clips
+and how far between them, and the phase is advanced by the pace over the
+blended stride, so the planted foot travels backward at exactly the speed the
+body travels forward and sliding is impossible rather than capped — the one
+idea the procedural walk (a duty factor, a stride, a bob and a heel roll,
+all gone) had right and the clips keep. At the 2.7 m/s cruise he is between
+a jog and a run; shift is a sprint. `docs/STATUS.md`, "The rider, fourth
+pass". One ramped number, `RIDE.land`, drives the craft, the board and the man,
 and it runs both ways — putting the board down is picking it up backwards. It found two things while it was in
 there. The first: **the isle's summit was not a point.** Its gully term is
 angular and was at full strength at the axis, where `theta` flips by pi, so the
@@ -484,9 +492,7 @@ arms do not. A deck heeled 17 degrees leaves his torso 2.5 degrees off vertical.
 The rest stance is off a photograph Seb sent, since the third rider: trunk
 across the board facing the wave, head down the line, front knee over the
 front toes, seat at knee height, one arm down the line and one aft — and
-`ride()` reads that whole orientation off the file (`stand`, `gaze`, the
-arms' `hang*`, the feet's `walk`) and takes it back out on foot, so the walk
-is a man standing up and facing where he goes. Width still comes on every
+on foot the clips take over from it, blended in by `RIDE.land`. Width still comes on every
 change of direction: the arm on the *outside* of the turn goes up, so turning
 right raises his left and turning left raises his right. Weights are bone
 heat again since the third rider — laid on the A-pose the generator delivered,
@@ -568,14 +574,23 @@ change how it moves him: same names, same solve, same ankles. What changed:
 he stands half a metre further aft, on the board's own pads (`STANCE`); the
 board is a file, 2.0 long and 0.63 across with a thinner deck, so the leash
 points and `FOOT_DROP` were re-measured; he and the board are lit like the
-world, texture plus outline, no toon, no rim; on foot he stands up — `STAND`
-0.37 out of a stance whose seat is at knee height, the whole rest orientation
-of the trunk, head, arms and feet read off the file and taken back out — the
-carried board hangs off his chest rather than off the craft, on an arm that
-lies along its underside with the palm on it (`hold()`, since the ninth
-look); and the two files are meshopt-packed.
-`docs/STATUS.md`, "The rider, third pass", has the numbers and what is still
-Seb's eye.
+world, texture plus outline, no toon, no rim; the carried board hangs off
+him rather than off the craft, on an arm that lies along its underside with
+the palm on it (`hold()`, since the ninth look); and the two files are
+meshopt-packed. `docs/STATUS.md`, "The rider, third pass", has the numbers
+and what is still Seb's eye.
+
+And a fourth, for the two things Seb still saw: he moved like a figure and
+not a man on foot, and his face was the generator's guess at the drawing
+rather than the drawing. On foot he plays Mixamo's motion capture now
+(above); the procedural stand-up, walk, run and hop are gone, and the arm
+round the board is solved to two points measured on the ninth look's hold.
+And `look()` in `tools/surfer.py` bakes the generator's atlas out with where
+each texel is and which way it faces, and paints every texel the front view
+sees from the drawing itself — with the face's features moved up to where
+the drawing has them (`FACE_WARP`) — so from the front he is the drawing,
+suit panels and all, and from the side and back he is the generator's, joined
+over the grazing band. `docs/STATUS.md`, "The rider, fourth pass".
 
 The world begins on the isle's beach. `spawn()` in `src/isles.ts` puts every
 craft on the bearing from the isle to the three islands, turned a hair to

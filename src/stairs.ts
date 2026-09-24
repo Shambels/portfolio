@@ -48,8 +48,8 @@ export const MAN = { height: 1.8, shoulders: 0.52 }
 /**
  * A stair a person climbs: 18 cm of rise on 30 cm of going, which is 31
  * degrees. Steeper than a house stair, gentler than a ladder, and sized on the
- * walk cycle rather than on a building code — `WALK_STRIDE` is 0.40, so one
- * pace is one tread and he never has to shuffle.
+ * procedural walk this world had before the clips — a 0.40 stride, one pace
+ * one tread — rather than on a building code.
  *
  * The treads are the *mesh's*. His feet follow the smooth centreline under
  * them, which is what a stair's collision is in every engine that has one, and

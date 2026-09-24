@@ -6744,3 +6744,191 @@ pixel for pixel against the build before this.
 - **A tablet is in this tier too** — the media query does not distinguish one
   from a phone, and an iPad's GPU could carry the desktop settings. If that
   matters, the query gains a width.
+
+## The rider, fourth pass — the drawing on his face, and captured motion on foot
+
+Seb, after the ninth look: the walk, the run, the jump and the stand on
+land were weird — arms and legs bending in ways a person's do not — and the
+face and the build were approximations of the drawing he had generated the
+model from, not the drawing. Both are addressed, and both are in
+`tools/surfer.py`; riding is untouched.
+
+Four decisions were Seb's, asked first: motion capture rather than another
+retune of the procedural walk; **keep the on-foot speed** (2.7 m/s, which
+is a jog for a real person) rather than slow him to a walking pace; the
+model may be regenerated in Tripo *or* reworked; and Chrome's Mixamo and
+Tripo sessions were his to use, downloads allowed.
+
+### On foot he plays motion capture
+
+The procedural walk was a stride, a bob, a heel roll and a vault on two IK
+legs, out of a surf crouch that `stand` un-yawed by 66° every frame, with
+arms hung from frames — every number argued and the sum still a man walking
+on his knees and running in a lunge. A gait is not five sines.
+
+- **Six Mixamo clips** (Adobe's free library, on its stock X Bot, no skin):
+  a breathing idle, a walk, a jog, a run, a sprint and a jump in place, in
+  `tools/mixamo/`. `retarget()` samples each on its own skeleton and lays it
+  onto these seventeen bones: every bone takes the rotation its Mixamo
+  counterpart makes away from Mixamo's T-pose, applied to *this* man's
+  A-pose (the arms hang in an A where his are out in a T, so that is
+  aligned per bone first); the hips' travel is scaled by the ratio of the
+  two men's hip heights (0.889); and each leg is then solved to where
+  Mixamo's ankle went, scaled the same, so the feet land where a foot lands
+  rather than where two different thigh-to-shin ratios put them. Held as
+  matrices across `bake()` — which makes the crouch the rest pose — and
+  written as actions afterwards (`animate()`), so the file's rest is still
+  the reviewed crouch and every riding number is unchanged.
+- **One cycle each, heel strike first.** The loops are resampled to one
+  cycle starting where the left ankle is furthest ahead of the pelvis, so
+  one phase drives all four; a cycle that starts late wraps round the
+  action and carries its ground with it. The jump is cut in two: the flight
+  (from full extension to just before touch) and the landing.
+- **Root motion stays in the file.** The hips' track still travels; the
+  runtime reads the distance a cycle covers off it (`travel`) and takes it
+  back out. Walk 1.19 m a cycle at 0.97 m/s, jog 1.48 at 1.70, run 2.88 at
+  3.93, sprint 2.68 at 5.03.
+- **`afoot()` in `Ship.tsx` is a blend space.** The pace over the ground
+  picks the two gaits either side and how far between — below the walk it
+  is the idle and the walk — and **the phase is still advanced by distance,
+  not time**: the cycle goes round at the pace over the blended stride, so
+  the planted foot is still whatever the blend, and a man who stops stops
+  mid-step. At the 2.7 m/s cruise that is 45% of the way from a jog to a
+  run, 2.1 m a cycle at 1.3 cycles a second; shift is the sprint.
+- **The jump** is the air clip played by the arc's own progress —
+  `RIDE.lift`, new, the hop's vertical speed over the launch speed — and
+  weighted by `RIDE.air`; the landing clip starts the frame `RIDE.slam`
+  rises, as deep as the landing was hard, and fades out as the legs come
+  back up, less of it the faster he is going.
+- **The board under his arm**, which no clip knows about. It hangs off the
+  trailing shoulder and a third of the chest's turn (`boardAt`,
+  `CARRY_FOLLOW`) — hung off the chest outright it swung sixty degrees a
+  stride on the run clip — and the runner's shoulder counter-rotation is
+  cut to a third at the spine (`untwist`, `SQUARE`), because a man with a
+  board clamped under his arm runs square. The arm is then **solved**, not
+  posed (`carry`): the wrist on the underside and the elbow toward a point
+  by the top rail, both in the board's own frame and both *measured* off
+  the ninth look's hold (`HOLD_WRIST`, `HOLD_ELBOW`), the twist decided from
+  the elbow's hinge; and `hold()` lays the palm on it as before.
+- **The hillside** still moves each foot by `RIDE.rise` and `RIDE.cant`,
+  now as a correction on the clip's own foot (`reach` re-solves the knee,
+  the sole keeps the clip's orientation).
+- **The change of mode is the blend** between the board's pose and the
+  clips', by `RIDE.land`, with a bend at the spine through the middle of it
+  where he reaches for the board. Harness frames at 0, 0.2 … 1: crouch,
+  reaching down, the board coming up, jogging.
+- **What went:** `STAND`, `STILL`, `SPREAD`, the bobs, the strides, the
+  duties, the heels, `RUN_SINK`, `CYCLE_MAX`, `PICK`, the reach sweep that
+  policed them, `stand`, `gaze`, `hangUp`/`hangFore`, `HOLD_OUT`,
+  `HOLD_FOLD`, `HOLD_SWING`, `HOLD_ALONG`, the foot's `walk`, `based()` and
+  `bend`'s `carried` — about 450 lines of `Ship.tsx`. `RIDE.step`,
+  `stride`, `gait` and `duty` went with them; `RIDE.pace` and `RIDE.lift`
+  came in. Reduced motion holds the idle on its first frame.
+
+### The drawing is painted back onto his front
+
+The generator's mesh is the drawing's *shape* almost exactly — the rendered
+A-pose and the drawing's silhouette have 0.917 of their area in common, the
+head 0.955 — but the face it painted was generic: a ginger beard, a pale
+brow, eyes set lower, a helmet of hair. `look()` bakes each texel of the
+generator's own atlas out with where it is on the body, which way it faces
+and whether the front view sees it at all (a ray from in front of each
+vertex: the inside of the arm, the gap between the legs, under the chin),
+and a texel facing the viewer takes its colour from the drawing where it
+lands in it; the sides and the back keep the generator's paint, blended over
+the grazing band (`FACING`) and held off the drawing's own outline, so there
+is no seam and no white fringe. 24% of the atlas is the drawing's now.
+
+- **The frame** (`REF_FRAME`) was found by matching the two silhouettes,
+  not by eye. **The face** needed one more thing: the generator put the
+  eyes, brows and mouth 3–4 cm lower on the head than the drawing has them,
+  so the drawing's mouth landed on the mesh's upper lip. `FACE_WARP` is an
+  affine found once by registering the generator's own painted face onto
+  the drawing's (OpenCV's ECC, 0.77 correlation), applied from the chin to
+  the brow and ramped out over the hair (`FACE_BAND`) so the outline stays
+  put. OpenCV was used to find six numbers; the script does not import it.
+- **The build is the drawing's**: broad shoulders, the chest and abdominal
+  panels, the seams and the lighter side panels of the suit, the knee pads
+  — all painted on the front now, where the generator's suit was flat black.
+  The suit's drawn highlights are paint, which CLAUDE.md says a basecolour
+  should not carry; it is the drawing's look, and it reads right under the
+  world's light because the sun is behind him and the front is lit by the
+  fill alone. The first place to look if it reads wrong.
+- **Not regenerated.** Tripo was open and has credits, but the reference is
+  15.6 MB and the browser tool uploads at most 10 MB and only from files the
+  session was handed, so a new generation from the drawing could not be
+  started from here. With the silhouettes already agreeing to 0.92, a new
+  mesh was a lesser lever than the paint; worth a run by hand if the side
+  profile ever needs more nose or more curl.
+- The source is in the repo now: `tools/surfer-reference.jpg`, the drawing
+  as JPEG q92 (2.0 MB, from the 15.6 MB PNG).
+
+### Cost
+
+- **`surfer.glb`: 967 kB → 1.09 MB (813 → 914 kB gz).** Seven animations,
+  18 channels each, 450 keys between them (the idle is 299), meshopt
+  compresses them with the mesh; the rest is a texture with more in it.
+  Whole world ≈ 2.41 MB of the 3 MB.
+- **Canvas chunk** — see Verified.
+- **`tools/`**: the six FBX sources, 3.2 MB; `surfer.blend` 8.8 → 10.1 MB.
+- **Build time** of `tools/surfer.py`: about 2½ minutes, most of it three
+  Cycles bakes at 4096².
+
+### Verified, on a throwaway install in Claude's container
+
+- `npx tsc -b`, `npm run check` (all nine), `oxlint` (the same 17 warnings,
+  none new), `npm run build` clean.
+- **A harness page** — the real `Surfer` and `Rider`, the real files, a
+  driven `RIDE` and a pinned phase — photographed from the side, the front,
+  astern and the quarter: standing, walking at 1 m/s, the 2.7 m/s cruise,
+  the 6.5 m/s sprint, the whole hop and landing, and the change of mode at
+  six steps. Before and after: `Claude outputs/surfer-v4-gait.png`; the
+  look: `Claude outputs/surfer-v4-look.png`.
+- **Measured on the standing rig:** the carrying wrist and elbow land on
+  `HOLD_WRIST` and `HOLD_ELBOW` to the millimetre; stance ankles 6–9 cm
+  over the sand (the joint is 7.7 cm up a foot); riding pose unchanged.
+- **The world, headless WebGL2**, surfer, agitated sea: the opening run off
+  the beach into the lagoon and onto the board, with no assertion from the
+  rider (the one assert on the console is `arts-by-sandra`'s, which was
+  there before).
+
+### Not verified
+
+- **At a real frame rate.** Every frame above is a pinned phase or a
+  swiftshader crawl. Whether the blend between the jog and the run shimmers
+  at cruise, and whether the phase-locked cadence reads, is a thing to
+  watch, not a thing to photograph.
+- **WebGPU**, as always.
+- **The stair**: `RIDE.rise` is zero on it by design (see `stairs.ts`), so
+  the clip's feet are level on a 31° rail, as the procedural walk's were.
+
+### Needs Seb
+
+- **The run at cruise.** 2.7 m/s is 45% of the way from a jog to a run;
+  if that reads too hurried, the lever is the on-foot `WALK_SPEED`, not the
+  clips.
+- **`CARRY_FOLLOW` 0.35 and `SQUARE` 0.65** — how much of the torso's turn
+  the board rides, and how square he runs. Both were chosen against the
+  harness, not against a person.
+- **The suit's painted highlights** under the golden hour, and the face at
+  the size the world draws it.
+- **A regeneration**, if wanted: upload `tools/surfer-reference.jpg` to Tripo
+  by hand, drop the result in as `tools/surfer-tripo.glb`, rerun
+  `tools/surfer.py` — `look()` and `retarget()` are written against any mesh
+  generated from that drawing, but `REF_FRAME` and `FACE_WARP` would want
+  refitting.
+- `tools/mixamo/` is Adobe's content; the Mixamo terms allow it in a
+  project like this one, and it is written down here so nobody wonders.
+
+### Seb's first look: legs swung out behind him on the sand
+
+On land his legs bent backwards at the hips and stepped in the air behind
+him. The clips were fine — the harness had only ever been driven on flat
+ground. The hillside correction in `afoot()` asked `restOf` to write the
+hips' matrix into `_step`, which is the scratch matrix `restOf` builds every
+link of the chain in, so the "hip" it solved the legs from was garbage — and
+on the isle every step is on a slope, so every frame on land ran it. It has
+its own matrix now (`_pelvis`). Checked in the harness with `RIDE.rise` 0.15
+and `RIDE.cant` 0.1 at the cruise, before and after, and in the world running
+along the isle's beach: feet on the sand.
+
