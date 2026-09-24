@@ -238,151 +238,20 @@ const SHUTTER_GAP = 1.1
 const DRY_IN = 0.2
 /* ------------------------------------------------------------------ the gait
  *
- * **The duty factor is where the distance comes from, and it is the whole idea
- * here.** `duty` is the fraction of the cycle a foot spends on the ground. The
- * body advances at the same speed the whole time, so a foot that is down for
- * less of it has to cover more ground between one footfall and the next: the
- * step is `stride / duty`, and *lowering duty lengthens the step without moving
- * a leg any further*. That is not a trick, it is what running is — a walk keeps
- * a foot down more than half the time (both are down at the overlap), a run
- * keeps one down less than half (neither is, in between: that gap is flight).
+ * On foot he plays captured motion — a walk, a jog, a run, a sprint, an idle
+ * and a jump, out of `surfer.glb` — and `afoot()` below is where it is
+ * played. What stays here is the one number the ground still asks of him.
  *
- * It replaces a cadence and a cap, which had the failure this is written
- * against: the stride hit its ceiling at walking speed and everything past it
- * went into the *rate*, so at boost the legs span at five steps a second and
- * the feet slid a third of the way — a man running on a treadmill someone was
- * pulling. Now the rate is not chosen at all. It falls out of the one thing
- * that has to be true:
- *
- *     the planted foot travels backward at exactly the speed the body
- *     travels forward
- *
- * which pins the cycle at `pace · duty / (2 · stride)` and makes sliding
- * impossible by construction rather than acceptable under a cap. `CYCLE_MAX` is
- * a guard on a division and not a design.
- *
- * So going faster is a longer step and a lower duty, and the legs go round
- * *slower* at a sprint than they used to at a jog: with the second rider's
- * strides, 1.71 units a step at 3.8 steps a second, against 0.76 at 5.0; with
- * the third's, 1.38 and 0.72 — see `STAND` for why they shortened.
- *
- * The stride moves between the two more than it did — 0.40 to 0.48, where
- * the second rider had 0.39 to 0.41 — because Seb wanted the run's step
- * visibly longer than the walk's, and it is bought with `RUN_SINK`: a runner
- * carries his hips a few centimetres lower, which is where the reach for
- * the longer step comes from. Most of the difference is still the duty.
- */
-const WALK_DUTY = 0.46
-const RUN_DUTY = 0.24
-const WALK_STRIDE = 0.40
-const RUN_STRIDE = 0.48
-/** How high the swinging foot lifts at a full stride. A runner picks his knees
- *  up and a walker does not, and it is most of what separates them from behind,
- *  which is the only angle this world has on him. */
-const WALK_LIFT = 0.12
-const RUN_LIFT = 0.22
-/**
- * The foot rolls. A sole held flat through the whole stance is a leg that
- * can only reach as far as a straight line from the hip to the ankle, and
- * that line is what bent the knees: at the ends of a 0.40 stride it is
- * 31 degrees off vertical, and a hip that must stay within it stays low.
- * A real step lands heel first, toes up, and leaves toes last, heel high,
- * and the ankle rides up by the foot's own lever at both ends — 5 cm at the
- * strike, 10 at toe-off — which is reach the hips can spend on standing
- * taller. `HEEL_PITCH` is the toes going with it. Seb: the knees were still
- * bent too much walking, and more so running.
- */
-const HEEL_ON = 0.05
-const HEEL_OFF = 0.10
-const HEEL_PITCH = 0.45
-/** Cycles a second, as a guard on the division above and nothing else — the
- *  rate is derived, and this only ever catches a stride driven to nothing. */
-const CYCLE_MAX = 3.4
-const TAU = Math.PI * 2
-/**
- * How high the walking foot may be picked up or set down against the plane his
- * hips are on. Still asymmetric, and no longer for the old reason: with both
- * legs the same length he *could* reach further down, but a walk already runs
- * its legs at 96% at the end of a stride and a hollow met there is the one
- * place the solver would clamp. Two centimetres down and eighteen up, and the
- * cost of the small number is a foot that floats a little on a steep descent —
- * which is the one nobody sees, because the whole body is descending with it.
+ * How high the walking foot may be picked up or set down against the plane
+ * the clip put it on, by the hillside `Ship` reads under him: eighteen
+ * centimetres up and two down. The small number is on purpose — a leg
+ * reaching down into a hollow at the end of a stride is the one place the
+ * solver would clamp — and its cost is a foot that floats a little on a
+ * steep descent, which nobody sees, because the whole body is descending with
+ * it.
  */
 const TERRAIN_UP = 0.18
 const TERRAIN_DOWN = -0.02
-/**
- * And the dip through the middle of the change, where he is bent over the board
- * with both hands on it.
- */
-const PICK = 0.20
-/**
- * How much taller than the surf crouch he stands to walk, and it is the whole
- * of why the legs stopped reading as knees. The model's stance is a deep crouch
- * — that is what a surfer's is — and a man who gets off his board and keeps it
- * is a man walking on his knees.
- *
- * `BOB` is the other half and it is not decoration: **the pelvis vaults over
- * the stance leg.** It is lowest at footfall and at toe-off, highest over the
- * middle of the step, and low again through flight — which is what a hip does,
- * and which is also exactly where the reach is needed. The leg is longest when
- * the foot is furthest out, and that is when the hips are lowest; it is
- * shortest when the foot is under him, and that is when they are highest, so
- * the leg can be straight there without being over-extended anywhere else.
- *
- * That phasing is why it is driven by the *stance* rather than by the cycle. A
- * plain twice-a-stride sinusoid is the same thing when duty is a half and is
- * wrong the moment it is not: at a run's 0.24 the cycle's high point lands
- * inside the stance, near the back of it, and puts the hips up exactly where
- * the leg is stretched — 114% of its own length, which is a foot that slides.
- *
- * 5 cm at both, since the third rider — it was 6.5 walking and 8 running, a
- * couple of centimetres more than a real person, and the cut is what bought
- * him height (below). At 14 cm the stride goes to 0.49 and he bounces like a
- * cartoon.
- *
- * `STAND` is most of the man now. The third rider's legs are 0.79 of reach
- * against the second's 0.68, and his third stance — off Seb's photograph —
- * has the seat down at knee height, 0.47 in board space, so standing up is
- * 37 cm of hips and not 12. Height alone was not it, either: the first two
- * tries left him walking bent over a board he was carrying, because the
- * stance's fold and turn lived in the hips bone's rest rotation and nothing
- * took them out — `ride()` does now, with `stand`, read off the file.
- *
- * The height, the stride, the bob and the heel are one budget, and the
- * sweep in `rigOf` is the ledger: the hips `BOB` over the stance foot at
- * mid-stance, and the leg longest there and with the feet apart at the ends
- * of the stance, less what the heel gives back at those ends. 0.45 with a
- * 0.40 stride and 4 cm of bob is 98.3% of these legs at a walk, with the
- * knee at mid-stance twelve degrees off straight on the flat; the run's 0.48
- * stride is paid for by `RUN_SINK`, 98.3% with 7 cm of bob and the knee at
- * twenty-two. Seb asked for slightly straighter twice, and this is where the
- * 1.5% margin for the pelvis's own sway runs out. The sweep no longer charges `TERRAIN_DOWN`: a
- * 2 cm downhill step at the top of the vault is a straight leg with the sole
- * six millimetres short of the sand, which is the float on a descent the
- * note above already accepts, and it was costing 2.5% of the leg on every
- * flat step to insure against. Seb asked for the steps back after a pass at
- * 0.33 (short and quick, to stand him taller) read as mincing: 0.87 a step
- * walking, which is what the second rider had, and 2.0 running, which is
- * longer than he ever had.
- */
-const STAND = 0.45
-const WALK_BOB = 0.04
-const RUN_BOB = 0.07
-/** And how much lower a runner carries his hips than a walker — what buys the
- *  run its longer step under the same reach. */
-const RUN_SINK = 0.04
-/**
- * Standing. A man who has stopped walking is not a man walking at zero: his
- * feet come under him (the stride already goes to nothing with the pace), his
- * hips come up until his legs are straight, the vault stops, and his feet
- * are a little apart. `STILL` is the extra height and `SPREAD` the extra
- * width, both scaled by how stopped he is; the bob is scaled by the rest.
- * The height is the one the reach allows with the feet together and no
- * vault: 0.30 + 0.45 + 0.03 is 98% of the leg on the flat, which is a knee
- * a shade off straight. Seb: the standing knees were bent too much.
- */
-const STILL = 0.03
-const SPREAD = 0.05
 
 /**
  * And the land's, which is the saucer's alone. It flies `hover` over the water
@@ -636,14 +505,12 @@ const RIDE = {
   slope: 0, // radians: and how far it has it pitched fore and aft
   bank: 0,  // radians: and how far the *craft's* own lean into a turn has it over
   heave: 0, // -1 to 1: the deck's vertical acceleration, over `SHOCK`
-  // And the five that are only about being off it — see `beach.ts`. They are
+  // And the ones that are only about being off it — see `beach.ts`. They are
   // zero on every frame he is riding, which is every frame the world had
   // before the beach, so the pose above is untouched by their arrival.
   land: 0,   // 0 on the board, 1 on foot, ramped over `BEACH` seconds
-  step: 0,   // the walk cycle's phase, radians — advanced by distance, not time
-  stride: 0, // and its swing, in board units, about the point under each hip
-  gait: 0,   // 0 walking, 1 running — see the gait block above `WALK_DUTY`
-  duty: 0,   // and the fraction of the cycle a foot is on the ground
+  pace: 0,   // how fast he is going over the ground, units/sec: what the clips are played by
+  lift: 0,   // off the ground on foot, the vertical speed over the launch speed: +1 leaving, -1 arriving
   rise: 0,   // the ground's slope along his heading, and across it: what puts
   cant: 0,   // one foot higher than the other on a hillside
   // And one for being on a project island: 1 with the plateau under the
@@ -1456,30 +1323,15 @@ const RISE = 10
     RIDE.heave += (THREE.MathUtils.clamp(vertAccel / SHOCK, -1, 1) - RIDE.heave) * react
     RIDE.dry += (landK - RIDE.dry) * react
 
-    // And the walk's five. The phase is advanced by *distance* and not by time,
-    // so a rider who stops stops mid-step, and boost is a longer stride at the
-    // same cadence — which is the one thing about a run that a fixed frequency
-    // always gets wrong. Not smoothed through `react` like the eight above:
-    // these are not a body's answer to the hull, they are where his feet are.
+    // And the three the clips are played by. Not smoothed through `react`
+    // like the eight above: these are not a body's answer to the hull, they
+    // are where his feet are — the pace over the ground, which `afoot()`
+    // turns into a blend and a phase, and the hop's vertical speed, which it
+    // turns into a place in the jump.
     RIDE.land = afoot
-    const pace = Math.hypot(vel.current.x, vel.current.z)
-    // Walking or running, and everything about the gait follows from it. The
-    // band starts just above his own cruise and is done at twice it, which is
-    // most of the way into boost — so a visitor who never presses shift never
-    // sees the run, and one who holds it is running by the time he is up to
-    // speed rather than the moment he presses.
-    const cruise = SPEED * WALK_SPEED
-    RIDE.gait = THREE.MathUtils.smoothstep(pace, cruise * 1.15, cruise * 2.1)
-    RIDE.duty = WALK_DUTY + (RUN_DUTY - WALK_DUTY) * RIDE.gait
-    // The swing shrinks below cruise so a creep is short steps rather than slow
-    // giant ones; above it, it is the gait's.
-    RIDE.stride = Math.max(0.06, (WALK_STRIDE + (RUN_STRIDE - WALK_STRIDE) * RIDE.gait) *
-      Math.min(pace / cruise, 1))
-    // And the rate, which is derived and not chosen: this is the number that
-    // makes the planted foot travel backward at exactly the speed the body
-    // travels forward. See the gait block above `WALK_DUTY`.
-    RIDE.step = (RIDE.step + TAU * dt * afoot * (1 - aloft) *
-      Math.min((pace * RIDE.duty) / (2 * RIDE.stride), CYCLE_MAX)) % TAU
+    RIDE.pace = Math.hypot(vel.current.x, vel.current.z)
+    RIDE.lift = hop.current > 0 || hopVel.current !== 0 ? hopVel.current / JUMP
+      : overSand.current ? THREE.MathUtils.clamp(hullVel.current / JUMP, -1, 1) : 0
     // The hillside, in the hull's own frame: the ground a stride ahead against
     // the ground a stride behind, and the same across him. It is what puts the
     // uphill foot higher instead of both of them in the slope, and it is four
@@ -1848,7 +1700,7 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  *
  * His right is -x: the model faces +z (`GAZE` in `tools/surfer.py`), so the
  * trailing arm at x -0.09 is his right one, and it is the arm that holds the
- * board — see `hold()`, and the trailing arm's numbers in `ride()`.
+ * board — see `carry()` and `hold()`.
  *
  * The roll is a quarter turn and a tenth more. The quarter turn's sign is the
  * one that puts the deck against his ribs and the fin outboard, clear of his
@@ -1864,16 +1716,17 @@ FOAM.opacityNode = WAKE_ALONG.mul(WAKE_ACROSS).mul(0.55).mul(WAKE_SPEED)
  * board floating next to him, which is what Seb saw. It hung off the pelvis
  * first, and that clipped the arm: the pelvis turns with the stride and the
  * shoulders turn against it, so a board on the pelvis and an arm on the
- * chest moved against each other by a hand's width every step. It hangs off
- * the **chest** now, from the trailing shoulder — the same bone the arm
- * hangs from — so the two go everywhere together. `CARRY_POS` is the board's
+ * chest moved against each other by a hand's width every step. It hung off
+ * the chest next, and since the clips it hangs off the trailing shoulder
+ * and a third of the chest's turn (`boardAt`): a runner's shoulders swing
+ * further than a clamped board does. `CARRY_POS` is the board's
  * origin from that shoulder, in the frame he stands up into: x his left, y
  * up his trunk, z the way he faces — and the file puts that origin on the
  * *underside*, at the middle of a board that is 0.095 thick there, which is
  * the number every distance below is measured from. 0.535 down and 0.13
  * out puts the top rail 0.225 under the shoulder joint — a hand under the
  * armpit — with the deck on his ribs and the underside 0.13 outboard of the
- * joint; the arm that lies on that underside is `hold()`'s.
+ * joint; the arm that lies on that underside is `carry()`'s.
  *
  * `Rider` writes the board's transform into `CARRY` each frame, after `ride`
  * has moved the chest, and `Surfer` — which owns the board's group — reads
@@ -1888,10 +1741,6 @@ const CARRY = { pos: new THREE.Vector3(), rot: new THREE.Quaternion() }
 const CARRY_YAW = -0.44
 const CARRY_ROT = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-0.20, CARRY_YAW, -Math.PI / 2 - CARRY_LEAN, 'YXZ'))
-/** The carrying arm's share of the stride swings it about the board's
- *  *normal*, so the hand slides along the face instead of into it: this is
- *  the z bend that goes with each unit of x bend to make that axis. */
-const HOLD_ALONG = -Math.tan(CARRY_YAW)
 const CARRY_REST = new THREE.Quaternion()
 /** A hand's width of arc through the middle of the lift, so the board leaves
  *  the sand rather than sliding up out of it. */
@@ -2115,28 +1964,16 @@ const _pole = new THREE.Vector3()
 const _knee = new THREE.Vector3()
 const _foot = new THREE.Vector3()
 const _aim = new THREE.Vector3()
-/** Where a walking knee points, against the outward one a surf crouch has. See
- *  `aim` in `reach`. Straight ahead: the solver re-squares it against the leg's
- *  own line every frame, so it does not have to be perpendicular here. */
-const WALK_POLE = new THREE.Vector3(0, 0, 1)
 const _dir = new THREE.Vector3()
 const _q = new THREE.Quaternion()
 const _qt = new THREE.Quaternion()
 const _qa = new THREE.Quaternion()
 const _qb = new THREE.Quaternion()
 const _qi = new THREE.Quaternion()
-const _qs = new THREE.Quaternion()
-const _qb2 = new THREE.Quaternion()
 const _qf = new THREE.Quaternion()
-const _qp = new THREE.Quaternion()
-const _qu = new THREE.Quaternion() // the trunk's motion on foot, and its inverse, a frame
-const _qun = new THREE.Quaternion()
 const _bx = new THREE.Vector3()
-const _by = new THREE.Vector3()
-const _bz = new THREE.Vector3()
 const _qc = new THREE.Quaternion()
 const _ZERO = new THREE.Vector3()
-const _I = new THREE.Quaternion()
 const _mat = new THREE.Matrix4()
 const _step = new THREE.Matrix4()
 const _AX = new THREE.Vector3(1, 0, 0)
@@ -2225,43 +2062,16 @@ function frameQ(dir: THREE.Vector3, front: THREE.Vector3): THREE.Quaternion {
 }
 
 /**
- * A base to bend from other than the rest pose: the rest pose turned by
- * `q`, a rotation given in board space. It is how the walk stands him up —
- * the whole trunk, then the head back to the horizon, then the arms down to
- * his sides — with rotations that are read off the file rather than written
- * down, and `bend` and `fold` lay the frame's own numbers on top.
- *
- * What it means, exactly: the bone's rest orientation is turned by `q` in
- * board space *and then carried by whatever its parent has done since rest*.
- * For the hips, whose parent never moves, that is just `q`. For anything
- * below them it is why the rotations in `rigOf` are solved as "what `q`
- * makes the rest into the wanted thing once the chain above is where the
- * walk puts it", and not as the difference between two world orientations.
- */
-function based(j: Joint, q: THREE.Quaternion, out: THREE.Quaternion): THREE.Quaternion {
-  return out.copy(j.into).multiply(q).multiply(j.from).multiply(j.rest)
-}
-
-/**
  * Rotate a joint about board space's x, y and z, on top of its rest pose.
  *
  * `j.ax` and its siblings are board space's axes in the parent's *rest*
  * frame, and a rotation about them is carried by whatever the parent has
- * done since — which was a fair approximation while the parent only ever
- * moved a few degrees, and stopped being one when the walk started standing
- * the trunk up out of a stance turned 66° to the wave: below the hips, on
- * foot, "about z" had become mostly "about x". `carried` is the trunk's
- * motion since rest, and with it the axes are turned back first, so that
- * what the parent then does to them lands them on board space exactly.
+ * done since — a fair approximation, because on the board a parent only
+ * ever moves a few degrees. (The procedural walk broke that, standing the
+ * trunk up 66° out of the stance; the clips never ask it of `bend`.)
  */
-function bend(j: Joint, x: number, y: number, z: number, base: THREE.Quaternion = j.rest,
-  carried?: THREE.Quaternion): void {
-  let ax = j.ax, ay = j.ay, az = j.az
-  if (carried) {
-    ax = _bx.copy(_AX).applyQuaternion(carried).applyQuaternion(j.into)
-    ay = _by.copy(_AY).applyQuaternion(carried).applyQuaternion(j.into)
-    az = _bz.copy(_AZ).applyQuaternion(carried).applyQuaternion(j.into)
-  }
+function bend(j: Joint, x: number, y: number, z: number, base: THREE.Quaternion = j.rest): void {
+  const ax = j.ax, ay = j.ay, az = j.az
   _q.setFromAxisAngle(ax, x)
   _q.multiply(_qt.setFromAxisAngle(ay, y))
   _q.multiply(_qt.setFromAxisAngle(az, z))
@@ -2278,7 +2088,9 @@ function fold(j: Joint, axis: THREE.Vector3, angle: number, base: THREE.Quaterni
   j.bone.quaternion.copy(base).premultiply(_q.setFromAxisAngle(axis, angle))
 }
 
-/** An arm: three joints and the plane its elbow and wrist fold in. */
+/** An arm: three joints, the plane its elbow and wrist fold in, and — for
+ *  the carrying arm's solve — its two lengths and its rest pose in board
+ *  space. */
 type Arm = {
   upper: Joint
   fore: Joint
@@ -2286,34 +2098,31 @@ type Arm = {
   elbow: THREE.Vector3 // the fold axis, in the upper arm's frame
   wrist: THREE.Vector3 // the same axis, in the forearm's
   side: number         // +1 for the leading arm, -1 for the trailing one
-  hangUp: THREE.Quaternion   // what stands the upper arm down at his side, once the trunk is up
-  hangFore: THREE.Quaternion // and the forearm straight below it
+  up: number           // shoulder to elbow
+  low: number          // elbow to wrist
+  d1: THREE.Vector3    // shoulder -> elbow at rest, board space
+  d2: THREE.Vector3    // elbow -> wrist at rest
+  hinge: THREE.Vector3 // the elbow's axis at rest, board space: d1 x d2
+  q1: THREE.Quaternion // the upper arm's rest orientation, board space
+  q2: THREE.Quaternion // the forearm's
 }
 
 /**
- * The carrying arm, on foot. Three numbers and a solve — see `hold()`.
+ * The carrying arm, on foot: where the wrist goes and which way the elbow
+ * points, both in the *board's* own frame — the file's, origin on the
+ * underside amidships, x across, y out of the deck, z to the nose.
  *
- * The board is 0.095 thick and its top rail is a hand under the armpit, so
- * an arm hanging from a shoulder joint that sits *inboard* of the underside
- * cannot lie along it: the upper arm has to go out over the rail and the
- * forearm has to come back in onto the underside, and the bend between them
- * is what the thickness costs. Measured on the standing rig against the
- * board's own mesh, not eyeballed: `HOLD_OUT` abducts the upper arm 28°,
- * which passes the rail's outer corner with the arm's own radius to spare
- * and puts the elbow 0.074 off the underside — its own radius; `HOLD_FOLD`
- * bends the elbow 23°, of which the frontal part brings the wrist in to
- * 0.054 — the forearm pressing — and the rest runs the forearm along the
- * face toward the nose, which is where `HOLD_SWING` points the elbow: the
- * tip swung 42° from the board's tail toward outboard, so one fold does
- * both. The palm is then `hold()`'s: it faces the underside, the fingers
- * run on down it and `HOLD_FLEX` presses the hand flat.
- *
- * The bend was 47° and the wrist 8 cm off the board before this, with the
- * palm facing aft; Seb's ninth look.
+ * Measured, not chosen. Seb's ninth look settled the hold — the upper arm
+ * out over the top rail, the forearm back in along the underside, the palm
+ * flat on it — on the procedural stand the clips replaced, and these are
+ * that arm's wrist and elbow read off the board it was holding: the wrist
+ * 6.7 cm off the underside a little below the middle and 19 cm toward the
+ * nose, the elbow 8.5 cm off it, up by the top rail. Held in the board's
+ * frame and solved every frame, the hold no longer depends on how the chest
+ * stands — which is the point, because the chest is a clip's now.
  */
-const HOLD_OUT = 0.49
-const HOLD_FOLD = 0.40
-const HOLD_SWING = 0.73
+const HOLD_WRIST = new THREE.Vector3(0.082, -0.067, 0.194)
+const HOLD_ELBOW = new THREE.Vector3(-0.191, -0.085, 0.087)
 /** The wrist bent toward the board, radians: a forearm is thicker than a
  *  hand, so a hand that continued the forearm's line would hover. */
 const HOLD_FLEX = 0.45
@@ -2324,7 +2133,7 @@ const HOLD_TWIST = 0.5
 /**
  * A leg, as the triangle the solver needs. `ankle` is where the sole is in
  * board space and it never changes — that is the constraint the whole thing
- * exists to honour.
+ * exists to honour on the board.
  */
 type Leg = {
   thigh: THREE.Bone
@@ -2335,43 +2144,68 @@ type Leg = {
   up: number            // thigh length
   low: number           // shin length
   pole: THREE.Vector3   // which way the knee points, in board space
-  /**
-   * Where this foot swings about when he is walking: the point under its own
-   * hip. Read off the model rather than written down, and it is also the place
-   * along the board where the leg is asking least — which is what makes a
-   * stride possible at all on the short one. The two hips are 12 cm apart along
-   * the board, so the feet come out staggered by that much, which is what a
-   * walking stance is.
-   */
-  sweep: number
   d1: THREE.Vector3     // hip -> knee at rest, normalised
   d2: THREE.Vector3     // knee -> ankle at rest, normalised
   q1: THREE.Quaternion  // and the three rest orientations, in board space
-  walk: THREE.Quaternion // the foot's rest orientation with its yaw taken out
   q2: THREE.Quaternion
   q3: THREE.Quaternion
 }
 
+/**
+ * One captured clip out of the file, ready to sample: an interpolant per
+ * bone, the hips' track, and what one pass through it covers.
+ *
+ * `travel` is read off the hips' own track — the clips keep their root
+ * motion (`tools/surfer.py`) — and it is the whole of what ties a clip to
+ * the ground: a cycle that covers 1.5 m is played at whatever rate covers
+ * the ground the craft covers, so the planted foot is still.
+ */
+type Clip = {
+  dur: number
+  rot: { i: number; at: THREE.Interpolant }[]
+  pos: THREE.Interpolant
+  travel: number // board units along +z, one pass
+  speed: number  // travel / dur: the pace it was captured at
+  z0: number     // where along z the hips start, board space: the stand-in's own spot
+}
+
 type Rig = {
   root: THREE.Object3D    // the model's root, the frame `restOf` composes in
+  bones: THREE.Bone[]     // all seventeen, in the order `rest` and the poses keep them
+  rest: THREE.Quaternion[]
   hips: Joint
   hipsHome: THREE.Vector3   // the hips bone's rest position, in its parent's frame
   hipsInto: THREE.Quaternion // board space -> that frame, for the offset below
   hipsFrom: THREE.Matrix4   // the hips bone's parent, in board space. Constant.
   hipsTurn: THREE.Quaternion // and that parent's rotation alone
-  stand: THREE.Quaternion   // from the hips bone's rest orientation to upright, facing forward
-  carryAt: THREE.Vector3    // the carried board's centre, in the chest bone's own frame
-  carryRot: THREE.Quaternion // and its orientation there — see `CARRY_POS`
-  gaze: THREE.Quaternion    // half of the turn that levels the head once the trunk is upright
+  chestIdle: THREE.Quaternion // the chest's orientation standing in the idle clip, inverted — see `boardAt`
   spine: Joint
   chest: Joint
   neck: Joint
   head: Joint
   arms: Arm[]
   legs: Leg[]
+  clips: Record<string, Clip>
+  gaits: Clip[]  // walk, jog, run, sprint: the locomotion blend, slowest first
+  // What the clips need to remember from frame to frame.
+  phase: number  // 0..1 through a stride cycle, heel strike of his left foot at 0
+  landing: number // seconds since his feet last met the ground, or past the clip
+  slam: number    // last frame's RIDE.slam, to see a landing arrive
+  ride: THREE.Quaternion[] // the riding pose, this frame, to blend from
+  rideAt: THREE.Vector3
 }
 
-function rigOf(scene: THREE.Object3D): Rig {
+/** Every bone, and the order the pose arrays keep them in. */
+const BONES = [
+  'hips', 'spine', 'chest', 'neck', 'head',
+  'armF_upper', 'armF_fore', 'armF_hand', 'armB_upper', 'armB_fore', 'armB_hand',
+  'legF_thigh', 'legF_shin', 'legF_foot', 'legB_thigh', 'legB_shin', 'legB_foot',
+] as const
+/** The clips `tools/surfer.py` writes, and the four the locomotion blends. */
+const CLIP_NAMES = ['idle', 'walk', 'jog', 'run', 'sprint', 'air', 'land'] as const
+const GAITS = ['walk', 'jog', 'run', 'sprint'] as const
+
+function rigOf(scene: THREE.Object3D, animations: THREE.AnimationClip[]): Rig {
   const bone = (name: string) => {
     const b = scene.getObjectByName(name) as THREE.Bone | undefined
     if (!b) throw new Error(`surfer.glb: no bone \`${name}\` — rebuild it with tools/surfer.py`)
@@ -2385,17 +2219,6 @@ function rigOf(scene: THREE.Object3D): Rig {
   }
 
   const hips = jointOf(bone('hips'), scene)
-  const hipsRest = spin('hips')
-  const stand = (() => {
-    // The trunk line and the facing, both in the hips bone's own frame; the
-    // rotation that puts that frame's Y up and its Z forward is the stand.
-    const into = hipsRest.clone().invert()
-    const up = at('neck').sub(at('hips')).normalize().applyQuaternion(into)
-    const front = _AZ.clone().addScaledVector(up, -up.z).normalize()
-    const frame = new THREE.Matrix4().makeBasis(_v.crossVectors(up, front).clone(), up, front)
-    return new THREE.Quaternion().setFromRotationMatrix(frame).invert().multiply(into)
-  })()
-  const standInv = stand.clone().invert()
   const hipsFrom = restOf(hips.bone.parent!, scene, new THREE.Matrix4())
   const hipsTurn = new THREE.Quaternion()
   hipsFrom.decompose(_v, hipsTurn, _scale)
@@ -2407,54 +2230,20 @@ function rigOf(scene: THREE.Object3D): Rig {
     // The plane the arm is already bent in. A nearly straight arm makes a short
     // cross product but never a zero one — the rider's are both bent — and the
     // fallback is there because a rig is a file and files change.
-    const a = new THREE.Vector3().subVectors(at(`${tag}_fore`), at(`${tag}_upper`)).normalize()
-    const b = new THREE.Vector3().subVectors(at(`${tag}_hand`), at(`${tag}_fore`)).normalize()
+    const a = new THREE.Vector3().subVectors(at(`${tag}_fore`), at(`${tag}_upper`))
+    const b = new THREE.Vector3().subVectors(at(`${tag}_hand`), at(`${tag}_fore`))
+    const up = a.length()
+    const low = b.length()
+    a.normalize()
+    b.normalize()
     const axis = new THREE.Vector3().crossVectors(a, b)
     if (axis.lengthSq() < 1e-8) axis.crossVectors(b, _AY)
     axis.normalize()
-    // Down to his side for the walk. The stance's arms are a surfer's — one
-    // down the line, one aft over the tail — and once the trunk is stood up
-    // and turned to face the way he walks they are a man in a T. So, in the
-    // frame the trunk will be in: the upper arm to straight down, and the
-    // forearm to straight below it; `ride()` then folds the elbow and swings
-    // the arm as it always did, from hanging.
-    //
-    // As frames and not as directions, because a direction leaves the twist
-    // of the arm to the shortest rotation, and the twist is the elbow's
-    // hinge. The leading arm's elbow is sent to point straight back, where it
-    // pointed in the A-pose the skin was weighted in, so it folds forward and
-    // the palm faces his thigh as it did there. The trailing arm's is sent
-    // to point down the board's *tail*, swung `HOLD_SWING` toward outboard:
-    // that arm goes out over the board under it and folds *in* onto the
-    // board's underside, and a fold about a tip that lies in the board's
-    // plane runs along the face while one about a tip that points outboard
-    // comes in onto it, so the swing between the two sets how much of the
-    // fold is each. It was tried as a twist in `ride()`, on top of the
-    // abduction, and `bend` applies its z before its y, so the abducted
-    // elbow swung forward instead. The hinge is set here, once, and the
-    // abduction and the fold in `ride()` then do what they say. The tail
-    // rather than straight back because the board is yawed a quarter
-    // radian, and a forearm sent straight forward runs into a face that is
-    // swinging in to meet it.
-    const tip = at(`${tag}_fore`).sub(at(`${tag}_upper`))
-    const reach = at(`${tag}_hand`).sub(at(`${tag}_upper`)).normalize()
-    tip.addScaledVector(reach, -tip.dot(reach))
-    if (tip.lengthSq() < 1e-6) tip.crossVectors(axis, a)
-    const down = _AY.clone().negate().applyQuaternion(standInv)
-    const back = _AZ.clone().negate().applyQuaternion(standInv)
-    const outboard = _AX.clone().multiplyScalar(side).applyQuaternion(standInv) // +x is his left
-    const tail = _AZ.clone().negate().applyQuaternion(CARRY_ROT).applyQuaternion(standInv)
-    const hinge = side > 0 ? back
-      : tail.multiplyScalar(Math.cos(HOLD_SWING)).addScaledVector(outboard, Math.sin(HOLD_SWING)).normalize()
-    const hangUp = frameQ(down, hinge).multiply(frameQ(a, tip).invert())
-    const undo = hangUp.clone().invert()
-    const hangFore = frameQ(down.clone().applyQuaternion(undo), hinge.clone().applyQuaternion(undo))
-      .multiply(frameQ(b, tip).invert())
     return {
-      upper, fore, hand, side,
+      upper, fore, hand, side, up, low, d1: a, d2: b, hinge: axis.clone(),
+      q1: spin(`${tag}_upper`), q2: spin(`${tag}_fore`),
       elbow: axis.clone().applyQuaternion(spin(`${tag}_upper`).invert()),
       wrist: axis.clone().applyQuaternion(spin(`${tag}_fore`).invert()),
-      hangUp, hangFore,
     }
   }
 
@@ -2468,71 +2257,90 @@ function rigOf(scene: THREE.Object3D): Rig {
     return {
       thigh: bone(`${tag}_thigh`), shin: bone(`${tag}_shin`), foot: bone(`${tag}_foot`),
       at: bone(`${tag}_thigh`).position.clone(),
-      ankle, pole, sweep: hip.z,
+      ankle, pole,
       up: hip.distanceTo(knee),
       low: knee.distanceTo(ankle),
       d1: new THREE.Vector3().subVectors(knee, hip).normalize(),
       d2: new THREE.Vector3().subVectors(ankle, knee).normalize(),
       q1: spin(`${tag}_thigh`), q2: spin(`${tag}_shin`), q3: spin(`${tag}_foot`),
-      // The foot bone runs along the foot, and since the third stance both
-      // feet are turned to the toe side on the board. A stride wants them
-      // pointing where he is going, so this is the same sole flat on the same
-      // ground, yawed back to straight — the pitch and the roll are kept.
-      walk: (() => {
-        const q = spin(`${tag}_foot`)
-        const along = _AY.clone().applyQuaternion(q)
-        return new THREE.Quaternion().setFromAxisAngle(_AY, -Math.atan2(along.x, along.z)).multiply(q)
-      })(),
+    }
+  }
+
+  const bones = BONES.map(bone)
+  const index = new Map<string, number>(BONES.map((n, i) => [n, i]))
+  const hipsHome = hips.bone.position.clone()
+  const hipsInto = hipsTurn.clone().invert()
+
+  /**
+   * The clips, out of the file's animations, each track bound to its bone
+   * by index. The hips' track carries the root motion `tools/surfer.py`
+   * left in, measured here along board z and taken back out when sampled.
+   */
+  const clips = {} as Record<string, Clip>
+  for (const name of CLIP_NAMES) {
+    const anim = animations.find((a) => a.name === name)
+    if (!anim) throw new Error(`surfer.glb: no \`${name}\` clip — rebuild it with tools/surfer.py`)
+    const rot: Clip['rot'] = []
+    let pos: THREE.Interpolant | null = null
+    for (const track of anim.tracks) {
+      const [node, prop] = track.name.split('.')
+      const i = index.get(node)
+      if (i === undefined) continue
+      if (prop === 'quaternion') {
+        rot.push({ i, at: new THREE.QuaternionLinearInterpolant(track.times, track.values, 4, new Float32Array(4)) })
+      } else if (prop === 'position' && i === 0) {
+        pos = new THREE.LinearInterpolant(track.times, track.values, 3, new Float32Array(3))
+      }
+    }
+    if (import.meta.env.DEV) {
+      console.assert(rot.length === BONES.length, `surfer.glb: \`${name}\` moves ${rot.length} of ${BONES.length} bones`)
+    }
+    if (!pos) throw new Error(`surfer.glb: \`${name}\` has no hips track — rebuild it with tools/surfer.py`)
+    const a = new THREE.Vector3().fromArray(pos.evaluate(0)).applyQuaternion(hipsTurn)
+    const b = new THREE.Vector3().fromArray(pos.evaluate(anim.duration)).applyQuaternion(hipsTurn)
+    const travel = b.z - a.z
+    clips[name] = { dur: anim.duration, rot, pos, travel, speed: travel / anim.duration, z0: _v.fromArray(pos.evaluate(0)).applyMatrix4(hipsFrom).z }
+  }
+  const gaits = GAITS.map((n) => clips[n])
+  if (import.meta.env.DEV) {
+    // Slowest first, or the blend below picks the wrong pair.
+    for (let i = 1; i < gaits.length; i++) {
+      console.assert(gaits[i].speed > gaits[i - 1].speed, `surfer.glb: \`${GAITS[i]}\` is not faster than \`${GAITS[i - 1]}\``)
     }
   }
 
   const rig: Rig = {
-    root: scene,
-    hips,
-    hipsHome: hips.bone.position.clone(),
-    hipsInto: hipsTurn.clone().invert(),
-    // How the trunk is set into the crouch, read off the file so the walk can
-    // take exactly that back out. Every bone `tools/surfer.py` exports runs
-    // along its local Y with its local Z the way it faces — the hips' Z is
-    // the way the trunk faces, the head's Z is the gaze — so "standing up,
-    // facing the way he walks" is the identity rotation for the hips, and
-    // the whole of the stance's turn to the wave, its fold and its lean is
-    // one quaternion, not three angles — and "upright" is the *trunk*
-    // vertical, pelvis to the base of the neck, not the hips bone alone: the
-    // stance folds at the waist, and a pelvis stood up to the identity under
-    // a chest that leans is a man walking stooped, while a pelvis tucked
-    // under a vertical trunk is a man standing.
-    stand,
-    // The carry, expressed in the chest bone's frame once and for all: the
-    // trailing shoulder's rest position in that frame, plus `CARRY_POS` and
-    // `CARRY_ROT` turned back out of the frame he stands up into. `stand`
-    // is the trunk's motion on foot, so the chest's frame on foot is about
-    // `stand` times its rest — the spine's own small bends aside.
-    carryAt: (() => {
-      const chest = restOf(bone('chest'), scene, new THREE.Matrix4())
-      const o = CARRY_POS.clone().applyQuaternion(standInv)
-      return at('armB_upper').add(o).applyMatrix4(chest.invert())
-    })(),
-    carryRot: spin('chest').invert().multiply(standInv).multiply(CARRY_ROT),
-    // And the head, which is turned down the line relative to that trunk:
-    // once the trunk is upright it is looking that far off to the side. Half
-    // of the turn back, to lay on the neck and again on the head — see
-    // `based` for the order of the two factors.
-    gaze: new THREE.Quaternion().slerp(
-      standInv.clone().multiply(spin('head').invert()), 0.5),
-    hipsFrom, hipsTurn,
+    root: scene, bones, rest: bones.map((b) => b.quaternion.clone()),
+    hips, hipsHome, hipsInto, hipsFrom, hipsTurn,
+    chestIdle: new THREE.Quaternion(),
     spine: jointOf(bone('spine'), scene),
     chest: jointOf(bone('chest'), scene),
     neck: jointOf(bone('neck'), scene),
     head: jointOf(bone('head'), scene),
     arms: [arm('armF', 1), arm('armB', -1)],
     legs: [leg('legF'), leg('legB')],
+    clips, gaits,
+    phase: 0, landing: 1e3, slam: 0,
+    ride: bones.map(() => new THREE.Quaternion()), rideAt: new THREE.Vector3(),
   }
 
   /**
-   * The one claim the whole rig rests on, checked against the file it was just
-   * read from: solve the legs with the hips exactly where Blender left them and
-   * every bone must come back to the rest rotation it already has.
+   * The chest as the idle clip stands it, which is the posture `CARRY_POS`
+   * and `CARRY_ROT` describe: see `boardAt`.
+   */
+  {
+    sample(rig, clips.idle, 0, 1)
+    pose(rig)
+    restOf(rig.chest.bone, scene, _mat).decompose(_v, rig.chestIdle, _scale)
+    rig.chestIdle.invert()
+    bones.forEach((b, i) => b.quaternion.copy(rig.rest[i]))
+    hips.bone.position.copy(hipsHome)
+  }
+
+  /**
+   * The one claim the riding legs rest on, checked against the file it was
+   * just read from: solve the legs with the hips exactly where Blender left
+   * them and every bone must come back to the rest rotation it already has.
    *
    * It is the closed form's own identity — the triangle that produced `pole`
    * has to be the triangle `reach` reconstructs from it — so a failure here is
@@ -2550,68 +2358,6 @@ function rigOf(scene: THREE.Object3D): Rig {
       console.assert(off < 1e-3, `surfer.glb: the ${l.thigh.name} chain solves ` +
         `${(off * 180 / Math.PI).toFixed(2)}deg off its own rest pose`)
       ;[l.thigh, l.shin, l.foot].forEach((b, i) => b.quaternion.copy(was[i]))
-    }
-    /**
-     * And the second claim, which is the walk's: every foot the solver is ever
-     * handed on land has to be somewhere the leg can actually reach.
-     *
-     * It is a real check and not a formality. Both legs are the same length now
-     * (`tools/surfer.py` has that story), but `RUN_STRIDE`, `RUN_DUTY`,
-     * `RUN_LIFT`, the bob and `TERRAIN_DOWN` are still sized against a
-     * measurement of *this* file: re-sculpt the pose, move a knee, change a
-     * bone, and the number that was 95% moves with it. Past `reach`'s own clamp
-     * the leg simply goes straight and the foot stops where it is told to stop,
-     * which on screen is a man skating — a thing that reads as a bug in the
-     * walk rather than as a limit of the rig, and so is exactly the kind of
-     * wrong nobody diagnoses.
-     *
-     * It sweeps both gaits, each with its own stride, duty, lift, bob and
-     * stand, and the heel's lift at the ends — the hips wherever the vault
-     * has them at that moment rather than at some worst case picked by hand,
-     * because with a duty under a half the reach and the bob no longer peak
-     * together, and assuming they do is how the first version of this got
-     * 114%.
-     *
-     * The threshold leaves 1.5% for what this sweep does not model: the pelvis
-     * turning with the stride and the sway under it, which together move a hip
-     * joint by about a centimetre — 1.3% of these legs. It was 3% on the
-     * second rider and `STAND` was raised into it for the third; past the
-     * clamp `reach` straightens the leg and holds the foot, so the cost of
-     * a miss is a foot that slides a centimetre, not a fold.
-     */
-    // Both gaits, since the heel: it is no longer obvious which is the harder
-    // one, and the two are one expression with the gait's numbers in it.
-    const gaits = [
-      { name: 'walk', duty: WALK_DUTY, stride: WALK_STRIDE, lift: WALK_LIFT, bob: WALK_BOB, stand: STAND },
-      { name: 'run', duty: RUN_DUTY, stride: RUN_STRIDE, lift: RUN_LIFT, bob: RUN_BOB, stand: STAND - RUN_SINK },
-    ]
-    for (const l of rig.legs) {
-      const hip = new THREE.Vector3().setFromMatrixPosition(restOf(l.thigh, scene, _mat))
-      for (const g of gaits) {
-        let worst = 0
-        for (let k = 0; k < 720; k++) {
-          const u = k / 720
-          const other = (u + 0.5) % 1
-          const swung = u < g.duty ? 0 : (u - g.duty) / (1 - g.duty)
-          const t = (u / g.duty) * 2 - 1
-          const vault = (v: number) => (v < g.duty ? Math.sin((Math.PI * v) / g.duty) : 0)
-          const heel = u < g.duty
-            ? (t < 0 ? HEEL_ON : HEEL_OFF) * t * t
-            : HEEL_OFF * (1 - swung) * (1 - swung) + HEEL_ON * swung * swung
-          worst = Math.max(worst, _v.set(
-            l.ankle.x,
-            l.ankle.y + heel + (u < g.duty ? 0 : Math.sin(Math.PI * swung) * g.lift),
-            u < g.duty
-              ? l.sweep + g.stride - 2 * g.stride * (u / g.duty)
-              : l.sweep - g.stride + 2 * g.stride * (swung * swung * (3 - 2 * swung)),
-          ).distanceTo(_hip.copy(hip).setY(hip.y + g.stand +
-            g.bob * (1.5 * Math.max(vault(u), vault(other)) - 0.5))) / (l.up + l.low))
-        }
-        console.assert(worst < 0.985,
-          `surfer.glb: the ${l.thigh.name} chain reaches ${(worst * 100).toFixed(1)}% of its ` +
-          `own length at a ${g.name} — the stride is longer than the leg, and the foot will slide. ` +
-          'Shorten the stride, deepen the bob, lower STAND, or raise the duty.')
-      }
     }
   }
   return rig
@@ -2632,19 +2378,9 @@ function rigOf(scene: THREE.Object3D): Rig {
  * which is the classic pop; a millimetre of slack costs nothing and there is no
  * pop.
  *
- * `ankle` defaults to the sole on the deck, which is the constraint the whole
- * thing exists to honour and the only one it had until the beach: on the board
- * a foot does not move. Walking, it does — and it is still a fixed target, just
- * a different one each frame, so the solver did not change and neither did what
- * it guarantees. The foot is wherever `ride()` puts it and the knees are what
- * pay for it.
- *
- * `aim` is the other half of that, and without it the walk was bow-legged. Both
- * knees in the sculpted stance point *outward* — a surf crouch is a wide
- * stance, and taking the rest knee's own offset as the pole is what makes the
- * riding solve exact. A walking knee points forward. So the pole is swung round
- * with him, and the exactness is kept where it matters: on the board, `aim` is
- * `leg.pole` to the last decimal.
+ * This is the board's solve: the soles on the deck, the knees paying for
+ * everything the hips do. On foot the clips place the legs and `ground` only
+ * moves the feet the few centimetres the hillside asks.
  */
 function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
   ankle: THREE.Vector3 = leg.ankle, aim: THREE.Vector3 = leg.pole,
@@ -2670,15 +2406,283 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
   _qb.setFromUnitVectors(leg.d2, _dir.subVectors(ankle, knee).normalize()).multiply(leg.q2)
   leg.shin.quaternion.copy(_qb).premultiply(_qi.copy(_qa).invert())
   // And the foot keeps the board-space orientation it was sculpted with, which
-  // is flat on the deck — or the one the walk hands it, which is the same
-  // sole pointed where he is going. Everything above it has moved; a sole
-  // has not.
+  // is flat on the deck. Everything above it has moved; a sole has not.
   leg.foot.quaternion.copy(foot).premultiply(_qi.copy(_qb).invert())
+}
+
+const _gy = new THREE.Vector3()
+const _gx = new THREE.Vector3()
+const _gz = new THREE.Vector3()
+const _gn = new THREE.Vector3()
+const _gp = new THREE.Vector3()
+const _gX = new THREE.Vector3()
+const _gY = new THREE.Vector3()
+const _gZ = new THREE.Vector3()
+const _qg = new THREE.Quaternion()
+const _qh = new THREE.Quaternion()
+const _qw = new THREE.Quaternion()
+
+/**
+ * The carrying hand, laid on the board.
+ *
+ * `carry()` puts the arm where `HOLD_WRIST` and `HOLD_ELBOW` say and hands it
+ * here; this is the palm. It cannot be a constant, because the palm has to
+ * face the *board*, and where the board's underside faces is a fact about the
+ * board, and where the board's underside faces is `boardAt`'s, not the
+ * wrist's. So it is solved: the
+ * underside's normal is read off the chest as it stands this frame, the
+ * forearm's line off the forearm, and the hand is set to run on down that
+ * line — bent `HOLD_FLEX` toward the board — with its palm square to the
+ * normal.
+ *
+ * The twist that takes is a pronation, and a real one happens along the
+ * forearm, between an elbow that does not turn and a wrist that does. There
+ * is one forearm bone, so `HOLD_TWIST` of the angle goes on it and the rest
+ * lands at the wrist when the hand is set.
+ */
+function hold(r: Rig, a: Arm): void {
+  // The underside's normal, out toward the arm, in the frame the bones are read in.
+  boardAt(r, _gp, _qg)
+  _gn.set(0, -1, 0).applyQuaternion(_qg)
+  // The forearm's line, and the palm as the fold left it.
+  restOf(a.fore.bone, r.root, _mat).decompose(_v, _qf, _scale)
+  _gy.copy(_AY).applyQuaternion(_qf)
+  restOf(a.hand.bone, r.root, _mat).decompose(_v, _qh, _scale)
+  _gx.copy(_AX).applyQuaternion(_qh)
+  // The pronation: from where the palm faces to the board, about the forearm.
+  _gz.copy(_gn).negate()
+  _gz.addScaledVector(_gy, -_gz.dot(_gy)).normalize()
+  _gp.copy(_gx).addScaledVector(_gy, -_gx.dot(_gy)).normalize()
+  const psi = Math.atan2(_gy.dot(_bx.copy(_gp).cross(_gz)), _gp.dot(_gz))
+  a.fore.bone.quaternion.multiply(_qt.setFromAxisAngle(_AY, HOLD_TWIST * psi))
+  // The hand: along the forearm as it is now, tipped toward the board, palm on it.
+  restOf(a.fore.bone, r.root, _mat).decompose(_v, _qf, _scale)
+  _gy.copy(_AY).applyQuaternion(_qf)
+  _gp.copy(_gn).addScaledVector(_gy, -_gn.dot(_gy)).normalize()
+  _gY.copy(_gy).multiplyScalar(Math.cos(HOLD_FLEX)).addScaledVector(_gp, -Math.sin(HOLD_FLEX)).normalize()
+  _gX.copy(_gn).negate()
+  _gX.addScaledVector(_gY, -_gX.dot(_gY)).normalize()
+  _gZ.copy(_gX).cross(_gY)
+  a.hand.bone.quaternion.setFromRotationMatrix(_mat.makeBasis(_gX, _gY, _gZ)).premultiply(_qf.invert())
+}
+
+/**
+ * Where the carried board is this frame, in board space: its origin and its
+ * orientation. `CARRY_POS` and `CARRY_ROT` are written in the frame of a man
+ * standing up and facing the way he walks — x his left, y up, z ahead —
+ * which on foot is board space itself, hung off his trailing shoulder; that
+ * is the idle clip's posture, and `chestIdle` is its chest.
+ *
+ * The board goes with the shoulder wherever it goes, and with only
+ * `CARRY_FOLLOW` of what the chest does since that posture. Hung off the
+ * chest outright, it swung through sixty degrees a stride on the run clip
+ * — a board under an arm is clamped between the arm and the ribs, and it
+ * rides the torso's turn much less than the torso does.
+ */
+const CARRY_FOLLOW = 0.35
+function boardAt(r: Rig, pos: THREE.Vector3, rot: THREE.Quaternion): void {
+  restOf(r.chest.bone, r.root, _mat).decompose(_v, rot, _scale)
+  rot.multiply(r.chestIdle)
+  rot.slerpQuaternions(_ID, rot, CARRY_FOLLOW)
+  pos.setFromMatrixPosition(restOf(r.arms[1].upper.bone, r.root, _mat))
+    .add(_cp.copy(CARRY_POS).applyQuaternion(rot))
+  rot.multiply(CARRY_ROT)
+}
+const _ID = new THREE.Quaternion()
+
+/**
+ * The carrying arm: shoulder where the chest has it, wrist on the board's
+ * underside, elbow toward `HOLD_ELBOW` — two bones in closed form, like a
+ * leg, but with the twist decided rather than left to the shortest arc: each
+ * bone's frame is rebuilt from its new direction and the elbow's new hinge,
+ * and mapped from the same two things at rest, so the elbow folds the way it
+ * folded in the A-pose the skin was weighted in.
+ */
+function carry(r: Rig, a: Arm): void {
+  boardAt(r, _foot, _qw)
+  const wrist = _to.copy(HOLD_WRIST).applyQuaternion(_qw).add(_foot)
+  const elbowAt = _aim.copy(HOLD_ELBOW).applyQuaternion(_qw).add(_foot)
+  const shoulder = _hip.setFromMatrixPosition(restOf(a.upper.bone, r.root, _mat))
+  const d = _dir.subVectors(wrist, shoulder)
+  const span = THREE.MathUtils.clamp(d.length(), Math.abs(a.up - a.low) + 1e-3, a.up + a.low - 1e-3)
+  d.normalize()
+  const along = (span * span + a.up * a.up - a.low * a.low) / (2 * span)
+  const out = Math.sqrt(Math.max(a.up * a.up - along * along, 0))
+  _pole.subVectors(elbowAt, shoulder)
+  _pole.addScaledVector(d, -_pole.dot(d)).normalize()
+  const elbow = _knee.copy(shoulder).addScaledVector(d, along).addScaledVector(_pole, out)
+  const d1 = _gy.subVectors(elbow, shoulder).normalize()
+  const d2 = _gx.copy(shoulder).addScaledVector(d, span).sub(elbow).normalize()
+  const hinge = _gz.crossVectors(d1, d2).normalize()
+  _qa.copy(frameQ(d1, hinge)).multiply(frameQ(a.d1, a.hinge).invert()).multiply(a.q1)
+  _qb.copy(frameQ(d2, hinge)).multiply(frameQ(a.d2, a.hinge).invert()).multiply(a.q2)
+  restOf(r.chest.bone, r.root, _mat).decompose(_v, _qc, _scale)
+  a.upper.bone.quaternion.copy(_qa).premultiply(_qc.invert())
+  a.fore.bone.quaternion.copy(_qb).premultiply(_qa.invert())
+  hold(r, a)
+}
+
+/**
+ * A clip, onto the pose arrays: its rotations slerped in by `w` over what is
+ * already there, and the hips' position lerped the same, with the ground the
+ * clip covers taken back out and the whole of it moved from where the A-pose
+ * stood — the origin — to where the rider stands on the craft: the crouch's
+ * own spot along the board, and `FOOT_DROP` up, which is the sand.
+ */
+const POSE = BONES.map(() => new THREE.Quaternion())
+const POSE_AT = new THREE.Vector3()
+const _cq = new THREE.Quaternion()
+const _cp = new THREE.Vector3()
+function sample(r: Rig, c: Clip, t: number, w: number): void {
+  if (w <= 0) return
+  for (const { i, at } of c.rot) {
+    _cq.fromArray(at.evaluate(t))
+    if (w >= 1) POSE[i].copy(_cq)
+    else POSE[i].slerp(_cq, w)
+  }
+  // Into board space, the root motion out, the stand-in's spot moved to his.
+  _cp.fromArray(c.pos.evaluate(t)).applyMatrix4(r.hipsFrom)
+  _cp.z += _hipsZ(r) - c.z0 - c.travel * (t / c.dur)
+  _cp.y += FOOT_DROP
+  _cp.applyMatrix4(_mat.copy(r.hipsFrom).invert())
+  if (w >= 1) POSE_AT.copy(_cp)
+  else POSE_AT.lerp(_cp, w)
+}
+/** Where along the board his hips are at rest — the crouch's spot, and
+ *  the one the camera, the carry and the leash were all composed on. */
+const _hipsZ = (r: Rig) => _v.copy(r.hipsHome).applyMatrix4(r.hipsFrom).z
+
+/** The pose arrays onto the bones. */
+function pose(r: Rig): void {
+  r.bones.forEach((b, i) => b.quaternion.copy(POSE[i]))
+  r.hips.bone.position.copy(POSE_AT)
+}
+
+/**
+ * On foot, and it is played rather than solved. See `tools/surfer.py`,
+ * "the clips", for where the motion comes from and why.
+ *
+ * **The locomotion is one blend, and the ground drives it.** Four gaits,
+ * slowest first — a walk, a jog, a run and a sprint — each with the pace it
+ * was captured at, and the pace he is moving at picks the two either side
+ * and how far between them, the way a blend space does. Below the walk it
+ * is the idle and the walk. Then the one thing the procedural walk had right
+ * and this keeps: **the phase is advanced by distance, not by time** — the
+ * cycle goes round at the pace over the blended stride — so the planted
+ * foot travels backward at the speed the body goes forward, whatever blend
+ * is playing, and a man who stops, stops mid-step. At the default cruise of
+ * 2.7 m/s that is a jog most of the way to a run; shift is a sprint.
+ *
+ * **The jump is its flight and its landing.** Off the ground, the air
+ * clip is played by the arc's own progress (`RIDE.lift`, the vertical speed
+ * over the launch speed: +1 leaving, 0 at the top, -1 arriving), weighted by
+ * `RIDE.air`; and the frame the feet meet the ground again, the landing clip
+ * starts, as deep as the landing was hard, fading out as the legs come back
+ * up — less of it the faster he is going, because a runner lands running.
+ *
+ * Then two corrections the clips cannot know about: the hillside, which
+ * lifts the uphill foot and lowers the other by what `RIDE.rise` and
+ * `RIDE.cant` measure; and the board under his arm, which the trailing arm
+ * holds whatever the clip was doing with it (`carry`).
+ */
+const LAND_FADE = 0.55
+const _pelvis = new THREE.Matrix4()
+function afoot(r: Rig, t: number, dt: number): void {
+  const pace = RIDE.pace
+  const g = r.gaits
+  // The pair, and how far between them.
+  let lo = r.clips.idle
+  let hi = g[0]
+  let k = 0
+  if (pace <= g[0].speed) k = pace / g[0].speed
+  else if (pace >= g[g.length - 1].speed) { lo = hi = g[g.length - 1]; k = 1 }
+  else {
+    for (let i = 1; i < g.length; i++) {
+      if (pace <= g[i].speed) {
+        lo = g[i - 1]
+        hi = g[i]
+        k = (pace - lo.speed) / (hi.speed - lo.speed)
+        break
+      }
+    }
+  }
+  // The stride the blend covers, and the phase advanced over it.
+  const stride = lo === r.clips.idle ? hi.travel : lo.travel + (hi.travel - lo.travel) * k
+  if (RIDE.air < 0.5) r.phase = (r.phase + (pace * dt) / stride) % 1
+  // Standing still is the idle, and invariant 6 holds it on its first frame.
+  const idle = r.clips.idle
+  if (lo === idle) sample(r, idle, REDUCED ? 0 : t % idle.dur, 1)
+  else sample(r, lo, r.phase * lo.dur, 1)
+  sample(r, hi, r.phase * hi.dur, k)
+
+  // The hop.
+  const air = r.clips.air
+  sample(r, air, THREE.MathUtils.clamp((1 - RIDE.lift) / 2, 0, 1) * air.dur, RIDE.air)
+  if (RIDE.slam > r.slam + 0.05) r.landing = 0
+  r.slam = RIDE.slam
+  r.landing += dt
+  const land = r.clips.land
+  const u = r.landing / land.dur
+  if (u < 1) {
+    sample(r, land, r.landing, Math.min(1, r.slam * 1.6 + 0.4) *
+      (1 - THREE.MathUtils.smoothstep(u, LAND_FADE, 1)) *
+      (1 - 0.7 * Math.min(pace / g[1].speed, 1)))
+  }
+  pose(r)
+  untwist(r)
+
+  // The hillside: each foot moved up or down by the ground under it, the
+  // knee re-solved, the sole's orientation kept.
+  if (RIDE.rise !== 0 || RIDE.cant !== 0) {
+    for (const l of r.legs) {
+      const ankle = _foot.setFromMatrixPosition(restOf(l.foot, r.root, _mat))
+      const lift = THREE.MathUtils.clamp(RIDE.rise * ankle.z + RIDE.cant * ankle.x, TERRAIN_DOWN, TERRAIN_UP)
+      if (lift === 0) continue
+      restOf(l.foot, r.root, _mat).decompose(_v, _qf, _scale)
+      const knee = _aim.setFromMatrixPosition(restOf(l.shin, r.root, _mat))
+      const hip = _hip.setFromMatrixPosition(restOf(l.thigh, r.root, _mat))
+      const pole = _pole.subVectors(knee, hip)
+      ankle.y += lift
+      // Its own matrix: `restOf` builds each step in `_step`, so handing it
+      // `_step` as the result as well composed garbage — a hip somewhere
+      // else, and legs solved from it swung out behind him.
+      restOf(l.thigh.parent!, r.root, _pelvis).decompose(_v, _qt, _scale)
+      reach(l, _pelvis, _qt, ankle, pole, _qf)
+    }
+  }
+  carry(r, r.arms[1])
+}
+
+/**
+ * How much of the shoulders' turn against the pelvis a man keeps when one of
+ * his arms is clamped round a board. A runner's shoulders counter the stride
+ * by thirty degrees and more, and the board, hung off the chest, swung with
+ * them from under his arm to out behind him; with the arm locked a real one
+ * runs square. Taken out at the spine, so the chest, the head and the free
+ * arm all come with it.
+ */
+const SQUARE = 0.65
+const _fh = new THREE.Vector3()
+const _fc = new THREE.Vector3()
+function untwist(r: Rig): void {
+  restOf(r.hips.bone, r.root, _mat).decompose(_v, _qg, _scale)
+  _fh.set(0, 0, 1).applyQuaternion(_qg)
+  restOf(r.chest.bone, r.root, _mat).decompose(_v, _qh, _scale)
+  _fc.set(0, 0, 1).applyQuaternion(_qh)
+  const turn = Math.atan2(_fc.x, _fc.z) - Math.atan2(_fh.x, _fh.z)
+  const yaw = Math.atan2(Math.sin(turn), Math.cos(turn))
+  // About board y, laid on the spine in its parent's frame as it stands.
+  restOf(r.spine.bone.parent!, r.root, _mat).decompose(_v, _qg, _scale)
+  _qw.setFromAxisAngle(_AY, -SQUARE * yaw)
+  r.spine.bone.quaternion.premultiply(_qg.clone().invert().multiply(_qw).multiply(_qg))
 }
 
 /**
  * The pose, and every number in it is an amplitude rather than an angle: what
- * arrives is `RIDE`, and what leaves is seventeen sums.
+ * arrives is `RIDE`, and what leaves is seventeen sums. This is the board;
+ * on foot it is blended out toward `afoot`'s clips by `RIDE.land`, and the
+ * change between them is that blend: the crouch rises into a man standing,
+ * with a dip through the middle where he reaches for the board.
  *
  * The shape of it is two ideas, and the first one is the load-bearing one.
  *
@@ -2706,9 +2710,7 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
  * counter-rotations: the hips go with the turn, the chest goes less far, the
  * head goes further and rolls back to level the eyes, and the arms go the other
  * way to pay for all of it. Rotate them by the same amount and you get a plank
- * on a turntable. These are about half the first pass's amplitudes: with the
- * legs carrying the sea, a torso that also swings reads as loose rather than as
- * balanced.
+ * on a turntable.
  *
  * The idle layer is the last of it and it is smaller than it looks: breath, a
  * weight shift, a drift of the head, the hands riding the air. Four sines at
@@ -2717,108 +2719,18 @@ function reach(leg: Leg, from: THREE.Matrix4, turn: THREE.Quaternion,
  * `REDUCED` reaches in here, because everything else is a response to something
  * the visitor did and stopping *those* would be a rider who ignores the sea.
  */
-const _gy = new THREE.Vector3()
-const _gx = new THREE.Vector3()
-const _gz = new THREE.Vector3()
-const _gn = new THREE.Vector3()
-const _gp = new THREE.Vector3()
-const _gX = new THREE.Vector3()
-const _gY = new THREE.Vector3()
-const _gZ = new THREE.Vector3()
-const _qg = new THREE.Quaternion()
-const _qh = new THREE.Quaternion()
-const _qw = new THREE.Quaternion()
-
-/**
- * The carrying hand, laid on the board.
- *
- * `ride()` puts the arm where `HOLD_OUT` and `HOLD_FOLD` say and hands it
- * here; this is the palm. It cannot be an angle in `ride()`, because the
- * palm has to face the *board*, and where the board's underside faces is a
- * fact about the chest and `CARRY_ROT` together, not about the wrist. So it
- * is solved: the underside's normal is read off the chest as it stands this
- * frame, the forearm's line off the forearm, and the hand is set to run on
- * down that line — bent `HOLD_FLEX` toward the board — with its palm square
- * to the normal.
- *
- * The twist that takes is a pronation, and a real one happens along the
- * forearm, between an elbow that does not turn and a wrist that does. There
- * is one forearm bone, so `HOLD_TWIST` of the angle goes on it and the rest
- * lands at the wrist when the hand is set — about 13° each, which neither
- * joint shows.
- *
- * `t` is `RIDE.land`. At 0 nothing here runs and the arm is the stance's, to
- * the bone; through the pickup it blends, so the hand turns to the board as
- * the board comes up to the hand.
- */
-function hold(r: Rig, a: Arm, t: number): void {
-  if (t <= 0) return
-  // The underside's normal, out toward the arm, in the frame the bones are read in.
-  restOf(r.chest.bone, r.root, _mat).decompose(_v, _qg, _scale)
-  _gn.set(0, -1, 0).applyQuaternion(_qg.multiply(r.carryRot))
-  // The forearm's line, and the palm as the fold left it.
-  restOf(a.fore.bone, r.root, _mat).decompose(_v, _qf, _scale)
-  _gy.copy(_AY).applyQuaternion(_qf)
-  restOf(a.hand.bone, r.root, _mat).decompose(_v, _qh, _scale)
-  _gx.copy(_AX).applyQuaternion(_qh)
-  // The pronation: from where the palm faces to the board, about the forearm.
-  _gz.copy(_gn).negate()
-  _gz.addScaledVector(_gy, -_gz.dot(_gy)).normalize()
-  _gp.copy(_gx).addScaledVector(_gy, -_gx.dot(_gy)).normalize()
-  const psi = Math.atan2(_gy.dot(_bx.copy(_gp).cross(_gz)), _gp.dot(_gz))
-  a.fore.bone.quaternion.multiply(_qt.setFromAxisAngle(_AY, HOLD_TWIST * psi * t))
-  // The hand: along the forearm as it is now, tipped toward the board, palm on it.
-  restOf(a.fore.bone, r.root, _mat).decompose(_v, _qf, _scale)
-  _gy.copy(_AY).applyQuaternion(_qf)
-  _gp.copy(_gn).addScaledVector(_gy, -_gn.dot(_gy)).normalize()
-  _gY.copy(_gy).multiplyScalar(Math.cos(HOLD_FLEX)).addScaledVector(_gp, -Math.sin(HOLD_FLEX)).normalize()
-  _gX.copy(_gn).negate()
-  _gX.addScaledVector(_gY, -_gX.dot(_gY)).normalize()
-  _gZ.copy(_gX).cross(_gY)
-  _qw.setFromRotationMatrix(_mat.makeBasis(_gX, _gY, _gZ)).premultiply(_qf.invert())
-  a.hand.bone.quaternion.slerp(_qw, t)
-}
-
-function ride(r: Rig, t: number): void {
-  // On foot none of the sea reaches him: the board is under his arm and what is
-  // under his feet is sand. `afloat` scales out every term the water drives and
-  // `onFoot` scales in the walk, so the pose above is arithmetically the pose
-  // that shipped on every frame he is riding.
-  //
-  // `pick` is the dip through the middle of the change — one sine over the
-  // whole ramp, which is why putting the board down needed no code of its own:
-  // it is picking it up, backwards. `swing` and `wobble` are the walk cycle's
-  // two phases, and everything below reads one or the other.
+function ride(r: Rig, t: number, dt: number): void {
   const onFoot = RIDE.land
-  const afloat = 1 - onFoot
   const pick = Math.sin(Math.PI * onFoot)
-  const step = RIDE.step
-  const gait = RIDE.gait
-  const duty = RIDE.duty
-  /** Where a foot is in its own cycle, 0 at footfall. */
-  const place = (i: number) => (step / TAU + i * 0.5) % 1
-  /** The hip vaulting over that foot: nothing at footfall and at toe-off,
-   *  everything over the middle of the step, nothing through flight. */
-  const vault = (u: number) => (u < duty ? Math.sin((Math.PI * u) / duty) : 0)
-  const swing = Math.cos(step) * onFoot  // +1 with his left foot forward
-  const wobble = Math.sin(step) * onFoot // +1 at his left foot's mid-swing
   const s = Math.min(RIDE.speed, 1)
   const c = RIDE.turn
-  /** How stopped he is, on foot: 1 standing, 0 at a walk or anything faster.
-   *  `RIDE.speed` is against the riding cruise, so a full walk is `WALK_SPEED`
-   *  of it. See `STILL`. */
-  const stillness = 1 - THREE.MathUtils.clamp(RIDE.speed / WALK_SPEED, 0, 1)
-  const still = stillness * onFoot
-  // Not scaled by `afloat`, unlike everything else the sea drives: since the
-  // hop, being off the ground is something that happens on land too, and
-  // `RIDE.air` already knows which one it is measuring.
   const air = RIDE.air
   const slam = RIDE.slam
   // What the sea is doing to the deck, and what the rider is about to undo. On
   // the water only: airborne there is nothing to brace against, and a man
   // holding himself level against a board that is no longer on anything is a
   // man doing arithmetic.
-  const grip = (1 - RIDE.air) * afloat
+  const grip = (1 - RIDE.air) * (1 - onFoot)
   const tilt = RIDE.tilt * grip
   const slope = RIDE.slope * grip
   const heave = RIDE.heave * grip
@@ -2835,50 +2747,17 @@ function ride(r: Rig, t: number): void {
   // The hips, and they carry the ride. Two thirds of the wave's heel comes back
   // out here — the joint with the most travel under it and the one a person
   // actually uses — and the rest is spread up the spine below. What is left of
-  // `turn` is small on purpose: the lean into a carve is now the only thing
-  // this joint does that is a decision rather than a reflex.
-  bend(r.hips,
-    -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath
-      // Bending over the board, and then the forward lean of a man moving —
-      // which a runner does a good deal more of than a walker. Both are on top
-      // of standing up first: the rest pose is a surf crouch with the trunk
-      // pitched `lean` into it, and a man walking with his trunk still bent
-      // over a board he is carrying under his arm was the crouch Seb saw
-      // after `STAND` had already doubled. The whole of it comes out through
-      // the pelvis, and the neck and head below put the gaze back where it
-      // was, so he stands up and keeps looking at the horizon.
-      + 0.55 * pick + (0.10 + 0.26 * gait) * onFoot * s,
-    // The pelvis turns with the stride: the hip on the forward leg goes
-    // forward, which is a negative rotation about y for his left.
-    0.10 * c - 0.10 * swing,
-    -0.58 * tilt - 0.18 * bank - 0.04 * wobble,
-    // Standing up. The stance is a man folded over his front thigh and turned
-    // to the wave; a man walking is neither, and the difference is the hips
-    // bone's whole rest orientation, taken back to the identity — upright,
-    // facing the way he walks — as far as he is on foot. Under everything
-    // above, so that the water's terms bend the crouch and the walk's terms
-    // bend the man standing in it.
-    based(r.hips, _qu.slerpQuaternions(_I, r.stand, onFoot), _qb2))
-  // What every joint below the hips has been carried by — see `bend`.
-  _qun.copy(_qu).invert()
+  // `turn` is small on purpose: the lean into a carve is the only thing this
+  // joint does that is a decision rather than a reflex.
+  bend(r.hips, -0.58 * slope + 0.13 * heave + 0.10 * slam + 0.03 * breath,
+    0.10 * c, -0.58 * tilt - 0.18 * bank)
   // And the drop, which is everything that asks a person to get low: the deck
   // coming up at him, a landing, the wave's heel (which costs the legs slack
   // before it costs them anything else), a hard carve, then just going fast.
   r.hips.bone.position.copy(r.hipsHome).add(_v.set(
-    // And on foot, the weight shifting over the standing leg.
-    0.060 * c + 0.012 * sway - 0.025 * wobble,
+    0.060 * c + 0.012 * sway,
     -0.075 * heave - 0.100 * slam - 0.050 * Math.abs(tilt) - 0.045 * s * Math.abs(c)
-      - 0.020 * s + 0.030 * air + 0.006 * breath
-      // Standing up out of the crouch, dipping through the middle of the
-      // change to reach the board, and the pelvis vaulting over whichever leg
-      // is carrying him — see `STAND`. The 1.5 and the 0.5 put the low point
-      // at footfall and the high point over the stance, which is where the
-      // reach wants them.
-      + (STAND - RUN_SINK * gait) * onFoot + STILL * still - PICK * pick
-      // No vault standing: the bob is scaled by however much of `onFoot` is
-      // not `still`, which is what frees the reach the extra height spends.
-      + (WALK_BOB + (RUN_BOB - WALK_BOB) * gait) * (onFoot - still) *
-        (1.5 * Math.max(vault(place(0)), vault(place(1))) - 0.5),
+      - 0.020 * s + 0.030 * air + 0.006 * breath,
     -0.035 * RIDE.push + 0.010 * drift,
   ).applyQuaternion(r.hipsInto))
 
@@ -2889,34 +2768,17 @@ function ride(r: Rig, t: number): void {
   // high rail; the twentieth left over is the wave still reaching him. Against
   // `bank` the same joints sum to 0.34, which is the other half of the idea: a
   // third of the carve resisted, two thirds ridden.
-  // The walk's own share up the spine is the counter-rotation: the shoulders
-  // turn against the pelvis, which turned with the stride. Same graduation as
-  // everything else here — and it is the difference between a man walking and a
-  // man being slid along the ground.
-  bend(r.spine,
-    -0.18 * slope + 0.05 * heave + 0.10 * slam + 0.05 * s + 0.030 * breath + 0.28 * pick,
-    0.07 * c + 0.06 * swing,
-    -0.18 * tilt - 0.07 * bank, r.spine.rest, _qun)
-  bend(r.chest,
-    -0.11 * slope + 0.06 * slam + 0.040 * breath + 0.16 * pick,
-    0.08 * c + 0.10 * swing,
-    -0.11 * tilt - 0.05 * bank, r.chest.rest, _qun)
-  // With the trunk stood up the head is still turned down the line, which
-  // on the sand is a man walking with his head over his shoulder; `gaze` is
-  // half of the way back, once here and once below.
-  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air + 0.22 * pick,
-    0.06 * c, -0.03 * tilt - 0.02 * bank,
-    based(r.neck, _qs.slerpQuaternions(_I, r.gaze, onFoot), _qb2), _qun)
+  bend(r.spine, -0.18 * slope + 0.05 * heave + 0.10 * slam + 0.05 * s + 0.030 * breath,
+    0.07 * c, -0.18 * tilt - 0.07 * bank)
+  bend(r.chest, -0.11 * slope + 0.06 * slam + 0.040 * breath,
+    0.08 * c, -0.11 * tilt - 0.05 * bank)
+  bend(r.neck, -0.03 * slope + 0.03 * slam - 0.04 * air,
+    0.06 * c, -0.03 * tilt - 0.02 * bank)
   // The head leads the turn and levels itself against everything else. It is
   // the cue that most reliably reads as alive at this size, and it is the one
   // joint whose share of `turn` was not cut.
-  bend(r.head,
-    // He looks at the board he is reaching for, and nowhere else does his gaze
-    // leave the horizon: that is the whole of what `pick` buys up here.
-    -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift + 0.20 * pick,
-    0.22 * c + 0.05 * drift,
-    -0.05 * tilt - 0.02 * bank + 0.03 * sway,
-    based(r.head, _qs.slerpQuaternions(_I, r.gaze, onFoot), _qb2), _qun)
+  bend(r.head, -0.05 * slope + 0.05 * slam - 0.10 * air + 0.04 * drift,
+    0.22 * c + 0.05 * drift, -0.05 * tilt - 0.02 * bank + 0.03 * sway)
 
   for (const a of r.arms) {
     /**
@@ -2936,12 +2798,6 @@ function ride(r: Rig, t: number): void {
      * zero so the other arm gets nothing from it and is left to the small
      * shared roll below, which drops it.
      *
-     * The rest pose is arms-down now (see `tools/surfer.py`), so this is a
-     * gesture rather than a nudge to a pose that was already up: 0.55 is about
-     * thirty-five degrees of shoulder, with the elbow folding and the arm
-     * swinging forward as it goes, which is the difference between throwing an
-     * arm up and levitating one.
-     *
      * What carries `side` on its own is what is symmetrical — both arms rise in
      * the air, both drop on a landing. The `tilt` and `slope` terms do not:
      * they are the arms' own small share of the levelling, on top of what they
@@ -2955,76 +2811,13 @@ function ride(r: Rig, t: number): void {
      * axis raises one and drops the other, and it has to be the mirror of the
      * roll beside it or airborne comes out as one arm up and one arm down.
      */
-    const up = Math.max(0, -c * a.side) * afloat
-    /**
-     * And on foot the two arms stop being a pair, which is the one place the
-     * walk needed a branch.
-     *
-     * The leading arm is his left, and so is the leading leg — `armF` at x 0.22
-     * and `legF` at x 0.05, both on the +x side, because the model faces +z and
-     * his right is -x. So it swings *against* its own leg: forward when that
-     * foot is back. A positive rotation about the deck's x takes a hanging arm
-     * aft, and `swing` is +1 with his left foot forward, so the sign is right
-     * with no minus in front of it.
-     *
-     * The trailing arm is holding a board. It does not swing — 8% of it, which
-     * is a body absorbing the stride rather than an arm doing nothing — and it
-     * needs no pose of its own for the carry: the rest pose already hangs the
-     * elbow at the board's outer rail. See `CARRY_POS`.
-     *
-     * `pick` is the one thing both arms do together, and it is the move the
-     * whole transition exists to show: both hands reach down and forward, to
-     * the board on the ground in front of his feet.
-     */
-    const led = a.side > 0
+    const up = Math.max(0, -c * a.side)
     bend(a.upper,
-      -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope
-        // The swing. It used to sit on a bias that brought the leading hand
-        // back from 0.40 forward of its shoulder; since the third stance the
-        // arm is handed to the walk already hanging (`hangUp`), and the bias
-        // went.
-        // The free arm's swing is the one thing here that grows most with the
-        // gait: a walker's hand travels a hand's breadth and a runner's goes
-        // from hip to chest. The other arm is holding a board and keeps a tenth
-        // of it, which is a body absorbing the stride rather than an arm doing
-        // nothing.
-        // A hand's breadth at a walk: it was twice this and read as
-        // marching. The trailing arm is holding a board and keeps a tenth.
-        + (led ? (0.25 + 0.30 * gait) * swing
-               : -(0.05 + 0.04 * gait) * swing) - 0.65 * pick,
+      -0.10 * air * a.side + 0.05 * RIDE.push - 0.10 * slope,
       0.05 * c * a.side - 0.10 * up * a.side,
-      -0.10 * c - 0.08 * tilt
-        + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter)
-        // And out: the trailing arm away from his side, over the board that
-        // is under it. The leading arm hangs where `hangUp` left it, at his
-        // side. Positive about z is toward +x, his left, so the trailing
-        // arm's is negative.
-        // The hold, first half: the trailing upper arm out over the top
-        // rail, `HOLD_OUT` — just far enough that the elbow sits on the
-        // underside with its own radius to spare. The fold below is the
-        // second half and `hold()` the third.
-        + onFoot * (led ? -0.04 : -HOLD_OUT)
-        // And the carrying arm's swing, turned along the face: see `HOLD_ALONG`.
-        - (led ? 0 : HOLD_ALONG * (0.05 + 0.04 * gait) * swing),
-      // From hanging, not from the stance: see `hangUp` in `rigOf`.
-      based(a.upper, _qs.slerpQuaternions(_I, a.hangUp, onFoot), _qb2), _qun)
-    fold(a.fore, a.elbow,
-      0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter
-        // And a runner's elbow is bent where a walker's hangs. It is the
-        // clearest single cue that this is a run, from directly behind, which
-        // is the only angle this world ever has on him.
-        + 0.45 * pick + onFoot * (led ? 0.30 + 0.14 * Math.abs(swing) + 0.55 * gait
-                                      // Second half: the trailing forearm folds
-                                      // in onto the underside and along it
-                                      // toward the nose (`HOLD_SWING`), to a
-                                      // wrist that presses on it a little
-                                      // above the bottom rail. No gait term:
-                                      // a runner's free elbow bends, and his
-                                      // carrying one is holding a board.
-                                      : HOLD_FOLD),
-      based(a.fore, _qs.slerpQuaternions(_I, a.hangFore, onFoot), _qb2))
-    fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam + 0.20 * pick)
-    if (!led) hold(r, a, onFoot)
+      -0.10 * c - 0.08 * tilt + a.side * (0.55 * up + 0.20 * air - 0.10 * slam + 0.05 * flutter))
+    fold(a.fore, a.elbow, 0.30 * up + 0.06 * Math.abs(c) + 0.20 * slam + 0.16 * air + 0.03 * flutter)
+    fold(a.hand, a.wrist, 0.10 * up + 0.14 * slam)
   }
 
   // And the legs answer wherever the hips ended up. `hipsFrom` is constant —
@@ -3033,83 +2826,25 @@ function ride(r: Rig, t: number): void {
   _mat.multiplyMatrices(r.hipsFrom,
     _step.compose(r.hips.bone.position, r.hips.bone.quaternion, _ONE))
   _qt.copy(r.hipsTurn).multiply(r.hips.bone.quaternion)
-  for (let i = 0; i < r.legs.length; i++) {
-    const l = r.legs[i]
-    let target = l.ankle
-    let aim = l.pole
-    let pitch = 0
-    if (onFoot > 0) {
-      /**
-       * The walk, and it is the same mechanism the riding legs already were: a
-       * fixed ankle and a solver. The only thing that changed is that the fixed
-       * point moves — the sole is still exactly where it is told, and every
-       * consequence of putting it there still comes out as a knee.
-       *
-       * Three terms and none of them is a curve anybody drew. The stride is a
-       * cosine, half a cycle out of phase between the two feet, about the point
-       * under that foot's own hip (`sweep`). The lift is the half of the cycle
-       * where the foot is travelling forward, scaled down with the stride so a
-       * creep does not high-step. And the slope is the hillside `Ship` read,
-       * which is what puts the uphill foot higher instead of both feet in the
-       * ground — clamped hard downhill, because the short leg has nothing left
-       * to reach down with.
-       *
-       * There is no vertical drop here and that is the load-bearing decision:
-       * the 16 cm of board that stopped being under him is taken out of the
-       * craft's altitude instead. See `FOOT_DROP`.
-       *
-       * Then all of it is lerped back to the deck stance, which is what makes
-       * stepping off the board a movement rather than a swap — and what makes
-       * the riding pose bit-for-bit what it was, since at `onFoot` 0 none of
-       * this runs at all.
-       */
-      const u = place(i)
-      const a = RIDE.stride
-      // Stance, then swing. The stance is *linear* and that is the whole of
-      // why nothing slides: the foot crosses 2a of board space in `duty` of a
-      // cycle, and the cycle was set above to make that exactly the distance
-      // the body covers in the same time. The swing is a smoothstep back to
-      // the front with the knee coming up, and it is the only half of this
-      // that is a curve somebody drew.
-      const swung = u < duty ? 0 : (u - duty) / (1 - duty)
-      const z = u < duty
-        ? l.sweep + a - 2 * a * (u / duty)
-        : l.sweep - a + 2 * a * (swung * swung * (3 - 2 * swung))
-      // The roll of the foot — see `HEEL_ON`. `t` runs -1 at the strike to +1
-      // at toe-off through the stance; the swing carries the toe-off heel
-      // out and the strike heel in, so the ankle's height is continuous
-      // round the cycle. Not standing: a stopped man's soles are flat.
-      const t = (u / duty) * 2 - 1
-      const heel = (1 - stillness) * (u < duty
-        ? (t < 0 ? HEEL_ON : HEEL_OFF) * t * t
-        : HEEL_OFF * (1 - swung) * (1 - swung) + HEEL_ON * swung * swung)
-      pitch = (1 - stillness) * HEEL_PITCH * (u < duty ? (t < 0 ? -0.5 : 1) * t * t : 0)
-      target = _foot.set(
-        // A little wider standing than striding — see `SPREAD`.
-        l.ankle.x + Math.sign(l.ankle.x) * SPREAD * stillness,
-        l.ankle.y + heel +
-          (u < duty ? 0 : Math.sin(Math.PI * swung) *
-            (WALK_LIFT + (RUN_LIFT - WALK_LIFT) * gait)) +
-          // Both feet come up in a jump. Nothing else has to happen for it to
-          // read: the hips are already rising with `air` above, so this is the
-          // difference between a man jumping and a man being lifted.
-          0.14 * air +
-          THREE.MathUtils.clamp(RIDE.rise * z + RIDE.cant * l.ankle.x,
-            TERRAIN_DOWN, TERRAIN_UP),
-        z,
-      ).lerp(l.ankle, afloat)
-      aim = _aim.copy(l.pole).lerp(WALK_POLE, onFoot)
-    }
-    // The walking foot, and its pitch through the step: toes down leaving
-    // the ground, up meeting it, about board space's x — nothing standing.
-    _qf.slerpQuaternions(l.q3, l.walk, onFoot)
-    if (pitch !== 0) _qf.premultiply(_qp.setFromAxisAngle(_AX, pitch * onFoot))
-    reach(l, _mat, _qt, target, aim, _qf)
+  for (const l of r.legs) reach(l, _mat, _qt)
+
+  if (onFoot <= 0) return
+  // On foot: the board's pose kept, the clips' pose built, and the one
+  // blended into the other by how far through the change he is.
+  r.bones.forEach((b, i) => r.ride[i].copy(b.quaternion))
+  r.rideAt.copy(r.hips.bone.position)
+  afoot(r, t, dt)
+  if (onFoot < 1) {
+    r.bones.forEach((b, i) => b.quaternion.copy(_cq.copy(r.ride[i]).slerp(b.quaternion, onFoot)))
+    r.hips.bone.position.lerpVectors(r.rideAt, r.hips.bone.position, onFoot)
+    // The dip: bent over the board he is reaching for, and back up with it.
+    bend(r.spine, 0.35 * pick, 0, 0, r.spine.bone.quaternion)
+    bend(r.chest, 0.20 * pick, 0, 0, r.chest.bone.quaternion)
   }
 }
 
 function Rider({ visible, onLoad }: { visible: boolean; onLoad: () => void }) {
-  const { scene } = useGLTF(surferUrl)
+  const { scene, animations } = useGLTF(surferUrl)
   // Past the `Suspense`, so the file is here: the opening run (`dash`) waits
   // on this, and on nothing else in the file.
   useLayoutEffect(onLoad, [onLoad])
@@ -3137,25 +2872,24 @@ function Rider({ visible, onLoad }: { visible: boolean; onLoad: () => void }) {
       edge.frustumCulled = mesh.frustumCulled = false
       mesh.parent!.add(edge)
     }
-    return rigOf(scene)
-  }, [scene])
+    return rigOf(scene, animations)
+  }, [scene, animations])
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     if (!visible) return
-    ride(rig, state.clock.elapsedTime)
+    ride(rig, state.clock.elapsedTime, Math.min(dt, 0.1))
     // And the board comes up with him. It lags the crouch deliberately — the
     // dip in `ride()` is him reaching for it, and a board that started rising
     // with his hips would be one he never touched. One eased number for the
     // whole of it, so the reverse is the same movement backwards: he sets it
-    // down, steps on, and rides away. Where it goes is `carryAt` in the
-    // chest's own frame, read off the bone *after* `ride` has moved it, so
-    // it carries every bob and sway and turn of the walk — with the arm.
+    // down, steps on, and rides away. Where it goes is `boardAt`'s, read off
+    // the bones *after* `ride` has moved them, so it carries every step and
+    // sway of the clip — with the arm.
     const t = carried(RIDE.land)
-    restOf(rig.chest.bone, scene, _mat).decompose(_hip, _qc, _scale)
-    _v.copy(rig.carryAt).applyMatrix4(_mat)
+    boardAt(rig, _v, _qc)
     CARRY.pos.lerpVectors(_ZERO, _v, t)
     CARRY.pos.y += LIFT_ARC * Math.sin(Math.PI * t)
-    CARRY.rot.slerpQuaternions(CARRY_REST, _qc.multiply(rig.carryRot), t)
+    CARRY.rot.slerpQuaternions(CARRY_REST, _qc, t)
   })
 
   return <primitive object={scene} />

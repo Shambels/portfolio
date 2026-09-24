@@ -1,4 +1,9 @@
 """
+The rider, fourth pass — the third's mesh and rig, with the drawing painted
+back onto his front (`look`) and captured motion for everything he does on
+foot (`retarget`, `animate`). See those two sections; what follows is the
+third pass's account, and all of it still holds.
+
 The rider, third pass — and the first one whose geometry did not come out of
 this file. Phase 4½, still.
 
@@ -9,6 +14,7 @@ this file. Phase 4½, still.
 
 Where the geometry came from, as CLAUDE.md asks: `tools/surfer-tripo.glb` and
 `tools/surfboard-tripo.glb` are AI-generated (Tripo), from Seb's reference —
+which is `tools/surfer-reference.jpg`, the drawing itself —
 a man in an A-pose, quad topology, one 4096² basecolour each with no lighting
 baked in, no rig, no vertex colour. They are the *source* and this script is
 what turns them into the two files `Ship.tsx` loads. Nothing here sculpts:
@@ -16,7 +22,9 @@ the metaball field, the retopology and the painted COLOR_0 of the first two
 passes are in git, and what replaced them is a rig laid over somebody else's
 mesh, which is a different job with a different set of things to get right.
 
-Three of them, and they are the whole file.
+Three of them, and they were the whole file until the fourth pass. The
+motion is from Mixamo (`tools/mixamo/*.fbx`, Adobe's free library, on its own
+stock skeleton) and nothing here animates by hand.
 
 *Where the joints are.* A mesh from a generator arrives with no skeleton and
 no opinion about where one goes, and the seventeen bones `Ship.tsx` bends have
@@ -703,6 +711,395 @@ def flex(rig_obj: bpy.types.Object) -> None:
     print("[surfer] flexed — the preview is a stress pose, not the model")
 
 
+# ------------------------------------------------------------------- the look
+# The fourth pass, and the half of it that is paint. The generator was given
+# one picture — `tools/surfer-reference.jpg`, Seb's drawing — and gave back a
+# man who is that drawing's *shape* almost exactly and its *face* only
+# approximately: the silhouette of the A-pose lies on the drawing's to a few
+# pixels (0.95 of the head's area in common), while the face it painted is a
+# generic one with a ginger beard, a pale brow and a helmet of hair.
+#
+# So the drawing is put back on the front of him. Every texel of the
+# generator's own atlas is baked out with where it is on the body and which way
+# it faces, and a texel that the front view would see — facing the viewer, not
+# hidden behind another part of him, and not on the drawing's own outline —
+# takes its colour from the drawing at the place it lands in it. The sides and
+# the back keep the generator's, and the two are blended over the grazing band
+# rather than cut, so the join is a turn of the surface and not a seam.
+#
+# The drawing's pixel frame, for a man `HEIGHT` tall with his soles on y 0:
+# pixels per metre, the column his centre line is in and the row his soles are
+# on. Found by matching the two silhouettes — the rendered A-pose against the
+# drawing's, as area in common over area in either, 0.917 for the whole man
+# and 0.955 for the head — and not by eye.
+REF = "tools/surfer-reference.jpg"
+REF_FRAME = (1814.0, 2063.0, 3385.0)
+# The drawing's backdrop, and how far a pixel must be from it to be him.
+REF_GROUND = 209
+REF_EDGE = 40
+# The face, corrected. The generator put his features a little lower on the
+# head than the drawing has them — eyes, brows and mouth 3 to 4 cm down, and
+# the face a shade taller — and the head's *outline* matches, so the frame
+# above lands the drawing's mouth on the mesh's upper lip. This affine, in the
+# drawing's pixels, is where to read the drawing from for a point of the mesh
+# that lands at (x, y); found by registering the generator's own painted face
+# (splatted into the drawing's frame through the same bake) onto the
+# drawing's (OpenCV's ECC, affine, 0.77 correlation), once, and written down
+# here rather than rerun. `FACE_BAND` is where it applies: full from the chin
+# to the brow, nothing on the neck, and ramped out over the hair so the head's
+# outline stays where the silhouettes put it.
+FACE_WARP = ((0.965707, -0.013891, 80.410745), (0.000512, 1.043482, -61.110304))
+FACE_BAND = (1.40, 1.45, 1.60, 1.68)
+# Texels facing the viewer this much and more take the drawing; less than the
+# first number, none of it. A surface turned past sixty degrees reads the
+# drawing stretched, which is a stripe down his side.
+FACING = (0.35, 0.75)
+
+
+def _grow(mask: np.ndarray, px: int, shrink: bool) -> np.ndarray:
+    """Dilate or erode a mask by `px` pixels, with Pillow rather than SciPy."""
+    from PIL import Image, ImageFilter  # noqa: PLC0415
+    im = Image.fromarray((mask * 255).astype(np.uint8))
+    f = ImageFilter.MinFilter if shrink else ImageFilter.MaxFilter
+    for _ in range(px // 2):
+        im = im.filter(f(5))
+    return np.asarray(im) > 127
+
+
+def _figure() -> tuple[np.ndarray, np.ndarray]:
+    """The drawing, 0..1, and a soft mask of the man in it: everything off the
+    backdrop, holes filled, pulled in off the outline and feathered — so a
+    texel that lands on his edge takes nothing, where the outline and the
+    backdrop are, and does not bring a white fringe onto his hair."""
+    from PIL import Image, ImageDraw, ImageFilter  # noqa: PLC0415
+    img = Image.open(REF).convert("RGB")
+    ref = np.asarray(img).astype(np.float32) / 255
+    fg = np.abs(ref * 255 - REF_GROUND).max(2) > REF_EDGE
+    fg = _grow(_grow(fg, 6, False), 6, True)
+    # Fill: flood the backdrop from a corner; what it does not reach is him.
+    fl = Image.fromarray((fg * 255).astype(np.uint8))
+    ImageDraw.floodfill(fl, (0, 0), 128)
+    fg = np.asarray(fl) != 128
+    fg = _grow(fg, 20, True)
+    soft = Image.fromarray((fg * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5))
+    return ref, np.asarray(soft).astype(np.float32) / 255
+
+
+def _sample(img: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0, img.shape[1] - 2)
+    y = np.clip(y, 0, img.shape[0] - 2)
+    x0, y0 = np.floor(x).astype(int), np.floor(y).astype(int)
+    fx, fy = x - x0, y - y0
+    if img.ndim == 3:
+        fx, fy = fx[..., None], fy[..., None]
+    return (img[y0, x0] * (1 - fx) * (1 - fy) + img[y0, x0 + 1] * fx * (1 - fy)
+            + img[y0 + 1, x0] * (1 - fx) * fy + img[y0 + 1, x0 + 1] * fx * fy)
+
+
+def look(body: bpy.types.Object) -> None:
+    """The drawing onto the front of him, in his own atlas, before the rig.
+
+    Three things are baked into the atlas's own layout by Cycles, because it
+    is the one thing here that knows which texel is where on a surface: the
+    position, the normal, and whether the front view sees that point at all —
+    a ray from in front of each vertex, which catches the inside of the arm,
+    the gap between the legs and the underside of the chin. The rest is
+    arithmetic on the three."""
+    from mathutils.bvhtree import BVHTree  # noqa: PLC0415
+    me = body.data
+    mat = me.materials[0]
+    nt = mat.node_tree
+    src = next(n for n in nt.nodes if n.type == "TEX_IMAGE")
+    N = src.image.size[0]
+    # Seen from the front, per vertex.
+    bvh = BVHTree.FromObject(body, bpy.context.evaluated_depsgraph_get())
+    seen = np.zeros(len(me.vertices), np.float32)
+    for i, v in enumerate(me.vertices):
+        hit = bvh.ray_cast(Vector((v.co.x, -5.0, v.co.z)), Vector((0, 1, 0)))
+        if hit[0] is not None and (hit[0] - v.co).length < 0.004:
+            seen[i] = 1
+    att = me.color_attributes.new("seen", "FLOAT_COLOR", "POINT")
+    c = np.repeat(seen, 4)
+    c[3::4] = 1
+    att.data.foreach_set("color", c)
+
+    out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
+    surface = out.inputs[0].links[0].from_socket if out.inputs[0].links else None
+    em = nt.nodes.new("ShaderNodeEmission")
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    vc = nt.nodes.new("ShaderNodeVertexColor")
+    vc.layer_name = "seen"
+    tgt = nt.nodes.new("ShaderNodeTexImage")
+    nt.links.new(em.outputs[0], out.inputs[0])
+    s = bpy.context.scene
+    s.render.engine = "CYCLES"
+    s.cycles.device = "CPU"
+    s.cycles.samples = 1
+    s.render.bake.margin = 16
+
+    def bake(sock, scale, offset) -> np.ndarray:
+        img = bpy.data.images.new("_bake", N, N, float_buffer=True)
+        img.colorspace_settings.name = "Non-Color"
+        tgt.image = img
+        nt.nodes.active = tgt
+        m = nt.nodes.new("ShaderNodeVectorMath")
+        m.operation = "MULTIPLY_ADD"
+        m.inputs[1].default_value = scale
+        m.inputs[2].default_value = offset
+        nt.links.new(sock, m.inputs[0])
+        nt.links.new(m.outputs[0], em.inputs[0])
+        bpy.ops.object.bake(type="EMIT")
+        a = np.empty(N * N * 4, np.float32)
+        img.pixels.foreach_get(a)
+        bpy.data.images.remove(img)
+        nt.nodes.remove(m)
+        return a.reshape(N, N, 4)[..., :3]
+
+    # Encoded into 0..1 on the way out and decoded here, so no bake has to
+    # carry a negative number.
+    pos = bake(geo.outputs["Position"], (0.5, 0.5, 0.5), (0.5, 0.5, 0.0))
+    pos = np.stack([pos[..., 0] * 2 - 1, pos[..., 1] * 2 - 1, pos[..., 2] * 2], -1)
+    toward = -(bake(geo.outputs["Normal"], (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))[..., 1] * 2 - 1)
+    vis = bake(vc.outputs[0], (1, 1, 1), (0, 0, 0))[..., 0]
+    used = np.abs(pos).sum(2) > 1e-3
+    for n in (em, geo, vc, tgt):
+        nt.nodes.remove(n)
+    if surface is not None:
+        nt.links.new(surface, out.inputs[0])
+
+    ref, figure = _figure()
+    k, cx, y0 = REF_FRAME
+    px, py = cx + k * pos[..., 0], y0 - k * pos[..., 2]   # Blender x across, z up
+    a, b, c, d = FACE_BAND
+    z = pos[..., 2]
+    f = np.clip(np.minimum((z - a) / (b - a), (d - z) / (d - c)), 0, 1)
+    (m00, m01, m02), (m10, m11, m12) = FACE_WARP
+    px, py = (px + f * (m00 * px + m01 * py + m02 - px),
+              py + f * (m10 * px + m11 * py + m12 - py))
+    t = np.clip((toward - FACING[0]) / (FACING[1] - FACING[0]), 0, 1)
+    w = np.clip(vis, 0, 1) * t * t * (3 - 2 * t) * _sample(figure, px, py) * used
+    drawn = _sample(ref, px, py)
+    have = np.empty(N * N * 4, np.float32)
+    src.image.pixels.foreach_get(have)
+    have = have.reshape(N, N, 4)
+    have[..., :3] = have[..., :3] * (1 - w[..., None]) + drawn * w[..., None]
+    src.image.pixels.foreach_set(have.reshape(-1))
+    src.image.pack()
+    print(f"[surfer] look: {(w > 0.5).sum() / used.sum():.0%} of the atlas from the drawing")
+
+
+# ------------------------------------------------------------------ the clips
+# The fourth pass's other half, and the one Seb asked for first: the man on
+# foot moves like a man. The walk, the run, the stand and the hop were solved
+# every frame out of the surf crouch — a stride and a bob and a heel roll on
+# two IK legs, a pelvis stood up by a quaternion, arms hung from frames — and
+# however carefully each number was argued, the sum read as a man walking on
+# his knees and running in a lunge. A person's gait is not five sines; it is
+# motion capture or it is guesswork.
+#
+# So on foot he plays captured motion: six Mixamo clips (Adobe's free library,
+# fine for use in a project like this one), on their stock skeleton, sampled
+# here and laid onto *these* seventeen bones — each bone takes the rotation its
+# counterpart makes away from Mixamo's T-pose, applied to this man's own A-pose
+# (`retarget`) — and the legs then solved to where Mixamo's ankles went, scaled
+# by the ratio of the two men's hips, so the feet land where a foot lands
+# rather than where two different thigh-to-shin ratios put them.
+#
+# Riding is untouched. The board is still `ride()`'s, every joint a sum of the
+# sea and the steering, and the file's rest pose is still the crouch. The
+# clips only replace what `Ship.tsx` did on land.
+#
+# The loops are resampled to one cycle each, starting at the frame the left
+# ankle is furthest ahead of the pelvis — heel strike — so that one phase
+# drives all four and they can be blended by speed without a foot doubling
+# back. Root motion stays in the hips' track: the distance a cycle covers is
+# the clip's own stride, and `Ship.tsx` reads it off the file and takes it
+# back out.
+MIXAMO = "tools/mixamo"
+# name in the glb, source, first frame, frames per cycle (a loop) or the last
+# frame (a one-shot), and keys per second of the source.
+CLIPS: tuple[tuple[str, str, float, float, bool, float], ...] = (
+    ("idle", "idle", 1, 298, True, 15),
+    ("walk", "walk", 0, 37, True, 30),
+    ("jog", "jog", 0, 77 / 3, True, 30),
+    ("run", "run", 0, 22, True, 30),
+    ("sprint", "fastrun", 0, 16, True, 30),
+    # The jump in place, cut in two: the flight, from the last push of the
+    # toes to the first touch, and the landing after it. `Ship.tsx` runs the
+    # first by the arc's own progress and the second by the time since he
+    # came down, so neither is a clock.
+    ("air", "jump", 23, 40, False, 30),
+    ("land", "jump", 40, 56, False, 30),
+)
+# Ours, and which of Mixamo's each one follows.
+FOLLOW = {
+    "hips": "Hips", "spine": "Spine1", "chest": "Spine2", "neck": "Neck", "head": "Head",
+    "armF_upper": "LeftArm", "armF_fore": "LeftForeArm", "armF_hand": "LeftHand",
+    "armB_upper": "RightArm", "armB_fore": "RightForeArm", "armB_hand": "RightHand",
+    "legF_thigh": "LeftUpLeg", "legF_shin": "LeftLeg", "legF_foot": "LeftFoot",
+    "legB_thigh": "RightUpLeg", "legB_shin": "RightLeg", "legB_foot": "RightFoot",
+}
+
+Frame = dict[str, tuple[Matrix, Vector]]
+
+
+def _rot(m: Matrix) -> Matrix:
+    return m.to_3x3().normalized()
+
+
+def _mixamo(path: str) -> bpy.types.Object:
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=os.path.abspath(path))
+    new = [o for o in bpy.data.objects if o not in before]
+    arm = next(o for o in new if o.type == "ARMATURE")
+    for o in new:
+        if o is not arm:
+            bpy.data.objects.remove(o)
+    return arm
+
+
+def retarget(rig_obj: bpy.types.Object) -> dict[str, list[Frame]]:
+    """Every clip, as each bone's armature-space rotation and head, frame by
+    frame, on the A-pose rig. Kept as matrices and not as pose channels,
+    because `bake` is about to make a different pose the rest pose, and a
+    pose channel is only meaningful against the rest it was written for."""
+    bones = rig_obj.data.bones
+    order = [b.name for b in bones]  # parents before children
+    O0 = {n: _rot(bones[n].matrix_local) for n in order}
+    H0 = {n: bones[n].head_local.copy() for n in order}
+    out: dict[str, list[Frame]] = {}
+    s = bpy.context.scene
+    cache: dict[str, bpy.types.Object] = {}
+    for name, src, first, span, loop, rate in CLIPS:
+        if src not in cache:
+            cache[src] = _mixamo(f"{MIXAMO}/{src}.fbx")
+        mx = cache[src]
+        mb = mx.data.bones
+        W = mx.matrix_world
+        m = {n: f"mixamorig:{FOLLOW[n]}" for n in order}
+        M0 = {n: _rot(W @ mb[m[n]].matrix_local) for n in order}
+        # Each of our bones turned from Mixamo's T-pose into ours: the arms
+        # hang in an A where his are out in a T, and the rest is a few degrees.
+        A = {}
+        for n in order:
+            d_m = (W @ mb[m[n]].tail_local - W @ mb[m[n]].head_local).normalized()
+            d_o = (bones[n].tail_local - bones[n].head_local).normalized()
+            A[n] = d_m.rotation_difference(d_o).to_matrix()
+        k = H0["legF_thigh"].z / (W @ mb["mixamorig:LeftUpLeg"].head_local).z
+        hips_rest = W @ mb["mixamorig:Hips"].head_local
+        # The action as a whole: a loop wraps round it, carrying the ground
+        # it covers with it, so a cycle may start anywhere in it.
+        fs, fe = (int(x) for x in mx.animation_data.action.frame_range)
+        period = fe - fs
+        s.frame_set(fs)
+        h_s = (W @ mx.pose.bones["mixamorig:Hips"].head).copy()
+        s.frame_set(fe)
+        lap = (W @ mx.pose.bones["mixamorig:Hips"].head) - h_s
+        lap.z = 0
+        if not loop:
+            span = span - first
+        if loop and first == 0:
+            # Heel strike: the frame the left ankle is furthest ahead of the
+            # pelvis, which is -y in Blender for a man walking toward -y.
+            best, first = 1e9, 1
+            for f in range(fs, fs + int(span)):
+                s.frame_set(f)
+                a = W @ mx.pose.bones["mixamorig:LeftFoot"].head
+                h = W @ mx.pose.bones["mixamorig:Hips"].head
+                if a.y - h.y < best:
+                    best, first = a.y - h.y, f
+        n_keys = max(2, round(span * rate / 30))
+        frames: list[Frame] = []
+        for i in range(n_keys + 1):
+            f = first + span * i / n_keys
+            laps = math.floor((f - fs) / period) if loop else 0
+            f -= laps * period
+            s.frame_set(int(math.floor(f)), subframe=f - math.floor(f))
+            P = {n: W @ mx.pose.bones[m[n]].matrix for n in order}
+            P["hips"] = Matrix.Translation(lap * laps) @ P["hips"]
+            R = {n: _rot(P[n]) @ M0[n].inverted() @ A[n].inverted() @ O0[n] for n in order}
+            head: dict[str, Vector] = {}
+            for n in order:
+                b = bones[n]
+                if b.parent is None:
+                    head[n] = H0[n] + k * (P[n].translation - hips_rest)
+                else:
+                    p = b.parent.name
+                    head[n] = head[p] + R[p] @ O0[p].inverted() @ (H0[n] - H0[p])
+            # The legs, to Mixamo's ankles, scaled: two bones and a pole.
+            for tag, side in (("legF", "Left"), ("legB", "Right")):
+                th, sh, ft = f"{tag}_thigh", f"{tag}_shin", f"{tag}_foot"
+                hip_m = W @ mx.pose.bones[f"mixamorig:{side}UpLeg"].head
+                knee_m = W @ mx.pose.bones[f"mixamorig:{side}Leg"].head
+                ankle_m = W @ mx.pose.bones[f"mixamorig:{side}Foot"].head
+                hip = head[th]
+                target = hip + k * (ankle_m - hip_m)
+                l1 = (H0[sh] - H0[th]).length
+                l2 = (H0[ft] - H0[sh]).length
+                d = target - hip
+                span_ = min(d.length, (l1 + l2) * 0.999)
+                along = d.normalized()
+                a = (l1 * l1 - l2 * l2 + span_ * span_) / (2 * span_)
+                h = math.sqrt(max(l1 * l1 - a * a, 0.0))
+                pole = (knee_m - hip_m) - along * (knee_m - hip_m).dot(along)
+                knee = hip + along * a + pole.normalized() * h
+                ankle = hip + along * span_
+                y1 = R[th].col[1]
+                R[th] = y1.rotation_difference((knee - hip).normalized()).to_matrix() @ R[th]
+                y2 = R[sh].col[1]
+                R[sh] = y2.rotation_difference((ankle - knee).normalized()).to_matrix() @ R[sh]
+                head[sh], head[ft] = knee, ankle
+            frames.append({n: (R[n], head[n]) for n in order})
+        out[name] = frames
+        travel = frames[-1]["hips"][1] - frames[0]["hips"][1]
+        print(f"[surfer] clip {name}: {len(frames)} keys from {src} {first:.0f}+{span:.1f}, "
+              f"k {k:.3f}, travel {-travel.y:.3f} m")
+    for mx in cache.values():
+        act = mx.animation_data.action if mx.animation_data else None
+        bpy.data.objects.remove(mx)
+        if act is not None:
+            bpy.data.actions.remove(act)
+    s.frame_set(0)
+    return out
+
+
+def animate(rig_obj: bpy.types.Object, clips: dict[str, list[Frame]]) -> None:
+    """The clips as actions on the rig as it is *now* — the crouch as rest —
+    each bone's rotation relative to its parent's pose and its own rest, and
+    the hips' head as a location. One action a clip; the exporter writes each
+    as one glTF animation, named."""
+    bones = rig_obj.data.bones
+    bpy.context.view_layer.objects.active = rig_obj
+    rig_obj.animation_data_create()
+    for pb in rig_obj.pose.bones:
+        pb.rotation_mode = "QUATERNION"
+    for name, frames in clips.items():
+        act = bpy.data.actions.new(name)
+        act.use_fake_user = True
+        rig_obj.animation_data.action = act
+        rate = next(c[5] for c in CLIPS if c[0] == name)
+        for i, fr in enumerate(frames):
+            t = i * 30 / rate
+            pose = {n: Matrix.Translation(h) @ r.to_4x4() for n, (r, h) in fr.items()}
+            for b in bones:
+                rest = b.matrix_local
+                if b.parent is None:
+                    basis = rest.inverted() @ pose[b.name]
+                else:
+                    rel = b.parent.matrix_local.inverted() @ rest
+                    basis = rel.inverted() @ pose[b.parent.name].inverted() @ pose[b.name]
+                pb = rig_obj.pose.bones[b.name]
+                pb.rotation_quaternion = basis.to_quaternion()
+                pb.keyframe_insert("rotation_quaternion", frame=t)
+                if b.parent is None:
+                    pb.location = basis.translation
+                    pb.keyframe_insert("location", frame=t)
+    rig_obj.animation_data.action = None
+    for pb in rig_obj.pose.bones:
+        pb.rotation_quaternion = (1, 0, 0, 0)
+        pb.location = (0, 0, 0)
+
+
 # ----------------------------------------------------------------- the export
 def export(objs: list[bpy.types.Object], glb: str, skins: bool) -> None:
     bpy.ops.object.select_all(action="DESELECT")
@@ -724,9 +1121,11 @@ def export(objs: list[bpy.types.Object], glb: str, skins: bool) -> None:
         export_attributes=False,
         export_cameras=False,
         export_lights=False,
-        # Skins, and still no animations: what the rig does is `Ship.tsx`'s,
-        # read off the sea and the steering rather than baked here as a clip.
-        export_animations=False,
+        # The rider carries his clips (see `animate`); riding is still
+        # `Ship.tsx`'s, read off the sea and the steering.
+        export_animations=skins,
+        export_animation_mode="ACTIONS",
+        export_rest_position_armature=True,
         export_skins=skins,
         export_morph=False,
         export_yup=True,
@@ -805,13 +1204,16 @@ if __name__ == "__main__":
     fit_board(board)
     body = load(SRC_RIDER, "surfer")
     fit_rider(body)
+    look(body)
     J = joints(three(body))
     for k, v in J.items():
         print(f"[surfer]   {k:11s} {tuple(round(c, 3) for c in v)}")
     rig_obj = rig(body, J)
     seat(body, J)
+    clips = retarget(rig_obj)
     pose(rig_obj, board, J)
     bake(body, rig_obj)
+    animate(rig_obj, clips)
     texture(body, TEX)
     slim(board, BOARD_TRIS)
     texture(board, BOARD_TEX)
