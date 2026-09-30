@@ -123,7 +123,7 @@ function atlas(px: number, fill: string, glow: string, blur: number): HTMLCanvas
 type Stamp = { img: HTMLCanvasElement; w: number; h: number }
 const stamp = (img: HTMLCanvasElement): Stamp => ({ img, w: img.width / 9, h: img.height })
 
-export function Hologram({ on }: { on: boolean }) {
+export function Hologram({ on }: { on: boolean; plate?: unknown }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [live, setLive] = useState(false)
   const onRef = useRef(on)

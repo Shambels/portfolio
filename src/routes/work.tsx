@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link, useOutletContext, useViewTransitionState } from 'react-router'
 import { LABEL, PROJECTS, linksOf, type Project } from '../content'
 import { Hologram } from '../Hologram'
+import { Iceberg } from '../Iceberg'
 import { STRINGS, type Locale } from '../i18n'
 import mark from '../assets/logo/logo-512.webp?no-inline'
 
@@ -52,11 +53,15 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * scrolls to the entry, which is where the keyboard already is.
  */
 /**
- * What draws into a plate's empty panel, by landmark — the same key the world's
- * `BUILD` uses. Only the sudoku has one: its panel is its puzzle, and a
- * generated picture cannot be trusted with the digits.
+ * What brings a plate to life, by landmark — the same key the world's `BUILD`
+ * uses. The sudoku's draws the puzzle into its empty panel, because a
+ * generated picture cannot be trusted with the digits; PolarSense's puts its
+ * iceberg in water the cursor can stir.
  */
-const OVERLAY: Record<string, ComponentType<{ on: boolean }>> = { sudoku: Hologram }
+const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: NonNullable<Project['plate']> }>> = {
+  sudoku: Hologram,
+  mine: Iceberg,
+}
 
 /**
  * The title's slide, then one per project in ledger order. `at` is where each
@@ -82,9 +87,9 @@ function Stage({ projects, on, was }: { projects: Project[]; on: number; was: nu
           <figure key={p.slug} className="slide" {...at(n + 1)}>
             {p.plate ? (
               <div className="plate">
-                <img src={p.plate.base} alt="" decoding="async" />
+                {p.plate.base && <img src={p.plate.base} alt="" decoding="async" />}
                 <img className="light" src={p.plate.light} alt="" decoding="async" />
-                {Overlay && <Overlay on={n + 1 === on} />}
+                {Overlay && <Overlay on={n + 1 === on} plate={p.plate} />}
               </div>
             ) : (
               p.sig && <div className="plate sig" dangerouslySetInnerHTML={{ __html: p.sig }} />
