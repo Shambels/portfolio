@@ -36,7 +36,7 @@ and `plateau` — and all of them pass. **As of the fourth project there is no
 `node_modules` in this folder at all**, so neither command runs here: both
 went to the throwaway copy in the container on a real `npm install`, and
 `npm run build` with them. The check script runs ten since the hologram:
-`sudoku` is the tenth, and `easel` the eleventh. `react-router typegen` and `oxlint` are *not* safe:
+`sudoku` is the tenth, `easel` the eleventh and `scrubble` the twelfth. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -293,6 +293,12 @@ src/Studio.tsx          Arts by Sandra's plate, live: a palette that loads the
 src/Instant.tsx         Memojo's plate, live: the instant camera that fires
                         when its lens is pointed at, and prints that develop,
                         drop and sort themselves into albums — a 2D canvas
+src/Tiles.tsx           Scrubble's plate, live: hover the rack and it plays the
+                        best move on the board, then the runners-up — a 2D
+                        canvas that draws every tile
+src/scrubble.ts         the position, the four moves and their scores, and
+                        where the grid and the rack are in that plate — pure,
+                        with `scrubble.check.ts` beside it
 src/easel.ts            where the canvas, the blobs and the rag are in that
                         plate, and the map onto the canvas — pure, with
                         `easel.check.ts` beside it
@@ -366,6 +372,9 @@ tools/landmark.py       what every landmark script needs — axes, members, expo
 tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
+tools/moves.py          every legal move on Scrubble's plate against ENABLE,
+                        ranked — where `scrubble.ts`'s ranks and 1,755 come
+                        from
 tools/memojo.py         the same, for the ramp, the giant camera and the
                         mouth its prints come out of
 tools/sudoku.py         the same, for the sudoku's projector: the plinth, a

@@ -7145,6 +7145,39 @@ four stand on their signatures until they get theirs.
   Without a script: the camera on an empty table. Draws only while something
   moves.
 
+- [x] **Scrubble's plate: the move you missed** — a board in the middle of a
+  game on a wooden table, seen from the player's chair, and the rack in front
+  of it (`tools/art/scrubble-source.png`; opaque, 79 kB). The picture is the
+  board and the rack *empty*: every letter is drawn, so every letter and point
+  value is right. The position is `src/scrubble.ts` — nine words (HAZY,
+  PAPER, SCREW, WASP, PEPPER, SCORE, FRY, GLAZE, RAFT) and the rack
+  R E T A I N S — found by a seeded search for a position with a good story
+  and checked by `tools/moves.py`, a brute-force move generator against
+  ENABLE (the public-domain tournament list) that does what Scrubble does:
+  anchors, cross-checks, premiums on new tiles only, fifty for a full rack.
+  It finds **1,755 legal moves**. The board's grid is a homography fitted to
+  the eight triple-word centres in the picture (within 3 px), and its
+  premiums are the standard layout, which the picture follows.
+  `src/Tiles.tsx`, a 2D canvas over the photograph:
+  - **hover the rack** and the board wakes: the anchors — the empty squares
+    next to a tile, where any move has to start — glow for a moment; then the
+    tiles lift off the rack one by one, arc across and set down as the best
+    move on the board: **RETAINS** down the right-hand edge, turning PEPPER
+    into PEPPERS on a double word, 94 with the fifty-point bingo. The word and
+    the words it crosses light up;
+  - **under the rack** a readout: `#1 OF 1,755 LEGAL MOVES`, the word, the
+    score counting up, the crosswords and `BINGO +50`;
+  - **leave and hover again** and the tiles fly home, and the next hover
+    plays the next one down the list — NITRATES through the T of RAFT (#11,
+    68), AIRSCREWS round SCREW (#20, 56), TRAINS, the six a person would
+    probably have found (#23, 42) — then the best again. Tied moves share a
+    rank.
+  Phones: a tap on the rack plays it. Under reduced motion: no glow, no
+  flight, the move is simply there. Without a script: the position and the
+  rack, standing still, in SVG. Draws only while something moves.
+  `scrubble.check.ts` plays every move again on the board and holds its
+  score, crosswords and rank count; `npm run check` runs it (twelve checks).
+
 Open, and Seb's:
 
 - **The camera on hardware** — the flash's strength, the develop's five
@@ -7156,9 +7189,8 @@ Open, and Seb's:
 - **The iceberg's water on hardware** — how hard a stroke should hit
   (`SEA.push`), how far the view bends (`SEA.bend`), how heavy the ice is.
   Swiftshader draws it, but not at a speed worth judging.
-- **Scrubble's plate** — the last one; one at a time, each asked for before it is
-  generated. The stage takes them without a code change; only one that
-  wants motion of its own needs an `OVERLAY` entry.
+- **The board on hardware** — the flight's pace, the anchors' glow, the
+  readout's size under the rack (`TIME` in `Tiles.tsx`).
 - **The title's slide** is the mark as a placeholder.
 - **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
   where the vsync is the ceiling; a 2022 laptop is the real test.
