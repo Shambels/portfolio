@@ -37,7 +37,7 @@ const H = 1162
 export const WATER = 462.8 / H
 /** Where it turns: on its centreline, a little under the waterline — an
  *  iceberg's weight is mostly below it. */
-const PIVOT: [number, number] = [450 / W, (462.8 + 110) / H]
+export const PIVOT: [number, number] = [450 / W, (462.8 + 110) / H]
 /** Its waterline, across the plate, where the field is read to rock it. */
 const BERG: [number, number] = [66 / W, 836 / W]
 
@@ -339,8 +339,15 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light?: string } 
       if (!ready) return
       upload()
       // Drawn through a soft cap, so a wild sea leans it hard but never over.
-      gl.uniform1f(uAng, SEA.tilt.most * Math.tanh(ang / SEA.tilt.most))
-      gl.uniform1f(uBob, SEA.bob.most * Math.tanh(bob / SEA.bob.most))
+      const a = SEA.tilt.most * Math.tanh(ang / SEA.tilt.most)
+      const b = SEA.bob.most * Math.tanh(bob / SEA.bob.most)
+      gl.uniform1f(uAng, a)
+      gl.uniform1f(uBob, b)
+      // The same roll and heave, for anything drawn over the ice that has to
+      // ride with it — the case study's sounding (`Sounding.tsx`). Radians, and
+      // a fraction of the plate's height, about `PIVOT`.
+      host.style.setProperty('--ang', a.toFixed(4))
+      host.style.setProperty('--bob', b.toFixed(5))
       gl.uniform1f(uStill, still.matches ? 1 : 0)
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
@@ -470,6 +477,8 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light?: string } 
       cv.removeEventListener('pointercancel', out)
       cv.removeEventListener('berg:arrive', kick)
       delete host.dataset.live
+      host.style.removeProperty('--ang')
+      host.style.removeProperty('--bob')
       // Free what this run made, and leave the context alive: React mounts an
       // effect twice in development, and a context lost here is the one the
       // second mount gets back from the same canvas.
