@@ -22,6 +22,10 @@ unpremultiplying it gives a layer that composes over the page the way it
 composed over the black it was rendered on, with no blend mode and no box.
 The two together are the source again, to the rounding — `--check` says so.
 
+Arts by Sandra's is the third kind: an opaque scene — an easel, a blank
+canvas, a palette — with nothing to cut, and two more layers that live on
+the canvas (`studio()` below).
+
   python3 tools/plate.py sudoku            write both
   python3 tools/plate.py sudoku --check    and prove they recompose
 """
@@ -43,7 +47,71 @@ PLATES = {
     # waterline — the empty gap between the bars — is source row 744, plate
     # row 462.8, and `Iceberg.tsx` holds that.
     'polarsense': {'crop': (110, 166, 1234, 1617), 'split': None, 'width': 900},
+    # The easel: opaque, cropped to 900 x 1162 from the top, so the palette and
+    # the rag stay in. `Studio.tsx` holds the canvas's corners and the blobs.
+    'arts-by-sandra': {'crop': (0, 57, 1344, 1792), 'split': 'opaque', 'width': 900},
 }
+
+# The canvas in the source scene, corner by corner (it is a hair wider at the
+# foot — the easel leans back a touch), and the painting's crop to its shape.
+CANVAS = [(194, 102), (1148, 101), (1156, 1282), (184, 1280)]  # TL TR BR BL
+
+
+def studio() -> None:
+    """The two layers that live on Arts by Sandra's canvas.
+
+    `painting.avif` is the still life (`tools/art/arts-by-sandra-painting.png`,
+    generated on OpenArt), cropped to the canvas's proportions. Nobody sees it
+    whole: `Studio.tsx` reads its light and shade to model the visitor's
+    strokes, so the scene comes out of the canvas in whatever colours they
+    paint with.
+
+    `sketch.avif` is the underdrawing — made here from the painting and not
+    generated, because it has to lie exactly over the painting it came from,
+    and an image model never gives a composition back to the pixel. Graphite
+    on white, so the page can multiply it straight onto the canvas: contour
+    lines off the painting's edges, a soft dodge tone, and hatching in the
+    shadows that doubles into cross-hatching where they are darkest.
+    """
+    from scipy import ndimage
+
+    src = Image.open(ROOT / 'tools' / 'art' / 'arts-by-sandra-painting.png').convert('RGB')
+    (x0, y0), (x1, _), (x2, y2), (_, y3) = CANVAS
+    aspect = ((x1 - x0 + x2 - CANVAS[3][0]) / 2) / ((y2 + y3) / 2 - (y0 + CANVAS[1][1]) / 2)
+    w, h = src.size
+    ch = round(w / aspect)
+    top = (h - ch) // 2
+    paint = src.crop((0, top, w, top + ch))
+    size = (720, round(720 / aspect))
+    out = ROOT / 'src' / 'content' / 'projects'
+    paint.resize(size, Image.LANCZOS).save(out / 'arts-by-sandra.painting.avif', 'AVIF', quality=58, speed=2)
+
+    g = np.asarray(paint.convert('L').resize(size, Image.LANCZOS)).astype(np.float64) / 255
+    # Contours by XDoG — a difference of Gaussians softly thresholded, which
+    # is what a pencil line is to a value edge: one stroke on the big forms,
+    # none in the brushwork. Blurred first so the impasto does not draw.
+    base = ndimage.gaussian_filter(g, 2.0)
+    dog = ndimage.gaussian_filter(base, 1.6) - 0.985 * ndimage.gaussian_filter(base, 1.6 * 1.7)
+    line = np.clip(-dog / 0.018, 0, 1) ** 1.3
+    # Light hatching where the shadows are, loose and wide, crossed only in
+    # the very darkest — the charcoal an underdrawing blocks the masses with.
+    rng = np.random.default_rng(7)
+    yy, xx = np.mgrid[0:size[1], 0:size[0]].astype(np.float64)
+    wob = ndimage.gaussian_filter(rng.standard_normal(g.shape), 6) * 18
+    shade = ndimage.gaussian_filter(g, 5)
+    dark = np.clip((0.42 - shade) / 0.32, 0, 1)
+    darker = np.clip((0.13 - shade) / 0.12, 0, 1)
+    h1 = np.clip((np.sin((xx * 1.1 + yy + wob) * 0.3) - (1 - 0.8 * dark)) * 2.5, 0, 1)
+    h2 = np.clip((np.sin((xx - yy + wob) * 0.33) - (1 - 0.9 * darker)) * 4, 0, 1)
+    hatch = np.maximum(h1 * dark, h2 * darker) * 0.2
+    grain = ndimage.gaussian_filter(rng.random(g.shape), 0.6)
+    ink = np.clip(np.maximum(line * 0.7, hatch) * (0.7 + 0.6 * grain), 0, 0.75)
+    graphite = np.array([0.30, 0.29, 0.30])
+    rgb = 1 - ink[..., None] * (1 - graphite)
+    Image.fromarray((rgb * 255 + 0.5).astype(np.uint8)).save(out / 'arts-by-sandra.sketch.avif', 'AVIF', quality=60, speed=2)
+    for n in ('painting', 'sketch'):
+        f = out / f'arts-by-sandra.{n}.avif'
+        print(f'{f.relative_to(ROOT)}  {size[0]}x{size[1]}  {f.stat().st_size / 1024:.1f} kB')
 
 FLOOR = 3 / 255  # below this a pixel is the black it was rendered on
 
@@ -54,6 +122,17 @@ def cut(slug: str, check: bool) -> None:
     a = np.asarray(src.crop(p['crop'])).astype(np.float64) / 255
     h, w, _ = a.shape
     lum = a.max(axis=2)
+    if p['split'] == 'opaque':
+        # Nothing to cut: the whole scene, its edges feathered into the page.
+        yy, xx = np.mgrid[0:h, 0:w]
+        edge = np.minimum.reduce([xx, w - 1 - xx, yy, h - 1 - yy]) / (0.05 * w)
+        rgba = np.dstack([a, np.clip(edge, 0, 1)])
+        size = (p['width'], round(h * p['width'] / w))
+        f = ROOT / 'src' / 'content' / 'projects' / f'{slug}.base.avif'
+        Image.fromarray((rgba * 255 + 0.5).astype(np.uint8), 'RGBA').resize(size, Image.LANCZOS).save(f, 'AVIF', quality=66, speed=2)
+        print(f'{f.relative_to(ROOT)}  {size[0]}x{size[1]}  {f.stat().st_size / 1024:.1f} kB')
+        studio()
+        return
     split = h if p['split'] is None else p['split'] - p['crop'][1]
 
     # The hardware's silhouette: under the split, every row filled from its

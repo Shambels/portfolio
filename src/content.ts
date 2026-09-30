@@ -64,8 +64,10 @@ export type Project = {
    *  `{slug}.base.avif` where there is hardware under the light, cut by
    *  `tools/plate.py` out of a generated source. Optional, and a project
    *  without one is staged with its signature instead. URLs, not bytes:
-   *  nothing is fetched until the page draws them. */
-  plate?: { base?: string; light: string }
+   *  nothing is fetched until the page draws them. Any other
+   *  `{slug}.{layer}.avif` rides along by its layer's name, for the overlay
+   *  that brings the plate to life — Arts by Sandra's painting and sketch. */
+  plate?: Plate
 }
 
 type Module = { default: ComponentType<MDXProps>; frontmatter: unknown }
@@ -78,10 +80,19 @@ const sigs = import.meta.glob<string>('./content/projects/*.svg', { query: '?raw
 
 const plates = import.meta.glob<string>('./content/projects/*.avif', { query: '?url', import: 'default', eager: true })
 
-function plateOf(slug: string): Project['plate'] {
-  const base = plates[`./content/projects/${slug}.base.avif`]
-  const light = plates[`./content/projects/${slug}.light.avif`]
-  return light ? { base, light } : undefined
+/** A plate's layers by name: `base` (what is solid), `light` (what glows),
+ *  and whatever else its overlay reads. At least one of the first two. */
+export type Plate = { base?: string; light?: string; [layer: string]: string | undefined }
+
+function plateOf(slug: string): Plate | undefined {
+  const plate: Plate = {}
+  const head = `./content/projects/${slug}.`
+  for (const [path, url] of Object.entries(plates)) {
+    if (!path.startsWith(head)) continue
+    const layer = path.slice(head.length, -'.avif'.length)
+    if (!layer.includes('.')) plate[layer] = url
+  }
+  return plate.base || plate.light ? plate : undefined
 }
 
 type Entry = { slug: string; locale: Locale; fm: Record<string, unknown>; Body: ComponentType<MDXProps> }
