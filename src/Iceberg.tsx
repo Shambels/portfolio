@@ -17,8 +17,8 @@ import { useEffect, useRef } from 'react'
  *   the same field, and the caustics are its curvature, not a texture.
  * - **The iceberg rocks on it.** A damped spring in angle and depth, driven
  *   by the slope and the level of the water across its waterline — so it
- *   heels the way the water under it tips, gently, a few degrees at most, and
- *   settles slowly. Now and then a drop falls somewhere on its own, so the sea
+ *   heels the way the water under it tips — heavily: under half a degree for a
+ *   hard stroke, over seconds rather than beats — and settles slowly. Now and then a drop falls somewhere on its own, so the sea
  *   is never quite still.
  *
  * Raw WebGL: one quad, one fragment shader, the field uploaded as a small
@@ -60,9 +60,14 @@ const SEA = {
   bend: 0.07,
   lift: 0.004,
   /** The rock: stiffness, damping and drive in angle (radians) and depth (uv),
-   *  and the most of each. Gentle: heavy, slow, a few degrees. */
-  tilt: { k: 2.4, c: 1.4, drive: 10, most: 0.06 },
-  bob: { k: 3.2, c: 1.9, drive: 2, most: 0.008 },
+   *  and the most of each. Heavy: a period of about ten seconds, a hard
+   *  stroke worth ~0.4 degrees, 0.8 at the very most (Seb's second look). */
+  tilt: { k: 0.45, c: 0.75, drive: 80, most: 0.014 },
+  bob: { k: 0.8, c: 1.05, drive: 3, most: 0.004 },
+  /** How fast the ice notices the water's tilt and level, a step (1/60 s),
+   *  through two stages: the smaller, the heavier — at 0.012 each averages
+   *  about a second and a half. */
+  feel: 0.012,
 }
 
 const VS = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}`
@@ -145,20 +150,31 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     const opts: WebGLContextAttributes = { premultipliedAlpha: true, alpha: true, antialias: false }
     const gl2 = cv.getContext('webgl2', opts)
     const gl = (gl2 ?? cv.getContext('webgl', opts)) as WebGLRenderingContext | null
-    if (!gl) return
+    // Anything wrong with WebGL — none, a lost context, a shader this GPU will
+    // not compile — leaves the still picture and the CSS sea, which is what
+    // the plate is without a script. It never reaches the page: an effect
+    // that throws takes the whole route down to its error page.
+    if (!gl || gl.isContextLost()) return
     const still = matchMedia('(prefers-reduced-motion: reduce)')
 
     const shader = (type: number, src: string) => {
-      const s = gl.createShader(type)!
+      const s = gl.createShader(type)
+      if (!s) return null
       gl.shaderSource(s, src)
       gl.compileShader(s)
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? 'shader')
-      return s
+      if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s
+      if (import.meta.env.DEV) console.warn('Iceberg shader:', gl.getShaderInfoLog(s))
+      gl.deleteShader(s)
+      return null
     }
-    const prog = gl.createProgram()!
-    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS))
-    gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS()))
+    const vs = shader(gl.VERTEX_SHADER, VS)
+    const fs = shader(gl.FRAGMENT_SHADER, FS())
+    const prog = gl.createProgram()
+    if (!vs || !fs || !prog) return
+    gl.attachShader(prog, vs)
+    gl.attachShader(prog, fs)
     gl.linkProgram(prog)
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return
     gl.useProgram(prog)
     const buf = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
@@ -189,8 +205,7 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
       return t
     }
-    texture(0)
-    texture(1)
+    const textures = [texture(0), texture(1)]
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
     // ---- the water
@@ -247,6 +262,8 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     let bobV = 0
     let tipSoft = 0
     let levelSoft = 0
+    let tipMid = 0
+    let levelMid = 0
     const [c0, c1] = [Math.floor(BERG[0] * GW), Math.ceil(BERG[1] * GW)]
     const mid = (c0 + c1) / 2
     const rock = (dt: number) => {
@@ -261,8 +278,12 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
       level /= c1 - c0
       // A heavy body does not follow every ripple: it feels the water's tilt
       // and level averaged over the better part of a second.
-      tipSoft += (tip - tipSoft) * 0.06
-      levelSoft += (level - levelSoft) * 0.06
+      // Twice, so the slosh across its width — a ripple's worth, ~1.7 Hz —
+      // is gone before it reaches the ice, and only the water's slow lean is left.
+      tipMid += (tip - tipMid) * SEA.feel
+      tipSoft += (tipMid - tipSoft) * SEA.feel
+      levelMid += (level - levelMid) * SEA.feel
+      levelSoft += (levelMid - levelSoft) * SEA.feel
       const T = SEA.tilt
       const B = SEA.bob
       angV += (-T.k * ang - T.c * angV + T.drive * tipSoft) * dt
@@ -316,14 +337,15 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
       } else {
         cur.fill(0)
         prev.fill(0)
-        ang = bob = angV = bobV = tipSoft = levelSoft = 0
+        ang = bob = angV = bobV = tipSoft = levelSoft = tipMid = levelMid = 0
       }
       draw()
       if (!quiet && onRef.current && visible) raf = requestAnimationFrame(frame)
       else last = 0
     }
+    let dead = false
     const kick = () => {
-      if (!raf) raf = requestAnimationFrame(frame)
+      if (!raf && !dead) raf = requestAnimationFrame(frame)
     }
 
     const img = new Image()
@@ -332,6 +354,7 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     img
       .decode()
       .then(() => {
+        if (dead) return
         gl.activeTexture(gl.TEXTURE0)
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
         ready = true
@@ -391,8 +414,18 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     document.addEventListener('visibilitychange', vis)
     still.addEventListener('change', kick)
     cv.addEventListener('berg:arrive', kick)
+    // The GPU taken away mid-page: stop, and show the picture again.
+    const lost = (e: Event) => {
+      e.preventDefault()
+      cancelAnimationFrame(raf)
+      raf = 0
+      ready = false
+      delete host.dataset.live
+    }
+    cv.addEventListener('webglcontextlost', lost)
 
     return () => {
+      dead = true
       cancelAnimationFrame(raf)
       ro.disconnect()
       io.disconnect()
@@ -403,7 +436,15 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
       cv.removeEventListener('pointercancel', out)
       cv.removeEventListener('berg:arrive', kick)
       delete host.dataset.live
-      gl.getExtension('WEBGL_lose_context')?.loseContext()
+      // Free what this run made, and leave the context alive: React mounts an
+      // effect twice in development, and a context lost here is the one the
+      // second mount gets back from the same canvas.
+      for (const t of textures) gl.deleteTexture(t)
+      gl.deleteBuffer(buf)
+      gl.deleteProgram(prog)
+      gl.deleteShader(vs)
+      gl.deleteShader(fs)
+      cv.removeEventListener('webglcontextlost', lost)
     }
   }, [plate.light])
 
