@@ -312,6 +312,10 @@ src/Sounding.tsx        PolarSense's stage: a line to the footer at the berg's
                         foot, and the column names coming back up
 src/Darkroom.tsx        Memojo's stage: the roll landing on the table, searched,
                         sorted, dealt into a diary, one album sent phone to phone
+src/Atelier.tsx         Arts by Sandra's stage: three strokes of paint from three
+                        corners — three businesses, three languages — running
+                        into one, the form, and the painting showing through
+                        wherever paint has been. CSS only, one SVG over the canvas
 src/Backtrack.tsx       the Sudoku Solver's stage: the scroll is the search —
                         `trace()` scrubbed, the 2019 search that never stopped
                         (`enumerate()`), a photo read, a photo refused. The one
