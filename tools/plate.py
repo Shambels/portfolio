@@ -15,7 +15,9 @@ otherwise asks for decodes it:
                                           the brightness, colour divided by it
 
 Two layers because the light flickers and the hardware does not, and because
-they take the cursor at different depths. Light over black is additive, so
+they take the cursor at different depths. A plate with no hardware in it —
+PolarSense's iceberg is light all the way down — has `split: None` and is
+only the light layer; the stage draws what it has. Light over black is additive, so
 unpremultiplying it gives a layer that composes over the page the way it
 composed over the black it was rendered on, with no blend mode and no box.
 The two together are the source again, to the rounding — `--check` says so.
@@ -37,6 +39,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # third of a wide screen, so 900 is a 2x screen's 450 CSS px with room.
 PLATES = {
     'sudoku': {'crop': (0, 120, 1344, 1856), 'split': 1470, 'width': 900},
+    # The iceberg, cropped to the stage's 900 x 1162 close about it; its
+    # waterline — the empty gap between the bars — is source row 744, plate
+    # row 462.8, and `Iceberg.tsx` holds that.
+    'polarsense': {'crop': (110, 166, 1234, 1617), 'split': None, 'width': 900},
 }
 
 FLOOR = 3 / 255  # below this a pixel is the black it was rendered on
@@ -47,8 +53,8 @@ def cut(slug: str, check: bool) -> None:
     src = Image.open(ROOT / 'tools' / 'art' / f'{slug}-source.png').convert('RGB')
     a = np.asarray(src.crop(p['crop'])).astype(np.float64) / 255
     h, w, _ = a.shape
-    split = p['split'] - p['crop'][1]
     lum = a.max(axis=2)
+    split = h if p['split'] is None else p['split'] - p['crop'][1]
 
     # The hardware's silhouette: under the split, every row filled from its
     # first lit pixel to its last. A machined puck is convex in every row, so
@@ -77,7 +83,8 @@ def cut(slug: str, check: bool) -> None:
 
     out = ROOT / 'src' / 'content' / 'projects'
     size = (p['width'], round(h * p['width'] / w))
-    for name, arr, q in (('base', base, 72), ('light', lightA, 62)):
+    layers = [('light', lightA, 62)] if p['split'] is None else [('base', base, 72), ('light', lightA, 62)]
+    for name, arr, q in layers:
         im = Image.fromarray((arr * 255 + 0.5).astype(np.uint8), 'RGBA').resize(size, Image.LANCZOS)
         f = out / f'{slug}.{name}.avif'
         im.save(f, 'AVIF', quality=q, speed=2)
@@ -85,7 +92,8 @@ def cut(slug: str, check: bool) -> None:
 
     if check:
         # Recompose both, as the browser will, over black; compare to the crop.
-        b = np.asarray(Image.open(out / f'{slug}.base.avif')).astype(np.float64) / 255
+        b = (np.zeros((*size[::-1], 4)) if p['split'] is None
+             else np.asarray(Image.open(out / f'{slug}.base.avif')).astype(np.float64) / 255)
         l = np.asarray(Image.open(out / f'{slug}.light.avif')).astype(np.float64) / 255
         ref = np.asarray(Image.fromarray((a * 255 + 0.5).astype(np.uint8)).resize(size, Image.LANCZOS)).astype(np.float64) / 255
         c = b[..., :3] * b[..., 3:]

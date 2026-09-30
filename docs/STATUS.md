@@ -7028,9 +7028,39 @@ four stand on their signatures until they get theirs.
 - [x] **Cost** — the `/work` route chunk 2.2 → 5.3 kB gz. Images load on
   that route only: 83 kB of plates and the 73 kB mark.
 
+- [x] **PolarSense's plate** — Seb's logo, an iceberg of data bars, rendered
+  as glowing ice by OpenArt from the mark itself (`tools/art/polarsense-logo.png`
+  in, `polarsense-source.png` out — GPT Image 2.5, image-to-image) and cut by
+  `tools/plate.py` as light only (`split: None`: no hardware under it). 118 kB.
+  `src/Iceberg.tsx` puts it in water, in raw WebGL — one quad, one shader,
+  no three, so the flat index still never loads the world:
+  - **the sea** from the gap between the bars down: dark blue water the
+    submerged bars are seen through, dimmer and bluer with depth, lit just
+    under a thin bright surface line, the part above broken up in it as a
+    reflection, fading out at the sides and foot;
+  - **the cursor stirs it** — over the bottom half, the pointer's path is
+    pushed into a 96 × 72 height field, harder the faster it moves (`SEA.push`,
+    capped at `SEA.most`), a damped wave equation carries it out, and
+    everything under the line is refracted through that field; the surface
+    line heaves on it, and the caustics are its curvature. A drop falls
+    somewhere on its own every 2–4 s, so the water is never quite dead;
+  - **the iceberg rocks on it** — a damped spring in angle and depth about a
+    point on its centreline under the waterline, driven by the water's tilt
+    and level across its width, averaged over most of a second so it moves
+    like something heavy: about 1.7 degrees for a hard stroke, 3.4 at most,
+    settling in a few seconds (`SEA.tilt`, `SEA.bob`).
+  The field is a half-float texture on WebGL2 and bytes on WebGL1. With JS
+  off, without WebGL, or before the ice has decoded, the plate is the picture
+  under a CSS sea (`.sea`); under reduced motion it is the sea, flat and still.
+- [x] `plate.base` is optional now, in `content.ts` and the stage; overlays get
+  the plate's URLs (`OVERLAY` passes `plate`).
+
 Open, and Seb's:
 
-- **The other four plates** — one at a time, each asked for before it is
+- **The iceberg's water on hardware** — how hard a stroke should hit
+  (`SEA.push`), how far the view bends (`SEA.bend`), how heavy the ice is.
+  Swiftshader draws it, but not at a speed worth judging.
+- **The other three plates** — one at a time, each asked for before it is
   generated. The stage takes them without a code change; only one that
   wants motion of its own needs an `OVERLAY` entry.
 - **The title's slide** is the mark as a placeholder.

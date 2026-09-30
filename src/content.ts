@@ -60,12 +60,12 @@ export type Project = {
    *  index as a drawing of what the thing does. Optional: a project without one
    *  gets an entry without a panel. Language-neutral, so one file per slug. */
   sig?: string
-  /** The flat index's stage picture — `{slug}.base.avif` and `{slug}.light.avif`
-   *  beside the MDX, cut by `tools/plate.py` out of a generated source: the
-   *  hardware, and the light it throws. Optional, and a project without one is
-   *  staged with its signature instead. URLs, not bytes: nothing is fetched
-   *  until the page draws them. */
-  plate?: { base: string; light: string }
+  /** The flat index's stage picture — `{slug}.light.avif` beside the MDX, and
+   *  `{slug}.base.avif` where there is hardware under the light, cut by
+   *  `tools/plate.py` out of a generated source. Optional, and a project
+   *  without one is staged with its signature instead. URLs, not bytes:
+   *  nothing is fetched until the page draws them. */
+  plate?: { base?: string; light: string }
 }
 
 type Module = { default: ComponentType<MDXProps>; frontmatter: unknown }
@@ -81,7 +81,7 @@ const plates = import.meta.glob<string>('./content/projects/*.avif', { query: '?
 function plateOf(slug: string): Project['plate'] {
   const base = plates[`./content/projects/${slug}.base.avif`]
   const light = plates[`./content/projects/${slug}.light.avif`]
-  return base && light ? { base, light } : undefined
+  return light ? { base, light } : undefined
 }
 
 type Entry = { slug: string; locale: Locale; fm: Record<string, unknown>; Body: ComponentType<MDXProps> }

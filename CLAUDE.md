@@ -284,6 +284,9 @@ src/routes/work.tsx     /{lang}/work — the flat index, never has a world behin
 src/Hologram.tsx        the sudoku's plate, live: rain, flicker, a cursor that
                         scrambles cells, and `trace()` replayed on hover — a 2D
                         canvas, not the world's
+src/Iceberg.tsx         PolarSense's plate, live: the iceberg in water the
+                        cursor stirs and that rocks it — raw WebGL, one shader,
+                        no three
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
                         without, and one `view-transition-name` on <main> that
                         grows the first into the second
@@ -394,7 +397,7 @@ docs/STATUS.md          what is built and what is not — update it with the wor
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea
 src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature —
-                        and {slug}.base.avif + {slug}.light.avif, its plate
+                        and {slug}.light.avif (+ {slug}.base.avif), its plate
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
 deploy.sh               build + rsync to the server, then a routing smoke test
