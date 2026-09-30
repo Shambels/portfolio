@@ -4,6 +4,7 @@ import { getProject, linksOf, type Plate } from '../content'
 import { STRINGS, type Locale } from '../i18n'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
+import { Atelier } from '../Atelier'
 import { Backtrack } from '../Backtrack'
 import { Darkroom } from '../Darkroom'
 import { Sounding } from '../Sounding'
@@ -18,6 +19,7 @@ const STAGE: Record<string, ComponentType<{ plate: Plate; locale: Locale }>> = {
   mine: Sounding,
   ramp: Darkroom,
   sudoku: Backtrack,
+  easel: Atelier,
 }
 
 /**

@@ -7436,3 +7436,55 @@ Open, and Seb's: the pacing on a real trackpad (the search's `p ** 2.2`, the
 sub-act splits), whether act 1's pencil marks are too busy, and whether the
 outcome should be the solved board or the index's puzzle.
 
+## Arts by Sandra's stage — the atelier
+
+`src/Atelier.tsx`, `easel` in `STAGE`, and "Arts by Sandra: the atelier" in
+`index.css`. The index's easel beside the prose, and the case study's own
+argument painted on its canvas: three businesses arriving three ways in three
+languages, funnelled into one form.
+
+- **Before the first heading** — the canvas as the index shows it, primed,
+  with its underdrawing (`sketch.avif`, multiplied, as the index does with no
+  WebGL).
+- **The problem** — three strokes from three corners, cadmium red, cadmium
+  yellow and ultramarine: classes, artworks, the studio. Beside each, the
+  question it keeps bringing in the language it arrives in — French, English,
+  Dutch, the same on every locale's page, because that is the point. They do
+  not meet. On the page's first 9rem of scroll: the first heading is half way
+  up the window when the page opens.
+- **What I chose** — they run on and meet in front of the jug, and one broad
+  stroke — the form — sweeps down from there through the pears. Wherever
+  paint has been, the painting shows through the drawing: every stroke is
+  drawn twice, as a mask over `painting.avif` and in colour on top while it is
+  wet, and the colour dries off.
+- **What I rejected** — viridian and umber, a shop and a calendar, laid down,
+  named, struck through and wiped.
+- **What it cost** — a placeholder hatch and three "content to complete"
+  notes pinned to the canvas: the structure finished, the content not.
+- **The outcome** — the notes come off. The painting where the funnel ran,
+  the drawing everywhere else — where the project honestly is, and also what
+  the stage is under reduced motion or without scroll timelines.
+
+CSS only, like PolarSense's and Memojo's. A stroke's two legs are two
+animations on two timelines that add (`animation-composition`), as Memojo's
+prints do; the bristle edge is one `feTurbulence` displacement shared by the
+mask and the colour. Timing measured, not guessed: headings at 397, 845, 1293,
+2287, 3109, so acts 2–4 play while their heading rises from 62% of the window
+to 38%, and the last early, because the page ends with its heading half way up.
+
+Found on the way: `.studio` is a global rule (the index easel's WebGL canvas,
+`position: absolute; inset: 0`), and a stroke keyed `studio` inherited it —
+the Dutch question stretched into a slab down the canvas. The key is `rental`.
+
+The box's words are per locale in `WORDS`, FR and NL unreviewed; the three
+questions and "content to complete" are the same on every page on purpose.
+
+Verified in Claude's container (Chromium): every heading's band at 1440 × 900,
+the first scroll, French at 1920 × 1080, Dutch, reduced motion, no JavaScript
+(the CSS still plays), no page errors; `npm run check`, `tsc -b`, `npm run
+build`.
+
+Open, and Seb's: the strokes' paths against the painting (the red and yellow
+legs reveal mostly its dark ground), the bristle's roughness
+(`#atelier-bristle`), and the pacing on a real trackpad.
+
