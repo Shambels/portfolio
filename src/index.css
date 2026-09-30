@@ -2149,10 +2149,11 @@ main:has(.atlas) {
   }
 }
 
-/* The Sudoku Solver: the search (`Backtrack.tsx`). The same box above the
-   panel as Memojo's, one card at a time; which one is the script's to say, and
-   with no script it is the outcome's. */
-.backtrack .slot {
+/* The Sudoku Solver: the search (`Backtrack.tsx`), and Scrubble's review
+   (`Rack.tsx`) — the two stages with a script. The same box above the plate
+   as Memojo's, one card at a time; which one is the script's to say, and with
+   no script it is the outcome's. */
+:is(.backtrack, .rackstage) .slot {
   flex: none;
   display: grid;
   height: 4.4rem;
@@ -2160,7 +2161,7 @@ main:has(.atlas) {
   margin-inline: auto;
 }
 
-.backtrack .card {
+:is(.backtrack, .rackstage) .card {
   grid-area: 1 / 1;
   align-self: start;
   padding: 0.6rem 0.8rem;
@@ -2173,20 +2174,20 @@ main:has(.atlas) {
   transition: opacity 0.25s ease;
 }
 
-.backtrack .card[data-on] {
+:is(.backtrack, .rackstage) .card[data-on] {
   opacity: 1;
 }
 
-.backtrack .card p {
+:is(.backtrack, .rackstage) .card p {
   margin: 0;
 }
 
-.backtrack .card .sub {
+:is(.backtrack, .rackstage) .card .sub {
   font: 400 0.72rem/1.5 var(--mono);
   color: var(--paper-dim);
 }
 
-.backtrack .card b {
+:is(.backtrack, .rackstage) .card b {
   font-weight: 600;
   color: #8fe4ff;
   font-variant-numeric: tabular-nums;

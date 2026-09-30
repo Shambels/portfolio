@@ -77,6 +77,9 @@ export function Backtrack({ plate, locale }: { plate: Plate; locale: Locale }) {
       const y = (e: Element) => Math.min(e.getBoundingClientRect().top, reach)
       const span = (a: number, b: number) => (b <= a ? (line >= a ? 1 : 0) : clamp((line - a) / (b - a)))
       const marks = [...heads.map(y), y(end)]
+      // The first heading is often above the line before anything has been
+      // scrolled; the first act starts on the first scroll, not half played.
+      marks[0] = Math.max(marks[0]!, line - scrollY)
       let act = -1
       for (let k = 0; k < heads.length; k++) if (line >= marks[k]!) act = k
       const p = act < 0 ? 0 : span(marks[act]!, marks[act + 1]!)

@@ -316,6 +316,10 @@ src/Atelier.tsx         Arts by Sandra's stage: three strokes of paint from thre
                         corners — three businesses, three languages — running
                         into one, the form, and the painting showing through
                         wherever paint has been. CSS only, one SVG over the canvas
+src/Rack.tsx            Scrubble's stage: the review — TRAINS, the anchors and the
+                        two passes to 1,755, the rack's permutations, a position
+                        entered tap by tap in French values, RETAINS. Draws with
+                        `Tiles.tsx`'s own `drawTile` and `drawReadout`
 src/Backtrack.tsx       the Sudoku Solver's stage: the scroll is the search —
                         `trace()` scrubbed, the 2019 search that never stopped
                         (`enumerate()`), a photo read, a photo refused. The one
