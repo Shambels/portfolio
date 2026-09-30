@@ -34,8 +34,16 @@
 html {
   font-size: 100%;
   -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
 }
+
+/* No `scroll-behavior: smooth` on the document. It was here for the chart's
+   anchors, and it reached every scroll the router makes: a page arrives at
+   its top by `scrollTo(0, 0)`, and Chrome reads smooth-or-not off the style it
+   last computed — the page before's, since nothing has asked for a style
+   between the swap and the call — so a case study opened from the foot of the
+   index arrived scrolled to its end and slid up, stage rewinding the whole
+   way. The chart glides by script now (`glide` in `routes/work.tsx`), and a
+   page arriving is simply there. */
 
 body {
   min-height: 100%;
