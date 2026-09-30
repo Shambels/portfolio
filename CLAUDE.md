@@ -312,6 +312,10 @@ src/Sounding.tsx        PolarSense's stage: a line to the footer at the berg's
                         foot, and the column names coming back up
 src/Darkroom.tsx        Memojo's stage: the roll landing on the table, searched,
                         sorted, dealt into a diary, one album sent phone to phone
+src/Backtrack.tsx       the Sudoku Solver's stage: the scroll is the search —
+                        `trace()` scrubbed, the 2019 search that never stopped
+                        (`enumerate()`), a photo read, a photo refused. The one
+                        stage with a script: it scrubs 8,950 moves
 src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
 src/content.ts          every MDX file, keyed by slug and locale
 src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check

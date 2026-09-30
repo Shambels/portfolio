@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, holes, pierce, solve, table, trace } from './sudoku.ts'
+import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, conflicts, enumerate, holes, pierce, solve, table, trace } from './sudoku.ts'
 
 // The board is the repository's: 81 cells, 31 clues, 50 open.
 assert.equal(PUZZLE.length, 81)
@@ -147,3 +147,40 @@ console.log('sudoku: pierce ok')
   }
 }
 console.log('sudoku: signature ok')
+
+// The 2019 search, which never says it has won (the case study's stage). It
+// writes what the fixed one writes, in the same order, up to the full board;
+// the board is the solution there; and every move after it is the search
+// taking its own work back, so the whole replay ends on the puzzle.
+{
+  const { moves, won } = enumerate()
+  const fixed = trace()
+  assert.equal(won, fixed.length / 2, 'won where the fixed search stops')
+  assert.deepEqual([...moves.subarray(0, fixed.length)], [...fixed], 'the same writes up to there')
+  const b = BOARD.slice()
+  for (let k = 0; k < moves.length / 2; k++) {
+    b[moves[2 * k]!] = moves[2 * k + 1]!
+    if (k + 1 === won) assert.deepEqual(b, solved, 'full and solved at `won`')
+  }
+  assert.deepEqual(b, [...BOARD], 'and back to the puzzle at the end')
+  assert.equal(moves.length / 2 - won, 3742, 'moves after it had won')
+}
+
+// The rule check: nothing on the puzzle or its solution, and a digit
+// duplicated in a row, a column and a box each caught with its twin.
+assert.equal(conflicts(BOARD).size, 0, 'the puzzle is clean')
+assert.equal(conflicts(solved).size, 0, 'the solution is clean')
+{
+  const row = BOARD.slice()
+  row[0] = 8 // the 8 at (0, 2)
+  assert.deepEqual([...conflicts(row)].sort((a, b) => a - b), [0, 2], 'row')
+  const col = BOARD.slice()
+  col[9 * 8] = 1 // (8, 0) against the 1 at (1, 0)
+  assert.deepEqual([...conflicts(col)].sort((a, b) => a - b), [9, 72], 'column')
+  const box = BOARD.slice()
+  box[10] = 7 // (1, 1) against the 7 at (2, 0)
+  assert(conflicts(box).has(10) && conflicts(box).has(18), 'box')
+}
+
+console.log('sudoku: 2019 search and rule check ok')
+
