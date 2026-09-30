@@ -2136,3 +2136,18 @@ main {
 .plate[data-live] > .sea {
   visibility: hidden;
 }
+
+/* Arts by Sandra's plate: the easel (`Studio.tsx`). Without the canvas, the
+   underdrawing is this picture, multiplied onto the canvas in the photograph. */
+.plate .sketch {
+  position: absolute;
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
+
+.studio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

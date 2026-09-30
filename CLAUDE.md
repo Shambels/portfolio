@@ -36,7 +36,7 @@ and `plateau` — and all of them pass. **As of the fourth project there is no
 `node_modules` in this folder at all**, so neither command runs here: both
 went to the throwaway copy in the container on a real `npm install`, and
 `npm run build` with them. The check script runs ten since the hologram:
-`sudoku` is the tenth. `react-router typegen` and `oxlint` are *not* safe:
+`sudoku` is the tenth, and `easel` the eleventh. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -287,6 +287,12 @@ src/Hologram.tsx        the sudoku's plate, live: rain, flicker, a cursor that
 src/Iceberg.tsx         PolarSense's plate, live: the iceberg in water the
                         cursor stirs and that rocks it — raw WebGL, one shader,
                         no three
+src/Studio.tsx          Arts by Sandra's plate, live: a palette that loads the
+                        brush and a canvas the visitor paints, each stroke
+                        modelled by a hidden painting — raw WebGL
+src/easel.ts            where the canvas, the blobs and the rag are in that
+                        plate, and the map onto the canvas — pure, with
+                        `easel.check.ts` beside it
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
                         without, and one `view-transition-name` on <main> that
                         grows the first into the second
@@ -375,8 +381,10 @@ tools/logo.py           not a landmark and not Blender — the site's mark:
                         tools/logo-source.jpg, keyed off its ground, out to
                         src/assets/logo/ at the widths `.brand` draws (Pillow)
 tools/plate.py          not a landmark and not Blender — the /work stage's plates:
-                        tools/art/{slug}-source.png, generated on OpenArt against
-                        black, cut into its hardware and its light (Pillow)
+                        tools/art/{slug}-source.png, generated on OpenArt, cut
+                        into its hardware and its light — or, for the easel,
+                        kept whole, with the painting cropped and its
+                        underdrawing drawn from it (Pillow, numpy, scipy)
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
@@ -397,7 +405,7 @@ docs/STATUS.md          what is built and what is not — update it with the wor
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea
 src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature —
-                        and {slug}.light.avif (+ {slug}.base.avif), its plate
+                        and {slug}.{base,light,…}.avif, its plate's layers
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
 deploy.sh               build + rsync to the server, then a routing smoke test

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link, useOutletContext, useViewTransitionState } from 'react-router'
-import { LABEL, PROJECTS, linksOf, type Project } from '../content'
+import { LABEL, PROJECTS, linksOf, type Plate, type Project } from '../content'
 import { Hologram } from '../Hologram'
 import { Iceberg } from '../Iceberg'
+import { Studio } from '../Studio'
 import { STRINGS, type Locale } from '../i18n'
 import mark from '../assets/logo/logo-512.webp?no-inline'
 
@@ -56,11 +57,13 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * What brings a plate to life, by landmark — the same key the world's `BUILD`
  * uses. The sudoku's draws the puzzle into its empty panel, because a
  * generated picture cannot be trusted with the digits; PolarSense's puts its
- * iceberg in water the cursor can stir.
+ * iceberg in water the cursor can stir; Arts by Sandra's gives the cursor a
+ * brush and a palette.
  */
-const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: NonNullable<Project['plate']> }>> = {
+const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: Plate }>> = {
   sudoku: Hologram,
   mine: Iceberg,
+  easel: Studio,
 }
 
 /**
@@ -88,7 +91,7 @@ function Stage({ projects, on, was }: { projects: Project[]; on: number; was: nu
             {p.plate ? (
               <div className="plate">
                 {p.plate.base && <img src={p.plate.base} alt="" decoding="async" />}
-                <img className="light" src={p.plate.light} alt="" decoding="async" />
+                {p.plate.light && <img className="light" src={p.plate.light} alt="" decoding="async" />}
                 {Overlay && <Overlay on={n + 1 === on} plate={p.plate} />}
               </div>
             ) : (

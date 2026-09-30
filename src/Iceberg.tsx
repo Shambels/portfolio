@@ -141,7 +141,7 @@ void main(){
   gl_FragColor = vec4(rgb, a);
 }`
 
-export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }) {
+export function Iceberg({ on, plate }: { on: boolean; plate: { light?: string } }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const onRef = useRef(on)
   onRef.current = on
@@ -149,7 +149,8 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
   useEffect(() => {
     const cv = canvas.current
     const host = cv?.parentElement
-    if (!cv || !host) return
+    const light = plate.light
+    if (!cv || !host || !light) return
     // WebGL2 where there is one, for a half-float field that filters smoothly;
     // WebGL1 takes the field as bytes, which is coarser in the caustics.
     const opts: WebGLContextAttributes = { premultipliedAlpha: true, alpha: true, antialias: false }
@@ -383,7 +384,7 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
 
     const img = new Image()
     img.decoding = 'async'
-    img.src = plate.light
+    img.src = light
     img
       .decode()
       .then(() => {

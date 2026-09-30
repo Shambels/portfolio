@@ -7078,12 +7078,55 @@ four stand on their signatures until they get theirs.
 - [x] `plate.base` is optional now, in `content.ts` and the stage; overlays get
   the plate's URLs (`OVERLAY` passes `plate`).
 
+- [x] **Arts by Sandra's plate: the visitor paints** — the one stage where
+  the cursor makes something. Three images, all at Seb's direction:
+  - **the scene** (`tools/art/arts-by-sandra-source.png`, GPT Image 2.5): an
+    easel with a blank primed canvas, a palette of six oils in a row and a
+    rag over its edge, in a dark studio — opaque, so `plate.py` cuts nothing
+    and feathers its edges into the page (`split: 'opaque'`), 73 kB;
+  - **the painting** (`tools/art/arts-by-sandra-painting.png`, Nano Banana
+    Pro): a still life — jug, pears, a halved lemon, a bottle, a draped cloth,
+    a window — cropped to the canvas's proportions, 60 kB. Nobody sees it
+    whole;
+  - **the underdrawing**, made by `plate.py` (`studio()`) from the painting
+    rather than generated, because it has to lie over it to the pixel and an
+    image model never gives a composition back exactly: XDoG contours on the
+    big forms, loose hatching in the shadows crossed only in the darkest,
+    graphite on white so it multiplies straight onto the canvas, 34 kB.
+
+  `src/Studio.tsx` draws it in raw WebGL, the canvas found in the plate by its
+  four corners through a projective map (`src/easel.ts`, the canvas leans a
+  hair in the photograph). Pointing at a blob loads the brush with that
+  pigment — cadmium red, cadmium yellow, ultramarine, viridian, titanium
+  white, burnt umber, the paints' colours and not the photograph's — and the
+  cursor becomes a dab of it. Moving over the canvas lays filbert-shaped
+  bristle strokes into a 576 × 706 paint layer, thinning and drying as the
+  load runs out and thinner for a fast stroke. Each stroke is modelled by the
+  hidden painting: deep in its shadows, the pigment in its half-tones, lifting
+  toward white in its lights, lit by the scene's own lamp, with a sheen off
+  the painting's brushwork — so the still life comes out of the canvas in
+  whatever colours the visitor paints it with. The rag wipes it, swept from
+  the rag's side (instant under reduced motion); otherwise the paint stays,
+  across a swipe away and back, because it is the visitor's. Nothing moves on
+  its own, and it draws only when something changes. With JS off or no
+  WebGL, the sketch sits on the canvas as a multiplied image. Phones: a tap on
+  a blob or the rag works; painting wants a drag, which on the strip scrolls
+  the page instead — left that way on purpose rather than trap the scroll.
+  `easel.check.ts` holds the map to the four corners and every blob clear of
+  the canvas, the rag and each other; `npm run check` runs it (eleven checks).
+- [x] Plates carry any named layer now — `{slug}.{layer}.avif` rides along
+  by its name (`Plate` in `content.ts`), which is how the painting and the
+  sketch reach `Studio`.
+
 Open, and Seb's:
 
+- **The easel on hardware** — the brush's size, how far a load goes, and how
+  strongly the painting models the strokes (`BRUSH` in `Studio.tsx`, the
+  value curve in its shader).
 - **The iceberg's water on hardware** — how hard a stroke should hit
   (`SEA.push`), how far the view bends (`SEA.bend`), how heavy the ice is.
   Swiftshader draws it, but not at a speed worth judging.
-- **The other three plates** — one at a time, each asked for before it is
+- **The other two plates** — one at a time, each asked for before it is
   generated. The stage takes them without a code change; only one that
   wants motion of its own needs an `OVERLAY` entry.
 - **The title's slide** is the mark as a placeholder.
