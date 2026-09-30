@@ -7336,3 +7336,46 @@ Open, and Seb's:
   `STACK_*`, `SCATTER`, `diaryAt`, `PHONES` in `Darkroom.tsx`).
 - **The FR/NL labels** in `WORDS`.
 
+
+## The way back from a case study
+
+Every case study read on the flat site has the world's arrow in the top-left
+corner now — the same `.leave.prev` glass, fixed, so it is there however far
+down the page is read — and it goes back to the index *where the visitor left
+it*: the project's card across the middle, its slide on stage. The "All work"
+link at the foot does the same. A case study the world opened keeps its own
+arrow and cross, which go back to the world. `locale.tsx` (first in the tab
+order after the skip link), `case-study.tsx`, `Work` in `routes/work.tsx`.
+
+How: both links go to `/{lang}/work` with `state.card` set to the project and
+`preventScrollReset`, and `Work` puts that card where the snap had it in a
+layout effect — before the first paint, so the view transition captures it in
+place and the page shrinks back into the card it grew out of (the index names
+the card `study` while a transition to or from its case study runs). Not a
+`#p-` hash: the router scrolls a hash with a plain `scrollIntoView()`, top-
+aligned and — then — smooth, the whole ledger swept past. Deep links work the
+same way (straight into a case study, then the arrow, lands on its card), and
+so does the browser's back button, which the router restores itself. Without
+JavaScript the arrow is a link to the top of the index.
+
+The stage no longer swipes on arrival: a slide moves only when `on` and `was`
+differ, and the index's first sighting of where the page is — back, forward,
+reload — is placed rather than travelled to.
+
+**Found on the way: the document's `scroll-behavior: smooth` is gone.** It
+was there for the chart's anchors and reached every scroll the router makes.
+Chrome reads smooth-or-not off the style it last computed, which at the
+router's `scrollTo(0, 0)` is still the page before's — so a case study opened
+from the foot of the index arrived scrolled to its end and slid up for a
+second, its stage rewinding every act on the way. Scoping it to the index with
+`:has()` was not enough, for the same reason. The chart's islands glide by
+script (`glide` in `routes/work.tsx`, instant under reduced motion) and every
+page arrival is instant. The one thing that went with it: an island click no
+longer writes `#p-slug` into the address bar.
+
+Verified in Claude's container (Chromium): back by the arrow lands on the
+exact scroll position the visitor left from (3260 of 3260), by the foot link
+and by the browser's back button on the project's card with its slide on
+stage, a deep link then the arrow on its card, a case study entered from the
+bottom of the index in one scroll event to 0 (was five, over a second), no
+slide moving on any arrival, tab order skip → arrow → menu.

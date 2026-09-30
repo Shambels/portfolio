@@ -107,7 +107,11 @@ export default function CaseStudy() {
       <project.Body />
 
       <p className="back">
-        <Link to={`/${locale}/work`}>← {t.backToWork}</Link>
+        {/* The same way back as the arrow in the corner (`locale.tsx`): to
+            this project's card, not the top of the index. */}
+        <Link to={`/${locale}/work`} state={{ card: project.slug }} preventScrollReset viewTransition>
+          ← {t.backToWork}
+        </Link>
       </p>
     </article>
   )

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ComponentType } from 'react'
-import { Link, useOutletContext, useViewTransitionState } from 'react-router'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react'
+import { Link, useLocation, useNavigationType, useOutletContext, useViewTransitionState } from 'react-router'
 import { LABEL, PROJECTS, linksOf, type Plate, type Project } from '../content'
 import { Hologram } from '../Hologram'
 import { Iceberg } from '../Iceberg'
@@ -80,9 +80,12 @@ const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: Plate }>> = {
  * places move; a jump from the chart does not drag the ones between across.
  */
 function Stage({ projects, on, was }: { projects: Project[]; on: number; was: number }) {
+  // Only a change of slide moves anything: `on` and `was` the same is a stage
+  // that was placed — arriving from a case study, or on its first sighting of
+  // the page — and a placed slide is simply there.
   const at = (i: number) => ({
     'data-at': i === on ? 'on' : i < on ? 'before' : 'after',
-    'data-moving': i === on || i === was || undefined,
+    'data-moving': (on !== was && (i === on || i === was)) || undefined,
   })
   return (
     <div className="showcase" aria-hidden="true">
@@ -109,6 +112,21 @@ function Stage({ projects, on, was }: { projects: Project[]; on: number; was: nu
   )
 }
 
+/**
+ * A card to where the snap would hold it: across the middle of the screen on
+ * a wide one, under the strip on a phone (its `scroll-margin-top`). Smooth for
+ * the chart's islands, unless the visitor asked for less motion; instant for a
+ * page arriving. The document itself has no `scroll-behavior` — `index.css`
+ * has why.
+ */
+function glide(el: Element, behavior: ScrollBehavior) {
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  el.scrollIntoView({
+    behavior: still ? 'instant' : behavior,
+    block: matchMedia('(min-width: 60rem)').matches ? 'center' : 'start',
+  })
+}
+
 function Chart({ projects }: { projects: Project[] }) {
   const coast = (p: Project) => p.radius * SPREAD * p.mapScale
   const cz = projects.reduce((s, p) => s + p.pos[1], 0) / projects.length
@@ -130,7 +148,19 @@ function Chart({ projects }: { projects: Project[] }) {
           const r = coast(p)
           const above = z < cz
           return (
-            <a key={p.slug} className="isle" data-s={p.slug} href={`#p-${p.slug}`} tabIndex={-1}>
+            <a
+              key={p.slug}
+              className="isle"
+              data-s={p.slug}
+              href={`#p-${p.slug}`}
+              tabIndex={-1}
+              onClick={(e) => {
+                const card = document.getElementById(`p-${p.slug}`)
+                if (!card) return
+                e.preventDefault()
+                glide(card, 'smooth')
+              }}
+            >
               <circle className="shoal" cx={x} cy={z} r={r + 1.6} />
               <circle className="land" cx={x} cy={z} r={r} />
               <circle className="disc" cx={x} cy={z} r={2.6} />
@@ -222,12 +252,19 @@ export default function Work() {
   const list = useRef<HTMLOListElement>(null)
   useEffect(() => {
     const items = [head.current, ...(list.current?.children ?? [])].filter((e): e is Element => !!e)
+    // The observer's first report is where the page already is, not a scroll:
+    // back or forward into the index, or a reload, lands wherever the browser
+    // restores it, and the stage should be on that card rather than swipe to it
+    // from the title.
+    let first = true
     const seen = new IntersectionObserver(
       (hits) => {
+        const jump = first
+        first = false
         for (const h of hits) {
           if (!h.isIntersecting) continue
           const i = items.indexOf(h.target)
-          setOn(([cur]) => (i === cur ? [cur, cur] : [i, cur]))
+          setOn(([cur]) => (i === cur || jump ? [i, i] : [i, cur]))
         }
       },
       { rootMargin: '-50% 0px -50% 0px' },
@@ -235,6 +272,24 @@ export default function Work() {
     for (const el of items) seen.observe(el)
     return () => seen.disconnect()
   }, [])
+
+  // Back from a case study, by its arrow or its "All work" link: `state.card`
+  // is the project, and its card goes back across the middle of the screen —
+  // where the snap had it when the visitor went in — with its slide already on
+  // stage. Before the first paint, so a view transition captures the card in
+  // place and the page shrinks back into it. Not on back or forward: the
+  // router restores that position itself, from its own record.
+  //
+  const { state } = useLocation()
+  const pop = useNavigationType() === 'POP'
+  const card = pop ? undefined : (state as { card?: string } | null)?.card
+  useLayoutEffect(() => {
+    const el = card ? document.getElementById(`p-${card}`) : null
+    const i = el ? [...(list.current?.children ?? [])].indexOf(el) : -1
+    if (!el || i < 0) return
+    setOn([i + 1, i + 1])
+    glide(el, 'instant')
+  }, [card])
 
   // The one pairing CSS cannot write generically: this entry with that island.
   // A rule per slug, written from the content, so a sixth project lights up

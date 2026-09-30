@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useParams } from 'react-router'
-import { CONTACT, LOCALES, SITE_URL, SOURCE_LOCALE, STRINGS, canonicalPath, isLocale, withLocale } from '../i18n'
+import { CONTACT, LOCALES, SITE_URL, SOURCE_LOCALE, STRINGS, canonicalPath, isLocale, slugOf, withLocale } from '../i18n'
 import { Menu } from '../Menu'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
@@ -27,6 +27,7 @@ export default function LocaleLayout() {
   const { active: world, reading } = useWorld()
   if (!isLocale(lang)) return <NotFound />
   const t = STRINGS[lang]
+  const study = slugOf(pathname)
 
   return (
     <>
@@ -53,8 +54,8 @@ export default function LocaleLayout() {
 
       {/* The mark, top left, and the way back to the landing page — on the
           flat index and over the world, the two places with no other way to
-          the front door but the menu. Not on a case study the world opened:
-          that corner is its arrow's. Hashed and fingerprinted by Vite, so it
+          the front door but the menu. Not on a case study: that corner is its
+          arrow's. Hashed and fingerprinted by Vite, so it
           caches forever and costs the first route nothing but a request. */}
       {(world || pathname === `/${lang}/work`) && (
         <Link className="brand" to={`/${lang}`} aria-label={`${t.name} — ${t.navHome}`}>
@@ -86,6 +87,40 @@ export default function LocaleLayout() {
           replace
           viewTransition
           aria-label={t.backToWorld}
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+            <path
+              d="M13 8H3.5m0 0L8 3.5M3.5 8 8 12.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Link>
+      )}
+
+      {/* The way out of a case study read on the flat site, in the same corner
+          and on the same glass as the world's — fixed, so it is there however
+          far down the page is read. It goes to the index with the project in
+          its state, and the index puts that card back across the middle with
+          its slide on stage, where it was when the visitor went in (`Work` in
+          `routes/work.tsx`); `preventScrollReset` keeps the router from
+          sending the page to the top first. A state rather than a `#p-` hash:
+          the router scrolls a hash with a plain `scrollIntoView()`, which on
+          this page is smooth and aligned to the top — the whole ledger swept
+          past and every slide swiped through on the way. The card grows back
+          out of the page for the same reason it grew into it: the index names
+          it `study` while a transition to or from its case study runs. */}
+      {!world && !reading && study && (
+        <Link
+          className="leave prev"
+          to={`/${lang}/work`}
+          state={{ card: study }}
+          preventScrollReset
+          viewTransition
+          aria-label={t.backToWork}
         >
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
             <path
