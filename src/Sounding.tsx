@@ -20,8 +20,12 @@ import { Iceberg, PIVOT } from './Iceberg'
  * backwards when it is scrolled back up.
  *
  * 1. The problem — the editor, and autocomplete stopped at the quote mark.
+ *    This one is on the page's own first scroll rather than its heading,
+ *    which is already in the window when the page opens: the page opens on
+ *    the plate as the index showed it, and the editor comes in as you start.
  * 2. What I chose — the sounding, the footer, the names rising, the list full.
- * 3. What I rejected — a kernel starting up, struck through.
+ * 3. What I rejected — a kernel starting up, struck through; it stays for
+ *    the whole section and goes when the next heading comes.
  * 4. What it cost — a column that is a guess, and the preview's caveat.
  * 5. The outcome — the file grows to four million rows; what is read does not.
  *
@@ -37,7 +41,7 @@ export function Sounding({ plate }: { plate: Plate }) {
     transformOrigin: `${PIVOT[0] * 900}px ${PIVOT[1] * 1162}px`,
   } as CSSProperties
   return (
-    <figure className="sounding" aria-hidden="true">
+    <figure className="pinned sounding" aria-hidden="true">
       <div className="editor">
         <code className="code">
           df.filter(pl.col(<span className="str">"re</span>
@@ -45,28 +49,36 @@ export function Sounding({ plate }: { plate: Plate }) {
         </code>
         <div className="pop">
           <p className="none">No suggestions</p>
-          {COLUMNS.map(([name, ty], i) => (
-            <p key={name} className="row" style={{ '--i': i } as CSSProperties}>
-              <span>{name}</span>
-              <span className="ty">{ty}</span>
-            </p>
-          ))}
-          <p className="row guess">
-            <span>…pivot</span>
-            <span className="ty">guess</span>
-          </p>
-          <p className="src">
-            <span>sales.parquet ·</span>
-            <span className="rows">
-              {ROWS.map((n, i) => (
-                <span key={n} className={`n n${i}`}>
-                  {n}
-                </span>
+          <div className="list">
+            <div>
+              {COLUMNS.map(([name, ty], i) => (
+                <p key={name} className={i ? 'row' : 'row hi'} style={{ '--i': i } as CSSProperties}>
+                  <span>{name}</span>
+                  <span className="ty">{ty}</span>
+                </p>
               ))}
-            </span>
-            <span>rows · footer only</span>
-            <span className="caveat">transforms not applied</span>
-          </p>
+              <div className="more">
+                <div>
+                  <p className="row guess">
+                    <span>…pivot</span>
+                    <span className="ty">guess</span>
+                  </p>
+                </div>
+              </div>
+              <p className="src">
+                <span>sales.parquet ·</span>
+                <span className="rows">
+                  {ROWS.map((n, i) => (
+                    <span key={n} className={`n n${i}`}>
+                      {n}
+                    </span>
+                  ))}
+                </span>
+                <span>rows · footer only</span>
+                <span className="caveat">transforms not applied</span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -104,9 +116,11 @@ export function Sounding({ plate }: { plate: Plate }) {
             ))}
           </svg>
           <div className="kernel">
-            <code>$ python -c "import polars as pl; …"</code>
-            <code className="boot">starting kernel…</code>
-            <code className="no">runs nothing</code>
+            <div>
+              <code>$ python -c "import polars as pl; …"</code>
+              <code>starting kernel…</code>
+              <code className="no">runs nothing</code>
+            </div>
           </div>
         </div>
       </div>

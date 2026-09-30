@@ -305,6 +305,13 @@ src/easel.ts            where the canvas, the blobs and the rag are in that
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
                         without, and one `view-transition-name` on <main> that
                         grows the first into the second
+                        — and, beside the prose, the project's stage
+                        (`STAGE`, keyed on `landmark`) played by the reading
+                        scroll off one view timeline per heading; no script
+src/Sounding.tsx        PolarSense's stage: a line to the footer at the berg's
+                        foot, and the column names coming back up
+src/Darkroom.tsx        Memojo's stage: the roll landing on the table, searched,
+                        sorted, dealt into a diary, one album sent phone to phone
 src/routes/not-found.tsx   /{lang}/404 — copied to build/client/404.html
 src/content.ts          every MDX file, keyed by slug and locale
 src/i18n/               locales.ts (routing + isWorldPath) + index.ts (strings) + a check
