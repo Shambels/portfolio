@@ -5,7 +5,7 @@ year: 2019
 stack: [Python, JavaScript, HTML, CSS, NumPy]
 demo: /sudoku/
 repo: https://github.com/Shambels/sudoku
-summary: The same recursive backtracking search written twice — once for a terminal, once for a page with no build step — left alone for seven years, and then gone back to. The defects are fixed, and the page now reads a puzzle off a photograph of a newspaper with no dependencies at all.
+summary: A sudoku solver that reads the grid off a photo — a newspaper, a puzzle book, a grid drawn by hand — and solves it in the browser, no server and no dependency.
 landmark: sudoku
 order: 1
 pos: [-19, 27]
@@ -123,7 +123,7 @@ the saving.
 
 ## Going back to it
 
-Seventeen commits in two days, against six in 2019, and the first of them
+Eighteen commits in two days, against six in 2019, and the first of them
 crosses off two thirds of this page's own list.
 
 One commit fixes the first two defects together, because they are the same
@@ -154,8 +154,11 @@ what the page's copy button emits — and that is the seam the next section need
 
 ## Reading a puzzle from a photo
 
-Point the page at a photograph of a newspaper and the grid fills in. It is the
-same file you open from disk: no build step, no framework, and still not one
+Pick a photo, drop one on the page or paste one, and the grid fills in — a
+newspaper, a puzzle book, a screenshot, a grid drawn by hand on creased paper.
+Cells the reader is unsure of turn amber, everything else is ready for Solve, and
+a copy button hands the same board to `sudoku.py` as eighty-one characters. It is
+the same file you open from disk: no build step, no framework, and still not one
 runtime dependency.
 
 That constraint is what decided the shape. A photo-to-grid pipeline is four
@@ -233,10 +236,18 @@ and stayed, as a supplement rather than the foundation.
 And one photograph is refused. A folded newspaper on gravel, rotated twenty
 degrees, produced forty-two clues where there are twenty-eight — confident
 nonsense, because nothing downstream ever checked that the thing it had warped
-was a grid. The number of lines found inside the warped square separates
-cleanly: everything readable finds fifteen to twenty of twenty, that photo finds
-six. It now says so instead, and offers four clicks to place the corners by
-hand. A refusal is not eighty-one errors, so it is counted in its own column and
+was a grid. The first check was the obvious one, the number of grid lines found
+inside the warped square: everything readable finds fifteen to twenty of twenty,
+that photo finds six. It was also not enough. A sweep over angle, position and
+size turned up a square scoring nineteen of twenty that read forty-eight cells
+wrong — it had locked onto periodic structure that was not the puzzle. Lines say
+a candidate looks like a grid; only the rules say it could be a sudoku. So a read
+is now judged on the board it produces as well: every correct detection puts zero
+to four cells into conflict and the impostor twenty-one, and a readable photo
+flags at most a quarter of a cell per clue where a bad one flags more than one.
+The photo is refused with a reason, and the page offers four clicks to place the
+corners by hand — someone pointing at the grid is better evidence than any
+heuristic, so those reads skip the gates altogether. A refusal is not eighty-one errors, so it is counted in its own column and
 not averaged into the accuracy.
 
 ## The outcome
@@ -246,6 +257,8 @@ reads nine cells wrong, gets nineteen of the twenty-five it accepts exactly
 right, marks
 every single wrong cell amber, and invents ink nowhere at all. About a hundred
 and thirty-six milliseconds a photo, on the main thread, from a file on disk.
+And it is live: the same five static files, served from a directory of their own
+beside this site, and redeployed by every push to `main`.
 
 This page used to end by saying that none of it was fixed, and that leaving the
 defects alone was the more useful thing, because a portfolio made only of the

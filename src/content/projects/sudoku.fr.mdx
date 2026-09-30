@@ -1,7 +1,7 @@
 ---
 title: Solveur de Sudoku
 slug: sudoku
-summary: La même recherche par retour sur trace écrite deux fois — une fois pour un terminal, une fois pour une page sans étape de build — laissée telle quelle pendant sept ans, puis reprise. Les défauts sont corrigés, et la page lit désormais une grille sur la photo d'un journal sans la moindre dépendance.
+summary: Un programme qui détecte une grille sudoku a partir d'une photo — un journal, un livre de jeux, une grille tracée à la main — et la résout dans le navigateur, sans serveur et sans la moindre dépendance.
 ---
 
 ## Le problème
@@ -119,7 +119,7 @@ sept ans après l'économie.
 
 ## Y revenir
 
-Dix-sept commits en deux jours, contre six en 2019, et le premier d'entre eux
+Dix-huit commits en deux jours, contre six en 2019, et le premier d'entre eux
 raye les deux tiers de la liste de cette page.
 
 Un seul commit corrige les deux premiers défauts ensemble, parce que c'est deux
@@ -154,8 +154,12 @@ et c'est la couture dont la section suivante avait besoin.
 
 ## Lire une grille sur une photo
 
-On pointe la page sur une photo de journal et la grille se remplit. C'est le même
-fichier qu'on ouvre depuis le disque : pas d'étape de build, pas de framework, et
+On choisit une photo, on la dépose sur la page ou on la colle, et la grille se
+remplit — un journal, un livre de jeux, une capture d'écran, une grille tracée à
+la main sur du papier froissé. Les cases dont le lecteur n'est pas sûr passent en
+ambre, tout le reste est prêt pour la résolution, et un bouton de copie transmet
+la même grille à `sudoku.py` en quatre-vingt-un caractères. C'est le même fichier
+qu'on ouvre depuis le disque : pas d'étape de build, pas de framework, et
 toujours pas une seule dépendance à l'exécution.
 
 C'est cette contrainte qui a décidé de la forme. Une chaîne photo → grille, ce
@@ -242,10 +246,20 @@ et elle est restée, comme complément et non comme fondation.
 Et une photo est refusée. Un journal plié sur du gravier, tourné de vingt degrés,
 a produit quarante-deux indices là où il y en a vingt-huit — du grand n'importe
 quoi bien assuré, parce que rien en aval ne vérifiait jamais que ce qu'on avait
-redressé était une grille. Le nombre de lignes trouvées dans le carré redressé
-sépare proprement : tout ce qui est lisible en trouve quinze à vingt sur vingt,
-cette photo-là en trouve six. Elle le dit maintenant, et propose quatre clics
-pour placer les coins à la main. Un refus n'est pas quatre-vingt-une erreurs : il
+redressé était une grille. Le premier contrôle était le plus évident, le nombre
+de lignes de grille trouvées dans le carré redressé : tout ce qui est lisible en
+trouve quinze à vingt sur vingt, cette photo-là en trouve six. Ce n'était pas
+suffisant non plus. Un balayage sur l'angle, la position et la taille a fait
+sortir un carré à dix-neuf sur vingt qui lisait quarante-huit cases fausses — il
+s'était calé sur une structure périodique qui n'était pas la grille. Les lignes
+disent qu'un candidat ressemble à une grille ; seules les règles disent qu'il
+pourrait être un sudoku. Une lecture est donc désormais jugée aussi sur la grille
+qu'elle produit : chaque détection correcte met de zéro à quatre cases en
+conflit, l'imposteur vingt et une, et une photo lisible marque au plus un quart de
+case douteuse par indice là où une mauvaise en marque plus d'une. La photo est
+refusée avec une raison, et la page propose quatre clics pour placer les coins à
+la main — quelqu'un qui montre la grille est un meilleur indice que n'importe
+quelle heuristique, donc ces lectures-là passent outre les contrôles. Un refus n'est pas quatre-vingt-une erreurs : il
 est compté dans sa propre colonne et non moyenné dans la justesse.
 
 ## Le résultat
@@ -255,7 +269,9 @@ neuf cases fausses, rend exactement justes dix-neuf des vingt-cinq grilles
 qu'il accepte,
 marque en ambre chacune des cases fausses, et n'invente d'encre nulle part. Cent
 trente-six millisecondes par photo environ, sur le thread principal, depuis un
-fichier sur le disque.
+fichier sur le disque. Et c'est en ligne : les cinq mêmes fichiers statiques,
+servis depuis un répertoire à eux à côté de ce site, et redéployés à chaque push
+sur `main`.
 
 Cette page se terminait autrefois en disant que rien n'était corrigé, et que
 laisser les défauts était la chose la plus utile, parce qu'un portfolio fait
