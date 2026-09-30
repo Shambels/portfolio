@@ -2159,3 +2159,11 @@ main {
   width: 100%;
   height: 100%;
 }
+
+/* Scrubble's plate: the rack and the moves it plays (`Tiles.tsx`). */
+.tiles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

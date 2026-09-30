@@ -54,6 +54,9 @@ PLATES = {
     # The instant camera on its table: opaque, the foot of the table trimmed.
     # `Camera.tsx` holds the lens, the flash and the slot.
     'memojo': {'crop': (0, 0, 1344, 1735), 'split': 'opaque', 'width': 900},
+    # The board from the player's seat, empty, and its empty rack: opaque; every
+    # tile is drawn by `Tiles.tsx`, so every letter on it is right.
+    'scrubble': {'crop': (0, 57, 1344, 1792), 'split': 'opaque', 'width': 900},
 }
 
 # The canvas in the source scene, corner by corner (it is a hair wider at the
@@ -165,7 +168,7 @@ def cut(slug: str, check: bool) -> None:
         f = ROOT / 'src' / 'content' / 'projects' / f'{slug}.base.avif'
         Image.fromarray((rgba * 255 + 0.5).astype(np.uint8), 'RGBA').resize(size, Image.LANCZOS).save(f, 'AVIF', quality=66, speed=2)
         print(f'{f.relative_to(ROOT)}  {size[0]}x{size[1]}  {f.stat().st_size / 1024:.1f} kB')
-        {'arts-by-sandra': studio, 'memojo': photos}[slug]()
+        {'arts-by-sandra': studio, 'memojo': photos}.get(slug, lambda: None)()
         return
     split = h if p['split'] is None else p['split'] - p['crop'][1]
 
