@@ -4,6 +4,7 @@ import { getProject, linksOf, type Plate } from '../content'
 import { STRINGS, type Locale } from '../i18n'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
+import { Darkroom } from '../Darkroom'
 import { Sounding } from '../Sounding'
 
 /**
@@ -12,8 +13,9 @@ import { Sounding } from '../Sounding'
  * heading, off the view timelines `index.css` names on them ("the study").
  * Keyed on `landmark`, like the index's `OVERLAY` and the world's `BUILD`.
  */
-const STAGE: Record<string, ComponentType<{ plate: Plate }>> = {
+const STAGE: Record<string, ComponentType<{ plate: Plate; locale: Locale }>> = {
   mine: Sounding,
+  ramp: Darkroom,
 }
 
 /**
@@ -112,7 +114,7 @@ export default function CaseStudy() {
 
   return Stage && project.plate ? (
     <div className="study">
-      <Stage plate={project.plate} />
+      <Stage plate={project.plate} locale={locale} />
       {article}
     </div>
   ) : (

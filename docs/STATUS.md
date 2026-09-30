@@ -7267,3 +7267,72 @@ Open, and Seb's:
 - **The other four** — Arts by Sandra (strokes that converge into one form),
   Scrubble (1,755 moves counted, the ranked moves dropped), Memojo (the roll
   sorting itself), Sudoku (scroll *is* the search, `trace()` scrubbed).
+
+### Corrected on 30 Sep: the committed PolarSense stage was the first draft
+
+`241fa5f` carries the first version of `Sounding.tsx` and its CSS, not the one
+this section describes: a write-back from Claude's container delivered a stale
+copy. The fixes are in now — the completion list opens from one line (a
+`grid-template-rows` 0fr → 1fr) inside a fixed-height slot so the ice never
+resizes, the kernel card is opaque and holds for its whole section. The
+figure's class is `pinned sounding`: `.pinned` is the shared column now.
+
+## Memojo's stage — the darkroom
+
+`src/Darkroom.tsx`, `ramp` in `STAGE`, and "Memojo: the darkroom" in
+`index.css`. The index's instant camera on its table, and the twelve prints of
+`memojo.photos.avif` doing what each section says the app does:
+
+- **Before the first heading** the flash goes and the prints land anyhow on
+  the table — the camera roll, unsorted. On the page's first 7rem of scroll:
+  on a tall window the first heading is at 70% when the page opens.
+- **Search** — the prose's own four sentences type into a search box, one
+  after another; each finds its print (the atlas's first four *are* those
+  sentences), shown in the box and ringed where it lies on the table.
+- **Albums** — the prints glide into four named stacks as the index fills.
+- **Diary** — dealt into two rows in the order they were taken, dated
+  `dd.mm` (the same in three languages).
+- **Phone to phone** — two phones on the table; the rest go home, and
+  "Outdoors" goes onto the first and across to the second over a dashed line
+  with nothing in the middle.
+- **Private** — aeroplane mode switches on, `↑ 0 bytes uploaded`, and *Not a
+  backup*.
+- **What is here** — the phones go, the album comes home: the table as the
+  index shows it, with the app's facts in the box. This is also what the
+  stage is with no animation (reduced motion, no scroll timelines, no JS).
+
+**One element per print.** Each carries six animations — one per move, each
+on its own heading's timeline — with `animation-composition: add`: a move is
+the difference between two places, the print sits where it ends, and however
+far the page is scrolled the legs already run sum to where it should be
+(`scale` multiplies under `add`, measured in Chromium before relying on it).
+The same trick lets a label or a card come and go on several headings:
+opacity that adds. The prints lie on a plane tilted into the photograph
+(`.table`: 900 × 1650 table units, `rotateX(62deg)` from its near edge), so
+they move, turn and shrink in the table's own space.
+
+**When.** Memojo's sections are short — the diary is 248px — so every act
+plays in one band, while its heading rises from about 60% of the window to 35%
+(`cover` ≈ 40–65%), which fits between one heading and the next from 800 to
+1080 tall (measured: headings at 754, 1405, 1880, 2128, 2547, 2996). The
+search spreads its four sentences over the first heading's `cover` 38–84%,
+because that section is long. The timelines now go to `--s8` (the sudoku has
+eight headings).
+
+**Words.** The stage's labels are per locale in `WORDS` beside it, not in
+`src/i18n` — the queries are the prose's own lines, copied from each
+language's MDX. FR and NL are unreviewed.
+
+Verified in Claude's container: `tsc -b`, `npm run check`, `npm run build`,
+Chromium renders through every band at 1440 × 900, one at 1920 × 1080 in
+French, reduced motion (the outcome), and PolarSense after the `.pinned`
+rename. The case-study chunk is 3.7 kB gz with both stages.
+
+Open, and Seb's:
+
+- **The pacing**, on a real scroll wheel and trackpad — the bands, and
+  whether the search's four sentences go by too fast.
+- **The table's tilt and the prints' size** (`.table` in `index.css`,
+  `STACK_*`, `SCATTER`, `diaryAt`, `PHONES` in `Darkroom.tsx`).
+- **The FR/NL labels** in `WORDS`.
+

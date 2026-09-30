@@ -1114,7 +1114,7 @@ main:has(.atlas) {
   so under the index's own breakpoint there is no stage — the prose is the
   whole page, as it was.
 */
-.sounding {
+.pinned {
   display: none;
 }
 
@@ -1128,7 +1128,7 @@ main:has(.atlas) {
     grid-template-columns: minmax(0, 1fr) var(--measure);
     gap: 0 clamp(2rem, 5vw, 5rem);
     align-items: start;
-    timeline-scope: --s1, --s2, --s3, --s4, --s5;
+    timeline-scope: --s1, --s2, --s3, --s4, --s5, --s6, --s7, --s8;
   }
 
   .study .prose > h2:nth-of-type(1) { view-timeline: --s1; }
@@ -1136,14 +1136,17 @@ main:has(.atlas) {
   .study .prose > h2:nth-of-type(3) { view-timeline: --s3; }
   .study .prose > h2:nth-of-type(4) { view-timeline: --s4; }
   .study .prose > h2:nth-of-type(5) { view-timeline: --s5; }
+  .study .prose > h2:nth-of-type(6) { view-timeline: --s6; }
+  .study .prose > h2:nth-of-type(7) { view-timeline: --s7; }
+  .study .prose > h2:nth-of-type(8) { view-timeline: --s8; }
 
-  .sounding {
+  .pinned {
     position: sticky;
     top: 0;
     height: 100vh;
     height: 100dvh;
     margin: 0;
-    padding-block: calc(var(--lh) * 2.75) var(--lh);
+    padding-block: calc(var(--lh) * 2.75) calc(var(--lh) * 1.5);
     display: flex;
     flex-direction: column;
     gap: calc(var(--lh) * 0.5);
@@ -1159,9 +1162,13 @@ main:has(.atlas) {
 }
 
 /* PolarSense: the sounding (`Sounding.tsx`). The editor, where the problem is. */
+/* A slot as tall as the editor is at the end, so the plate under it is the
+   same size in every act and the list opening never moves the ice. */
 .editor {
   position: relative;
   z-index: 1;
+  flex: none;
+  height: 10.5rem;
   width: min(100%, 23rem);
   margin-inline: auto;
   font: 400 0.78rem/1.5 var(--mono);
@@ -1193,7 +1200,7 @@ main:has(.atlas) {
 .pop {
   position: relative;
   margin: 0.3rem 0 0 min(5.2rem, 18%);
-  padding-block: 0.2rem 0;
+  padding-block: 0.2rem;
   background: var(--ink-2);
   border: 1px solid #ffffff26;
   border-radius: 4px;
@@ -1226,6 +1233,24 @@ main:has(.atlas) {
   font-style: italic;
 }
 
+/* The list opens from nothing: a row of grid that is 0fr until it is not, so
+   the box is one line tall while it has nothing to say. */
+.pop {
+  min-height: calc(0.78rem * 1.5 + 0.56rem);
+}
+
+.pop .list,
+.pop .more {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.pop .list > div,
+.pop .more > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .pop .none {
   position: absolute;
   inset: 0.2rem 0 auto;
@@ -1239,7 +1264,7 @@ main:has(.atlas) {
   flex-wrap: wrap;
   gap: 0 0.45em;
   margin-top: 0.2rem;
-  padding: 0.3rem 0.6rem;
+  padding: 0.3rem 0.6rem 0.1rem;
   border-top: 1px solid var(--rule);
   font-size: 0.66rem;
   color: var(--paper-faint);
@@ -1336,16 +1361,20 @@ main:has(.atlas) {
 /* The road not taken: a kernel starting, struck through. */
 .kernel {
   position: absolute;
-  inset: 47% 5% auto;
+  inset: 56% 4% auto;
+  opacity: 0;
+}
+
+.kernel > div {
   display: grid;
   gap: 0.1rem;
-  padding: 0.55rem 0.75rem;
-  background: #170d0de8;
-  border: 1px solid #e0645a55;
+  padding: 0.6rem 0.8rem;
+  background: #1a0f0e;
+  border: 1px solid #e0645a66;
   border-radius: 6px;
-  font: 400 0.7rem/1.5 var(--mono);
-  color: var(--paper-dim);
-  opacity: 0;
+  box-shadow: 0 0.5rem 2rem #000a;
+  font: 400 0.74rem/1.5 var(--mono);
+  color: var(--paper);
 }
 
 .kernel code {
@@ -1426,18 +1455,28 @@ main:has(.atlas) {
   }
 }
 
-@keyframes sd-kernel {
-  0% {
+@keyframes sd-in {
+  from {
     opacity: 0;
     translate: 0 0.75rem;
   }
-  18%,
-  82% {
+  to {
     opacity: 1;
-    translate: 0 0;
   }
-  100% {
+}
+
+@keyframes sd-out {
+  from {
+    opacity: 1;
+  }
+  to {
     opacity: 0;
+  }
+}
+
+@keyframes sd-open {
+  from {
+    grid-template-rows: 0fr;
   }
 }
 
@@ -1464,15 +1503,15 @@ main:has(.atlas) {
     /* 1 · The problem: the editor, and nothing after the quote mark. */
     .editor {
       animation: sd-rise linear both;
-      animation-timeline: --s1;
-      animation-range: cover 10% cover 35%;
+      animation-timeline: scroll(root);
+      animation-range: 2rem 12rem;
     }
 
     /* 2 · What I chose: down past every row group to the footer, and back up. */
     .pop .none {
       animation: sd-gone linear both;
       animation-timeline: --s2;
-      animation-range: cover 8% cover 14%;
+      animation-range: cover 38% cover 42%;
     }
 
     .sonar .unread {
@@ -1505,6 +1544,12 @@ main:has(.atlas) {
       animation-range: cover calc(32% + var(--i) * 5%) cover calc(50% + var(--i) * 5%);
     }
 
+    .pop .list {
+      animation: sd-open linear both;
+      animation-timeline: --s2;
+      animation-range: cover 40% cover 46%;
+    }
+
     .pop .row:not(.guess) {
       animation: sd-rise linear both;
       animation-timeline: --s2;
@@ -1518,29 +1563,42 @@ main:has(.atlas) {
     }
 
     /* 3 · What I rejected: running the code. */
+    /* In on this heading, out on the next: two timelines, so two boxes. */
     .kernel {
-      animation: sd-kernel linear both;
+      animation: sd-in linear both;
       animation-timeline: --s3;
-      animation-range: cover 8% cover 62%;
+      animation-range: cover 8% cover 22%;
+    }
+
+    .kernel > div {
+      animation: sd-out linear both;
+      animation-timeline: --s4;
+      animation-range: cover 0% cover 8%;
     }
 
     .kernel code:not(.no) {
       animation: sd-strike linear both;
       animation-timeline: --s3;
-      animation-range: cover 24% cover 36%;
+      animation-range: cover 34% cover 52%;
     }
 
     .kernel .no {
       animation: sd-fade linear both;
       animation-timeline: --s3;
-      animation-range: cover 34% cover 40%;
+      animation-range: cover 50% cover 56%;
     }
 
     /* 4 · What it cost: a column that is a guess, and a preview of the file. */
+    .pop .more {
+      animation: sd-open linear both;
+      animation-timeline: --s4;
+      animation-range: cover 10% cover 16%;
+    }
+
     .pop .guess {
       animation: sd-rise linear both;
       animation-timeline: --s4;
-      animation-range: cover 12% cover 24%;
+      animation-range: cover 14% cover 24%;
     }
 
     .pop .caveat {
@@ -1572,6 +1630,513 @@ main:has(.atlas) {
       animation: sd-fade linear both;
       animation-timeline: --s5;
       animation-range: cover 33% cover 34%;
+    }
+  }
+}
+
+/* Memojo: the darkroom (`Darkroom.tsx`). The box above the camera says what
+   the app is doing; one card at a time stands in it, all in one grid cell. */
+.darkroom .slot {
+  flex: none;
+  display: grid;
+  height: 6.6rem;
+  width: min(100%, 24rem);
+  margin-inline: auto;
+}
+
+.darkroom .card {
+  grid-area: 1 / 1;
+  align-self: start;
+  padding: 0.6rem 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font: 400 0.8rem/1.45 var(--sans);
+  color: var(--paper-dim);
+  opacity: 0;
+}
+
+.darkroom .card.facts {
+  opacity: 1;
+}
+
+.darkroom .card p {
+  margin: 0;
+}
+
+.darkroom .caveat {
+  color: var(--gold);
+}
+
+.darkroom .field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #ffffff26;
+  border-radius: 99px;
+  color: var(--paper);
+  min-height: 1.9rem;
+}
+
+.darkroom .glass {
+  width: 0.62rem;
+  height: 0.62rem;
+  border: 1.5px solid var(--paper-dim);
+  border-radius: 50%;
+  position: relative;
+}
+
+.darkroom .glass::after {
+  content: "";
+  position: absolute;
+  left: 95%;
+  top: 95%;
+  width: 0.3rem;
+  border-top: 1.5px solid var(--paper-dim);
+  rotate: 45deg;
+  transform-origin: left;
+}
+
+.darkroom .q {
+  grid-area: 1 / 2;
+  justify-self: start;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.darkroom .found {
+  display: grid;
+  margin-top: 0.45rem;
+}
+
+.darkroom .hit {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.72rem;
+  color: var(--paper-faint);
+  opacity: 0;
+}
+
+.darkroom .thumb {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 3px;
+  background: var(--atlas) no-repeat;
+  background-size: 400% 300%;
+  outline: 1.5px solid var(--gold);
+}
+
+.darkroom .meter {
+  height: 3px;
+  margin-top: 0.55rem;
+  background: #ffffff1a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.darkroom .meter span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transform-origin: left;
+}
+
+.darkroom .plane {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--paper);
+}
+
+.darkroom .switch {
+  position: relative;
+  width: 1.7rem;
+  height: 0.95rem;
+  border-radius: 99px;
+  background: var(--gold);
+}
+
+.darkroom .switch::after {
+  content: "";
+  position: absolute;
+  top: 0.12rem;
+  left: 0.12rem;
+  width: 0.71rem;
+  height: 0.71rem;
+  border-radius: 50%;
+  background: var(--paper);
+  translate: 0.75rem 0;
+}
+
+/* The flash going off, over the camera's own flash window and then the room. */
+.darkroom .flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 32.4% 19.2%, #fff 0 2.5%, #fffbe8cc 6%, #fff4d400 42%), #fff4d422;
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The table, as a plane: 900 across and 1650 deep in its own units (`--u`),
+   tilted back into the photograph from its near edge. Everything on it —
+   prints, labels, phones — is placed and moved in the table's own space. */
+.darkroom .tabletop {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  pointer-events: none;
+}
+
+.darkroom .table {
+  --u: calc(100cqw / 900);
+  position: absolute;
+  left: 0;
+  width: 100%;
+  bottom: calc(10 * var(--u));
+  height: calc(1650 * var(--u));
+  transform-origin: 50% 100%;
+  transform: perspective(calc(4000 * var(--u))) rotateX(62deg);
+}
+
+.darkroom .table > * {
+  position: absolute;
+  left: calc(var(--x) * var(--u));
+  top: calc(var(--y) * var(--u));
+}
+
+.darkroom .print {
+  width: calc(150 * var(--u));
+  height: calc(186 * var(--u));
+  margin: calc(-93 * var(--u)) 0 0 calc(-75 * var(--u));
+  padding: calc(10.5 * var(--u)) calc(10.5 * var(--u)) 0;
+  background: #e9e3d6;
+  border-radius: calc(3 * var(--u));
+  box-shadow: 0 calc(6 * var(--u)) calc(14 * var(--u)) #000b;
+  filter: brightness(0.9);
+  rotate: var(--r);
+}
+
+.darkroom .photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--atlas) no-repeat;
+  background-size: 400% 300%;
+}
+
+.darkroom .ring {
+  position: absolute;
+  inset: calc(-8 * var(--u));
+  border: calc(5 * var(--u)) solid var(--gold);
+  border-radius: calc(8 * var(--u));
+  box-shadow: 0 0 calc(30 * var(--u)) var(--gold);
+  opacity: 0;
+}
+
+.darkroom .label {
+  translate: -50% -50%;
+  font: 650 calc(30 * var(--u)) / 1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #eadfc8;
+  text-shadow: 0 0 calc(12 * var(--u)) #000;
+}
+
+.darkroom .date {
+  font: 600 calc(32 * var(--u)) / 1 var(--mono);
+  color: var(--gold);
+  opacity: 0;
+}
+
+.darkroom .os,
+.darkroom .air {
+  opacity: 0;
+}
+
+.darkroom .air {
+  font-size: calc(21 * var(--u));
+  color: var(--gold);
+}
+
+.darkroom .phone {
+  width: calc(240 * var(--u));
+  height: calc(440 * var(--u));
+  margin: calc(-220 * var(--u)) 0 0 calc(-120 * var(--u));
+  background: linear-gradient(160deg, #1b2a33, #0a0e12 60%);
+  border: calc(8 * var(--u)) solid #25272c;
+  border-radius: calc(36 * var(--u));
+  box-shadow: 0 calc(8 * var(--u)) calc(20 * var(--u)) #000c, inset 0 0 calc(40 * var(--u)) #3d8fb044;
+  opacity: 0;
+}
+
+.darkroom .wifi {
+  width: calc(190 * var(--u));
+  translate: -50% 0;
+  border-top: calc(5 * var(--u)) dashed var(--gold);
+  opacity: 0;
+}
+
+/* Opacity moves that add, so one thing can come and go on several headings:
+   `up` and `down` from where it is, `back` for what is there at the end and so
+   must start below it. */
+@keyframes dr-up {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dr-down {
+  from { opacity: 0; }
+  to { opacity: -1; }
+}
+
+@keyframes dr-back {
+  from { opacity: -1; }
+  to { opacity: 0; }
+}
+
+@keyframes dr-card-in {
+  from { opacity: 0; translate: 0 0.4rem; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes dr-card-back {
+  from { opacity: -1; translate: 0 0.4rem; }
+  to { opacity: 0; translate: 0 0; }
+}
+
+@keyframes dr-blip {
+  0%, 100% { opacity: 0; }
+  2%, 98% { opacity: 1; }
+}
+
+@keyframes dr-hold {
+  0% { opacity: 0; }
+  4%, 100% { opacity: 1; }
+}
+
+@keyframes dr-type {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes dr-fill {
+  from { scale: 0 1; }
+}
+
+@keyframes dr-flash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes dr-switch {
+  from { background: #ffffff33; }
+}
+
+@keyframes dr-knob {
+  from { translate: 0 0; }
+}
+
+/* A print's six legs, each the difference between two places. They add. */
+@keyframes dr-0 {
+  from { translate: var(--t0); rotate: var(--r0); scale: 0.5; opacity: -1; }
+  to { translate: 0px 0px; rotate: 0deg; scale: 1; opacity: 0; }
+}
+
+@keyframes dr-2 {
+  from { translate: var(--t2); rotate: var(--r2); }
+  to { translate: 0px 0px; rotate: 0deg; }
+}
+
+@keyframes dr-3 {
+  from { translate: 0px 0px; rotate: 0deg; scale: 1; }
+  to { translate: var(--t3); rotate: var(--r3); scale: var(--s3); }
+}
+
+@keyframes dr-4 {
+  from { translate: 0px 0px; rotate: 0deg; scale: 1; }
+  to { translate: var(--t4); rotate: var(--r4); scale: var(--s4); }
+}
+
+@keyframes dr-5 {
+  from { translate: 0px 0px; }
+  to { translate: var(--t5); }
+}
+
+@keyframes dr-6 {
+  from { translate: 0px 0px; rotate: 0deg; scale: 1; }
+  to { translate: var(--t6); rotate: var(--r6); scale: var(--s6); }
+}
+
+/*
+  When. Memojo's sections are short — the diary is 248px — so every act plays
+  in one band: while its heading rises from about 60% of the window to 35%
+  (`cover` 40% to 65%, give or take what an act needs), which fits between
+  one heading and the next at every window from 800 to 1080 tall. A card
+  comes in just before its act (`cover` 32–40%) and the one before it goes as
+  it does, on the new heading's timeline. The roll lands in the first 7rem of
+  scroll, because on a tall window the first heading is already at 70% when
+  the page opens.
+*/
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Before the first heading: the flash, and the roll lands on the table. */
+    .darkroom .flash {
+      animation: dr-flash linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0.3rem 5rem;
+    }
+
+    .darkroom .print {
+      animation:
+        dr-0 ease-out both,
+        dr-2 ease-in-out both,
+        dr-3 ease-in-out both,
+        dr-4 ease-in-out both,
+        dr-5 ease-in-out both,
+        dr-6 ease-in-out both;
+      animation-timeline: scroll(root), --s2, --s3, --s4, --s4, --s6;
+      animation-range:
+        calc(0.6rem + var(--i) * 0.35rem) calc(3.2rem + var(--i) * 0.35rem),
+        cover calc(40% + var(--k) * 3%) cover calc(56% + var(--k) * 3%),
+        cover calc(40% + var(--d) * 1%) cover calc(50% + var(--d) * 1%),
+        cover 40% cover 52%,
+        cover calc(54% + var(--k) * 4%) cover calc(64% + var(--k) * 4%),
+        cover 40% cover 60%;
+      animation-composition: add;
+    }
+
+    /* Each card: in on its own heading, out on the next one's. */
+    .darkroom .search,
+    .darkroom .index,
+    .darkroom .diary,
+    .darkroom .send,
+    .darkroom .private {
+      animation: dr-card-in linear both, dr-down linear both;
+      animation-range: cover 32% cover 40%, cover 26% cover 34%;
+      animation-composition: add;
+    }
+
+    .darkroom .search { animation-timeline: --s1, --s2; }
+    .darkroom .index { animation-timeline: --s2, --s3; }
+    .darkroom .diary { animation-timeline: --s3, --s4; }
+    .darkroom .send { animation-timeline: --s4, --s5; }
+    .darkroom .private { animation-timeline: --s5, --s6; }
+
+    .darkroom .facts {
+      animation: dr-card-back linear both;
+      animation-timeline: --s6;
+      animation-range: cover 32% cover 40%;
+      animation-composition: add;
+    }
+
+    /* 1 · Search: the prose's four sentences, typed, and what each finds —
+       in the box and, ringed, on the table. */
+    .darkroom .q {
+      animation: dr-blip linear both, dr-type both;
+      animation-timeline: --s1, --s1;
+      animation-range:
+        cover calc(38% + var(--j) * 11.5%) cover calc(49.5% + var(--j) * 11.5%),
+        cover calc(38% + var(--j) * 11.5%) cover calc(44% + var(--j) * 11.5%);
+      animation-timing-function: linear, steps(var(--n), end);
+    }
+
+    .darkroom .q:last-child {
+      animation-name: dr-hold, dr-type;
+      animation-range:
+        cover calc(38% + var(--j) * 11.5%) cover 100%,
+        cover calc(38% + var(--j) * 11.5%) cover calc(44% + var(--j) * 11.5%);
+    }
+
+    .darkroom .hit,
+    .darkroom .ring {
+      animation: dr-blip linear both;
+      animation-timeline: --s1;
+      /* Held until the next one replaces it, as a result list is. */
+      animation-range: cover calc(44% + var(--j, var(--q)) * 11.5%) cover calc(55.5% + var(--j, var(--q)) * 11.5%);
+    }
+
+    .darkroom .hit:last-child {
+      animation-name: dr-hold;
+      animation-range: cover calc(44% + var(--j) * 11.5%) cover 100%;
+    }
+
+    /* 2 · Albums: the prints go to their stacks as the index fills, named. */
+    .darkroom .index .meter span {
+      animation: dr-fill linear both;
+      animation-timeline: --s2;
+      animation-range: cover 40% cover 62%;
+    }
+
+    .darkroom .album {
+      animation: dr-back linear both, dr-down linear both, dr-up linear both;
+      animation-timeline: --s2, --s3, --s4;
+      animation-range: cover 54% cover 64%, cover 38% cover 44%, cover 46% cover 54%;
+      animation-composition: add;
+    }
+
+    /* 3 · Diary: dealt out in the order they were taken, dated. */
+    .darkroom .date {
+      animation: dr-up linear both, dr-down linear both;
+      animation-timeline: --s3, --s4;
+      animation-range: cover 54% cover 62%, cover 36% cover 42%;
+      animation-composition: add;
+    }
+
+    /* 4 · Phone to phone: the rest go home, one album goes across. */
+    .darkroom .phone,
+    .darkroom .os {
+      animation: dr-up linear both, dr-down linear both;
+      animation-timeline: --s4, --s6;
+      animation-range: cover 34% cover 42%, cover 58% cover 66%;
+      animation-composition: add;
+    }
+
+    .darkroom .wifi,
+    .darkroom .air {
+      animation: dr-up linear both, dr-down linear both;
+      animation-timeline: --s4, --s6;
+      animation-range: cover 48% cover 54%, cover 34% cover 40%;
+      animation-composition: add;
+    }
+
+    .darkroom .send .meter span {
+      animation: dr-fill linear both;
+      animation-timeline: --s4;
+      animation-range: cover 54% cover 72%;
+    }
+
+    /* 5 · Private: aeroplane mode on, nothing up, and not a backup. */
+    .darkroom .switch {
+      animation: dr-switch linear both;
+      animation-timeline: --s5;
+      animation-range: cover 40% cover 46%;
+    }
+
+    .darkroom .switch::after {
+      animation: dr-knob linear both;
+      animation-timeline: --s5;
+      animation-range: cover 40% cover 46%;
+    }
+
+    .darkroom .zero {
+      animation: sd-fade linear both;
+      animation-timeline: --s5;
+      animation-range: cover 46% cover 52%;
+    }
+
+    .darkroom .private .caveat {
+      animation: sd-fade linear both;
+      animation-timeline: --s5;
+      animation-range: cover 56% cover 62%;
     }
   }
 }
