@@ -63,6 +63,31 @@ export function solve(board: number[], limit = 1): number {
   return found
 }
 
+/**
+ * The same search, recorded: every digit it writes, in order, as pairs of
+ * (cell, digit) — digit 0 where it takes one back. Replaying the pairs onto
+ * `BOARD` is watching `solve()` work, backtracks and all, which is what the
+ * flat index's hologram does when it is hovered. 8,950 moves on this board.
+ */
+export function trace(board: readonly number[] = BOARD): Uint8Array {
+  const b = board.slice()
+  const out: number[] = []
+  const go = (): boolean => {
+    const i = b.indexOf(0)
+    if (i < 0) return true
+    for (const n of candidates(b, i)) {
+      b[i] = n
+      out.push(i, n)
+      if (go()) return true
+    }
+    b[i] = 0
+    out.push(i, 0)
+    return false
+  }
+  go()
+  return Uint8Array.from(out)
+}
+
 /** Rows of the shader's puzzle texture: the clue digit, then six flicker slots. */
 export const SLOTS = 6
 

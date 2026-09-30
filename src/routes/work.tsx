@@ -1,19 +1,32 @@
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link, useOutletContext, useViewTransitionState } from 'react-router'
 import { LABEL, PROJECTS, linksOf, type Project } from '../content'
+import { Hologram } from '../Hologram'
 import { STRINGS, type Locale } from '../i18n'
+import mark from '../assets/logo/logo-512.webp?no-inline'
 
 /**
  * The flat index — where the skip link lands, and the one route that is a
  * reading surface whatever the visitor's hardware. Its links carry `?read` so
  * that stays true one click later: see `isWorldPath` in `src/i18n/locales.ts`.
  *
- * Two columns that answer each other: a chart of the archipelago, drawn from
- * each project's frontmatter, and a ledger of the projects in world order, each
- * with its signature — `{slug}.svg` beside the MDX, a drawing of what the thing
- * does. Hovering either lights the other, in CSS (`:has()`), so it all works
- * prerendered with JS off; a browser without `:has()` gets one column and no
- * lighting, which is the page it had before. `docs/STATUS.md`, "The index is
- * a chart".
+ * A stage down the left third, a ledger beside it, and a small chart of the
+ * archipelago in the bottom-right corner. The ledger is one project to a
+ * screen, snapped; the stage holds each project's picture and swipes the one
+ * leaving out to one side as the next comes in from the other. The chart and
+ * the ledger still light each other on hover, in CSS (`:has()`), and the chart
+ * lights the island on stage as well. `docs/STATUS.md`, "The index is a
+ * stage".
+ *
+ * The page's own title has a slide too, the first: the mark, for now. So the
+ * stage opens on the site and not on whichever project happens to be first.
+ * On a phone the stage is a strip over the ledger rather than a column beside
+ * it, and swipes the same way.
+ *
+ * With JS off the ledger is the whole page, as it always was, and the stage
+ * stands on the mark — the swipe is the one thing here that needs a script,
+ * because which card is in the middle of the screen is not something CSS can
+ * be asked.
  */
 
 /**
@@ -38,6 +51,51 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * words — so it is hidden, and its islands are links for a pointer only: a click
  * scrolls to the entry, which is where the keyboard already is.
  */
+/**
+ * What draws into a plate's empty panel, by landmark — the same key the world's
+ * `BUILD` uses. Only the sudoku has one: its panel is its puzzle, and a
+ * generated picture cannot be trusted with the digits.
+ */
+const OVERLAY: Record<string, ComponentType<{ on: boolean }>> = { sudoku: Hologram }
+
+/**
+ * The title's slide, then one per project in ledger order. `at` is where each
+ * one is: on stage,
+ * or off it to the side it left by or will come in from — so scrolling down
+ * sends the current one out left and brings the next in from the right, and
+ * scrolling up runs the same thing backwards. Only the two that are changing
+ * places move; a jump from the chart does not drag the ones between across.
+ */
+function Stage({ projects, on, was }: { projects: Project[]; on: number; was: number }) {
+  const at = (i: number) => ({
+    'data-at': i === on ? 'on' : i < on ? 'before' : 'after',
+    'data-moving': i === on || i === was || undefined,
+  })
+  return (
+    <div className="showcase" aria-hidden="true">
+      <figure className="slide" {...at(0)}>
+        <img className="mark" src={mark} alt="" decoding="async" />
+      </figure>
+      {projects.map((p, n) => {
+        const Overlay = OVERLAY[p.landmark]
+        return (
+          <figure key={p.slug} className="slide" {...at(n + 1)}>
+            {p.plate ? (
+              <div className="plate">
+                <img src={p.plate.base} alt="" decoding="async" />
+                <img className="light" src={p.plate.light} alt="" decoding="async" />
+                {Overlay && <Overlay on={n + 1 === on} />}
+              </div>
+            ) : (
+              p.sig && <div className="plate sig" dangerouslySetInnerHTML={{ __html: p.sig }} />
+            )}
+          </figure>
+        )
+      })}
+    </div>
+  )
+}
+
 function Chart({ projects }: { projects: Project[] }) {
   const coast = (p: Project) => p.radius * SPREAD * p.mapScale
   const cz = projects.reduce((s, p) => s + p.pos[1], 0) / projects.length
@@ -139,6 +197,31 @@ export default function Work() {
   const locale = useOutletContext<Locale>()
   const t = STRINGS[locale]
   const projects = PROJECTS[locale]
+  // Highest number first. The chart's route keeps world order.
+  const ledger = [...projects].reverse()
+
+  // Which of the title and the cards is across the middle of the screen, and
+  // which one was — the stage's two moving slides. A line at half height
+  // rather than a fraction of each, so exactly one holds it at a time and a
+  // tall card counts the same as a short one.
+  const [[on, was], setOn] = useState<[number, number]>([0, 0])
+  const head = useRef<HTMLElement>(null)
+  const list = useRef<HTMLOListElement>(null)
+  useEffect(() => {
+    const items = [head.current, ...(list.current?.children ?? [])].filter((e): e is Element => !!e)
+    const seen = new IntersectionObserver(
+      (hits) => {
+        for (const h of hits) {
+          if (!h.isIntersecting) continue
+          const i = items.indexOf(h.target)
+          setOn(([cur]) => (i === cur ? [cur, cur] : [i, cur]))
+        }
+      },
+      { rootMargin: '-50% 0px -50% 0px' },
+    )
+    for (const el of items) seen.observe(el)
+    return () => seen.disconnect()
+  }, [])
 
   // The one pairing CSS cannot write generically: this entry with that island.
   // A rule per slug, written from the content, so a sixth project lights up
@@ -148,7 +231,7 @@ export default function Work() {
       .map((p) => {
         const e = `#p-${p.slug}`
         const i = `.isle[data-s=${p.slug}]`
-        return `.atlas:has(${e}:is(:hover,:focus-within),${i}:hover) :is(${e},${i})`
+        return `.atlas:has(${e}:is(:hover,:focus-within),${i}:hover) :is(${e},${i}),.atlas[data-on=${p.slug}] ${i}`
       })
       .join(',') + '{--lit:1}'
 
@@ -158,22 +241,22 @@ export default function Work() {
       <meta name="description" content={t.workDescription} />
       <style dangerouslySetInnerHTML={{ __html: lit }} />
 
-      <header className="index-head">
-        <h1>{t.workTitle}</h1>
-        <p className="lede">{t.workIntro}</p>
-      </header>
-
-      <div className="atlas">
-        <div className="spread">
-          <Chart projects={projects} />
-          {/* Highest number first. `reversed` so a screen reader counts down with
-              the numbers drawn beside it. The chart's route keeps world order. */}
-          <ol className="ledger" reversed>
-            {[...projects].reverse().map((p) => (
+      <div className="atlas" data-on={ledger[on - 1]?.slug}>
+        <Stage projects={ledger} on={on} was={was} />
+        <div className="reel">
+          <header className="index-head" ref={head}>
+            <h1>{t.workTitle}</h1>
+            <p className="lede">{t.workIntro}</p>
+          </header>
+          {/* `reversed` so a screen reader counts down with the numbers drawn
+              beside it. */}
+          <ol className="ledger" reversed ref={list}>
+            {ledger.map((p) => (
               <Entry key={p.slug} p={p} locale={locale} />
             ))}
           </ol>
         </div>
+        <Chart projects={projects} />
       </div>
     </>
   )

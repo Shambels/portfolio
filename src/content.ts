@@ -60,6 +60,12 @@ export type Project = {
    *  index as a drawing of what the thing does. Optional: a project without one
    *  gets an entry without a panel. Language-neutral, so one file per slug. */
   sig?: string
+  /** The flat index's stage picture — `{slug}.base.avif` and `{slug}.light.avif`
+   *  beside the MDX, cut by `tools/plate.py` out of a generated source: the
+   *  hardware, and the light it throws. Optional, and a project without one is
+   *  staged with its signature instead. URLs, not bytes: nothing is fetched
+   *  until the page draws them. */
+  plate?: { base: string; light: string }
 }
 
 type Module = { default: ComponentType<MDXProps>; frontmatter: unknown }
@@ -69,6 +75,14 @@ const modules = import.meta.glob<Module>('./content/projects/*.mdx', { eager: tr
 /** Raw markup, not a URL: the index inlines it, so its own `<style>` can animate
  *  it off the entry's hover and it paints with no request. ~6 kB gz for five. */
 const sigs = import.meta.glob<string>('./content/projects/*.svg', { query: '?raw', import: 'default', eager: true })
+
+const plates = import.meta.glob<string>('./content/projects/*.avif', { query: '?url', import: 'default', eager: true })
+
+function plateOf(slug: string): Project['plate'] {
+  const base = plates[`./content/projects/${slug}.base.avif`]
+  const light = plates[`./content/projects/${slug}.light.avif`]
+  return base && light ? { base, light } : undefined
+}
 
 type Entry = { slug: string; locale: Locale; fm: Record<string, unknown>; Body: ComponentType<MDXProps> }
 
@@ -143,6 +157,7 @@ function build(slug: string, locale: Locale): Project {
     Body: entry.Body,
     translated: entry.locale === locale,
     sig: sigs[`./content/projects/${slug}.svg`],
+    plate: plateOf(slug),
   }
 }
 

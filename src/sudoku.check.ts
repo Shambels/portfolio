@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, holes, pierce, solve, table } from './sudoku.ts'
+import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, holes, pierce, solve, table, trace } from './sudoku.ts'
 
 // The board is the repository's: 81 cells, 31 clues, 50 open.
 assert.equal(PUZZLE.length, 81)
@@ -61,6 +61,28 @@ for (let i = 0; i < 81; i++) {
 
 // Six slots are enough: no open cell has more candidates than slots.
 for (let i = 0; i < 81; i++) assert(BOARD[i] || candidates(BOARD, i).length <= SLOTS)
+
+// The recorded search is the search: replayed onto the board it ends on the
+// solution, every write is a candidate at the moment it is made, and it takes
+// back only what it wrote — never a clue.
+{
+  const moves = trace()
+  assert.equal(moves.length % 2, 0)
+  const b = BOARD.slice()
+  for (let k = 0; k < moves.length; k += 2) {
+    const i = moves[k]!
+    const n = moves[k + 1]!
+    assert.equal(BOARD[i], 0, `the search writes over clue ${i}`)
+    if (n) {
+      const before = b.slice()
+      before[i] = 0
+      assert(candidates(before, i).includes(n), `move ${k / 2} writes ${n} where it cannot go`)
+    }
+    b[i] = n
+  }
+  assert.deepEqual(b, solved, 'the replay does not end on the solution')
+  assert.equal(moves.length / 2, 8950, 'the search changed length — the hologram paces itself on it')
+}
 
 console.log('sudoku: ok —', BOARD.filter((n) => !n).length, 'open cells, one solution, table', bytes.length, 'bytes')
 

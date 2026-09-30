@@ -19,8 +19,8 @@ is under `FLOOR` and is dropped.
 a phone and 2.4rem from 40rem up (`.brand` in `index.css`), which at its
 3:4 aspect is 24 and 29 CSS pixels wide; `WIDTHS` is both at 1x, 2x and 3x,
 and the `<img srcset>` in `routes/locale.tsx` lets the browser choose.
-`MASTER` is kept at 512 for anything larger that comes later — an icon, a
-social card — and is not referenced by the site.
+`MASTER` is kept at 512 for anything larger — the title's slide on the
+flat index's stage draws it, and an icon or a social card later can too.
 """
 
 from pathlib import Path

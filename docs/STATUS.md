@@ -6947,3 +6947,94 @@ flight until the cycle takes `1 / CADENCE`. At the boost that is a 0.25 s
 float between footfalls. Nothing changes at or below the run: the 2.7 m/s
 cruise is 1.28 strides a second, under the cap, as before.
 
+
+## The index is a stage
+
+`/{lang}/work` was a chart beside a ledger. It is a stage, a ledger and a
+chart now, at Seb's direction: the chart small in the bottom-right corner,
+and the left third of the screen a stage with a picture per project that
+swipes out to one side as the next comes in from the other. The first
+picture done is the sudoku's, and it is the only one that moves; the other
+four stand on their signatures until they get theirs.
+
+- [x] **The stage** — `Stage` in `routes/work.tsx`: the title's slide (the
+  mark, `logo-512.webp`, for now) and one per project in ledger order.
+  Sticky, full height, down the left third from 60rem; a strip pinned over
+  the ledger on a phone, swiping the same way. Which slide is on is which of
+  the title and the cards is across the middle of the screen — an
+  `IntersectionObserver` on a line at half height, so exactly one holds it.
+  Scrolling down sends the current slide out left and brings the next in
+  from the right (0.75 s), up runs it backwards, and only the two changing
+  places move, so a jump from the chart does not sweep the others across.
+  The inner edge of the stage fades rather than cuts.
+- [x] **One project to a screen** — `scroll-snap-type: y mandatory` on the
+  page from 60rem and only where the window is at least 34rem tall, so a
+  card is never taller than the screen it snaps into. Each card centres; the
+  title is a screen of its own.
+- [x] **The chart** — the same SVG, fixed at 11rem in the bottom-right
+  corner, letters only. It still lights with the ledger on hover, and now
+  lights the island on stage as well (`data-on` on `.atlas`, one more
+  selector per slug in the rules `work.tsx` writes). On a phone it follows the
+  ledger. `.atlas` lost `container-type`: containment makes an element the
+  containing block of everything fixed inside it, and the chart is fixed.
+- [x] **The cards** lose their signature panel wherever the stage shows it
+  bigger — beside them, and in the phone strip.
+- [x] **Plates** — `{slug}.base.avif` and `{slug}.light.avif` beside the MDX,
+  optional, read by `content.ts` as URLs. `tools/plate.py` cuts them out of
+  `tools/art/{slug}-source.png`, a picture generated on OpenArt against pure
+  black: the hardware by its silhouette (grey, lit, short of white-hot, row
+  by row), the light by unpremultiplying what is left — so it lays over the
+  page the way it lay over black, with no blend mode. `--check` recomposes
+  the two and holds them to the source (mean error 1.2/255). AVIF because the
+  light is 55 kB in it and 196 kB in WebP. The sudoku's pair is 83 kB.
+- [x] **The sudoku's panel** — `src/Hologram.tsx`, drawn into the plate's
+  empty square (`PANEL`, measured off the source; it moves if the source is
+  regenerated). A 2D canvas, digits stamped from glyph atlases drawn once
+  per size, so a frame is ~120 stamps: rain on every arrival that settles in
+  the solver's scan order with a flare per cell; clues bright, open cells
+  cycling their candidates; a flicker every 2.4–7 s — dip, a torn band, a
+  colour split — that dips the beam in the picture with it (`--flick`);
+  motes rising up the beam; a slow band down the panel.
+- [x] **The beam is alive** (Seb's second and third looks) — sixteen faint
+  rays over the picture's beam (`HOLO.rayLit`), the whole fan turning about
+  1.2 degrees either way about the lens (`HOLO.turn`), and all of it on a
+  slow irregular pulse — one shared swell of three clocks that never line
+  up, a little of each ray's own on top — with a lens glow on the same
+  swell. Beads of light float up it, 3.8–6.2 s each, breathing as they go:
+  one for some of the digits that change in the panel (a candidate turning
+  over at rest, a cell settling on arrival, a write while it solves), from
+  the lens to the foot of that cell's column and on up into it, never more
+  than 36 in the air (`HOLO.beads`, `HOLO.odds`). The second look's fast
+  streaks went for these. The beam in the picture breathes too, through
+  `--flick`. None of it under reduced motion. The cursor scrambles
+  what it passes back to rain, resettling in scan order. Held over the panel
+  half a second, it solves: `trace()` in `sudoku.ts` is the fixed solver's
+  search recorded, all 8,950 writes, replayed on an ease-in over 4.2 s with a
+  readout of the step count, and leaving fades the solution back out.
+  `sudoku.check.ts` replays the trace and holds it to the solution, to the
+  candidates at every write, and to its length.
+- [x] **Invariant 6** — under reduced motion the swipe is instant, and the
+  panel draws once: no rain, flicker, cycling, motes or band. Hover still
+  solves, at once rather than animated, because it answers something the
+  visitor did. The canvas loop runs only while its slide is on stage, on
+  screen, and the tab is visible.
+- [x] **Invariant 4** — with JS off the stage stands on the mark, the SVG
+  fallback draws the sudoku's grid and clues, and the ledger is the page.
+- [x] **Invariant 7, bent a third time** — a project may bring a plate, a
+  file beside its content like its signature. What draws *into* a plate is
+  code, keyed on `landmark` the way the world's `BUILD` is (`OVERLAY` in
+  `work.tsx`); the sudoku is the only entry, and a plate without one is a
+  still picture.
+- [x] **Cost** — the `/work` route chunk 2.2 → 5.3 kB gz. Images load on
+  that route only: 83 kB of plates and the 73 kB mark.
+
+Open, and Seb's:
+
+- **The other four plates** — one at a time, each asked for before it is
+  generated. The stage takes them without a code change; only one that
+  wants motion of its own needs an `OVERLAY` entry.
+- **The title's slide** is the mark as a placeholder.
+- **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
+  where the vsync is the ceiling; a 2022 laptop is the real test.
+- **The pacing** — `HOLO` in `Hologram.tsx`: the rain and settle, the
+  flicker's interval, the half-second before a solve and its 4.2 s.
