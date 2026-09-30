@@ -7118,15 +7118,45 @@ four stand on their signatures until they get theirs.
   by its name (`Plate` in `content.ts`), which is how the painting and the
   sketch reach `Studio`.
 
+- [x] **Memojo's plate: an instant camera that prints** — the island's camera
+  (leatherette, chrome, brass, a coated lens) on a walnut table, turned
+  three-quarters to us (`tools/art/memojo-source.png`, GPT Image 2.5; opaque,
+  62 kB), and twelve snapshots cut out of a generated contact sheet into one
+  4 × 3 atlas by `plate.py` (`photos()`, 115 kB): the case study's own four
+  sentences first — a baby laughing in the garden, a ski trip, dinner near
+  the sea, red trees in autumn — then a dog, a birthday cake, a lake, a city
+  at night, a beach, bicycles, a snowman, coffee. `src/Instant.tsx`, a 2D
+  canvas over the photograph (not `Camera.tsx`: `camera.ts` is the follow
+  camera, and macOS would not tell them apart):
+  - **point at the lens** and the flash window warms over half a second, then
+    the shutter goes — a burst from the flash and the room lit white;
+  - **a print feeds out of the slot**, square to the camera's face and clipped
+    at the lip, blank grey-green, developing over five seconds as it comes and
+    after; it tips off the lip onto the table in an arc and lands on a pile,
+    lying flat in the table's perspective, nearer ones larger, with shadows;
+  - **the pile sorts itself** once three have landed: into four stacks by what
+    is in them — people, food, outdoors, places — the app's albums nobody had
+    to make. The next print lands on the pile and the table sorts again.
+  One shot per visit to the lens, and none while a print is still coming out.
+  The prints stay on the table across a swipe away and back; the thirteenth
+  takes the oldest's place. Never the visitor's own camera — a photo app
+  whose point is privacy does not ask for the webcam to make a joke. Under
+  reduced motion: no flash, and a print is simply there, developed, sorted.
+  Without a script: the camera on an empty table. Draws only while something
+  moves.
+
 Open, and Seb's:
 
+- **The camera on hardware** — the flash's strength, the develop's five
+  seconds, where the four stacks lie (`STACKS`, `PILE`, `TIME` in
+  `Instant.tsx`).
 - **The easel on hardware** — the brush's size, how far a load goes, and how
   strongly the painting models the strokes (`BRUSH` in `Studio.tsx`, the
   value curve in its shader).
 - **The iceberg's water on hardware** — how hard a stroke should hit
   (`SEA.push`), how far the view bends (`SEA.bend`), how heavy the ice is.
   Swiftshader draws it, but not at a speed worth judging.
-- **The other two plates** — one at a time, each asked for before it is
+- **Scrubble's plate** — the last one; one at a time, each asked for before it is
   generated. The stage takes them without a code change; only one that
   wants motion of its own needs an `OVERLAY` entry.
 - **The title's slide** is the mark as a placeholder.

@@ -2151,3 +2151,11 @@ main {
   width: 100%;
   height: 100%;
 }
+
+/* Memojo's plate: the instant camera and its prints (`Instant.tsx`). */
+.instant {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

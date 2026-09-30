@@ -3,6 +3,7 @@ import { Link, useOutletContext, useViewTransitionState } from 'react-router'
 import { LABEL, PROJECTS, linksOf, type Plate, type Project } from '../content'
 import { Hologram } from '../Hologram'
 import { Iceberg } from '../Iceberg'
+import { Instant } from '../Instant'
 import { Studio } from '../Studio'
 import { STRINGS, type Locale } from '../i18n'
 import mark from '../assets/logo/logo-512.webp?no-inline'
@@ -58,12 +59,13 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * uses. The sudoku's draws the puzzle into its empty panel, because a
  * generated picture cannot be trusted with the digits; PolarSense's puts its
  * iceberg in water the cursor can stir; Arts by Sandra's gives the cursor a
- * brush and a palette.
+ * brush and a palette; Memojo's is a camera that takes the picture.
  */
 const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: Plate }>> = {
   sudoku: Hologram,
   mine: Iceberg,
   easel: Studio,
+  ramp: Instant,
 }
 
 /**

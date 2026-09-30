@@ -24,7 +24,8 @@ The two together are the source again, to the rounding — `--check` says so.
 
 Arts by Sandra's is the third kind: an opaque scene — an easel, a blank
 canvas, a palette — with nothing to cut, and two more layers that live on
-the canvas (`studio()` below).
+the canvas (`studio()` below). Memojo's is the same kind — a camera on a
+table — and its extra layer is the photographs it prints (`photos()`).
 
   python3 tools/plate.py sudoku            write both
   python3 tools/plate.py sudoku --check    and prove they recompose
@@ -50,11 +51,44 @@ PLATES = {
     # The easel: opaque, cropped to 900 x 1162 from the top, so the palette and
     # the rag stay in. `Studio.tsx` holds the canvas's corners and the blobs.
     'arts-by-sandra': {'crop': (0, 57, 1344, 1792), 'split': 'opaque', 'width': 900},
+    # The instant camera on its table: opaque, the foot of the table trimmed.
+    # `Camera.tsx` holds the lens, the flash and the slot.
+    'memojo': {'crop': (0, 0, 1344, 1735), 'split': 'opaque', 'width': 900},
 }
 
 # The canvas in the source scene, corner by corner (it is a hair wider at the
 # foot — the easel leans back a touch), and the painting's crop to its shape.
 CANVAS = [(194, 102), (1148, 101), (1156, 1282), (184, 1280)]  # TL TR BR BL
+
+
+def photos() -> None:
+    """Memojo's twelve snapshots, out of the contact sheet they were generated
+    on (`tools/art/memojo-photos.png`, OpenArt) and into one 4 x 3 atlas of
+    squares — the pictures only: each sat in a white card with rounded
+    corners, and the card is cut away with a margin, because `Camera.tsx`
+    draws the instant-film frame itself. Found by what is not card-white in
+    each cell of the sheet, so a regenerated sheet re-measures itself."""
+    from scipy import ndimage
+
+    a = np.asarray(Image.open(ROOT / 'tools' / 'art' / 'memojo-photos.png').convert('RGB'))
+    f = a.astype(np.float64)
+    ink = (f.mean(axis=2) < 225) | (f.max(axis=2) - f.min(axis=2) > 20)
+    h, w = ink.shape
+    side = 320
+    atlas = Image.new('RGB', (side * 4, side * 3))
+    for r in range(3):
+        for c in range(4):
+            y0, y1, x0, x1 = r * h // 3, (r + 1) * h // 3, c * w // 4, (c + 1) * w // 4
+            lab, n = ndimage.label(ink[y0:y1, x0:x1])
+            sizes = ndimage.sum(ink[y0:y1, x0:x1], lab, range(1, n + 1))
+            ys, xs = np.nonzero(lab == int(np.argmax(sizes)) + 1)
+            inset = 16  # past the rounded corners
+            box = (x0 + xs.min() + inset, y0 + ys.min() + inset, x0 + xs.max() - inset, y0 + ys.max() - inset)
+            assert abs((box[2] - box[0]) - (box[3] - box[1])) < 8, f'photo {r},{c} is not square: {box}'
+            atlas.paste(Image.fromarray(a).crop(box).resize((side, side), Image.LANCZOS), (c * side, r * side))
+    f = ROOT / 'src' / 'content' / 'projects' / 'memojo.photos.avif'
+    atlas.save(f, 'AVIF', quality=60, speed=2)
+    print(f'{f.relative_to(ROOT)}  {atlas.size[0]}x{atlas.size[1]}  {f.stat().st_size / 1024:.1f} kB')
 
 
 def studio() -> None:
@@ -131,7 +165,7 @@ def cut(slug: str, check: bool) -> None:
         f = ROOT / 'src' / 'content' / 'projects' / f'{slug}.base.avif'
         Image.fromarray((rgba * 255 + 0.5).astype(np.uint8), 'RGBA').resize(size, Image.LANCZOS).save(f, 'AVIF', quality=66, speed=2)
         print(f'{f.relative_to(ROOT)}  {size[0]}x{size[1]}  {f.stat().st_size / 1024:.1f} kB')
-        studio()
+        {'arts-by-sandra': studio, 'memojo': photos}[slug]()
         return
     split = h if p['split'] is None else p['split'] - p['crop'][1]
 
