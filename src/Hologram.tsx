@@ -78,7 +78,7 @@ const HOLO = {
   stagger: 9,
   /** Held this long before it starts solving; the solve takes `solve`. */
   wait: 500,
-  solve: 4200,
+  solve: 2100,
   /** The solution fading back to the puzzle, on leaving. */
   unsolve: 600,
   /** The beam: how bright a ray is at the top of its swell, how far the fan

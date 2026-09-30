@@ -7009,7 +7009,7 @@ four stand on their signatures until they get theirs.
   `--flick`. None of it under reduced motion. The cursor scrambles
   what it passes back to rain, resettling in scan order. Held over the panel
   half a second, it solves: `trace()` in `sudoku.ts` is the fixed solver's
-  search recorded, all 8,950 writes, replayed on an ease-in over 4.2 s with a
+  search recorded, all 8,950 writes, replayed on an ease-in over 2.1 s with a
   readout of the step count, and leaving fades the solution back out.
   `sudoku.check.ts` replays the trace and holds it to the solution, to the
   candidates at every write, and to its length.
@@ -7195,4 +7195,4 @@ Open, and Seb's:
 - **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
   where the vsync is the ceiling; a 2022 laptop is the real test.
 - **The pacing** — `HOLO` in `Hologram.tsx`: the rain and settle, the
-  flicker's interval, the half-second before a solve and its 4.2 s.
+  flicker's interval, the half-second before a solve and its 2.1 s.
