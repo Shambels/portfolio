@@ -1,8 +1,20 @@
+import type { ComponentType } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router'
-import { getProject, linksOf } from '../content'
+import { getProject, linksOf, type Plate } from '../content'
 import { STRINGS, type Locale } from '../i18n'
 import { useWorld } from '../WorldGate'
 import NotFound from './not-found'
+import { Sounding } from '../Sounding'
+
+/**
+ * The flat case study's stage, where a project has one: its plate from the
+ * index, pinned beside the prose, played by the reading scroll — one act per
+ * heading, off the view timelines `index.css` names on them ("the study").
+ * Keyed on `landmark`, like the index's `OVERLAY` and the world's `BUILD`.
+ */
+const STAGE: Record<string, ComponentType<{ plate: Plate }>> = {
+  mine: Sounding,
+}
 
 /**
  * One route, two presentations of the same project, decided by whether the
@@ -76,7 +88,8 @@ export default function CaseStudy() {
     )
   }
 
-  return (
+  const Stage = project.plate && STAGE[project.landmark]
+  const article = (
     <article className="prose">
       {head}
 
@@ -95,5 +108,14 @@ export default function CaseStudy() {
         <Link to={`/${locale}/work`}>← {t.backToWork}</Link>
       </p>
     </article>
+  )
+
+  return Stage && project.plate ? (
+    <div className="study">
+      <Stage plate={project.plate} />
+      {article}
+    </div>
+  ) : (
+    article
   )
 }

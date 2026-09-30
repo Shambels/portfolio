@@ -1064,6 +1064,518 @@ main:has(.atlas) {
   margin-block-start: calc(var(--lh) * 1.5);
 }
 
+/* --- the study ---------------------------------------------------------- */
+
+/*
+  What every case study shares: the gold rule over each heading fills as that
+  heading comes up the window — a reading mark, the same on all of them, off
+  the heading's own view timeline. `--fill` is registered so it interpolates,
+  and inherits so the rule (a pseudo-element) can read it.
+*/
+@property --fill {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@keyframes rule-fill {
+  from {
+    --fill: 0.15;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .prose h2 {
+      animation: rule-fill linear both;
+      animation-timeline: view();
+      animation-range: cover 5% cover 40%;
+    }
+
+    .prose h2::before {
+      scale: var(--fill) 1;
+      transform-origin: left;
+    }
+  }
+}
+
+/*
+  And, where a project has one (`STAGE` in `case-study.tsx`), a stage: its
+  plate from the index, pinned in a column beside the prose, played by the
+  reading scroll. Every heading of the prose is a named view timeline, `--s1`
+  for the first and so on, and `timeline-scope` lifts the names to `.study` so
+  the stage — a sibling of the article, not inside it — can play off them. An
+  act plays as its heading rises from the foot of the window to the middle,
+  and holds while the section is read. What the stage draws with no animation
+  at all is the last act, so without scroll timelines, under reduced motion
+  and with no script, it is the outcome, standing still.
+
+  A phone has no column to spare and a pinned strip would sit on the reading,
+  so under the index's own breakpoint there is no stage — the prose is the
+  whole page, as it was.
+*/
+.sounding {
+  display: none;
+}
+
+@media (min-width: 60rem) {
+  main:has(.study) {
+    max-width: 80rem;
+  }
+
+  .study {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--measure);
+    gap: 0 clamp(2rem, 5vw, 5rem);
+    align-items: start;
+    timeline-scope: --s1, --s2, --s3, --s4, --s5;
+  }
+
+  .study .prose > h2:nth-of-type(1) { view-timeline: --s1; }
+  .study .prose > h2:nth-of-type(2) { view-timeline: --s2; }
+  .study .prose > h2:nth-of-type(3) { view-timeline: --s3; }
+  .study .prose > h2:nth-of-type(4) { view-timeline: --s4; }
+  .study .prose > h2:nth-of-type(5) { view-timeline: --s5; }
+
+  .sounding {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    padding-block: calc(var(--lh) * 2.75) var(--lh);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--lh) * 0.5);
+  }
+
+  .depth {
+    flex: 1;
+    min-height: 0;
+    container-type: size;
+    display: grid;
+    place-items: center;
+  }
+}
+
+/* PolarSense: the sounding (`Sounding.tsx`). The editor, where the problem is. */
+.editor {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 23rem);
+  margin-inline: auto;
+  font: 400 0.78rem/1.5 var(--mono);
+}
+
+.editor .code {
+  display: block;
+  padding: 0.55rem 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--paper);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.editor .str {
+  color: #9ec7a0;
+}
+
+.editor .caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.15em;
+  vertical-align: -0.22em;
+  background: var(--gold);
+}
+
+.pop {
+  position: relative;
+  margin: 0.3rem 0 0 min(5.2rem, 18%);
+  padding-block: 0.2rem 0;
+  background: var(--ink-2);
+  border: 1px solid #ffffff26;
+  border-radius: 4px;
+}
+
+.pop p {
+  margin: 0;
+}
+
+.pop .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 0.08rem 0.6rem;
+  color: var(--paper-dim);
+}
+
+.pop .hi {
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  color: var(--paper);
+}
+
+.pop .ty {
+  color: var(--paper-faint);
+}
+
+.pop .guess {
+  border-top: 1px dashed var(--rule);
+  color: var(--paper-faint);
+  font-style: italic;
+}
+
+.pop .none {
+  position: absolute;
+  inset: 0.2rem 0 auto;
+  padding: 0.08rem 0.6rem;
+  color: var(--paper-faint);
+  opacity: 0;
+}
+
+.pop .src {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.45em;
+  margin-top: 0.2rem;
+  padding: 0.3rem 0.6rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.66rem;
+  color: var(--paper-faint);
+}
+
+.pop .rows {
+  display: inline-grid;
+  color: var(--paper);
+}
+
+.pop .n {
+  grid-area: 1 / 1;
+  text-align: right;
+  opacity: 0;
+}
+
+.pop .n3 {
+  opacity: 1;
+}
+
+.pop .caveat {
+  flex-basis: 100%;
+  color: var(--gold);
+}
+
+/* The water, and what is drawn on it. */
+.sonar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sonar text {
+  font: 500 28px var(--mono);
+}
+
+/* Fixed to the ice, so it rides the roll and heave `Iceberg.tsx` publishes. */
+.sonar .ride {
+  transform-box: view-box;
+  transform: translateY(calc(var(--bob, 0) * 1162px)) rotate(calc(var(--ang, 0) * 1rad));
+}
+
+.sonar .unread {
+  font-size: 25px;
+  letter-spacing: 0.04em;
+  fill: #8fd3ff;
+  fill-opacity: 0.6;
+}
+
+.sonar .line {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  stroke-dasharray: 1;
+  filter: drop-shadow(0 0 5px #e9a851aa);
+}
+
+.sonar .lead {
+  fill: var(--gold);
+}
+
+.sonar .footer rect {
+  fill: color-mix(in srgb, var(--gold) 24%, transparent);
+  stroke: var(--gold);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 10px #e9a851aa);
+}
+
+.sonar .footer path {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+.sonar .footer text {
+  fill: var(--gold);
+}
+
+.sonar .footer .fine {
+  font-size: 23px;
+  fill: var(--paper-dim);
+}
+
+.sonar .rise {
+  font-size: 30px;
+  text-anchor: middle;
+  fill: #d8f4ff;
+  opacity: 0;
+}
+
+/* The road not taken: a kernel starting, struck through. */
+.kernel {
+  position: absolute;
+  inset: 47% 5% auto;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.75rem;
+  background: #170d0de8;
+  border: 1px solid #e0645a55;
+  border-radius: 6px;
+  font: 400 0.7rem/1.5 var(--mono);
+  color: var(--paper-dim);
+  opacity: 0;
+}
+
+.kernel code {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kernel code:not(.no) {
+  background: linear-gradient(#e0645a 0 0) 0 58% / 100% 2px no-repeat;
+}
+
+.kernel .no {
+  color: var(--gold);
+}
+
+@keyframes sd-rise {
+  from {
+    opacity: 0;
+    translate: 0 -0.5rem;
+  }
+}
+
+@keyframes sd-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* To whatever the element's own opacity is — nothing, for the ones it hides. */
+@keyframes sd-gone {
+  from {
+    opacity: 1;
+  }
+}
+
+@keyframes sd-blip {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  1%,
+  99% {
+    opacity: 1;
+  }
+}
+
+@keyframes sd-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* The weight, from the surface to the tip: 470 to 1022 on the plate. */
+@keyframes sd-sink {
+  0% {
+    translate: 0 -552px;
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+}
+
+/* A name, from the footer to the surface. */
+@keyframes sd-up {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  12%,
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -520px;
+  }
+}
+
+@keyframes sd-kernel {
+  0% {
+    opacity: 0;
+    translate: 0 0.75rem;
+  }
+  18%,
+  82% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes sd-strike {
+  from {
+    background-size: 0% 2px;
+  }
+}
+
+@keyframes sd-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .editor .caret {
+    animation: sd-blink 1s steps(1) infinite;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* 1 · The problem: the editor, and nothing after the quote mark. */
+    .editor {
+      animation: sd-rise linear both;
+      animation-timeline: --s1;
+      animation-range: cover 10% cover 35%;
+    }
+
+    /* 2 · What I chose: down past every row group to the footer, and back up. */
+    .pop .none {
+      animation: sd-gone linear both;
+      animation-timeline: --s2;
+      animation-range: cover 8% cover 14%;
+    }
+
+    .sonar .unread {
+      animation: sd-fade linear both;
+      animation-timeline: --s2;
+      animation-range: cover 10% cover 22%;
+    }
+
+    .sonar .line {
+      animation: sd-draw linear both;
+      animation-timeline: --s2;
+      animation-range: cover 10% cover 28%;
+    }
+
+    .sonar .lead {
+      animation: sd-sink linear both;
+      animation-timeline: --s2;
+      animation-range: cover 10% cover 28%;
+    }
+
+    .sonar .footer {
+      animation: sd-fade linear both;
+      animation-timeline: --s2;
+      animation-range: cover 27% cover 34%;
+    }
+
+    .sonar .rise {
+      animation: sd-up linear both;
+      animation-timeline: --s2;
+      animation-range: cover calc(32% + var(--i) * 5%) cover calc(50% + var(--i) * 5%);
+    }
+
+    .pop .row:not(.guess) {
+      animation: sd-rise linear both;
+      animation-timeline: --s2;
+      animation-range: cover calc(44% + var(--i) * 5%) cover calc(50% + var(--i) * 5%);
+    }
+
+    .pop .src {
+      animation: sd-fade linear both;
+      animation-timeline: --s2;
+      animation-range: cover 58% cover 64%;
+    }
+
+    /* 3 · What I rejected: running the code. */
+    .kernel {
+      animation: sd-kernel linear both;
+      animation-timeline: --s3;
+      animation-range: cover 8% cover 62%;
+    }
+
+    .kernel code:not(.no) {
+      animation: sd-strike linear both;
+      animation-timeline: --s3;
+      animation-range: cover 24% cover 36%;
+    }
+
+    .kernel .no {
+      animation: sd-fade linear both;
+      animation-timeline: --s3;
+      animation-range: cover 34% cover 40%;
+    }
+
+    /* 4 · What it cost: a column that is a guess, and a preview of the file. */
+    .pop .guess {
+      animation: sd-rise linear both;
+      animation-timeline: --s4;
+      animation-range: cover 12% cover 24%;
+    }
+
+    .pop .caveat {
+      animation: sd-fade linear both;
+      animation-timeline: --s4;
+      animation-range: cover 22% cover 32%;
+    }
+
+    /* 5 · The outcome: the file grows; what is read of it does not. */
+    .pop .n0 {
+      animation: sd-gone linear both;
+      animation-timeline: --s5;
+      animation-range: cover 14% cover 15%;
+    }
+
+    .pop .n1 {
+      animation: sd-blip linear both;
+      animation-timeline: --s5;
+      animation-range: cover 15% cover 24%;
+    }
+
+    .pop .n2 {
+      animation: sd-blip linear both;
+      animation-timeline: --s5;
+      animation-range: cover 24% cover 33%;
+    }
+
+    .pop .n3 {
+      animation: sd-fade linear both;
+      animation-timeline: --s5;
+      animation-range: cover 33% cover 34%;
+    }
+  }
+}
+
 /* --- the world ---------------------------------------------------------- */
 
 /*

@@ -7196,3 +7196,74 @@ Open, and Seb's:
   where the vsync is the ceiling; a 2022 laptop is the real test.
 - **The pacing** — `HOLO` in `Hologram.tsx`: the rain and settle, the
   flicker's interval, the half-second before a solve and its 2.1 s.
+
+## The case study is a stage — PolarSense first
+
+The flat case study was one column of prose, and the rest of the site had
+moved past it. PolarSense's is the prototype for all five: its plate from the
+index, pinned in a column beside the prose (≥ 60rem), played by the reading
+scroll — one act per heading, and each act is what that section argues.
+`src/Sounding.tsx`, `STAGE` in `case-study.tsx` (keyed on `landmark`, like
+`OVERLAY`), and "the study" in `index.css`.
+
+The logo is a bar chart of columns, a little above the line and most of it
+under; a parquet file keeps its schema in the footer, at the *end*. So:
+
+- **Top of the page** — the plate as the index showed it. The editor
+  (`df.filter(pl.col("re▍`, *No suggestions*) comes in on the page's first
+  scroll, not on its heading, which is already in the window when it opens.
+- **What I chose** — a sounding line drops past every row group ("never
+  read") to the berg's lowest tip, the footer lights (2 byte ranges), and
+  `region`, `revenue`, `returned` rise through the water into the completion
+  list, which opens from one line to full.
+- **What I rejected** — `python -c "import polars"… starting kernel`, struck
+  through, "runs nothing". It holds for the whole section and goes when the
+  next heading comes (two timelines, so two boxes: in on `--s3`, out on `--s4`).
+- **What it cost** — `…pivot` joins the list as a *guess*, and the preview's
+  "transforms not applied".
+- **The outcome** — the file goes 200 → 40,000 → 400,000 → 4,000,000 rows;
+  the footer, and what is read, stay the same size.
+
+**No script drives any of it.** Every `h2` of the prose is a named view
+timeline (`--s1`…`--s5` by `nth-of-type`), `timeline-scope` on `.study` lifts
+the names to the stage beside the article, and each act is CSS
+scroll-driven animation over a slice of `cover` — it plays as its heading
+rises from the foot of the window to the middle, holds while the section is
+read, and runs backwards scrolling up. The one piece of JavaScript added:
+`Iceberg.tsx` now publishes the roll and heave it draws (`--ang`, `--bob` on
+the plate), so the line and the footer, which are fixed to the ice, ride it.
+The iceberg itself is the index's, cursor-stirred as there.
+
+**Shared by every case study already**: the gold rule over each heading fills
+as the heading comes up the window (`--fill`, a registered property, off the
+heading's own `view()`). That, the five heading timelines and the pinned
+column are the common grammar the other four stages would reuse.
+
+**What the stage is with less.** What is drawn with no animation at all is the
+last act, so without scroll timelines (Firefox stable, still behind a flag),
+under `prefers-reduced-motion`, and with no script, it is the outcome
+standing still beside the complete prose. Under 60rem there is no stage — a
+pinned strip would sit on the reading. The completion list opens with a
+`grid-template-rows` 0fr → 1fr, inside a fixed-height slot, so the ice never
+moves or resizes between acts.
+
+Invariant 2: the figure is `aria-hidden` decoration; its words are code and
+labels (`footer`, `never read`, `runs nothing`), in English on all three
+locales, as the index's signature already is. The prose says all of it.
+
+Verified on a throwaway install in Claude's container: `tsc -b`, all twelve
+checks, `npm run build`, and Chromium renders at every act (swiftshader). The
+case-study chunk is 1.56 kB gz; `Iceberg` was already in the index's.
+
+Open, and Seb's:
+
+- **The pacing** — where in each heading's `cover` an act plays (the
+  `animation-range`s in "the study"); whether act 1 belongs on the first
+  scroll; whether the kernel should stay the whole section.
+- **The phone** — no stage under 60rem. A strip that plays and then scrolls
+  away is the other choice.
+- **Firefox** — gets the outcome, still. Stepping per section there with an
+  `IntersectionObserver` is ~20 lines if it matters.
+- **The other four** — Arts by Sandra (strokes that converge into one form),
+  Scrubble (1,755 moves counted, the ranked moves dropped), Memojo (the roll
+  sorting itself), Sudoku (scroll *is* the search, `trace()` scrubbed).
