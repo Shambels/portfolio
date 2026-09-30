@@ -94,6 +94,9 @@ Breaking one is allowed. Doing it without saying so is not.
    *Bent twice:* a project may also carry `{slug}.svg`, its signature on the
    flat index — a file beside the content, not code keyed on a slug, but one
    more thing a project can bring. `docs/STATUS.md`, "The index is a chart".
+   *Bent thrice:* and a plate, `{slug}.base.avif` and `{slug}.light.avif`, for
+   the index's stage; what draws into one is keyed on `landmark` like the
+   world's `BUILD` (`OVERLAY` in `work.tsx`). "The index is a stage".
 8. **All input goes through `useInput()`.** The one permitted early abstraction,
    and it paid: Phase 6's touch controls are a thumb stick written into the same
    `move` vector, and the flight controller, the spray and the sound did not
@@ -274,8 +277,13 @@ src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shor
                         camera on the way into the world
 src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
 src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it:
-                        a chart of the islands drawn from the frontmatter, and a
-                        ledger of cards with each project's signature SVG
+                        a stage down the left third (a strip on a phone) that
+                        swipes between the title's slide and each project's
+                        plate, a ledger of cards one to a screen, and the chart
+                        of the islands small in the bottom-right corner
+src/Hologram.tsx        the sudoku's plate, live: rain, flicker, a cursor that
+                        scrambles cells, and `trace()` replayed on hover — a 2D
+                        canvas, not the world's
 src/routes/case-study.tsx  /{lang}/work/{slug} — a card with the world, the prose
                         without, and one `view-transition-name` on <main> that
                         grows the first into the second
@@ -307,7 +315,8 @@ src/plateau.check.ts    that, with a board ridden at the real mine, over a
                         the sudoku's file held to `HOLO`, with nothing loose on it
 src/sudoku.ts           the Sudoku Solver's puzzle — the repository's board,
                         its `possibleEntries` ported once more, the solver
-                        with its three defects fixed, the bytes the hologram
+                        with its three defects fixed and its search recorded
+                        (`trace()`, what the index's hologram replays), the bytes the hologram
                         samples, the panel's place (`PANEL`) and what a hull
                         through it does to the picture — pure arithmetic, no three
 src/sudoku.check.ts     31 clues, 50 open, one solution, every flicker slot
@@ -362,6 +371,9 @@ tools/pirate_ship.py    not a landmark either — the boat: strips the two maps
 tools/logo.py           not a landmark and not Blender — the site's mark:
                         tools/logo-source.jpg, keyed off its ground, out to
                         src/assets/logo/ at the widths `.brand` draws (Pillow)
+tools/plate.py          not a landmark and not Blender — the /work stage's plates:
+                        tools/art/{slug}-source.png, generated on OpenArt against
+                        black, cut into its hardware and its light (Pillow)
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
@@ -381,7 +393,8 @@ src/device.ts           `PHONE` — a finger and no hover — and `octaves()`.
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea
-src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature
+src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature —
+                        and {slug}.base.avif + {slug}.light.avif, its plate
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
 deploy.sh               build + rsync to the server, then a routing smoke test

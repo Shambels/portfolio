@@ -490,18 +490,22 @@ main {
   font-size: 0.9375rem;
 }
 
-/* --- the index: a chart and a ledger ------------------------------------ */
+/* --- the index: a stage, a ledger, a chart --------------------------------- */
 
 /*
-  `/work` is the one page wider than the measure: the chart down the left and
-  the ledger beside it. Widened from inside with `:has()` so no route has to
-  tell the layout what it is; a browser without it keeps the measure, and the
-  container query below puts everything in one column to fit. The page's own
-  `<main>` drops its transition name so the entry being opened can take it —
-  `Entry` in `routes/work.tsx`.
+  `/work` is the one page wider than the measure: a stage down the left third
+  with each project's picture on it, the ledger beside it one project to a
+  screen, and the chart of the archipelago small in the bottom-right corner.
+  On a phone the stage is a strip pinned over the ledger and the chart follows
+  it. Widened from inside with `:has()` so no route has to tell the layout what
+  it is. The page's own `<main>` drops its transition name so the entry being
+  opened can take it — `Entry` in `routes/work.tsx`.
+
+  Not a container query any more: containment makes an element the containing
+  block of everything fixed inside it, and the chart is fixed.
 */
 main:has(.atlas) {
-  max-width: 76rem;
+  max-width: 88rem;
   view-transition-name: none;
 }
 
@@ -514,49 +518,249 @@ main:has(.atlas) {
 }
 
 .atlas {
-  container-type: inline-size;
   --shoal: #16303a;
   --land: #3a3226;
 }
 
-/* The container is `.atlas` and the grid its child, because a container query
-   can style what is inside a container and never the container itself. */
-.spread {
+/* The stage, whatever its shape: slides stacked in one box, the one on it in
+   place and the others off to the side they left by or will come in from. */
+.showcase {
+  position: sticky;
+  z-index: 1;
+  overflow: hidden;
+  /* The side a slide leaves by fades rather than cuts, so the edge of the
+     stage never reads as a box. */
+  mask-image: linear-gradient(90deg, #0000, #000 8% 92%, #0000);
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  margin: 0;
   display: grid;
-  gap: calc(var(--lh) * 1.25) clamp(2rem, 5vw, 4.5rem);
-  align-items: start;
+  place-items: center;
+  container-type: size;
 }
 
-@container (min-width: 52rem) {
-  .spread {
-    grid-template-columns: minmax(17rem, 25rem) minmax(0, 1fr);
-  }
-
-  .chart {
-    position: sticky;
-    top: calc(var(--lh) * 1.5);
-  }
-
+.slide[data-at="before"] {
+  translate: -105% 0;
 }
 
-/* One column: the chart is a strip over the ledger, not a square above it. */
-@container (width < 52rem) {
-  .chart svg {
-    max-height: 18rem;
-  }
+.slide[data-at="after"] {
+  translate: 105% 0;
+}
+
+.slide[data-moving] {
+  transition: translate 0.75s cubic-bezier(0.65, 0, 0.2, 1);
+}
+
+.plate {
+  position: relative;
+  width: min(100cqw, 100cqh * 900 / 1162);
+  aspect-ratio: 900 / 1162;
+}
+
+.plate img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* A project without a picture yet is staged with its signature. */
+.plate.sig {
+  aspect-ratio: 27 / 20;
+  width: min(100cqw, 100cqh * 27 / 20);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.plate.sig svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The title's slide: the mark, until it has something of its own. */
+.slide .mark {
+  height: min(62cqh, 22rem);
+  width: auto;
 }
 
 .chart {
-  margin: 0;
+  margin: 0 0 calc(var(--lh) * 1.25);
 }
 
 .chart svg {
   display: block;
   width: 100%;
   height: auto;
+  max-height: 18rem;
   background: #0e1a20;
   border: 1px solid var(--rule);
   border-radius: 6px;
+}
+
+/* A phone: a strip across the top, under the menu, with the ledger scrolling
+   up beneath it. Opaque, or a card would show through the picture. */
+@media (max-width: 59.99rem) {
+  .showcase {
+    top: 0;
+    z-index: 2; /* over a card's ways out, which sit on a layer of their own */
+    height: 34svh;
+    mask-image: none; /* its sides are the screen's */
+    margin-inline: calc(-1 * clamp(1.25rem, 5vw, 3rem));
+    margin-block-end: calc(var(--lh) * 1.25);
+    background: var(--ink);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .slide {
+    padding: 3.4rem 1.25rem 0.9rem;
+  }
+
+  main:has(.atlas) {
+    padding-block-start: 0;
+  }
+
+  .index-head {
+    margin-block: 0 calc(var(--lh) * 1.25);
+  }
+
+  /* The strip says this now, bigger. */
+  .ledger .glyph {
+    display: none;
+  }
+
+  .ledger .entry {
+    scroll-margin-top: calc(34svh + 1rem);
+  }
+}
+
+@media (min-width: 60rem) {
+  /* One project to a screen. Mandatory, because a snap that only sometimes
+     happens reads as a stutter — and only where a card is always shorter than
+     the screen, or a card could be scrolled past without being read. */
+  @media (min-height: 34rem) {
+    html:has(.atlas) {
+      scroll-snap-type: y mandatory;
+    }
+
+    .foot {
+      scroll-snap-align: end;
+    }
+  }
+
+  main:has(.atlas) {
+    padding-block: 0;
+  }
+
+  .atlas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: clamp(2rem, 4vw, 4rem);
+  }
+
+  /* Short of the chart in the corner, so a card is never under it. */
+  .reel {
+    max-width: min(40rem, 100vw - 26rem);
+  }
+
+  .index-head {
+    min-height: 100svh;
+    display: grid;
+    align-content: center;
+    margin: 0;
+    scroll-snap-align: start;
+  }
+
+  .ledger > .entry {
+    margin-block: max(1rem, calc((100svh - var(--card, 18rem)) / 2));
+    scroll-snap-align: center;
+  }
+
+  .ledger > .entry:first-child {
+    margin-block-start: 0;
+  }
+
+  /* The stage says this now, bigger, and the card gets the column back. */
+  .ledger .glyph {
+    display: none;
+  }
+
+  .ledger .entry {
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+  }
+
+  /* Out to the window's edge, past the body's gutter, so a slide leaves the
+     screen rather than a box — and only the inner edge fades. */
+  .showcase {
+    top: 0;
+    height: 100svh;
+    margin-inline-start: calc(-1 * clamp(1.25rem, 5vw, 3rem));
+    mask-image: linear-gradient(90deg, #000 88%, #0000);
+  }
+
+  .slide {
+    padding: 4.5rem 1rem 2rem;
+  }
+
+  /* Small, in the corner, over everything but the menu. Letters only: at this
+     size a name is a smudge, and the ledger beside it says every one. */
+  .chart {
+    position: fixed;
+    z-index: 2;
+    right: clamp(1.25rem, 5vw, 3rem);
+    bottom: 1.25rem;
+    width: 11rem;
+    margin: 0;
+  }
+
+  .chart svg {
+    max-height: none;
+    background: color-mix(in srgb, #0e1a20 88%, transparent);
+    backdrop-filter: blur(6px);
+  }
+
+  .chart :is(.name, .scale) {
+    display: none;
+  }
+}
+
+/* The sudoku's panel: the puzzle in the plate's square of light. The SVG is
+   the page with no script; the canvas is everything else (`Hologram.tsx`). The
+   beam in the picture dips when the panel flickers, off `--flick`. */
+.plate .light {
+  opacity: var(--flick, 1);
+}
+
+.holo,
+.holo-live {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.holo path {
+  fill: none;
+  stroke: #7fe8ff;
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+.holo text {
+  font: 500 37px/1 var(--mono);
+  fill: #d8fbff;
+  text-anchor: middle;
+  dominant-baseline: central;
+  filter: drop-shadow(0 0 6px #2fd4ff);
+}
+
+/* A frame of a flicker: the colour splits. */
+.holo-live[data-split] {
+  filter: drop-shadow(3px 0 0 #ff2a6d88) drop-shadow(-3px 0 0 #00e5ff88);
 }
 
 .chart .grid {
