@@ -15,10 +15,12 @@ import { useEffect, useRef } from 'react'
  *   equation carries that outward. Everything under the line is seen through
  *   that surface, so it bends where the water does; the surface line rides
  *   the same field, and the caustics are its curvature, not a texture.
- * - **The iceberg rocks on it.** A damped spring in angle and depth, driven
- *   by the slope and the level of the water across its waterline — so it
- *   heels the way the water under it tips — heavily: under half a degree for a
- *   hard stroke, over seconds rather than beats — and settles slowly. Now and then a drop falls somewhere on its own, so the sea
+ * - **The iceberg rides it.** A floating body's roll and heave: two lightly
+ *   damped oscillators with slow periods of their own (3.8 s and 2.9 s),
+ *   shoved by the water around it — harder the rougher it is, and toward the
+ *   side with more wave on it — for as long as there are ripples. It answers
+ *   at its own pace whatever pushes it, and when the water calms it swings
+ *   back through level a few times, each swing smaller, until it settles. Now and then a drop falls somewhere on its own, so the sea
  *   is never quite still.
  *
  * Raw WebGL: one quad, one fragment shader, the field uploaded as a small
@@ -59,15 +61,18 @@ const SEA = {
   /** How far the field bends the view (uv per unit of slope), and lifts the line. */
   bend: 0.07,
   lift: 0.004,
-  /** The rock: stiffness, damping and drive in angle (radians) and depth (uv),
-   *  and the most of each. Heavy: a period of about ten seconds, a hard
-   *  stroke worth ~0.4 degrees, 0.8 at the very most (Seb's second look). */
-  tilt: { k: 0.45, c: 0.75, drive: 80, most: 0.014 },
-  bob: { k: 0.8, c: 1.05, drive: 3, most: 0.004 },
-  /** How fast the ice notices the water's tilt and level, a step (1/60 s),
-   *  through two stages: the smaller, the heavier — at 0.012 each averages
-   *  about a second and a half. */
-  feel: 0.012,
+  /** The ice on the water: a roll and a heave, each a lightly damped
+   *  oscillator with its own period (s) and damping ratio, pushed by the
+   *  water around it — `side`, the difference in wave energy either side of
+   *  its centreline (waves on the right lift the right); `level`, the water's
+   *  height under it; `jostle`, the rougher the water the harder it is
+   *  shoved, in a direction that wanders — and drawn through a soft cap
+   *  (`most`, radians and uv). Slow on purpose: a 3.8 s roll and a 2.9 s
+   *  heave, and a light damping, so it takes several swings to settle. */
+  tilt: { period: 1.8, zeta: 0.2, side: 0.6, jostle: 0.1, most: 0.06 },
+  bob: { period: 1, zeta: 0.1, level: 0.4, jostle: 0.056, most: 0.012 },
+  /** How long the ice takes to feel a change in the sea (s). */
+  feel: 0.35,
 }
 
 const VS = `attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}`
@@ -260,36 +265,63 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     let angV = 0
     let bob = 0
     let bobV = 0
-    let tipSoft = 0
-    let levelSoft = 0
-    let tipMid = 0
-    let levelMid = 0
     const [c0, c1] = [Math.floor(BERG[0] * GW), Math.ceil(BERG[1] * GW)]
     const mid = (c0 + c1) / 2
+    // What the water near it is doing: how much it is moving on either side
+    // of its centreline over the top few rows (the energy of the waves, which
+    // does not cancel the way their heights do), and its level under the ice.
+    const ROWS = 10
+    const x0 = Math.max(0, c0 - 6)
+    const x1 = Math.min(GW, c1 + 6)
+    let seaE = 0
+    let seaSide = 0
+    let seaLevel = 0
+    // Which way the waves are jostling it, and how: a slow random lean for
+    // roll and for heave, each wandering on about the body's own half-period,
+    // scaled by how rough the water is — so it rocks as long as there are
+    // ripples, and not at all on a flat sea.
+    let joA = 0
+    let joB = 0
+    const wander = (v: number, dt: number, tau: number) =>
+      v - (v * dt) / tau + Math.sqrt((2 * dt) / tau) * (Math.random() * 2 - 1) * 1.732
     const rock = (dt: number) => {
-      let tip = 0
-      let level = 0
-      for (let x = c0; x < c1; x++) {
-        const h = cur[GW + x]!
-        tip += h * (x - mid)
-        level += h
+      let eL = 0
+      let eR = 0
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = x0; x < x1; x++) {
+          const h = cur[y * GW + x]!
+          if (x < mid) eL += h * h
+          else eR += h * h
+        }
       }
-      tip /= ((c1 - c0) * (c1 - c0)) / 4
+      const n = (ROWS * (x1 - x0)) / 2
+      eL /= n
+      eR /= n
+      let level = 0
+      for (let x = c0; x < c1; x++) level += cur[x]!
       level /= c1 - c0
-      // A heavy body does not follow every ripple: it feels the water's tilt
-      // and level averaged over the better part of a second.
-      // Twice, so the slosh across its width — a ripple's worth, ~1.7 Hz —
-      // is gone before it reaches the ice, and only the water's slow lean is left.
-      tipMid += (tip - tipMid) * SEA.feel
-      tipSoft += (tipMid - tipSoft) * SEA.feel
-      levelMid += (level - levelMid) * SEA.feel
-      levelSoft += (levelMid - levelSoft) * SEA.feel
+      const f = 1 - Math.exp(-dt / SEA.feel)
+      seaE += ((eL + eR) / 2 - seaE) * f
+      seaSide += (eR - eL - seaSide) * f
+      seaLevel += (level - seaLevel) * f
+      const rough = Math.sqrt(seaE)
+      joA = wander(joA, dt, SEA.tilt.period / 2)
+      joB = wander(joB, dt, SEA.bob.period / 2)
+
+      // Two lightly damped oscillators — a floating body's roll and heave —
+      // each with a natural period, so whatever pushes it, it answers at its
+      // own slow pace and swings back through level a few times, each swing
+      // smaller, before it settles.
       const T = SEA.tilt
       const B = SEA.bob
-      angV += (-T.k * ang - T.c * angV + T.drive * tipSoft) * dt
-      ang = Math.max(-T.most, Math.min(T.most, ang + angV * dt))
-      bobV += (-B.k * bob - B.c * bobV - B.drive * levelSoft) * dt
-      bob = Math.max(-B.most, Math.min(B.most, bob + bobV * dt))
+      const wT = (2 * Math.PI) / T.period
+      const wB = (2 * Math.PI) / B.period
+      const torque = T.side * seaSide + T.jostle * rough * joA
+      angV += (-wT * wT * ang - 2 * T.zeta * wT * angV + torque) * dt
+      ang += angV * dt
+      const heave = -B.level * seaLevel + B.jostle * rough * joB
+      bobV += (-wB * wB * bob - 2 * B.zeta * wB * bobV + heave) * dt
+      bob += bobV * dt
     }
 
     // ---- sizing, drawing
@@ -305,8 +337,9 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
     const draw = () => {
       if (!ready) return
       upload()
-      gl.uniform1f(uAng, ang)
-      gl.uniform1f(uBob, bob)
+      // Drawn through a soft cap, so a wild sea leans it hard but never over.
+      gl.uniform1f(uAng, SEA.tilt.most * Math.tanh(ang / SEA.tilt.most))
+      gl.uniform1f(uBob, SEA.bob.most * Math.tanh(bob / SEA.bob.most))
       gl.uniform1f(uStill, still.matches ? 1 : 0)
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
@@ -337,7 +370,7 @@ export function Iceberg({ on, plate }: { on: boolean; plate: { light: string } }
       } else {
         cur.fill(0)
         prev.fill(0)
-        ang = bob = angV = bobV = tipSoft = levelSoft = tipMid = levelMid = 0
+        ang = bob = angV = bobV = seaE = seaSide = seaLevel = joA = joB = 0
       }
       draw()
       if (!quiet && onRef.current && visible) raf = requestAnimationFrame(frame)

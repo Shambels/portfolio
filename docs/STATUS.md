@@ -7044,14 +7044,24 @@ four stand on their signatures until they get theirs.
     everything under the line is refracted through that field; the surface
     line heaves on it, and the caustics are its curvature. A drop falls
     somewhere on its own every 2–4 s, so the water is never quite dead;
-  - **the iceberg rocks on it** — a damped spring in angle and depth about a
-    point on its centreline under the waterline, driven by the water's tilt
-    and level across its width. Heavier since Seb's second look: the water's
-    lean reaches it through two low-pass stages of about 1.5 s each
-    (`SEA.feel`), so the slosh across its width (~1.7 Hz) never does, and the
-    spring is soft — a period of about ten seconds. A hard stroke is ~0.4
-    degrees, reached over two seconds and gone over six; 0.8 at the most
-    (`SEA.tilt`, `SEA.bob`). It was 1.7 degrees in well under a second.
+  - **the iceberg rides it** (Seb's fifth look: it should react as long as
+    the water does, and settle the way a floating thing does) — a roll and a
+    heave, each a lightly damped oscillator with its own slow period (3.8 s
+    and 2.9 s, damping ratio 0.1), so whatever pushes it, it answers at its
+    own pace and swings back through level several times, each swing
+    smaller, before it settles. What pushes it is read off the water near it
+    every step: the wave energy either side of its centreline (waves on the
+    right lift the right — energy, because heights cancel and energy does
+    not), the level under it, and a shove that grows with how rough the water
+    is, in a direction that wanders on the body's half-period. So it keeps
+    rocking for as long as there are ripples — about three seconds after a
+    stroke — and then takes ten or fifteen more to come to rest. Measured in
+    the harness: a hard, sustained stir is about 1–1.6 degrees of roll and
+    ±8 plate units of heave; a slow stroke about half a degree. Drawn through
+    a soft cap (`tanh`, `most`), so it never goes over. `SEA.tilt`, `SEA.bob`,
+    `SEA.feel`. The earlier passes — a stiff spring on the water's slope
+    (twitchy), then that slope double-filtered into a soft spring (slow, but
+    dead once the lean averaged out) — are what this replaces.
   The field is a half-float texture on WebGL2 and bytes on WebGL1. With JS
   off, without WebGL, or before the ice has decoded, the plate is the picture
   under a CSS sea (`.sea`); under reduced motion it is the sea, flat and still.
