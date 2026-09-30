@@ -7046,12 +7046,25 @@ four stand on their signatures until they get theirs.
     somewhere on its own every 2–4 s, so the water is never quite dead;
   - **the iceberg rocks on it** — a damped spring in angle and depth about a
     point on its centreline under the waterline, driven by the water's tilt
-    and level across its width, averaged over most of a second so it moves
-    like something heavy: about 1.7 degrees for a hard stroke, 3.4 at most,
-    settling in a few seconds (`SEA.tilt`, `SEA.bob`).
+    and level across its width. Heavier since Seb's second look: the water's
+    lean reaches it through two low-pass stages of about 1.5 s each
+    (`SEA.feel`), so the slosh across its width (~1.7 Hz) never does, and the
+    spring is soft — a period of about ten seconds. A hard stroke is ~0.4
+    degrees, reached over two seconds and gone over six; 0.8 at the most
+    (`SEA.tilt`, `SEA.bob`). It was 1.7 degrees in well under a second.
   The field is a half-float texture on WebGL2 and bytes on WebGL1. With JS
   off, without WebGL, or before the ice has decoded, the plate is the picture
   under a CSS sea (`.sea`); under reduced motion it is the sea, flat and still.
+- [x] **Fixed: `/work` reached by a link showed the error page** (Seb). In
+  development React mounts every effect twice; the iceberg's cleanup lost
+  its WebGL context, the second mount got that dead context back from the
+  same canvas, its shader failed to compile, and the throw took the route to
+  root's error boundary ("Nothing here"). A full load dodged it, so "All work"
+  seemed to fix it. Now the cleanup frees what it made and leaves the context
+  alive, a run that was cleaned up ignores its late image decode, and any
+  WebGL failure — none, lost, a shader or link that fails — returns to the
+  still plate and never throws. Checked in dev and in the build: home, the
+  link, `/work`, the iceberg live.
 - [x] `plate.base` is optional now, in `content.ts` and the stage; overlays get
   the plate's URLs (`OVERLAY` passes `plate`).
 
