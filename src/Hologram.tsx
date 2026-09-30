@@ -56,6 +56,9 @@ const SIDE = 560
 const GX = PX + (PW - SIDE) / 2
 const GY = PY + (PH - SIDE) / 2
 const CELL = SIDE / 9
+/** The grid in plate units, for the case study's stage (`Backtrack.tsx`),
+ *  which draws the same board into the same panel. */
+export const GRID = { x: GX, y: GY, side: SIDE, cell: CELL, panel: [PX, PY, PW, PH] as const, plate: [PLATE_W, PLATE_H] as const }
 /** The lens, where the beam's motes rise from. */
 const LENS: [number, number] = [450, 940]
 
@@ -100,7 +103,7 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a)
 const glyph = () => 1 + Math.floor(Math.random() * 9)
 
 /** A digit drawn once per size and colour with its glow, then stamped. */
-function atlas(px: number, fill: string, glow: string, blur: number): HTMLCanvasElement {
+export function atlas(px: number, fill: string, glow: string, blur: number): HTMLCanvasElement {
   const pad = Math.ceil(blur * 2)
   const w = Math.ceil(px * 0.75) + pad * 2
   const h = Math.ceil(px * 1.1) + pad * 2
@@ -635,7 +638,7 @@ export function Hologram({ on }: { on: boolean; plate?: unknown }) {
 }
 
 /** The panel with no script: the grid and the clues, standing still. */
-function Still() {
+export function Still() {
   const lines: string[] = []
   for (let n = 0; n <= 9; n++) {
     const o = n * CELL

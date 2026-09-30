@@ -88,6 +88,59 @@ export function trace(board: readonly number[] = BOARD): Uint8Array {
   return Uint8Array.from(out)
 }
 
+/**
+ * The 2019 search, recorded: the same writes as `trace()` in the same order,
+ * but — as the repository had it — nothing tells the caller it has won, so
+ * the loop carries on through every remaining candidate until the tree is
+ * exhausted. `won` is how many moves in the board was full: `trace()`'s
+ * length, 8,950 on this board. The 3,742 after it take every digit back, so
+ * replaying all of them ends on the puzzle it started from. What the case
+ * study's stage plays under "What it got wrong".
+ */
+export function enumerate(board: readonly number[] = BOARD): { moves: Uint8Array; won: number } {
+  const b = board.slice()
+  const out: number[] = []
+  let won = -1
+  const go = () => {
+    const i = b.indexOf(0)
+    if (i < 0) {
+      if (won < 0) won = out.length / 2
+      return
+    }
+    for (const n of candidates(b, i)) {
+      b[i] = n
+      out.push(i, n)
+      go()
+    }
+    b[i] = 0
+    out.push(i, 0)
+  }
+  go()
+  return { moves: Uint8Array.from(out), won }
+}
+
+/**
+ * The rule check the 2026 page runs on a board read off a photograph: every
+ * cell whose digit repeats in its row, its column or its box. A misread digit
+ * shows up here, and so does a photograph that was not a sudoku at all.
+ */
+export function conflicts(board: readonly number[]): Set<number> {
+  const out = new Set<number>()
+  for (let i = 0; i < 81; i++) {
+    const d = board[i]
+    if (!d) continue
+    for (let j = i + 1; j < 81; j++) {
+      if (board[j] !== d) continue
+      const same =
+        Math.floor(i / 9) === Math.floor(j / 9) ||
+        i % 9 === j % 9 ||
+        (Math.floor(i / 27) === Math.floor(j / 27) && Math.floor((i % 9) / 3) === Math.floor((j % 9) / 3))
+      if (same) out.add(i).add(j)
+    }
+  }
+  return out
+}
+
 /** Rows of the shader's puzzle texture: the clue digit, then six flicker slots. */
 export const SLOTS = 6
 

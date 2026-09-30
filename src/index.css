@@ -2149,6 +2149,58 @@ main:has(.atlas) {
   }
 }
 
+/* The Sudoku Solver: the search (`Backtrack.tsx`). The same box above the
+   panel as Memojo's, one card at a time; which one is the script's to say, and
+   with no script it is the outcome's. */
+.backtrack .slot {
+  flex: none;
+  display: grid;
+  height: 4.4rem;
+  width: min(100%, 25rem);
+  margin-inline: auto;
+}
+
+.backtrack .card {
+  grid-area: 1 / 1;
+  align-self: start;
+  padding: 0.6rem 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font: 400 0.8rem/1.45 var(--sans);
+  color: var(--paper);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.backtrack .card[data-on] {
+  opacity: 1;
+}
+
+.backtrack .card p {
+  margin: 0;
+}
+
+.backtrack .card .sub {
+  font: 400 0.72rem/1.5 var(--mono);
+  color: var(--paper-dim);
+}
+
+.backtrack .card b {
+  font-weight: 600;
+  color: #8fe4ff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The photograph in act six: newsprint, in its own element so CSS can tilt it
+   in perspective, placed over the grid by `GRID` and moved by the script. */
+.backtrack .photo {
+  position: absolute;
+  opacity: 0;
+  box-shadow: 0 1.2rem 2.4rem #000c;
+  pointer-events: none;
+}
+
 /* --- the world ---------------------------------------------------------- */
 
 /*

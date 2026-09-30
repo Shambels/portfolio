@@ -7379,3 +7379,60 @@ and by the browser's back button on the project's card with its slide on
 stage, a deep link then the arrow on its card, a case study entered from the
 bottom of the index in one scroll event to 0 (was five, over a second), no
 slide moving on any arrival, tab order skip → arrow → menu.
+
+## The Sudoku Solver's stage — the scroll is the search
+
+`src/Backtrack.tsx`, `sudoku` in `STAGE`, and "The Sudoku Solver: the search"
+in `index.css`. The index's projector beside the prose, the board drawn into
+its panel with `Hologram.tsx`'s own geometry and glyphs (`GRID`, `atlas`, and
+`Still` for the page with no script, all exported for it). Eight acts:
+
+1. **The problem** — the first empty cell's row, column and box light in turn,
+   then what is left for it, then what is left for every open cell.
+2. **What I chose** — the scroll is `trace()`: the search itself, 8,950
+   writes, the one being tried in white, and scrolling up takes them back.
+   The box counts the move and the take-backs.
+3. **What it got wrong**, in three, at its three bold paragraphs: the 2019
+   search reaching the full board and carrying on — `enumerate()`, 3,742 more
+   writes, every one of them taking a digit back until the puzzle is empty
+   again — with the frame gone red; the JavaScript's scan passing the first
+   empty cell and keeping the last; "Wait for It…", struck through on a
+   dimmed panel over a spinner that has stopped.
+4. **What it cost** — 162 elements counted onto the grid, 81 inputs and 81
+   divs.
+5. **Going back to it** — the fixed search, a gold frame at `return true`, and
+   the board as the 81 characters `parseBoard` reads, under the grid.
+6. **Reading a puzzle from a photo** — the same puzzle printed on newsprint
+   tilts in as a phone would see it, is rectified onto the panel, its ten
+   lines each way found, its 31 digits read in scan order, two in amber.
+7. **What the photographs taught me** — a read of 42 digits that is not a
+   sudoku, its 21 conflicts red (the seed is the first that gives exactly the
+   impostor's 21), refused, and four corners placed by hand.
+8. **The outcome** — the solved board.
+
+**The one stage with a script,** because it scrubs 8,950 moves, and because
+this page's sections run from one paragraph to eight, so each act spans its
+whole section rather than a band of its heading: a section is read from when
+its heading crosses 60% of the window (`LINE`) to when the next one does, and
+the last act ends at the foot of the page. Drawn only when the scroll moves;
+nothing moves on its own. Under reduced motion it is the last act, standing;
+with no script the index's panel, standing (`Still`), with the outcome's card.
+
+`sudoku.ts` gained `enumerate()` (the 2019 search that never says it has won)
+and `conflicts()` (the rule check a photo read is judged by);
+`sudoku.check.ts` holds both — the same writes as `trace()` up to 8,950, the
+solution there, the puzzle again after all 12,692, 3,742 after the win, and a
+duplicate caught in a row, a column and a box.
+
+The words in the box are per locale in `WORDS`; FR and NL unreviewed. The
+case-study chunk is 9.8 kB gz with all three stages (it was 3.7): this one
+and `Hologram`'s glyphs.
+
+Verified in Claude's container (Chromium): every act at three points through
+its section at 1440 × 900, French at 1920 × 1080, Dutch, reduced motion, no
+JavaScript, no page errors; `npm run check`, `tsc -b`, `npm run build`.
+
+Open, and Seb's: the pacing on a real trackpad (the search's `p ** 2.2`, the
+sub-act splits), whether act 1's pencil marks are too busy, and whether the
+outcome should be the solved board or the index's puzzle.
+
