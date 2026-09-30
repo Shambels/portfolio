@@ -290,6 +290,9 @@ src/Iceberg.tsx         PolarSense's plate, live: the iceberg in water the
 src/Studio.tsx          Arts by Sandra's plate, live: a palette that loads the
                         brush and a canvas the visitor paints, each stroke
                         modelled by a hidden painting — raw WebGL
+src/Instant.tsx         Memojo's plate, live: the instant camera that fires
+                        when its lens is pointed at, and prints that develop,
+                        drop and sort themselves into albums — a 2D canvas
 src/easel.ts            where the canvas, the blobs and the rag are in that
                         plate, and the map onto the canvas — pure, with
                         `easel.check.ts` beside it
@@ -384,7 +387,8 @@ tools/plate.py          not a landmark and not Blender — the /work stage's pla
                         tools/art/{slug}-source.png, generated on OpenArt, cut
                         into its hardware and its light — or, for the easel,
                         kept whole, with the painting cropped and its
-                        underdrawing drawn from it (Pillow, numpy, scipy)
+                        underdrawing drawn from it, and for Memojo the prints'
+                        photographs cut into an atlas (Pillow, numpy, scipy)
 tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
