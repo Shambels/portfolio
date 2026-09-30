@@ -7,6 +7,7 @@ import NotFound from './not-found'
 import { Atelier } from '../Atelier'
 import { Backtrack } from '../Backtrack'
 import { Darkroom } from '../Darkroom'
+import { Rack } from '../Rack'
 import { Sounding } from '../Sounding'
 
 /**
@@ -20,6 +21,7 @@ const STAGE: Record<string, ComponentType<{ plate: Plate; locale: Locale }>> = {
   ramp: Darkroom,
   sudoku: Backtrack,
   easel: Atelier,
+  board: Rack,
 }
 
 /**

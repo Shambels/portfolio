@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Plate } from './content'
-import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play } from './scrubble'
+import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play, type Move } from './scrubble'
 
 /**
  * Scrubble's plate on the flat index's stage: a board in the middle of a
@@ -27,18 +27,18 @@ import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play } from './scr
  * off, the SVG below draws the position and the rack, standing still.
  */
 
-const W = 900
-const H = 1162
+export const W = 900
+export const H = 1162
 
 const TIME = { wake: 450, fly: 520, stagger: 130, count: 700, back: 380 }
 
-type Pt = [number, number]
+export type Pt = [number, number]
 /** A face of a tile: three corners, top-left, top-right, bottom-left. */
-type Face = [Pt, Pt, Pt]
+export type Face = [Pt, Pt, Pt]
 
 /** A square's top face, `inset` in from its edges and raised `lift` of its
  *  own height off the board. */
-function square(r: number, c: number, inset = 0.06, lift = 0): Face {
+export function square(r: number, c: number, inset = 0.06, lift = 0): Face {
   const tl = onBoard(c + inset, r + inset)
   const tr = onBoard(c + 1 - inset, r + inset)
   const bl = onBoard(c + inset, r + 1 - inset)
@@ -51,7 +51,7 @@ function square(r: number, c: number, inset = 0.06, lift = 0): Face {
 }
 
 /** A tile standing in the rack's groove, `slot` of seven. */
-function standing(slot: number): Face {
+export function standing(slot: number): Face {
   const w = 64
   const gap = (RACK_AT.x1 - RACK_AT.x0 - 7 * w) / 8
   const x = RACK_AT.x0 + gap + slot * (w + gap)
@@ -64,13 +64,13 @@ function standing(slot: number): Face {
   ]
 }
 
-const lerp = (a: Face, b: Face, t: number): Face =>
+export const lerp = (a: Face, b: Face, t: number): Face =>
   a.map((p, i) => [p[0] + (b[i]![0] - p[0]) * t, p[1] + (b[i]![1] - p[1]) * t]) as Face
-const ease = (t: number) => 1 - (1 - Math.min(Math.max(t, 0), 1)) ** 3
-const clamp = (t: number) => Math.min(Math.max(t, 0), 1)
+export const ease = (t: number) => 1 - (1 - Math.min(Math.max(t, 0), 1)) ** 3
+export const clamp = (t: number) => Math.min(Math.max(t, 0), 1)
 
 /** The empty squares beside a tile: where a move can start. */
-const ANCHORS: [number, number][] = []
+export const ANCHORS: [number, number][] = []
 for (let r = 0; r < 15; r++)
   for (let c = 0; c < 15; c++) {
     if (BOARD[r]![c] !== '.') continue
@@ -83,7 +83,106 @@ for (let r = 0; r < 15; r++)
     if (n) ANCHORS.push([r, c])
   }
 
-const PLAYED = MOVES.map((m) => {
+/**
+ * A tile: its shadow, its thickness, its face, its letter and value — lying on
+ * the board (`lying` 1) or standing in the rack (0), with an optional gold edge.
+ * `value` is the letter's points unless told otherwise: the case study's stage
+ * draws the board's French values with it (`Rack.tsx`).
+ */
+export function drawTile(
+  ctx: CanvasRenderingContext2D,
+  k: number,
+  f: Face,
+  letter: string,
+  lying: number,
+  glow = 0,
+  value = POINTS[letter],
+) {
+  const [tl, tr, bl] = f
+  const ax = [tr[0] - tl[0], tr[1] - tl[1]]
+  const ay = [bl[0] - tl[0], bl[1] - tl[1]]
+  const br: Pt = [tl[0] + ax[0]! + ay[0]!, tl[1] + ax[1]! + ay[1]!]
+  const quad = (pts: Pt[]) => {
+    ctx.beginPath()
+    ctx.moveTo(pts[0]![0] * k, pts[0]![1] * k)
+    for (const p of pts.slice(1)) ctx.lineTo(p[0] * k, p[1] * k)
+    ctx.closePath()
+  }
+  const depth = Math.hypot(ay[0]!, ay[1]!) * 0.22 * lying + 3 * (1 - lying)
+  // Thickness: the near edge, darker.
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'
+  ctx.shadowBlur = 5 * k
+  ctx.shadowOffsetY = 2 * k
+  quad([bl, br, [br[0], br[1] + depth], [bl[0], bl[1] + depth]])
+  ctx.fillStyle = '#b89c6c'
+  ctx.fill()
+  ctx.shadowColor = 'transparent'
+  // Face: ivory, a little warmer where the lamp is not.
+  const g = ctx.createLinearGradient(tl[0] * k, tl[1] * k, br[0] * k, br[1] * k)
+  g.addColorStop(0, '#f4e8cc')
+  g.addColorStop(1, '#dcc79f')
+  quad([tl, tr, br, bl])
+  ctx.fillStyle = g
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(120,90,50,0.35)'
+  ctx.lineWidth = 0.8 * k
+  ctx.stroke()
+  if (glow > 0) {
+    ctx.strokeStyle = `rgba(233,168,81,${0.85 * glow})`
+    ctx.lineWidth = 2.2 * k
+    ctx.stroke()
+  }
+  // The letter and its value, laid on the face.
+  ctx.setTransform((ax[0]! * k) / 100, (ax[1]! * k) / 100, (ay[0]! * k) / 100, (ay[1]! * k) / 100, tl[0] * k, tl[1] * k)
+  ctx.fillStyle = '#2a2219'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = '700 62px "Helvetica Neue", Helvetica, Arial, sans-serif'
+  ctx.fillText(letter, 46, 54)
+  ctx.font = '700 22px "Helvetica Neue", Helvetica, Arial, sans-serif'
+  ctx.textAlign = 'right'
+  ctx.fillText(String(value), 90, 82)
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+}
+
+/** What a move is, under the rack: its rank among every legal move, the word
+ *  and its score `n` (counting up), and the words it makes across. */
+export function drawReadout(ctx: CanvasRenderingContext2D, k: number, m: Move, n: number, a: number) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.globalAlpha = a
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = 'rgba(231,228,221,0.6)'
+  ctx.font = `500 ${15 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+  ctx.fillText(`#${m.rank} OF ${TOTAL.toLocaleString('en')} LEGAL MOVES`, 450 * k, 966 * k)
+  // The word and its score as one line, centred, the score's width
+  // held at its final value so the line does not shift as it counts.
+  const sans = `700 ${40 * k}px "Helvetica Neue", Helvetica, Arial, sans-serif`
+  const mono = `700 ${40 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+  ctx.font = sans
+  const ww = ctx.measureText(m.word).width
+  ctx.font = mono
+  const sw = ctx.measureText(String(m.score)).width
+  const x0 = 450 * k - (ww + 16 * k + sw) / 2
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#f1e6cf'
+  ctx.font = sans
+  ctx.fillText(m.word, x0, 1016 * k)
+  ctx.fillStyle = '#e9a851'
+  ctx.font = mono
+  ctx.fillText(String(n), x0 + ww + 16 * k, 1016 * k)
+  const extra = [...m.crosses, play(m).placed.length === 7 ? 'BINGO +50' : ''].filter(Boolean).join(' · ')
+  if (extra) {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = 'rgba(231,228,221,0.55)'
+    ctx.font = `500 ${14 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+    ctx.fillText(extra, 450 * k, 1046 * k)
+  }
+  ctx.globalAlpha = 1
+}
+
+export const PLAYED = MOVES.map((m) => {
   const { placed } = play(m)
   // Each tile off the rack, from the first slot holding its letter.
   const free = [...RACK]
@@ -121,55 +220,7 @@ export function Tiles({ plate }: { on: boolean; plate: Plate }) {
     }
     size()
 
-    // ---- a tile: its shadow, its thickness, its face, its letter and value
-    const tile = (f: Face, letter: string, lying: number, glow = 0) => {
-      const [tl, tr, bl] = f
-      const ax = [tr[0] - tl[0], tr[1] - tl[1]]
-      const ay = [bl[0] - tl[0], bl[1] - tl[1]]
-      const br: Pt = [tl[0] + ax[0]! + ay[0]!, tl[1] + ax[1]! + ay[1]!]
-      const quad = (pts: Pt[]) => {
-        ctx.beginPath()
-        ctx.moveTo(pts[0]![0] * k, pts[0]![1] * k)
-        for (const p of pts.slice(1)) ctx.lineTo(p[0] * k, p[1] * k)
-        ctx.closePath()
-      }
-      const depth = Math.hypot(ay[0]!, ay[1]!) * 0.22 * lying + 3 * (1 - lying)
-      // Thickness: the near edge, darker.
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.shadowColor = 'rgba(0,0,0,0.45)'
-      ctx.shadowBlur = 5 * k
-      ctx.shadowOffsetY = 2 * k
-      quad([bl, br, [br[0], br[1] + depth], [bl[0], bl[1] + depth]])
-      ctx.fillStyle = '#b89c6c'
-      ctx.fill()
-      ctx.shadowColor = 'transparent'
-      // Face: ivory, a little warmer where the lamp is not.
-      const g = ctx.createLinearGradient(tl[0] * k, tl[1] * k, br[0] * k, br[1] * k)
-      g.addColorStop(0, '#f4e8cc')
-      g.addColorStop(1, '#dcc79f')
-      quad([tl, tr, br, bl])
-      ctx.fillStyle = g
-      ctx.fill()
-      ctx.strokeStyle = 'rgba(120,90,50,0.35)'
-      ctx.lineWidth = 0.8 * k
-      ctx.stroke()
-      if (glow > 0) {
-        ctx.strokeStyle = `rgba(233,168,81,${0.85 * glow})`
-        ctx.lineWidth = 2.2 * k
-        ctx.stroke()
-      }
-      // The letter and its value, laid on the face.
-      ctx.setTransform((ax[0]! * k) / 100, (ax[1]! * k) / 100, (ay[0]! * k) / 100, (ay[1]! * k) / 100, tl[0] * k, tl[1] * k)
-      ctx.fillStyle = '#2a2219'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.font = '700 62px "Helvetica Neue", Helvetica, Arial, sans-serif'
-      ctx.fillText(letter, 46, 54)
-      ctx.font = '700 22px "Helvetica Neue", Helvetica, Arial, sans-serif'
-      ctx.textAlign = 'right'
-      ctx.fillText(String(POINTS[letter]), 90, 82)
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-    }
+    const tile = (f: Face, letter: string, lying: number, glow = 0) => drawTile(ctx, k, f, letter, lying, glow)
 
     // ---- the move, in play
     let turn = 0 // which of MOVES the next hover plays
@@ -272,39 +323,8 @@ export function Tiles({ plate }: { on: boolean; plate: Plate }) {
 
       // The readout, under the rack.
       if (phase === 'out' && landed) {
-        const a = clamp((t - flyEnd) / 250)
         const n = Math.round(m.score * (quiet ? 1 : ease((t - flyEnd) / TIME.count)))
-        ctx.setTransform(1, 0, 0, 1, 0, 0)
-        ctx.globalAlpha = a
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillStyle = 'rgba(231,228,221,0.6)'
-        ctx.font = `500 ${15 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
-        ctx.fillText(`#${m.rank} OF ${TOTAL.toLocaleString('en')} LEGAL MOVES`, 450 * k, 966 * k)
-        // The word and its score as one line, centred, the score's width
-        // held at its final value so the line does not shift as it counts.
-        const sans = `700 ${40 * k}px "Helvetica Neue", Helvetica, Arial, sans-serif`
-        const mono = `700 ${40 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
-        ctx.font = sans
-        const ww = ctx.measureText(m.word).width
-        ctx.font = mono
-        const sw = ctx.measureText(String(m.score)).width
-        const x0 = 450 * k - (ww + 16 * k + sw) / 2
-        ctx.textAlign = 'left'
-        ctx.fillStyle = '#f1e6cf'
-        ctx.font = sans
-        ctx.fillText(m.word, x0, 1016 * k)
-        ctx.fillStyle = '#e9a851'
-        ctx.font = mono
-        ctx.fillText(String(n), x0 + ww + 16 * k, 1016 * k)
-        const extra = [...m.crosses, placed.length === 7 ? 'BINGO +50' : ''].filter(Boolean).join(' · ')
-        if (extra) {
-          ctx.textAlign = 'center'
-          ctx.fillStyle = 'rgba(231,228,221,0.55)'
-          ctx.font = `500 ${14 * k}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
-          ctx.fillText(extra, 450 * k, 1046 * k)
-        }
-        ctx.globalAlpha = 1
+        drawReadout(ctx, k, m, n, clamp((t - flyEnd) / 250))
       }
 
       const moving = (phase === 'out' && t < flyEnd + Math.max(TIME.count, 400)) || phase === 'back'
@@ -379,7 +399,7 @@ export function Tiles({ plate }: { on: boolean; plate: Plate }) {
 
 /** The position with no script: every tile on the board and on the rack,
  *  standing still, in SVG — the same geometry the canvas draws with. */
-function Still() {
+export function Still() {
   const face = (f: Face, letter: string, key: string) => {
     const [tl, tr, bl] = f
     const ax = [tr[0] - tl[0], tr[1] - tl[1]]

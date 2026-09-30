@@ -7488,3 +7488,46 @@ Open, and Seb's: the strokes' paths against the painting (the red and yellow
 legs reveal mostly its dark ground), the bristle's roughness
 (`#atelier-bristle`), and the pacing on a real trackpad.
 
+## Scrubble's stage — the review
+
+`src/Rack.tsx`, `board` in `STAGE`; its box shares the Sudoku stage's styles
+(`:is(.backtrack, .rackstage)` in `index.css`). The index's board and rack
+beside the prose, and the review the app is for:
+
+- **Before the first heading** — the position and the rack, as the index has
+  them.
+- **The problem** — TRAINS goes down, 42, number 23 of 1,755: the move a
+  person finds. Then the seven squares of RETAINS, the move that was there,
+  outlined in gold.
+- **What I chose** — TRAINS back on the rack; the anchors light; the across
+  pass sweeps the rows and the down pass the columns while the count climbs
+  to 1,755.
+- **What I rejected** — the rack shuffled through its orderings, counted to
+  5,040: the permutation solver the prose turns down.
+- **What it cost** — the board cleared and entered again word by word, a tap
+  and a dialog a tile, 33 of them; then the values turn French, and the two
+  tiles that change — W and Y, to 10 — take the gold edge.
+- **The outcome** — RETAINS, number 1, 94, PEPPERS, bingo +50.
+
+A script, like the sudoku's, because every letter and value is drawn — so
+every one is right: `Tiles.tsx`'s tile, readout and rack lip moved out of its
+effect into `drawTile` and `drawReadout` (with an optional value, for the
+French), and both stages draw with them. The positions and moves are
+`scrubble.ts`'s, the ones `scrubble.check.ts` scores.
+
+Found on the way, and fixed in both scripted stages: the first heading sits
+above the 60% line before the page is scrolled, so the first act opened half
+played — TRAINS in mid-air, the sudoku's row already lit. The first act
+starts on the first scroll now (`marks[0]` in `read()`).
+
+The case-study chunk is 14.7 kB gz with all five stages (9.8 before this
+one): `Tiles`' drawing and the stage.
+
+Verified in Claude's container (Chromium): every act at three points at
+1440 × 900, the unscrolled page, French at 1920 × 1080, Dutch, reduced
+motion, no JavaScript, no page errors; the index's own plate still plays;
+`npm run check`, `tsc -b`, `npm run build`.
+
+Open, and Seb's: the pacing on a trackpad, whether the French values want to
+be larger than the tile's own corner digit, and the card words in FR and NL.
+
