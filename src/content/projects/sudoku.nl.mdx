@@ -1,7 +1,7 @@
 ---
 title: Sudoku-oplosser
 slug: sudoku
-summary: Dezelfde recursieve backtracking-zoektocht twee keer geschreven — één keer voor een terminal, één keer voor een pagina zonder buildstap — zeven jaar onaangeroerd gelaten en daarna weer opgepakt. De gebreken zijn gerepareerd, en de pagina leest nu een puzzel van de foto van een krant zonder ook maar één dependency.
+summary: Een sudoku-oplosser die het rooster van een foto leest — een krant, een puzzelboek, een met de hand getekend rooster — en het in de browser oplost, zonder server en zonder ook maar één dependency.
 ---
 
 ## Het probleem
@@ -116,7 +116,7 @@ zeven jaar na de besparing.
 
 ## Teruggaan
 
-Zeventien commits in twee dagen, tegenover zes in 2019, en de eerste ervan
+Achttien commits in twee dagen, tegenover zes in 2019, en de eerste ervan
 streept twee derde van het lijstje van deze pagina weg.
 
 Eén commit repareert de eerste twee gebreken samen, want het is twee keer
@@ -151,9 +151,13 @@ sectie nodig had.
 
 ## Een puzzel van een foto lezen
 
-Je richt de pagina op een foto van een krant en het rooster vult zich. Het is
-hetzelfde bestand dat je van schijf opent: geen buildstap, geen framework, en nog
-altijd geen enkele runtime-dependency.
+Kies een foto, sleep er een op de pagina of plak er een, en het rooster vult zich
+— een krant, een puzzelboek, een screenshot, een met de hand getekend rooster op
+gekreukt papier. Vakjes waar de lezer niet zeker van is worden amber, al de rest
+staat klaar om op te lossen, en een kopieerknop geeft hetzelfde bord als
+eenentachtig tekens door aan `sudoku.py`. Het is hetzelfde bestand dat je van
+schijf opent: geen buildstap, geen framework, en nog altijd geen enkele
+runtime-dependency.
 
 Die beperking bepaalde de vorm. Een foto-naar-rooster-pijplijn bestaat uit vier
 scheidbare problemen — het rooster vinden, het rechttrekken, eenentachtig vakjes
@@ -239,10 +243,21 @@ gebleven, als aanvulling en niet als fundament.
 En één foto wordt geweigerd. Een opgevouwen krant op grind, twintig graden
 gedraaid, leverde tweeënveertig aanwijzingen op waar er achtentwintig zijn —
 zelfverzekerde onzin, want verderop werd nooit gecontroleerd of wat er
-rechtgetrokken was wel een rooster was. Het aantal lijnen dat binnen het
-rechtgetrokken vierkant gevonden wordt scheidt netjes: alles wat leesbaar is
-vindt er vijftien tot twintig van de twintig, die foto zes. Nu zegt hij dat, en
-biedt vier klikken aan om de hoeken met de hand te plaatsen. Een weigering is
+rechtgetrokken was wel een rooster was. De eerste controle was de voor de hand
+liggende, het aantal roosterlijnen dat binnen het rechtgetrokken vierkant
+gevonden wordt: alles wat leesbaar is vindt er vijftien tot twintig van de
+twintig, die foto zes. Ook dat was niet genoeg. Een zoektocht over hoek, positie
+en grootte leverde een vierkant op dat negentien van de twintig scoorde en
+achtenveertig vakjes fout las — het had zich vastgezet op een periodieke
+structuur die niet de puzzel was. Lijnen zeggen dat een kandidaat op een rooster
+lijkt; alleen de regels zeggen dat het een sudoku zou kunnen zijn. Dus wordt een
+lezing nu ook beoordeeld op het bord dat ze oplevert: elke correcte detectie zet
+nul tot vier vakjes in conflict en de bedrieger eenentwintig, en een leesbare
+foto markeert hoogstens een kwart vakje per aanwijzing waar een slechte er meer
+dan één markeert. De foto wordt geweigerd, met een reden, en de pagina biedt vier
+klikken aan om de hoeken met de hand te plaatsen — iemand die naar het rooster
+wijst is beter bewijs dan eender welke heuristiek, dus die lezingen slaan de
+controles helemaal over. Een weigering is
 geen eenentachtig fouten: ze wordt in haar eigen kolom geteld en niet in de
 juistheid uitgemiddeld.
 
@@ -252,7 +267,8 @@ Over zesentwintig gelabelde foto's — eenentwintig gegenereerd, vijf echt — l
 hij negen vakjes fout, krijgt hij negentien van de vijfentwintig roosters die
 hij aanneemt exact goed, markeert hij elk fout vakje amber, en verzint hij nergens inkt. Ongeveer
 honderdzesendertig milliseconden per foto, op de main thread, vanuit een bestand
-op schijf.
+op schijf. En hij staat online: dezelfde vijf statische bestanden, geserveerd uit
+een eigen map naast deze site, en opnieuw uitgerold bij elke push naar `main`.
 
 Deze pagina eindigde vroeger met de vaststelling dat niets ervan gerepareerd was,
 en dat de gebreken laten staan het nuttigere was, want een portfolio dat alleen
