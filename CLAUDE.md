@@ -440,6 +440,11 @@ src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signat
                         and {slug}.{base,light,…}.avif, its plate's layers
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
+public/scrubble/privacy/index.html
+                        the Scrubble app's privacy policy, linked from its Play
+                        Store listing at /scrubble/privacy — plain HTML, not a
+                        route, so it is not translated per locale (EN + FR in
+                        one page)
 deploy.sh               build + rsync to the server, then a routing smoke test
 deploy/nginx.conf       the server block — root redirect, 404, caching
 ```

@@ -25,8 +25,12 @@ rsync -a --delete build/client/ "$HOST:$DIR/"
 # deploy that can break it, and the case study links to that URL, so a site
 # that ships with the block missing ships a dead link. It does mean the demo
 # has to be deployed once before this script passes; README says so.
+#
+# `/scrubble/privacy` is the Scrubble app's privacy policy, the URL its Play
+# Store listing points at: a plain HTML file in `public/scrubble/privacy/`,
+# outside the app and its locales. A deploy that loses it breaks the listing.
 for probe in "/ 302" "/en 200" "/en/world 200" "/fr/work/scrubble 200" "/nl/work 200" "/nope 404" \
-             "/sudoku 301" "/sudoku/ 200"; do
+             "/sudoku 301" "/sudoku/ 200" "/scrubble/privacy 200"; do
   set -- $probe
   code=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$1")
   [ "$code" = "$2" ] || { echo "smoke: $1 -> $code, wanted $2"; exit 1; }
