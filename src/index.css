@@ -590,48 +590,61 @@ main:has(.atlas) {
   height: 100%;
 }
 
-/* The title's slide: the mark, and the canvas that dithers it under the
-   cursor (`Dither.tsx`). The mark is drawn as its two strokes — the top and
-   the fold that runs down to the right-hand pill, and the stem with the pill
-   that leans up from it — each the whole picture clipped to its own side of
-   the gap between them. The boundary is the middle of that gap, traced off
-   the picture's alpha, so neither clip crosses a stroke; a new mark means
-   re-tracing it. */
+/* The title's slide: the mark (`Mark.tsx`) — three layers at three depths,
+   the stem at the back, the top stroke, and the flap folded over it, turned
+   a few degrees towards the cursor. The angles and the light are set from
+   script as custom properties; without one it is the drawing, flat. */
 .slide .mark {
   --fly: max(75cqh, 60cqw);
   position: relative;
   height: min(62cqh, 22rem);
   aspect-ratio: 512 / 686;
+  perspective: 1100px;
 }
 
-.slide .mark :is(img, canvas) {
+.slide .mark .tilt {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+
+.slide .mark svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
 }
 
 .slide .mark .top {
-  clip-path: polygon(100% 100%, 66.2% 100%, 53.8% 90.2%, 50.5% 87%, 45.8% 81.5%, 40.7% 72.9%, 39.2% 67.2%, 42.5% 60.2%, 47.9% 54.7%, 62.4% 44%, 65.1% 41.4%, 65.7% 38.8%, 65.5% 34.5%, 64.6% 29.7%, 63.1% 27%, 53.5% 24.9%, 45.3% 24.6%, 38.7% 25.7%, 28.9% 28.4%, 5.3% 35.8%, 0 37%, 0 0, 100% 0);
+  transform: translateZ(22px);
 }
 
-.slide .mark .stem {
-  clip-path: polygon(66.2% 100%, 0 100%, 0 37%, 5.3% 35.8%, 28.9% 28.4%, 38.7% 25.7%, 45.3% 24.6%, 53.5% 24.9%, 63.1% 27%, 64.6% 29.7%, 65.5% 34.5%, 65.7% 38.8%, 65.1% 41.4%, 62.4% 44%, 47.9% 54.7%, 42.5% 60.2%, 39.2% 67.2%, 40.7% 72.9%, 45.8% 81.5%, 50.5% 87%, 53.8% 90.2%);
+/* The flap's shadow falls on the stroke under it, away from the light. */
+.slide .mark .flap {
+  transform: translateZ(40px);
+  filter: drop-shadow(var(--sx, 1.5px) var(--sy, 3px) 3px #00182a73);
+}
+
+.slide .mark .sheen {
+  mix-blend-mode: screen;
 }
 
 /* Each time the title comes on stage — the first paint, and every scroll
    back up to it — the two strokes fly in along the mark's own diagonal from
-   opposite corners and meet where they belong. Riding in with the slide, they
-   wait for it to be most of the way across first. */
+   opposite corners and meet where they belong; the flap rides with its
+   stroke. Riding in with the slide, they wait for it to be most of the way
+   across first. */
 @media (prefers-reduced-motion: no-preference) {
   /* Longhands, so the names below need not outrank this. */
-  .slide[data-at="on"] .mark :is(.part, canvas) {
+  .slide[data-at="on"] .mark .part {
     animation-duration: 1.15s;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
     animation-fill-mode: backwards;
   }
 
-  .slide[data-at="on"] .mark .top {
+  .slide[data-at="on"] .mark :is(.top, .flap) {
     animation-name: fly-top;
   }
 
@@ -639,28 +652,18 @@ main:has(.atlas) {
     animation-name: fly-stem;
   }
 
-  .slide[data-at="on"] .mark canvas {
-    animation-name: grounded;
-  }
-
-  .slide[data-at="on"][data-moving] .mark :is(.part, canvas) {
+  .slide[data-at="on"][data-moving] .mark .part {
     animation-delay: 0.35s;
   }
 }
 
-/* Visible for the whole flight, delay included, whatever the static rule
-   below says; at rest after it, which is where they already are. */
 @keyframes fly-top {
   from {
     translate: var(--fly) calc(-1 * var(--fly));
     opacity: 0;
-    visibility: visible;
   }
   25% {
     opacity: 1;
-  }
-  to {
-    visibility: visible;
   }
 }
 
@@ -668,28 +671,10 @@ main:has(.atlas) {
   from {
     translate: calc(-1 * var(--fly)) var(--fly);
     opacity: 0;
-    visibility: visible;
   }
   25% {
     opacity: 1;
   }
-  to {
-    visibility: visible;
-  }
-}
-
-/* The canvas, on the same clock, out of the way until they have landed. */
-@keyframes grounded {
-  from,
-  to {
-    visibility: hidden;
-  }
-}
-
-/* Once the canvas has drawn it is the mark, and the two halves are only for
-   flying. */
-.slide .mark[data-live] .part {
-  visibility: hidden;
 }
 
 .chart {
