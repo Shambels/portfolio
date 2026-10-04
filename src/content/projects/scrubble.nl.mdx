@@ -1,7 +1,7 @@
 ---
 title: Scrubble
 slug: scrubble
-summary: Een cross-platform Scrabble-analysebord dat elke legale zet op een stelling vindt en rangschikt — gebouwd om je te tonen wat je miste, niet om je beurt voor je te spelen.
+summary: Een cross-platform Scrabble-analysebord dat een stelling van een screenshot of foto leest en er elke legale zet op vindt en rangschikt — gebouwd om je te tonen wat je miste, niet om je beurt voor je te spelen.
 ---
 
 ## Het probleem
@@ -71,13 +71,53 @@ die de UI laat haperen leest als een kapotte app in plaats van een drukke.
 
 ## Wat het kostte
 
-Een stelling invoeren is het trage deel, en de solve is ogenblikkelijk. Een bord
+Een stelling invoeren was het trage deel, en de solve is ogenblikkelijk. Een bord
 halverwege de partij is dertig-en-nog-wat taps door een dialoog per vakje voor je
 een antwoord krijgt, wat te doen is wanneer je één interessante stelling
 naloopt en vervelend op het moment dat je een hele partij wilt overlopen. De
-oplossing is het bord fotograferen, en dat is een ander project — een raster van
-vijftien bij vijftien stenen lezen vanaf een telefooncamera onder een hoek, waar
-één verkeerd gelezen vakje een zelfverzekerd fout antwoord oplevert.
+oplossing was altijd het bord fotograferen, en de eerste versie van deze pagina
+noemde dat een ander project. Het werd het volgende.
+
+Je geeft Scrubble een screenshot of een foto — met de camera, uit de galerij, of
+op Android rechtstreeks gedeeld vanuit een andere app — en het leest er het bord
+en het rekje van af. Een screenshot vindt zelf zijn hoeken; een foto krijgt vier
+grepen om te verslepen, met een vergrootglas en het raster van vijftien bij
+vijftien er live overheen getekend. Het beeld wordt recht getrokken tot een
+vierkant en daarna vastgezet op de rasterlijnen die het echt heeft, zodat een hoek
+die een derde vakje naast zit nog altijd goed valt. Welke vakjes een steen dragen,
+wordt op pixels beslist voor er iets gelezen wordt: een steen is een lettervorm op
+een vakje in steenkleur, en dat houdt het label dat op een premievakje gedrukt
+staat tegen om als twee letters binnen te komen. De tekstherkenning van ML Kit leest de
+letters, op de telefoon zelf, dus ook de foto gaat nergens heen; ze leest de
+twijfelachtige opnieuw op een vel met genormaliseerd contrast, en wat ze dan nog
+niet kan lezen, gaat naar een vormvergelijking met letters gerenderd uit een
+schreefloos en een schreeflettertype.
+
+Wat ik eerder schreef klopte over het gevaar: één verkeerd gelezen vakje levert een
+zelfverzekerd fout antwoord op. Dus vertrouwt de lezer zichzelf niet. Elk woord dat
+hij vindt, horizontaal en verticaal, gaat door het woordenboek van de solver, met
+het aantal stenen en de puntwaarden ernaast gecontroleerd, en van een ongeldig
+woord mogen tot drie onzekere letters samen variëren tot het een woord is. Een
+letter die met zekerheid gelezen is, wordt nooit veranderd, een gok wordt alleen
+ingevuld als het de enige letter is die past, en als de meeste woorden falen houdt
+de lezer op met corrigeren en stelt hij voor dat het bord in de andere taal is.
+Wat dan nog twijfelachtig is, verschijnt omlijnd om met een tap te verbeteren, met
+de foto een knop verder. Op twaalf testborden — zes synthetische, vier screenshots
+uit andere Scrabble-apps en twee foto's van een echt bord — leest hij 96,5% van de
+letters ruw en 98% na validatie, 175 van de 177 op de echte screenshots, in één
+tot drie seconden.
+
+Gratis is het niet. De lezer draait alleen op Android en iOS: ML Kit heeft geen
+desktop- of webversie, dus op drie van de vijf platformen is de knop er niet en
+blijft een stelling dertig taps. Een foto die te schuin genomen is, verschuift
+verhoogde stenen door parallax uit hun vakje, en een fysieke blanco toont geen
+letter, dus die wordt alleen afgeleid als er maar één letter past. En het
+verschuift een lijn die deze pagina trekt. Een screenshot van een online partij,
+rekje inbegrepen, is precies de stelling die je midden in je beurt zou willen: of
+Scrubble een analysebord of een assistent is, hangt nu af van wanneer je het
+gebruikt, niet meer van wat het kan. Ik heb het toch gebouwd, omdat de
+nabespreking waarvoor het bestaat die is waarvoor een hele partij ingevoerd moet
+worden, en niemand doet dat met de hand.
 
 Frans toevoegen was geen vertaalklus. De strings van de interface zijn een
 bestand; het *spel* niet. Frans Scrabble heeft zijn eigen letterverdeling, zijn
@@ -91,9 +131,11 @@ vermenigvuldigt de zoekruimte met zesentwintig en levert nul punten op.
 ## Het resultaat
 
 Het werkt, op de tien fasen van het plan, op vijf platformen, in twee talen, met
-tests achter elke fase. Het is ook niet uitgebracht, en dat zijn twee verschillende
-woorden. Wat daartussen staat is geen code: een storepagina vraagt om een icoon,
-een privacyantwoord, een naam die geen merk leent, en een woordenlijst waarvan ik
-de licentie kan aanwijzen — de bekende toernooilijsten zijn niet de
-publiek-domeinbestanden waarvoor ze worden aangezien. Niets daarvan is moeilijk.
-Het is allemaal onaf, en dat zeggen is nuttiger dan een screenshot.
+tests achter elke fase, en het leest nu een bord van een foto. Het is nog niet
+uitgebracht, maar de afstand tussen die twee woorden is veranderd. Wat ertussen
+stond was nooit code: een icoon, een privacyantwoord, en een woordenlijst waarvan
+ik de licentie kan aanwijzen — de bekende toernooilijsten zijn niet de
+publiek-domeinbestanden waarvoor ze worden aangezien. Het icoon is getekend, het
+privacybeleid staat online, en de Engelse lijst is ENABLE met de lijst van Wordnik
+ernaast, die allebei zeggen wat ze zijn. Wat overblijft is Googles beoordeling van
+de Play Store-pagina. Als die erdoor is, krijgt deze alinea in de plaats een link.

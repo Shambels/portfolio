@@ -7191,7 +7191,29 @@ Open, and Seb's:
   Swiftshader draws it, but not at a speed worth judging.
 - **The board on hardware** — the flight's pace, the anchors' glow, the
   readout's size under the rack (`TIME` in `Tiles.tsx`).
-- **The title's slide** is the mark as a placeholder.
+- **The title's slide** is still the mark, but it answers the cursor now:
+  `Dither.tsx` orders-dithers it under the pointer (Bayer 8 × 8, 4 CSS px
+  cells) — four levels a channel at the field's edge, three, then two, cells
+  doubled at the middle, and the edge between dithered and clean dithered
+  too. A 340 ms wake behind a moving cursor, none under reduced motion, and
+  nothing drawn while the field is still; the `<img>` stays underneath until
+  the canvas has drawn, so JS off is unchanged. Coverage is cut at half
+  rather than dithered: the mark is ~85% opaque all over and dithering its
+  alpha punched holes in it. A cell that changes **flips** — edge-on and
+  back over 280 ms (`FLIP`), the old face darkening away, each cell up to
+  90 ms behind its neighbours by its Bayer threshold (`RIPPLE`), so a moving
+  cursor sends a ripple through the grid. And the mark **flies in**: its two
+  strokes are the picture twice, each clipped to its side of the gap between
+  them (the middle of that gap, traced off the alpha — a new mark means
+  re-tracing the two polygons in `index.css`), and they come in along the
+  diagonal from opposite corners and meet, 1.15 s, every time the title's
+  slide comes on stage — load, and each scroll back up, 0.35 s behind the
+  slide's own swipe. CSS, so it plays from first paint and with JS off; the
+  canvas is hidden on the same clock (`grounded`) rather than by an event,
+  because `animationstart` only fires after a delay. Neither under reduced
+  motion. Seb's eye: the spread (`SPREAD`, 0.17 of the width), the cell,
+  whether the core's pure blue cells are too hard, the flip's pace, and the
+  flight's distance (`--fly`) on a phone's strip.
 - **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
   where the vsync is the ceiling; a 2022 laptop is the real test.
 - **The pacing** — `HOLO` in `Hologram.tsx`: the rain and settle, the
@@ -7531,3 +7553,31 @@ motion, no JavaScript, no page errors; the index's own plate still plays;
 Open, and Seb's: the pacing on a trackpad, whether the French values want to
 be larger than the tile's own corner digit, and the card words in FR and NL.
 
+## Scrubble reads the board
+
+The app gained an optical reader (v1.1.0, `lib/services/board_import/` in
+its repository, `docs/board-import.md` there): a screenshot or a photo in,
+corners found or dragged, warped and snapped to the grid, occupancy from
+pixels, ML Kit text recognition on the phone with a glyph-matching fallback,
+and the result validated against the dictionary before a review screen.
+
+- [x] **The case study says so, in all three locales.** "What it cost" no
+  longer calls photographing the board a different project: three new
+  paragraphs say how the reader works, how it refuses to trust itself, the
+  numbers from the repository's own accuracy run (96.5% of letters raw, 98%
+  validated, 175/177 on real screenshots, 12 boards, 1–3 s), and what it
+  costs — mobile only, parallax, physical blanks, and that a screenshot of an
+  online game blurs the analysis-board-not-assistant line the page is built
+  on. The summary and the English `stack` (`ML Kit`) say so too.
+- [x] **Still five headings**, so `Rack.tsx`'s acts land where they did. The
+  "What it cost" act still enters the board tap by tap, which the prose now
+  calls the cost the reader was built to pay — true, but the act could show
+  an import instead.
+
+Open, and Seb's: the FR and NL paragraphs are unreviewed; "I built it
+anyway" is a position written in his voice and is his to keep or cut; "The
+outcome" now says the icon, the privacy policy and the word list are done and
+the Play Store review is what is left — when the listing is live it wants the
+link (`play` in the English frontmatter, as Memojo has it) and that paragraph
+rewritten; and the privacy policy does not mention
+camera or photo access, which the store review may ask about.

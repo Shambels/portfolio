@@ -590,10 +590,106 @@ main:has(.atlas) {
   height: 100%;
 }
 
-/* The title's slide: the mark, until it has something of its own. */
+/* The title's slide: the mark, and the canvas that dithers it under the
+   cursor (`Dither.tsx`). The mark is drawn as its two strokes — the top and
+   the fold that runs down to the right-hand pill, and the stem with the pill
+   that leans up from it — each the whole picture clipped to its own side of
+   the gap between them. The boundary is the middle of that gap, traced off
+   the picture's alpha, so neither clip crosses a stroke; a new mark means
+   re-tracing it. */
 .slide .mark {
+  --fly: max(75cqh, 60cqw);
+  position: relative;
   height: min(62cqh, 22rem);
-  width: auto;
+  aspect-ratio: 512 / 686;
+}
+
+.slide .mark :is(img, canvas) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.slide .mark .top {
+  clip-path: polygon(100% 100%, 66.2% 100%, 53.8% 90.2%, 50.5% 87%, 45.8% 81.5%, 40.7% 72.9%, 39.2% 67.2%, 42.5% 60.2%, 47.9% 54.7%, 62.4% 44%, 65.1% 41.4%, 65.7% 38.8%, 65.5% 34.5%, 64.6% 29.7%, 63.1% 27%, 53.5% 24.9%, 45.3% 24.6%, 38.7% 25.7%, 28.9% 28.4%, 5.3% 35.8%, 0 37%, 0 0, 100% 0);
+}
+
+.slide .mark .stem {
+  clip-path: polygon(66.2% 100%, 0 100%, 0 37%, 5.3% 35.8%, 28.9% 28.4%, 38.7% 25.7%, 45.3% 24.6%, 53.5% 24.9%, 63.1% 27%, 64.6% 29.7%, 65.5% 34.5%, 65.7% 38.8%, 65.1% 41.4%, 62.4% 44%, 47.9% 54.7%, 42.5% 60.2%, 39.2% 67.2%, 40.7% 72.9%, 45.8% 81.5%, 50.5% 87%, 53.8% 90.2%);
+}
+
+/* Each time the title comes on stage — the first paint, and every scroll
+   back up to it — the two strokes fly in along the mark's own diagonal from
+   opposite corners and meet where they belong. Riding in with the slide, they
+   wait for it to be most of the way across first. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Longhands, so the names below need not outrank this. */
+  .slide[data-at="on"] .mark :is(.part, canvas) {
+    animation-duration: 1.15s;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: backwards;
+  }
+
+  .slide[data-at="on"] .mark .top {
+    animation-name: fly-top;
+  }
+
+  .slide[data-at="on"] .mark .stem {
+    animation-name: fly-stem;
+  }
+
+  .slide[data-at="on"] .mark canvas {
+    animation-name: grounded;
+  }
+
+  .slide[data-at="on"][data-moving] .mark :is(.part, canvas) {
+    animation-delay: 0.35s;
+  }
+}
+
+/* Visible for the whole flight, delay included, whatever the static rule
+   below says; at rest after it, which is where they already are. */
+@keyframes fly-top {
+  from {
+    translate: var(--fly) calc(-1 * var(--fly));
+    opacity: 0;
+    visibility: visible;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+@keyframes fly-stem {
+  from {
+    translate: calc(-1 * var(--fly)) var(--fly);
+    opacity: 0;
+    visibility: visible;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+/* The canvas, on the same clock, out of the way until they have landed. */
+@keyframes grounded {
+  from,
+  to {
+    visibility: hidden;
+  }
+}
+
+/* Once the canvas has drawn it is the mark, and the two halves are only for
+   flying. */
+.slide .mark[data-live] .part {
+  visibility: hidden;
 }
 
 .chart {
