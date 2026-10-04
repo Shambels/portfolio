@@ -1108,7 +1108,7 @@ main:has(.atlas) {
 }
 
 /* Above the card's own link, so a way out is a way out. */
-.entry .out a {
+.entry .out a:not(.go) {
   position: relative;
   z-index: 1;
   font-size: 0.875rem;
@@ -1116,14 +1116,17 @@ main:has(.atlas) {
   border-bottom: 1px solid var(--gold);
 }
 
-.entry .out a::after {
+.entry .out a:not(.go)::after {
   content: " ↗";
   color: var(--gold);
   font-size: 0.8em;
 }
 
 .entry .go {
+  position: relative;
+  z-index: 1;
   margin-inline-start: auto;
+  text-decoration: none;
   font: 0.78rem/1 var(--mono);
   letter-spacing: 0.04em;
   color: color-mix(in srgb, var(--gold) calc(var(--lit) * 100%), var(--paper-faint));
