@@ -4,6 +4,7 @@ import { LABEL, PROJECTS, linksOf, type Plate, type Project } from '../content'
 import { Hologram } from '../Hologram'
 import { Iceberg } from '../Iceberg'
 import { Instant } from '../Instant'
+import { Dither } from '../Dither'
 import { Tiles } from '../Tiles'
 import { Studio } from '../Studio'
 import { STRINGS, type Locale } from '../i18n'
@@ -22,8 +23,9 @@ import mark from '../assets/logo/logo-512.webp?no-inline'
  * lights the island on stage as well. `docs/STATUS.md`, "The index is a
  * stage".
  *
- * The page's own title has a slide too, the first: the mark, for now. So the
- * stage opens on the site and not on whichever project happens to be first.
+ * The page's own title has a slide too, the first: the mark, which dithers
+ * under the cursor (`Dither.tsx`). So the stage opens on the site and not on
+ * whichever project happens to be first.
  * On a phone the stage is a strip over the ledger rather than a column beside
  * it, and swipes the same way.
  *
@@ -90,7 +92,7 @@ function Stage({ projects, on, was }: { projects: Project[]; on: number; was: nu
   return (
     <div className="showcase" aria-hidden="true">
       <figure className="slide" {...at(0)}>
-        <img className="mark" src={mark} alt="" decoding="async" />
+        <Dither src={mark} />
       </figure>
       {projects.map((p, n) => {
         const Overlay = OVERLAY[p.landmark]

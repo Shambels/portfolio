@@ -744,7 +744,8 @@ FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
 control hints, the three craft labels, the reading view's `closeStudy` and
 `backToWorld`, and now `linkPlay`, `linkAppStore`, the two reworded `work`
 strings, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
-Solver's, which is the longest translation on the site), and judging
+Solver's, which is the longest translation on the site, and Scrubble's four
+new paragraphs on the board reader), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over
 its ridge, on real hardware — swiftshader has no opinion about frame rate, a null audio sink

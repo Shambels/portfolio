@@ -2,8 +2,8 @@
 title: Scrubble
 slug: scrubble
 year: 2026
-stack: [Flutter, Dart, Riverpod, Isolates, flutter_localizations]
-summary: A cross-platform Scrabble analysis board that finds every legal move on a position and ranks them — built to show you what you missed, not to play your turn for you.
+stack: [Flutter, Dart, Riverpod, Isolates, ML Kit, flutter_localizations]
+summary: A cross-platform Scrabble analysis board that reads a position off a screenshot or a photo, finds every legal move on it and ranks them — built to show you what you missed, not to play your turn for you.
 landmark: board
 order: 3
 pos: [0, 14]
@@ -76,12 +76,49 @@ that janks the UI reads as a broken app rather than a busy one.
 
 ## What it cost
 
-Entering a position is the slow part, and the solve is instant. A mid-game board
+Entering a position was the slow part, and the solve is instant. A mid-game board
 is thirty-odd taps through a per-cell dialog before you get an answer, which is
 tolerable when you are reviewing one interesting position and tedious the moment
-you want to review a whole game. The fix is photographing the board, and that is a
-different project — reading a fifteen-by-fifteen grid of tiles from a phone camera
-at an angle, where one misread cell produces a confident wrong answer.
+you want to review a whole game. The fix was always photographing the board, and
+the first version of this page called that a different project. It became the
+next one.
+
+You give Scrubble a screenshot or a photograph — from the camera, from the
+gallery, or shared straight out of another app on Android — and it reads the board
+and the rack off it. A screenshot finds its own corners; a photo gets four handles
+to drag, with a magnifier and the fifteen-by-fifteen grid drawn live over it. The
+picture is warped square and then snapped to the grid lines it actually has, so a
+corner a third of a cell out still lands. Which cells hold tiles is decided from
+pixels before anything is read: a tile is a letter shape on a tile-coloured
+square, which is what stops the "TW" printed on a bonus square from coming in as
+two letters. ML Kit's text recognition reads the letters, on the phone, so the
+photograph goes nowhere either; it re-reads the doubtful ones on a
+contrast-normalised sheet, and hands whatever it still cannot read to a shape
+match against letters rendered from a sans and a serif font.
+
+What I wrote before was right about the danger: one misread cell produces a
+confident wrong answer. So the reader does not trust itself. Every word it finds,
+across and down, goes through the dictionary the solver uses, with tile counts and
+point values checked beside it, and an invalid word may have up to three of its
+unsure letters varied together until it is a word. A letter read with confidence
+is never changed, a guess is only filled in when it is the one letter that fits,
+and when most of the words fail the reader stops correcting and suggests the board
+is in the other language. Whatever is still doubtful comes up outlined for a tap,
+with the photograph a button away. On twelve test boards — six synthetic, four
+screenshots from other Scrabble apps and two photos of a real board — it reads
+96.5% of letters raw and 98% after validation, 175 of 177 on the real screenshots,
+in one to three seconds.
+
+It is not free. The reader runs on Android and iOS only: ML Kit has no desktop or
+web build, so on three of the five platforms the button is not there and a
+position is still thirty taps. A photo taken at a steep angle shifts raised tiles
+out of their cells by parallax, and a physical blank shows no letter, so it is
+inferred only when one letter fits. And it moves a line this page draws. A
+screenshot of an online game, rack included, is exactly the position you would
+want mid-turn, so whether Scrubble is an analysis board or an assistant is now
+decided by when you use it rather than by what it can do. I built it anyway,
+because the review it is for is the one that needs a whole game entered, and
+nobody does that by hand.
 
 Adding French was not a translation job. The user interface strings are a file;
 the *game* is not. French Scrabble has its own letter distribution, its own point
@@ -95,9 +132,11 @@ search by twenty-six and scores as nothing.
 ## The outcome
 
 It works, on the plan's ten phases, on five platforms, in two languages, with
-tests behind each phase. It is also not shipped, and those are different words.
-What stands between them is not code: a store listing needs an icon, a privacy
-answer, a name that does not borrow a trademark, and a word list whose licence I
-can point at — the well-known tournament lists are not the public-domain files
-they are assumed to be. None of that is hard. All of it
-is unfinished, and saying so is more useful than a screenshot.
+tests behind each phase, and it reads a board off a photograph now. It is not
+shipped yet, but the distance between those two words has changed. What stood
+between them was never code: an icon, a privacy answer, and a word list whose
+licence I can point at — the well-known tournament lists are not the
+public-domain files they are assumed to be. The icon is drawn, the privacy policy
+is published, and the English list is ENABLE with the Wordnik list beside it,
+both of which say what they are. What is left is Google's review of the Play
+Store listing. When it is through, this paragraph gets a link instead.
