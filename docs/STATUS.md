@@ -7191,29 +7191,30 @@ Open, and Seb's:
   Swiftshader draws it, but not at a speed worth judging.
 - **The board on hardware** — the flight's pace, the anchors' glow, the
   readout's size under the rack (`TIME` in `Tiles.tsx`).
-- **The title's slide** is still the mark, but it answers the cursor now:
-  `Dither.tsx` orders-dithers it under the pointer (Bayer 8 × 8, 4 CSS px
-  cells) — four levels a channel at the field's edge, three, then two, cells
-  doubled at the middle, and the edge between dithered and clean dithered
-  too. A 340 ms wake behind a moving cursor, none under reduced motion, and
-  nothing drawn while the field is still; the `<img>` stays underneath until
-  the canvas has drawn, so JS off is unchanged. Coverage is cut at half
-  rather than dithered: the mark is ~85% opaque all over and dithering its
-  alpha punched holes in it. A cell that changes **flips** — edge-on and
-  back over 280 ms (`FLIP`), the old face darkening away, each cell up to
-  90 ms behind its neighbours by its Bayer threshold (`RIPPLE`), so a moving
-  cursor sends a ripple through the grid. And the mark **flies in**: its two
-  strokes are the picture twice, each clipped to its side of the gap between
-  them (the middle of that gap, traced off the alpha — a new mark means
-  re-tracing the two polygons in `index.css`), and they come in along the
-  diagonal from opposite corners and meet, 1.15 s, every time the title's
-  slide comes on stage — load, and each scroll back up, 0.35 s behind the
-  slide's own swipe. CSS, so it plays from first paint and with JS off; the
-  canvas is hidden on the same clock (`grounded`) rather than by an event,
-  because `animationstart` only fires after a delay. Neither under reduced
-  motion. Seb's eye: the spread (`SPREAD`, 0.17 of the width), the cell,
-  whether the core's pure blue cells are too hard, the flip's pace, and the
-  flight's distance (`--fly`) on a phone's strip.
+- **The title's slide** is the mark redrawn as geometry —
+  `src/assets/logo/logo-vector.svg`, written by `tools/logo-vector.py`, which
+  says at its top what it changed from the generated master (exact 45s and
+  band widths, true half-circle ends, one gap, opaque, one gradient). Only
+  the stage draws it; the corner `.brand` and everything else still draw
+  `logo.py`'s webps. `Mark.tsx` reads its shapes out of the file by class and
+  answers the cursor two ways, which replaced the dither: **the cursor is a
+  light** in front of the picture — each face has a direction it faces
+  (`FACE`) and is lit or shaded by how much more or less it faces the light
+  than at rest, so at rest it is the drawing exactly, with a sheen sliding
+  after it — and **a slight tilt**, the stem, the top stroke and the folded
+  flap on three layers 0, 22 and 40 px deep turned up to 7 degrees towards
+  the cursor, the flap casting its shadow away from the light. Both are
+  weighted by how near the cursor is — all of it over the mark, none of it
+  half the mark's width away (`REACH`) — and read off the window, not the
+  slide: following the cursor anywhere on the slide made the light jump
+  back to rest at its edge. Shade is
+  capped lower than light and both are tinted (`MOST`): shading cyan reads
+  as dirt, and white over the blue end goes milky. The fly-in stayed — the
+  two strokes from opposite corners along the diagonal on every arrival,
+  CSS, from first paint and with JS off. Under reduced motion no flight and
+  no tilt, and the light follows rather than eases. Seb's eye: `FACE`,
+  `GAIN`, `TILT`, the depths in `index.css`, and whether the corner mark
+  should become the vector too.
 - **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
   where the vsync is the ceiling; a 2022 laptop is the real test.
 - **The pacing** — `HOLO` in `Hologram.tsx`: the rain and settle, the

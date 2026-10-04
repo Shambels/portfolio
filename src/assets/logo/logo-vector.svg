@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 686">
+  <!-- The mark, redrawn as geometry (see tools/logo-vector.py). Every band
+       140 wide, every diagonal 45 degrees, both ends half-circles, a 36-unit
+       gap between the two strokes, everything opaque. One gradient under
+       all of it; the fold and the crossing lit, the back of the fold shaded. -->
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="120" y1="12" x2="330" y2="672">
+      <stop offset="0" stop-color="#36eedc"/>
+      <stop offset=".55" stop-color="#1cc4e0"/>
+      <stop offset="1" stop-color="#087ee0"/>
+    </linearGradient>
+  </defs>
+  <!-- Each stroke is one silhouette, so no two shapes of the same fill
+       abut and leave a hairline between them; the faces are laid on top. -->
+  <path class="top" fill="url(#g)" d="M14,12 L356,12 L496,152 L496,349.99 L351.49,494.5 A70,70 0 0 1 252.5,395.5 L356,292 L356,152 L14,152 Z"/>
+  <path class="stem" fill="url(#g)" d="M14,672 L154,672 L154,442.99 L289.49,307.5 A70,70 0 0 0 190.5,208.5 L14,385 Z"/>
+  <!-- Light and shade are tinted, not white and black: white over the blue
+       end goes milky, and black turns every blue grey. -->
+  <polygon class="fold" fill="#b4fff4" fill-opacity=".34" points="356,12 496,152 356,152"/>
+  <polygon class="over" fill="#9dfaf0" fill-opacity=".2" points="14,385 154,245 154,442.99 14,582.99"/>
+  <polygon class="back" fill="#00496e" fill-opacity=".38" points="356,152 496,152 356,292"/>
+</svg>
