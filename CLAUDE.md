@@ -455,7 +455,8 @@ deploy/nginx.conf       the server block — root redirect, 404, caching
 `react-router.config.ts` reads the directory to build its prerender list.
 
 English carries the structural frontmatter (`year`, `stack`, `site`, `repo`,
-`play` and `appStore` for a project that ships as an app, and
+`play` and `appStore` for a project that ships as an app, `marketplace` for
+one that ships as a VS Code extension, and
 the world's `landmark`, `order`, `pos`, `size`, `radius`, `waypoint`, and the
 index chart's optional `mapScale`); `fr` and
 `nl` carry only `title` and `summary` beside their prose. A URL is never written
@@ -742,7 +743,7 @@ What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the unreviewed
 FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
 control hints, the three craft labels, the reading view's `closeStudy` and
-`backToWorld`, and now `linkPlay`, `linkAppStore`, the two reworded `work`
+`backToWorld`, and now `linkPlay`, `linkAppStore`, `linkMarketplace`, the two reworded `work`
 strings, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
 Solver's, which is the longest translation on the site, and Scrubble's four
 new paragraphs on the board reader), and judging

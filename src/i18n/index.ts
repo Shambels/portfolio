@@ -49,6 +49,7 @@ const en = {
   linkRepo: 'View the source',
   linkPlay: 'Get it on Google Play',
   linkAppStore: 'Get it on the App Store',
+  linkMarketplace: 'Get it on the VS Code Marketplace',
   noLink: 'Not deployed — the write-up is the artefact.',
 
   // The world's only string. `useInput` reads physical key codes, so the keys
@@ -135,6 +136,7 @@ const fr: Strings = {
   linkRepo: 'Voir le code',
   linkPlay: 'Sur Google Play',
   linkAppStore: "Sur l'App Store",
+  linkMarketplace: 'Sur le VS Code Marketplace',
   noLink: "Pas déployé — c'est le texte qui fait foi.",
 
   worldControls: 'ZQSD ou flèches pour voler · espace pour monter · maj pour accélérer',
@@ -190,6 +192,7 @@ const nl: Strings = {
   linkRepo: 'Bekijk de broncode',
   linkPlay: 'Op Google Play',
   linkAppStore: 'In de App Store',
+  linkMarketplace: 'In de VS Code Marketplace',
   noLink: 'Niet uitgebracht — de tekst is het werkstuk.',
 
   worldControls: 'WASD of pijltjes om te vliegen · spatie om te stijgen · shift voor snelheid',

@@ -32,6 +32,9 @@ export type Project = {
    *  list of links keyed by a store would be a list nothing else here needs. */
   play?: string
   appStore?: string
+  /** The VS Code Marketplace, for a project that ships as an extension —
+   *  a store like the two above, so a key like theirs. */
+  marketplace?: string
   /** Which shape builds it — see `BUILD` in `src/Landmarks.tsx`. */
   landmark: string
   /** Island centre, XZ. The plateau height is one constant, `GROUND`. */
@@ -155,6 +158,7 @@ function build(slug: string, locale: Locale): Project {
     repo: typeof fm.repo === 'string' ? fm.repo : undefined,
     play: typeof fm.play === 'string' ? fm.play : undefined,
     appStore: typeof fm.appStore === 'string' ? fm.appStore : undefined,
+    marketplace: typeof fm.marketplace === 'string' ? fm.marketplace : undefined,
     landmark: str(fm.landmark, file, 'landmark'),
     pos: [px, pz],
     size: [sx, sy, sz],
@@ -231,6 +235,7 @@ export function linksOf(p: Project) {
     { key: 'linkRepo', href: p.repo, rel: 'noreferrer' },
     { key: 'linkPlay', href: p.play, rel: 'noreferrer' },
     { key: 'linkAppStore', href: p.appStore, rel: 'noreferrer' },
+    { key: 'linkMarketplace', href: p.marketplace, rel: 'noreferrer' },
   ] as const
   return all.filter((l): l is (typeof all)[number] & { href: string } => !!l.href)
 }
