@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, type CSSProperties } from 'react'
 import source from './assets/logo/logo-vector.svg?raw'
 
 /**
@@ -26,8 +26,13 @@ import source from './assets/logo/logo-vector.svg?raw'
  *
  * **The fly-in** is CSS: whenever the slide comes on stage — load, and every
  * scroll back up to the title — the two strokes fly in along the mark's own
- * diagonal from opposite corners and meet (`.part` in `index.css`), from the
- * first paint and with no script at all.
+ * diagonal from opposite corners and meet — as **straight ribbons**, the top
+ * one a bar running off to the right and the stem a post running up — and as
+ * they land **the ribbon folds into shape**: the corner folds over its
+ * crease and sends the ribbon down, band B swings over the stem on its
+ * elbow, and band A swings out last. Every angle in the mark, made in front
+ * of you (the ribbon, unwound, below). `index.css`, from the first paint and
+ * with no script at all.
  *
  * Under reduced motion nothing flies and nothing tilts, and the light moves
  * with the cursor rather than easing after it. Without a script it is the
@@ -51,7 +56,7 @@ const shape = (name: Name) => {
   // radii are not a corner.
   const xy = [...d.replace(/A[\d.]+,[\d.]+/g, 'A').matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [+m[1]!, +m[2]!])
   const mid = xy.reduce((s, [x, y]) => [s[0]! + x! / xy.length, s[1]! + y! / xy.length], [0, 0])
-  return { d, fill: a.fill ?? '#fff', alpha: a['fill-opacity'] ?? '1', mid: mid as [number, number] }
+  return { d, fill: a.fill ?? '#fff', alpha: a['fill-opacity'] ?? '1', mid: mid as [number, number], xy: xy as [number, number][] }
 }
 const GRAD = TAGS.find((t) => t.tag === 'linearGradient')?.a ?? {}
 const STOPS = TAGS.filter((t) => t.tag === 'stop').map((t) => t.a)
@@ -65,6 +70,102 @@ const FACE: Record<Name, [number, number, number]> = {
   back: [-0.45, 0.45, 1],
 }
 const SHAPES = Object.fromEntries((Object.keys(FACE) as Name[]).map((n) => [n, shape(n)])) as Record<Name, ReturnType<typeof shape>>
+
+/**
+ * The ribbon, unwound. Each stroke is cut into the pieces it bends at, out of
+ * the drawing's own silhouettes (their corners, in the order
+ * `tools/logo-vector.py` writes them), so that every angle in the mark can be
+ * undone and made again in front of the visitor:
+ *
+ * - **The corner fold**, top right — a true fold of paper. The bar's end
+ *   folds over the 45-degree crease and the ribbon runs down. Undone, the
+ *   flap, the strip and the band below it lie mirrored over the crease, a
+ *   straight bar running on to the right: the leaf turns 180 degrees about
+ *   the crease to fold it (`CREASE`, `REFLECT`).
+ * - **The two elbows**, where the strip turns into band A and the stem into
+ *   band B — mitred joints, which no single fold of a straight strip makes,
+ *   so they are bends: each band swings in the plane about the point where
+ *   its axis meets the stroke's (`BEND`), and undone it carries straight on.
+ *   Band A meets the strip on the mitre, so straight it would open a notch
+ *   on the inside of the elbow; it carries a wedge (`wedge`) that fills the
+ *   notch and sits under the strip once it has bent. Band B crosses over the
+ *   stem in the drawing, so straight it simply lies along it.
+ */
+type Pt = [number, number]
+const corners = (n: Name) => SHAPES[n].xy as Pt[]
+const at = (p: Pt) => p.map((v) => +v.toFixed(2)).join(',')
+const poly = (...p: Pt[]) => `M${p.map(at).join(' L')} Z`
+const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+const R = SHAPES.top.d.match(/A([\d.]+)/)?.[1] ?? '70'
+/** `p` turned `deg` about `c` — clockwise on screen, as CSS turns. */
+const turn = (p: Pt, c: Pt, deg: number): Pt => {
+  const a = (deg * Math.PI) / 180
+  const dx = p[0] - c[0]
+  const dy = p[1] - c[1]
+  return [c[0] + dx * Math.cos(a) - dy * Math.sin(a), c[1] + dx * Math.sin(a) + dy * Math.cos(a)]
+}
+const heading = (from: Pt, to: Pt) => (Math.atan2(to[1] - from[1], to[0] - from[0]) * 180) / Math.PI
+/** Where the line through `a` and `b` crosses the vertical at `x`. */
+const atX = (a: Pt, b: Pt, x: number): Pt => [x, a[1] + ((b[1] - a[1]) * (x - a[0])) / (b[0] - a[0])]
+
+// Stroke A: bar, corner, strip down, band A down to its end.
+const [a0, a1, a2, a3, a4, a5, a6, a7, a8] = corners('top') as [Pt, Pt, Pt, Pt, Pt, Pt, Pt, Pt, Pt]
+// Stroke B: stem up, band B up to its end.
+const [s0, s1, s2, s3, s4, s5] = corners('stem') as [Pt, Pt, Pt, Pt, Pt, Pt]
+
+/** A bend: the pivot, and how far the band turns from carrying straight on. */
+const bend = (along: [Pt, Pt], pivot: Pt, end: Pt) => ({
+  pivot,
+  deg: heading(pivot, end) - heading(along[0], along[1]),
+})
+const BEND = {
+  // The strip runs down from the corner; the mitre's middle is on both axes.
+  a: bend([a7, a6], mid(a6, a3), mid(a4, a5)),
+  // The stem runs up; band B's axis is the middle of its two edges, and
+  // meets the stem's axis at its pivot.
+  b: (() => {
+    const axis = (s0[0] + s1[0]) / 2
+    const end = mid(s3, s4)
+    const dir: Pt = [s4[0] - s5[0], s4[1] - s5[1]]
+    const pivot: Pt = [axis, end[1] + ((axis - end[0]) * dir[1]) / dir[0]]
+    return bend([s0, s5], pivot, end)
+  })(),
+}
+const PIECE = {
+  bar: poly(a0, a1, a2, a8),
+  strip: poly(a7, a2, a3, a6),
+  bandA: `M${at(a6)} L${at(a3)} L${at(a4)} A${R},${R} 0 0 1 ${at(a5)} Z`,
+  wedge: poly(a6, BEND.a.pivot, turn(a6, BEND.a.pivot, BEND.a.deg)),
+  stem: poly(s0, s1, atX(s5, s4, s1[0]), s5),
+  bandB: `M${at(s5)} L${at(s4)} A${R},${R} 0 0 1 ${at(s3)} L${at(atX(s2, s3, s0[0]))} Z`,
+}
+
+// The corner fold: the fold's first two corners are the crease.
+const [CA, CB] = SHAPES.fold.xy as [Pt, Pt]
+/** Mirroring over the crease, as an SVG matrix — the leaf's other side. */
+const REFLECT = (() => {
+  const l = Math.hypot(CB[0] - CA[0], CB[1] - CA[1])
+  const dx = (CB[0] - CA[0]) / l
+  const dy = (CB[1] - CA[1]) / l
+  const [a, b, d] = [dx * dx - dy * dy, 2 * dx * dy, dy * dy - dx * dx]
+  const e = CA[0] - (a * CA[0] + b * CA[1])
+  const f = CA[1] - (b * CA[0] + d * CA[1])
+  return `matrix(${[a, b, b, d, e, f].map((v) => +v.toFixed(4)).join(' ')})`
+})()
+/** The fold's pivot and axis, for CSS: `transform-origin` and `rotate`. */
+const CREASE = {
+  transformOrigin: `${((CA[0] / VW) * 100).toFixed(3)}% ${((CA[1] / VH) * 100).toFixed(3)}%`,
+  '--crease': `${(CB[0] - CA[0]).toFixed(2)} ${(CB[1] - CA[1]).toFixed(2)} 0`,
+} as CSSProperties
+/** A bend's pivot and angle, for CSS. The band is a drawing of its own, the
+ *  size of the mark, so the pivot is a share of the box — not a group inside
+ *  one: Chrome draws an animated transform on an SVG group inside a leaf
+ *  that is turning in 3D squashed to a sliver. */
+const swing = (b: { pivot: Pt; deg: number }) =>
+  ({
+    transformOrigin: `${((b.pivot[0] / VW) * 100).toFixed(3)}% ${((b.pivot[1] / VH) * 100).toFixed(3)}%`,
+    '--bend': `${(-b.deg).toFixed(2)}deg`,
+  }) as CSSProperties
 
 /** Where the light is when nobody is pointing: up and to the left, in front.
  *  `LIGHT.z` is how far in front of the picture the cursor stands. */
@@ -208,68 +309,114 @@ export function Mark() {
     }
   }, [])
 
-  /** One layer: a silhouette, the faces drawn on it, the light on each. */
-  const layer = (cls: string, base: Name, faces: Name[]) => {
-    const g = `${id}${cls}g`
-    const sheen = `${id}${cls}s`
-    const clip = `${id}${cls}c`
-    return (
-      <svg className={`part ${cls}`} viewBox={VIEW.join(' ')} aria-hidden="true">
-        <defs>
-          <linearGradient id={g} gradientUnits="userSpaceOnUse" x1={GRAD.x1} y1={GRAD.y1} x2={GRAD.x2} y2={GRAD.y2}>
-            {STOPS.map((s) => (
-              <stop key={s.offset} offset={s.offset} stopColor={s['stop-color']} />
-            ))}
-          </linearGradient>
-          <radialGradient
-            id={sheen}
-            ref={(el) => {
-              if (el && !sheens.current.includes(el)) sheens.current.push(el)
-            }}
-            gradientUnits="userSpaceOnUse"
-            cx={LIGHT.x}
-            cy={LIGHT.y}
-            r="250"
-          >
-            <stop offset="0" stopColor="#fff" stopOpacity=".55" />
-            <stop offset=".45" stopColor="#e8fffb" stopOpacity=".16" />
-            <stop offset="1" stopColor="#e8fffb" stopOpacity="0" />
-          </radialGradient>
-          <clipPath id={clip}>
-            <path d={SHAPES[base].d} />
-          </clipPath>
-        </defs>
-        <path d={SHAPES[base].d} fill={`url(#${g})`} />
-        {/* The drawing's own faces — every shape that is not a silhouette. */}
-        {faces.map((n) =>
-          SHAPES[n].fill.startsWith('url') ? null : (
-            <path key={n} d={SHAPES[n].d} fill={SHAPES[n].fill} fillOpacity={SHAPES[n].alpha} />
-          ),
-        )}
-        {faces.map((n) => (
-          <g key={n}>
-            <path d={SHAPES[n].d} fill="#a8f4ff" style={{ opacity: `var(--lit-${n}, 0)` }} />
-            <path d={SHAPES[n].d} fill="#00407a" style={{ opacity: `var(--dim-${n}, 0)` }} />
-          </g>
+  /** The drawing's gradient, under `g`, and a sheen for the light. */
+  const defs = (k: string) => (
+    <defs>
+      <linearGradient id={`${id}${k}g`} gradientUnits="userSpaceOnUse" x1={GRAD.x1} y1={GRAD.y1} x2={GRAD.x2} y2={GRAD.y2}>
+        {STOPS.map((s) => (
+          <stop key={s.offset} offset={s.offset} stopColor={s['stop-color']} />
         ))}
-        <rect
-          className="sheen"
-          width={VW}
-          height={VH}
-          fill={`url(#${sheen})`}
-          clipPath={`url(#${clip})`}
-          style={{ opacity: 'var(--sheen, 0)' }}
-        />
-      </svg>
-    )
-  }
+      </linearGradient>
+      <radialGradient
+        id={`${id}${k}s`}
+        ref={(el) => {
+          if (el && !sheens.current.includes(el)) sheens.current.push(el)
+        }}
+        gradientUnits="userSpaceOnUse"
+        cx={LIGHT.x}
+        cy={LIGHT.y}
+        r="250"
+      >
+        <stop offset="0" stopColor="#fff" stopOpacity=".55" />
+        <stop offset=".45" stopColor="#e8fffb" stopOpacity=".16" />
+        <stop offset="1" stopColor="#e8fffb" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+  )
 
+  /** Light and shade for one face, over `d`. */
+  const light = (n: Name, d: string) => (
+    <>
+      <path d={d} fill="#a8f4ff" style={{ opacity: `var(--lit-${n}, 0)` }} />
+      <path d={d} fill="#00407a" style={{ opacity: `var(--dim-${n}, 0)` }} />
+    </>
+  )
+
+  /** One piece of ribbon: its paper, the drawing's faces on it, the light on
+   *  both, and the sheen clipped to it. */
+  const piece = (k: string, svg: string, d: string, lit: Name, faces: Name[] = [], under?: string) => (
+    <>
+      {under && <path d={under} fill={`url(#${id}${svg}g)`} />}
+      <path d={d} fill={`url(#${id}${svg}g)`} />
+      {faces.map((n) => (
+        <path key={n} d={SHAPES[n].d} fill={SHAPES[n].fill} fillOpacity={SHAPES[n].alpha} />
+      ))}
+      {light(lit, d)}
+      {faces.map((n) => (n === lit ? null : <g key={n}>{light(n, SHAPES[n].d)}</g>))}
+      <clipPath id={`${id}${k}c`}>
+        <path d={d} />
+      </clipPath>
+      <rect
+        className="sheen"
+        width={VW}
+        height={VH}
+        fill={`url(#${id}${svg}s)`}
+        clipPath={`url(#${id}${k}c)`}
+        style={{ opacity: 'var(--sheen, 0)' }}
+      />
+    </>
+  )
+
+  const view = VIEW.join(' ')
   return (
-    <div className="mark" ref={host}>
+    <div className="mark" ref={host} style={CREASE}>
       <div className="tilt">
-        {layer('stem', 'stem', ['stem', 'over'])}
-        {layer('top', 'top', ['top', 'back'])}
-        {layer('flap', 'fold', ['fold'])}
+        <svg className="stem" viewBox={view} aria-hidden="true">
+          {defs('b')}
+          {piece('stem', 'b', PIECE.stem, 'stem')}
+        </svg>
+        <svg className="band-b" viewBox={view} style={swing(BEND.b)} aria-hidden="true">
+          {defs('bb')}
+          {piece('bandB', 'bb', PIECE.bandB, 'stem', ['over'])}
+        </svg>
+        <svg className="top" viewBox={view} aria-hidden="true">
+          {defs('t')}
+          {piece('bar', 't', PIECE.bar, 'top')}
+        </svg>
+        {/* Everything past the crease is a leaf with two sides: the ribbon as
+            drawn — band A on its elbow under the strip, the flap lifted a
+            little off them — and its other side, mirrored over the crease and
+            straight, turned half round so it faces away until the leaf has
+            turned it back. */}
+        <div className="lift">
+          <div className="leaf" style={CREASE}>
+            <svg className="band-a" viewBox={view} style={swing(BEND.a)} aria-hidden="true">
+              {defs('ba')}
+              {piece('bandA', 'ba', PIECE.bandA, 'top', [], PIECE.wedge)}
+            </svg>
+            <svg className="body" viewBox={view} aria-hidden="true">
+              {defs('a')}
+              {piece('strip', 'a', PIECE.strip, 'top', ['back'])}
+            </svg>
+            <svg className="flap" viewBox={view} aria-hidden="true">
+              {defs('f')}
+              {piece('fold', 'f', SHAPES.fold.d, 'fold', ['fold'])}
+            </svg>
+            <svg className="unfolded" viewBox={view} style={CREASE} aria-hidden="true">
+              {defs('u')}
+              {/* Outlined in its own fill, so the pieces close up into one
+                  ribbon rather than showing a hairline at every join. */}
+              <g transform={REFLECT} fill={`url(#${id}ug)`} stroke={`url(#${id}ug)`} strokeWidth="1.2">
+                <g transform={`rotate(${(-BEND.a.deg).toFixed(2)} ${at(BEND.a.pivot).replace(',', ' ')})`}>
+                  <path d={PIECE.wedge} />
+                  <path d={PIECE.bandA} />
+                </g>
+                <path d={PIECE.strip} />
+                <path d={SHAPES.fold.d} />
+              </g>
+            </svg>
+          </div>
+        </div>
       </div>
     </div>
   )

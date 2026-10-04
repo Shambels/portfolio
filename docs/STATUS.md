@@ -7211,9 +7211,29 @@ Open, and Seb's:
   capped lower than light and both are tinted (`MOST`): shading cyan reads
   as dirt, and white over the blue end goes milky. The fly-in stayed — the
   two strokes from opposite corners along the diagonal on every arrival,
-  CSS, from first paint and with JS off. Under reduced motion no flight and
-  no tilt, and the light follows rather than eases. Seb's eye: `FACE`,
-  `GAIN`, `TILT`, the depths in `index.css`, and whether the corner mark
+  CSS, from first paint and with JS off — and **the ribbon folds into shape**
+  on top of it, every angle in the mark. The strokes fly in as straight
+  ribbons — the top one a bar running off to the right, the stem a post
+  running up — and are cut, out of the drawing's own silhouettes, into the
+  pieces they bend at. The corner is a true fold: everything past the
+  crease is a two-sided leaf that turns 180 degrees about it, its other
+  side the ribbon mirrored over the crease and straight (0.75 s from
+  0.3 s, while the strokes are still flying). The two elbows are mitred, which no single fold of a straight
+  strip makes, so they are bends: each band swings in the plane about the
+  point where its axis meets its stroke's, band B over the stem with the
+  fold (from 0.35 s) and band A out once the fold is past edge-on
+  (from 0.75 s, landing about 1.4 s in, a quarter-second after the
+  strokes). Band A carries a wedge that fills
+  the notch a mitre opens when straight and sits under the strip once bent.
+  Pivots, axes and angles are all read off the drawing. Two things found on
+  the way: open, the leaf lies at the top stroke's depth so the crease
+  edges meet (at different depths perspective parted them into a dark
+  line), and each band is an `<svg>` of its own rather than a group in one
+  — Chrome draws an animated transform on an SVG group inside a turning 3D
+  leaf squashed to a sliver. The fade stays off the 3D wrappers, because
+  opacity flattens what is inside it. Under reduced motion no flight and
+  no tilt, no fold, and the light follows rather than eases. Seb's eye:
+  `FACE`, `GAIN`, `TILT`, the depths in `index.css`, the fold's timing, and whether the corner mark
   should become the vector too.
 - **Frame rate on hardware** — 16.5 ms a frame in headless Chromium at 2x,
   where the vsync is the ceiling; a 2022 laptop is the real test.

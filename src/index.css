@@ -600,6 +600,9 @@ main:has(.atlas) {
   height: min(62cqh, 22rem);
   aspect-ratio: 512 / 686;
   perspective: 1100px;
+  /* The layers' depths: the stem at the back, the top stroke, the flap. */
+  --top-z: 22px;
+  --flap-z: 40px;
 }
 
 .slide .mark .tilt {
@@ -618,13 +621,36 @@ main:has(.atlas) {
 }
 
 .slide .mark .top {
-  transform: translateZ(22px);
+  transform: translateZ(var(--top-z));
 }
 
-/* The flap's shadow falls on the stroke under it, away from the light. */
+/* Past the crease: a leaf at the top stroke's depth turning about the
+   crease, two-sided — `Mark.tsx` sets the pivot and the axis from the
+   drawing (`transform-origin`, `--crease`). Open, its other side lies level
+   with the bar, so the two crease edges meet; the flap is lifted off the
+   strip inside it, and so lies on top once it has folded over. */
+.slide .mark :is(.lift, .leaf) {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.slide .mark .lift {
+  transform: translateZ(var(--top-z));
+}
+
 .slide .mark .flap {
-  transform: translateZ(40px);
+  transform: translateZ(calc(var(--flap-z) - var(--top-z)));
+  /* Its shadow falls on the stroke under it, away from the light. */
   filter: drop-shadow(var(--sx, 1.5px) var(--sy, 3px) 3px #00182a73);
+}
+
+.slide .mark :is(.band-a, .body, .flap, .unfolded) {
+  backface-visibility: hidden;
+}
+
+.slide .mark .unfolded {
+  rotate: var(--crease) 180deg;
 }
 
 .slide .mark .sheen {
@@ -632,34 +658,84 @@ main:has(.atlas) {
 }
 
 /* Each time the title comes on stage — the first paint, and every scroll
-   back up to it — the two strokes fly in along the mark's own diagonal from
-   opposite corners and meet where they belong; the flap rides with its
-   stroke. Riding in with the slide, they wait for it to be most of the way
-   across first. */
+   back up to it — the two strokes fly in as straight ribbons along the
+   mark's own diagonal from opposite corners, and while they are still
+   flying the ribbon folds into shape: the corner folds over its crease,
+   band B swings over the stem at the same time, and band A swings out as
+   soon as the fold is past edge-on — before that its side of the leaf is
+   facing away, and a bend there would happen out of sight. Riding in with the slide, all of it waits for the slide
+   to be most of the way across first.
+
+   The fade is on the drawings and never on `.lift` or `.leaf`: opacity on
+   an element flattens what is inside it, and the leaf has two sides. */
 @media (prefers-reduced-motion: no-preference) {
-  /* Longhands, so the names below need not outrank this. */
-  .slide[data-at="on"] .mark .part {
-    animation-duration: 1.15s;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    animation-fill-mode: backwards;
-  }
-
-  .slide[data-at="on"] .mark :is(.top, .flap) {
-    animation-name: fly-top;
-  }
-
   .slide[data-at="on"] .mark .stem {
-    animation-name: fly-stem;
+    animation: fly-stem 1.15s cubic-bezier(0.16, 1, 0.3, 1) backwards, appear 1.15s linear backwards;
   }
 
-  .slide[data-at="on"][data-moving] .mark .part {
+  .slide[data-at="on"] .mark .top {
+    animation: fly-top 1.15s cubic-bezier(0.16, 1, 0.3, 1) backwards, appear 1.15s linear backwards;
+  }
+
+  .slide[data-at="on"] .mark .lift {
+    animation: fly-top 1.15s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  .slide[data-at="on"] .mark :is(.body, .flap, .unfolded) {
+    animation: appear 1.15s linear backwards;
+  }
+
+  /* An elbow: a band swinging in the plane about its pivot — `--bend` is
+     how far it is from carrying straight on, the pivot its
+     `transform-origin`. Band B flies with the stem. */
+  .slide[data-at="on"] .mark .band-b {
+    animation:
+      fly-stem 1.15s cubic-bezier(0.16, 1, 0.3, 1) backwards,
+      appear 1.15s linear backwards,
+      bend 0.7s cubic-bezier(0.55, 0, 0.25, 1.08) 0.35s backwards;
+  }
+
+  .slide[data-at="on"] .mark .band-a {
+    animation:
+      appear 1.15s linear backwards,
+      bend 0.65s cubic-bezier(0.55, 0, 0.25, 1.08) 0.75s backwards;
+  }
+
+  .slide[data-at="on"] .mark .leaf {
+    animation: fold 0.75s cubic-bezier(0.55, 0, 0.25, 1.06) 0.3s backwards;
+  }
+
+  .slide[data-at="on"][data-moving] .mark :is(.stem, .top, .lift, .body, .flap, .unfolded) {
     animation-delay: 0.35s;
+  }
+
+  .slide[data-at="on"][data-moving] .mark .leaf {
+    animation-delay: 0.65s;
+  }
+
+  .slide[data-at="on"][data-moving] .mark .band-b {
+    animation-delay: 0.35s, 0.35s, 0.7s;
+  }
+
+  .slide[data-at="on"][data-moving] .mark .band-a {
+    animation-delay: 0.35s, 1.1s;
   }
 }
 
 @keyframes fly-top {
   from {
     translate: var(--fly) calc(-1 * var(--fly));
+  }
+}
+
+@keyframes fly-stem {
+  from {
+    translate: calc(-1 * var(--fly)) var(--fly);
+  }
+}
+
+@keyframes appear {
+  from {
     opacity: 0;
   }
   25% {
@@ -667,13 +743,15 @@ main:has(.atlas) {
   }
 }
 
-@keyframes fly-stem {
+@keyframes fold {
   from {
-    translate: calc(-1 * var(--fly)) var(--fly);
-    opacity: 0;
+    rotate: var(--crease) 180deg;
   }
-  25% {
-    opacity: 1;
+}
+
+@keyframes bend {
+  from {
+    transform: rotate(var(--bend));
   }
 }
 
