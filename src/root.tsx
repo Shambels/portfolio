@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, type ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import { STRINGS, canonicalPath, localeOf } from './i18n'
 import { WorldGate } from './WorldGate'
@@ -31,11 +31,30 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Invariant 3: the one <Canvas> in the site lives inside this, above
             every route, and navigation never unmounts it. */}
         <WorldGate>{children}</WorldGate>
+        <Reflow />
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
   )
+}
+
+/**
+ * Lays the new page out before `ScrollRestoration` scrolls it — its sibling
+ * before it, so its layout effect runs first. Without it, every case study
+ * Firefox opened from the index arrived at its bottom, though the router's
+ * `scrollTo(0, 0)` was made and landed on 0. A console snippet that read
+ * `scrollY` before the call made the bug go away, and this is that read. The
+ * likely story: Firefox takes the call against the index it has not laid out
+ * again yet, which snaps (`index.css`), then re-snaps the case study to the
+ * one snap point it still has, the footer's end. Chrome showed none of it.
+ */
+function Reflow() {
+  const { key } = useLocation()
+  useLayoutEffect(() => {
+    void document.documentElement.scrollHeight
+  }, [key])
+  return null
 }
 
 export default function Root() {
