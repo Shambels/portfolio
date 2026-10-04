@@ -227,9 +227,13 @@ function Entry({ p, locale }: { p: Project; locale: Locale }) {
               {t[l.key]}
             </a>
           ))}
-          <span className="go" aria-hidden="true">
+          {/* A real link and not a label on the card's: something that reads
+              as a link and does not behave as one is a broken link. Out of the
+              tab order and the accessibility tree, because the title already
+              is this link for both — this one is for the pointer. */}
+          <Link to={to} viewTransition className="go" tabIndex={-1} aria-hidden="true">
             {t.readCaseStudy} →
-          </span>
+          </Link>
         </p>
       </div>
       {p.sig && <div className="glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: p.sig }} />}
