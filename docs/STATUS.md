@@ -7602,3 +7602,16 @@ the Play Store review is what is left — when the listing is live it wants the
 link (`play` in the English frontmatter, as Memojo has it) and that paragraph
 rewritten; and the privacy policy does not mention
 camera or photo access, which the store review may ask about.
+
+## Scrubble is Sqrubs
+
+The app is **Sqrubs** now, and so is its slug: the case study is
+`/{lang}/work/sqrubs`, the privacy policy `/sqrubs/privacy`, and the files,
+`src/sqrubs.ts`, its check and the plate's source all moved with it. The old
+addresses are not redirected, by Seb's call — `/…/work/scrubble` and
+`/scrubble/privacy` are 404s from the next deploy, so the Play Console's
+privacy-policy URL has to change with it. One thing did not move: the board's
+island. Its coastline is detuned by `seedOf`, the slug's letters summed, and
+`sqrubs` would have reshaped the rim by up to ±22%; `CUT_AS` in `plateau.ts`
+keeps the seed it was cut from. The headings above keep the old name; they are
+history.

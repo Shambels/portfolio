@@ -55,8 +55,13 @@ export function rim(theta: number, seed: number): number {
   )
 }
 
+/** The name an island's coast was cut from, where the slug has since moved
+ *  on — renaming a project should not reshape its island. */
+const CUT_AS: Record<string, string> = { sqrubs: 'scrubble' }
+
 /** The seed an island's rim is detuned by — its slug, summed. */
-export const seedOf = (slug: string) => [...slug].reduce((h, c) => h + c.charCodeAt(0), 0)
+export const seedOf = (slug: string) =>
+  [...(CUT_AS[slug] ?? slug)].reduce((h, c) => h + c.charCodeAt(0), 0)
 
 /**
  * Height of an island's ground relative to its plateau, `dx, dz` from its

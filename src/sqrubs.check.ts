@@ -1,10 +1,10 @@
-// What Scrubble's stage has to be true for its numbers to be honest.
-// `node src/scrubble.check.ts`. The words are ENABLE's — `tools/moves.py`
+// What Sqrubs' stage has to be true for its numbers to be honest.
+// `node src/sqrubs.check.ts`. The words are ENABLE's — `tools/moves.py`
 // checks those, and ranks the moves; this checks the board, the premiums and
 // the arithmetic, which is what the stage shows.
 
 import assert from 'node:assert/strict'
-import { BOARD, MOVES, RACK, TOTAL, onBoard, play, premium } from './scrubble.ts'
+import { BOARD, MOVES, RACK, TOTAL, onBoard, play, premium } from './sqrubs.ts'
 
 // The standard board, square by square, against the folded rule.
 const TW = [[0, 0], [0, 7], [0, 14], [7, 0], [7, 14], [14, 0], [14, 7], [14, 14]]
@@ -65,4 +65,4 @@ for (const v of [tlx, trx, brx, blx]) assert(v > 0 && v < 900)
 assert(tly > 0 && bry < 1162 && bry > tly)
 assert(trx - tlx < brx - blx, 'the board recedes')
 
-console.log('scrubble: ok —', MOVES.map((m) => `#${m.rank} ${m.word} ${m.score}`).join(', '), `of ${TOTAL}`)
+console.log('sqrubs: ok —', MOVES.map((m) => `#${m.rank} ${m.word} ${m.score}`).join(', '), `of ${TOTAL}`)

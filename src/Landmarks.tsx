@@ -715,7 +715,7 @@ function makeMats(hi: boolean) {
   const canvasNear = approach(positionWorld.xz, 4.5, 9)
   canvas.colorNode = paint.mul(mx_fractal_noise_float(vec3(p.mul(5.5), 0), 3).mul(0.12).mul(canvasNear).add(1))
 
-  // The move that was there, settling into it. Scrubble finds the play nobody
+  // The move that was there, settling into it. Sqrubs finds the play nobody
   // saw; the seven tiles hang over the squares they belong in, and they come
   // down as the visitor arrives — the one nearest the played word first, so the
   // hook lands before the tiles that hang off it.
@@ -874,7 +874,7 @@ function Easel(m: Mats) {
 }
 
 // --------------------------------------------------------------- the board
-// Scrubble. Grid and premium squares are in the shader; only what stands proud
+// Sqrubs. Grid and premium squares are in the shader; only what stands proud
 // of the board is geometry. Tiles are blank — letters are text, and text belongs
 // in the DOM (invariant 2). A crossword read comes from the shape of the
 // cluster, not from what is written on it.

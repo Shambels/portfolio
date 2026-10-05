@@ -187,7 +187,7 @@ export const PROJECTS = Object.fromEntries(
  * collide with itself.
  *
  * One letter where that tells them apart and as many as it takes where it does
- * not — `scrubble` and `sudoku` are both S, and on a map whose whole job is to
+ * not — `sqrubs` and `sudoku` are both S, and on a map whose whole job is to
  * be the way to a project, two identical discs are worse than one busier one.
  * Derived from the slugs rather than written down, so a sixth project starting
  * with an S gets three letters instead of a collision, and the assert is what

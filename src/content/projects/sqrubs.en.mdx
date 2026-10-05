@@ -1,6 +1,6 @@
 ---
-title: Scrubble
-slug: scrubble
+title: Sqrubs
+slug: sqrubs
 year: 2026
 stack: [Flutter, Dart, Riverpod, Isolates, ML Kit, flutter_localizations]
 summary: A cross-platform Scrabble analysis board that reads a position off a screenshot or a photo, finds every legal move on it and ranks them — built to show you what you missed, not to play your turn for you.
@@ -24,7 +24,7 @@ fixed word list — and where a human being reliably cannot find it. You can rev
 a chess game afterwards and be told exactly where you went wrong. There is no
 equivalent for the board you just packed away.
 
-Scrubble is that review. You set up the position, you enter the rack, and it
+Sqrubs is that review. You set up the position, you enter the rack, and it
 returns every legal move ranked by score. The distinction it is built around is
 that it is an analysis board, not an assistant: it is for the game that is over,
 the way a chess engine is for the game that is over. A solver you consult mid-turn against
@@ -83,7 +83,7 @@ you want to review a whole game. The fix was always photographing the board, and
 the first version of this page called that a different project. It became the
 next one.
 
-You give Scrubble a screenshot or a photograph — from the camera, from the
+You give Sqrubs a screenshot or a photograph — from the camera, from the
 gallery, or shared straight out of another app on Android — and it reads the board
 and the rack off it. A screenshot finds its own corners; a photo gets four handles
 to drag, with a magnifier and the fifteen-by-fifteen grid drawn live over it. The
@@ -115,7 +115,7 @@ position is still thirty taps. A photo taken at a steep angle shifts raised tile
 out of their cells by parallax, and a physical blank shows no letter, so it is
 inferred only when one letter fits. And it moves a line this page draws. A
 screenshot of an online game, rack included, is exactly the position you would
-want mid-turn, so whether Scrubble is an analysis board or an assistant is now
+want mid-turn, so whether Sqrubs is an analysis board or an assistant is now
 decided by when you use it rather than by what it can do. I built it anyway,
 because the review it is for is the one that needs a whole game entered, and
 nobody does that by hand.

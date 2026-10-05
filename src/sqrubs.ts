@@ -1,11 +1,11 @@
-// Scrubble's position on the flat index's stage, as data and arithmetic: a
+// Sqrubs' position on the flat index's stage, as data and arithmetic: a
 // mid-game board, the rack R E T A I N S, and four of the moves on it, with
 // what each one scores under the standard board's premiums. Pure, no DOM,
-// so `scrubble.check.ts` scores every move again in node.
+// so `sqrubs.check.ts` scores every move again in node.
 //
 // The position is real in the only sense that matters here: `tools/moves.py`
 // generates every legal move on it against ENABLE — the public-domain
-// tournament word list — the way Scrubble does (anchors, cross-checks,
+// tournament word list — the way Sqrubs does (anchors, cross-checks,
 // multipliers on new tiles only, fifty for a full rack), and there are 1,755.
 // RETAINS down the right-hand edge, turning PEPPER into PEPPERS on a double
 // word, is the best of them. The other three are chosen for what they show —
@@ -147,7 +147,7 @@ export function play(m: Move) {
   return { placed, crosses, score }
 }
 
-// ---- where it all is in the plate (900 × 1162, `tools/plate.py`, `scrubble`)
+// ---- where it all is in the plate (900 × 1162, `tools/plate.py`, `sqrubs`)
 
 /** The board's grid in the plate: a projective map from (column, row), in
  *  squares from the grid's top-left corner, to plate units — fitted to the

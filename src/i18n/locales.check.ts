@@ -12,12 +12,12 @@ assert.equal(isLocale('de'), false)
 assert.equal(isLocale(undefined), false)
 
 assert.equal(localeOf('/fr'), 'fr')
-assert.equal(localeOf('/fr/work/scrubble'), 'fr')
+assert.equal(localeOf('/fr/work/sqrubs'), 'fr')
 assert.equal(localeOf('/world'), null)
 assert.equal(localeOf('/'), null)
 
 // The language switcher: same page, other locale, root included.
-assert.equal(withLocale('/fr/work/scrubble', 'nl'), '/nl/work/scrubble')
+assert.equal(withLocale('/fr/work/sqrubs', 'nl'), '/nl/work/sqrubs')
 assert.equal(withLocale('/fr', 'en'), '/en')
 assert.equal(withLocale('/en/work', 'fr'), '/fr/work')
 assert.equal(withLocale('/en/world', 'nl'), '/nl/world')
@@ -37,7 +37,7 @@ assert.equal(canonicalPath('/en/work'), '/en/work')
 // landmark closes the panel it just opened.
 assert.equal(isWorldPath('/en/world'), true)
 assert.equal(isWorldPath('/nl/world/'), true)
-assert.equal(isWorldPath('/fr/work/scrubble'), true)
+assert.equal(isWorldPath('/fr/work/sqrubs'), true)
 assert.equal(isWorldPath('/en'), false) // the landing page — a gradient, not a canvas
 assert.equal(isWorldPath('/en/work'), false) // the flat index the skip link points at
 assert.equal(isWorldPath('/en/404'), false)
@@ -48,16 +48,16 @@ assert.equal(isWorldPath('/'), false)
 assert.equal(isWorldPath('/world'), false) // not a locale
 
 // `?read` is the way out, from any world path and only from a world path.
-assert.equal(isWorldPath('/en/work/scrubble', '?read'), false)
-assert.equal(isWorldPath('/en/work/scrubble', '?read=1&debug'), false)
+assert.equal(isWorldPath('/en/work/sqrubs', '?read'), false)
+assert.equal(isWorldPath('/en/work/sqrubs', '?read=1&debug'), false)
 assert.equal(isWorldPath('/en/world', '?read'), false)
-assert.equal(isWorldPath('/en/work/scrubble', '?debug'), true)
-assert.equal(isWorldPath('/en/work/scrubble', ''), true)
+assert.equal(isWorldPath('/en/work/sqrubs', '?debug'), true)
+assert.equal(isWorldPath('/en/work/sqrubs', ''), true)
 
-assert.equal(slugOf('/en/work/scrubble'), 'scrubble')
-assert.equal(slugOf('/fr/work/scrubble/'), 'scrubble')
+assert.equal(slugOf('/en/work/sqrubs'), 'sqrubs')
+assert.equal(slugOf('/fr/work/sqrubs/'), 'sqrubs')
 assert.equal(slugOf('/en/work'), null)
 assert.equal(slugOf('/en'), null)
-assert.equal(slugOf('/de/work/scrubble'), null)
+assert.equal(slugOf('/de/work/sqrubs'), null)
 
 console.log('locales: ok')

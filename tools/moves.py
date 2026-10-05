@@ -1,5 +1,5 @@
-"""Every legal move on Scrubble's stage position, ranked — the numbers
-`src/scrubble.ts` shows, found the way Scrubble finds them.
+"""Every legal move on Sqrubs' stage position, ranked — the numbers
+`src/sqrubs.ts` shows, found the way Sqrubs finds them.
 
     curl -LO https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt
     python3 tools/moves.py enable1.txt
@@ -11,7 +11,7 @@ of that length that fits the letters already there and the rack, then every
 cross-word it makes checked against the list — because it runs once, on one
 board, in five seconds, and the thing it has to be is obviously right.
 Scoring is the game's: premiums count only under new tiles, every cross-word
-scores, fifty for all seven. `src/scrubble.check.ts` scores the four moves the
+scores, fifty for all seven. `src/sqrubs.check.ts` scores the four moves the
 stage plays again, in TypeScript, and the two agree.
 """
 
