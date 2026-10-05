@@ -347,7 +347,7 @@ caching, plus the one path on this domain that is not this app:
 | | |
 |---|---|
 | `location = /` | 302 to `/en`. No `Accept-Language` negotiation — `hreflang` tells crawlers the rest |
-| `try_files $uri $uri/index.html` | `/en/work/scrubble` serves that folder's `index.html`, with no trailing-slash redirect |
+| `try_files $uri $uri/index.html` | `/en/work/sqrubs` serves that folder's `index.html`, with no trailing-slash redirect |
 | `error_page 404 /404.html` | the prerendered English 404, served with a real 404 status |
 | `/assets/` | `immutable`, one year — filenames are content-hashed |
 | `/sudoku/` | `root /var/www/demos` — the demo, deployed from its own repository, `no-cache` because its filenames are not hashed |

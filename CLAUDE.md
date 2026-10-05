@@ -36,7 +36,7 @@ and `plateau` — and all of them pass. **As of the fourth project there is no
 `node_modules` in this folder at all**, so neither command runs here: both
 went to the throwaway copy in the container on a real `npm install`, and
 `npm run build` with them. The check script runs ten since the hologram:
-`sudoku` is the tenth, `easel` the eleventh and `scrubble` the twelfth. `react-router typegen` and `oxlint` are *not* safe:
+`sudoku` is the tenth, `easel` the eleventh and `sqrubs` the twelfth. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -63,7 +63,7 @@ one major behind. Noted here rather than done quietly.
 |---|---|---|
 | `polarsense` | A mine | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
-| `scrubble` | A Scrabble board | — |
+| `sqrubs` | A Scrabble board | — |
 | `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
 | `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive | https://github.com/Shambels/sudoku |
 
@@ -293,12 +293,12 @@ src/Studio.tsx          Arts by Sandra's plate, live: a palette that loads the
 src/Instant.tsx         Memojo's plate, live: the instant camera that fires
                         when its lens is pointed at, and prints that develop,
                         drop and sort themselves into albums — a 2D canvas
-src/Tiles.tsx           Scrubble's plate, live: hover the rack and it plays the
+src/Tiles.tsx           Sqrubs' plate, live: hover the rack and it plays the
                         best move on the board, then the runners-up — a 2D
                         canvas that draws every tile
-src/scrubble.ts         the position, the four moves and their scores, and
+src/sqrubs.ts           the position, the four moves and their scores, and
                         where the grid and the rack are in that plate — pure,
-                        with `scrubble.check.ts` beside it
+                        with `sqrubs.check.ts` beside it
 src/easel.ts            where the canvas, the blobs and the rag are in that
                         plate, and the map onto the canvas — pure, with
                         `easel.check.ts` beside it
@@ -316,7 +316,7 @@ src/Atelier.tsx         Arts by Sandra's stage: three strokes of paint from thre
                         corners — three businesses, three languages — running
                         into one, the form, and the painting showing through
                         wherever paint has been. CSS only, one SVG over the canvas
-src/Rack.tsx            Scrubble's stage: the review — TRAINS, the anchors and the
+src/Rack.tsx            Sqrubs' stage: the review — TRAINS, the anchors and the
                         two passes to 1,755, the rack's permutations, a position
                         entered tap by tap in French values, RETAINS. Draws with
                         `Tiles.tsx`'s own `drawTile` and `drawReadout`
@@ -391,8 +391,8 @@ tools/landmark.py       what every landmark script needs — axes, members, expo
 tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
-tools/moves.py          every legal move on Scrubble's plate against ENABLE,
-                        ranked — where `scrubble.ts`'s ranks and 1,755 come
+tools/moves.py          every legal move on Sqrubs' plate against ENABLE,
+                        ranked — where `sqrubs.ts`'s ranks and 1,755 come
                         from
 tools/memojo.py         the same, for the ramp, the giant camera and the
                         mouth its prints come out of
@@ -440,9 +440,9 @@ src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signat
                         and {slug}.{base,light,…}.avif, its plate's layers
 src/i18n/               UI strings per locale
 docs/BUILD-PLAN.md      phases, gates, decisions, open questions, risks
-public/scrubble/privacy/index.html
-                        the Scrubble app's privacy policy, linked from its Play
-                        Store listing at /scrubble/privacy — plain HTML, not a
+public/sqrubs/privacy/index.html
+                        the Sqrubs app's privacy policy, linked from its Play
+                        Store listing at /sqrubs/privacy — plain HTML, not a
                         route, so it is not translated per locale (EN + FR in
                         one page)
 deploy.sh               build + rsync to the server, then a routing smoke test
@@ -736,7 +736,7 @@ in `src/sudoku.ts`, held by its check). Digits in the canvas are the puzzle
 and not the prose, which is where invariant 2 draws its line. `docs/STATUS.md`, "A fifth
 project", "The sudoku is a hologram" and "The sudoku was fixed", have it,
 including what the tray did
-to the minimap: `scrubble` and `sudoku` are both S, so a disc's label is now
+to the minimap: `sqrubs` and `sudoku` are both S, so a disc's label is now
 as much of the slug as it takes to be unambiguous.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
@@ -745,7 +745,7 @@ FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
 control hints, the three craft labels, the reading view's `closeStudy` and
 `backToWorld`, and now `linkPlay`, `linkAppStore`, `linkMarketplace`, the two reworded `work`
 strings, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
-Solver's, which is the longest translation on the site, and Scrubble's four
+Solver's, which is the longest translation on the site, and Sqrubs' four
 new paragraphs on the board reader), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over

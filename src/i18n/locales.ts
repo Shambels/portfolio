@@ -28,7 +28,7 @@ export function canonicalPath(pathname: string): string {
   return pathname.replace(/\/+$/, '') || '/'
 }
 
-/** Same page, other locale. `/fr/work/scrubble` + `nl` -> `/nl/work/scrubble`. */
+/** Same page, other locale. `/fr/work/sqrubs` + `nl` -> `/nl/work/sqrubs`. */
 export function withLocale(pathname: string, locale: Locale): string {
   const rest = pathname.split('/').slice(2).join('/')
   return rest ? `/${locale}/${rest}` : `/${locale}`

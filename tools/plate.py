@@ -56,7 +56,7 @@ PLATES = {
     'memojo': {'crop': (0, 0, 1344, 1735), 'split': 'opaque', 'width': 900},
     # The board from the player's seat, empty, and its empty rack: opaque; every
     # tile is drawn by `Tiles.tsx`, so every letter on it is right.
-    'scrubble': {'crop': (0, 57, 1344, 1792), 'split': 'opaque', 'width': 900},
+    'sqrubs': {'crop': (0, 57, 1344, 1792), 'split': 'opaque', 'width': 900},
 }
 
 # The canvas in the source scene, corner by corner (it is a hair wider at the

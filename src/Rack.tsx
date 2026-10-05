@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Plate } from './content'
 import type { Locale } from './i18n'
-import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL } from './scrubble'
+import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL } from './sqrubs'
 import { ANCHORS, H, PLAYED, Still, W, clamp, drawReadout, drawTile, ease, lerp, square, standing, type Face, type Pt } from './Tiles'
 
 /**
- * Scrubble's case study, staged: the index's board and rack beside the prose,
+ * Sqrubs' case study, staged: the index's board and rack beside the prose,
  * and the review the app is for, played by the reading scroll.
  *
  * - **Before the first heading**, the position as the index shows it: a
@@ -25,7 +25,7 @@ import { ANCHORS, H, PLAYED, Still, W, clamp, drawReadout, drawTile, ease, lerp,
  *
  * A script, as the sudoku's is: every letter and value is drawn, so every one
  * is right, by `Tiles.tsx`'s own `drawTile` and `drawReadout` — the same
- * position and moves from `scrubble.ts` that `scrubble.check.ts` scores
+ * position and moves from `sqrubs.ts` that `sqrubs.check.ts` scores
  * again. The acts follow the page: a section is read from when its heading
  * crosses `LINE` of the window to when the next does. Drawn only when the
  * scroll moves. Under reduced motion, the outcome standing; with no script,

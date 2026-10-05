@@ -1,5 +1,5 @@
 """
-The board — Scrubble's landmark. Phase 4, last of the three.
+The board — Sqrubs' landmark. Phase 4, last of the three.
 
     python3 tools/board.py                    # tools/board.blend + src/models/board.glb
     python3 tools/board.py --render out.png   # ...and three preview views
@@ -13,7 +13,7 @@ So the box grew to 6 x 1 x 6, and what fills it is the case study's own first
 line: "the move you played is not the move that was there". Seven tiles hang
 above the empty squares they would have gone in — the bingo nobody at the table
 saw, hooked onto the played column, reaching the edge of the board. That is what
-Scrubble does, it is the one thing that gives this landmark a shape against the
+Sqrubs does, it is the one thing that gives this landmark a shape against the
 sky, and it is the geometry the next Phase 4 item animates when the tiles settle.
 
 Tiles are BLANK. Letters are text and text belongs in the DOM (invariant 2). The
@@ -40,7 +40,7 @@ from landmark import add_slab, export, finish, join, mesh_object, preview, start
 import bmesh
 
 # ---------------------------------------------------------------- the contract
-# src/content/projects/scrubble.en.mdx, frontmatter `size`.
+# src/content/projects/sqrubs.en.mdx, frontmatter `size`.
 BOX = (6.0, 1.0, 6.0)
 
 GLB = "src/models/board.glb"

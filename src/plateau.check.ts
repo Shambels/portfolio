@@ -259,7 +259,7 @@ function boardIsland() {
   const cx = 0, cz = 14
   const rot = Math.atan2(-cx, -cz)
   const R = 5 * SPREAD
-  const seed = seedOf('scrubble')
+  const seed = seedOf('sqrubs')
   const terrain: Terrain = (wx, wz) => {
     const dx = wx - cx, dz = wz - cz
     const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
@@ -270,7 +270,7 @@ function boardIsland() {
   for (let i = 3; i <= 10; i++) props.push(makeProp(`t${i}`, (i - 7) * CELL, 0, TILE_R, 1, GROUND + DECK))
   props.push(makeProp('e', 2.2, 0, 0.55, 8, GROUND)) // something heavy, off the deck? no: on it
   props[props.length - 1]!.rest = GROUND + DECK
-  const set = makeSet('scrubble', cx, cz, rot, props, [])
+  const set = makeSet('sqrubs', cx, cz, rot, props, [])
   return { set, terrain, cx, cz, rot, seed, R }
 }
 
@@ -624,7 +624,7 @@ function ride(withRamp: boolean) {
   const eye = at(lens.x + lens.dx * 0.4, GROUND + lens.y + lens.dy * 0.4, lens.z + lens.dz * 0.4)
   assert.ok(inShot(set, eye[0], eye[1], eye[2]), 'the cone does not start at the glass')
   // And a landmark with no lens never fires.
-  assert.ok(!inShot(makeSet('scrubble', 0, 14, 0, [], []), 0, 1, 12), 'a landmark with no lens took a photograph')
+  assert.ok(!inShot(makeSet('sqrubs', 0, 14, 0, [], []), 0, 1, 12), 'a landmark with no lens took a photograph')
 }
 
 {

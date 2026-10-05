@@ -87,7 +87,7 @@ CONE_W = 0.36  # the fan's width where it leaves the puck
 
 def build_plinth() -> bpy.types.Object:
     bm = bmesh.new()
-    # Two lifts, as Scrubble's is: a plinth with a step reads as something the
+    # Two lifts, as Sqrubs' is: a plinth with a step reads as something the
     # projector stands on rather than as a thick board.
     add_slab(bm, (0.0, 0.05, 0.0), (PLINTH, 0.10, PLINTH))
     add_slab(bm, (0.0, 0.145, 0.0), (PLINTH - 0.26, 0.09, PLINTH - 0.26))

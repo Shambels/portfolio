@@ -1,19 +1,19 @@
-<svg class="sig sig-scrubble" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
-<!-- Scrubble: the move that was there. All-one-point letters, the S on a triple word:
+<svg class="sig sig-sqrubs" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
+<!-- Sqrubs: the move that was there. All-one-point letters, the S on a triple word:
      7 x 3 + the 50-point bingo bonus is 71. A position for the picture, not one from a game. -->
 <style>
-.sig-scrubble .sq { fill: #ffffff0b; }
-.sig-scrubble .tw { fill: #8e3b3455; }
-.sig-scrubble .dw { fill: #8e5a3444; }
-.sig-scrubble .dl { fill: #3b6f8e55; }
-.sig-scrubble .tile rect { fill: #e8d9b8; }
-.sig-scrubble .tile text { font: 700 11px var(--sans); fill: #2a2219; text-anchor: middle; dominant-baseline: central; }
-.sig-scrubble .tile .pt { font-size: 4.6px; font-weight: 600; text-anchor: end; }
-.sig-scrubble .score { font: 400 7px var(--mono); fill: var(--paper-faint); letter-spacing: 0.06em; text-anchor: middle; }
-.sig-scrubble .score tspan { fill: var(--gold); font-weight: 600; }
-.sig-scrubble .tile { transform-box: fill-box; transform-origin: center; }
+.sig-sqrubs .sq { fill: #ffffff0b; }
+.sig-sqrubs .tw { fill: #8e3b3455; }
+.sig-sqrubs .dw { fill: #8e5a3444; }
+.sig-sqrubs .dl { fill: #3b6f8e55; }
+.sig-sqrubs .tile rect { fill: #e8d9b8; }
+.sig-sqrubs .tile text { font: 700 11px var(--sans); fill: #2a2219; text-anchor: middle; dominant-baseline: central; }
+.sig-sqrubs .tile .pt { font-size: 4.6px; font-weight: 600; text-anchor: end; }
+.sig-sqrubs .score { font: 400 7px var(--mono); fill: var(--paper-faint); letter-spacing: 0.06em; text-anchor: middle; }
+.sig-sqrubs .score tspan { fill: var(--gold); font-weight: 600; }
+.sig-sqrubs .tile { transform-box: fill-box; transform-origin: center; }
 @keyframes sig-drop { from { opacity: 0; transform: translateY(-120%) rotate(-8deg); } }
-.entry:is(:hover, :focus-within) .sig-scrubble .tile { animation: sig-drop 0.32s calc(var(--i) * 60ms) both cubic-bezier(0.2, 0.8, 0.3, 1.2); }
+.entry:is(:hover, :focus-within) .sig-sqrubs .tile { animation: sig-drop 0.32s calc(var(--i) * 60ms) both cubic-bezier(0.2, 0.8, 0.3, 1.2); }
 </style>
 <rect class="sq tw" x="9" y="34" width="19" height="19" rx="2"/>
 <rect class="sq" x="31" y="34" width="19" height="19" rx="2"/>

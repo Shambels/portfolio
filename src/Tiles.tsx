@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Plate } from './content'
-import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play, type Move } from './scrubble'
+import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play, type Move } from './sqrubs'
 
 /**
- * Scrubble's plate on the flat index's stage: a board in the middle of a
+ * Sqrubs' plate on the flat index's stage: a board in the middle of a
  * game, seen from the player's seat, and the rack in front of it — and the
  * move that was there.
  *
@@ -21,8 +21,8 @@ import { BOARD, MOVES, POINTS, RACK, RACK_AT, TOTAL, onBoard, play, type Move } 
  *
  * Every letter is drawn, so every letter and every point value is right: the
  * picture is the board empty and the rack empty (`tools/plate.py`,
- * `scrubble`). The position and the scores are `src/scrubble.ts`, found by
- * `tools/moves.py` and held by `scrubble.check.ts`. A 2D canvas, drawing only
+ * `sqrubs`). The position and the scores are `src/sqrubs.ts`, found by
+ * `tools/moves.py` and held by `sqrubs.check.ts`. A 2D canvas, drawing only
  * while something moves; under reduced motion a move is simply there. With JS
  * off, the SVG below draws the position and the rack, standing still.
  */

@@ -2311,7 +2311,7 @@ main:has(.atlas) {
   }
 }
 
-/* The Sudoku Solver: the search (`Backtrack.tsx`), and Scrubble's review
+/* The Sudoku Solver: the search (`Backtrack.tsx`), and Sqrubs' review
    (`Rack.tsx`) — the two stages with a script. The same box above the plate
    as Memojo's, one card at a time; which one is the script's to say, and with
    no script it is the outcome's. */
@@ -3733,7 +3733,7 @@ main {
   height: 100%;
 }
 
-/* Scrubble's plate: the rack and the moves it plays (`Tiles.tsx`). */
+/* Sqrubs' plate: the rack and the moves it plays (`Tiles.tsx`). */
 .tiles {
   position: absolute;
   inset: 0;
