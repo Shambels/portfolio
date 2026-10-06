@@ -7615,3 +7615,101 @@ island. Its coastline is detuned by `seedOf`, the slug's letters summed, and
 `sqrubs` would have reshaped the rim by up to ±22%; `CUT_AS` in `plateau.ts`
 keeps the seed it was cut from. The headings above keep the old name; they are
 history.
+
+## Measuring
+
+Phase 0 of the anime-look plan (the "Smoother world, anime look" doc). Every
+number above this section came from swiftshader, a CPU, and the one lever
+that measured nothing there — the coarser water mesh — was never tried on a
+phone. This is what lets a phone say what each part of the world costs it.
+
+### The readout
+
+`?debug` now prints four lines top left, twice a second, over the last 240
+frames (four seconds at 60 fps):
+
+```
+58 fps · 17.1 ms median · 31.4 ms worst 1%
+gpu 9.2 ms · 146 calls · 500k tris · 2 compute
+1170×2532 @ 1.25 · phone tier · WebGPU
+off: noise
+```
+
+- **median and worst 1%** — frame to frame, so it is what the visitor gets.
+  No average: an average hides exactly the frames that are felt. The worst 1%
+  is the stutter.
+- **gpu** — WebGPU timestamp queries, turned on only when the page is loaded
+  with `?debug` (`trackTimestamp` in `Scene.tsx`). `n/a` where the device has
+  none, which today is most phones and Safari.
+- **calls, tris** — the whole frame, every pass of `Post` included. The
+  renderer resets its counters before r3f draws, so `Profiler.tsx` resets them
+  itself instead.
+- The line under it is the drawing buffer, the pixel ratio, the tier and the
+  backend. The old `?debug` fps counter is gone; this replaces it.
+
+### The switches
+
+Read once at load, like everything in `device.ts`:
+
+| Query | What it does |
+|---|---|
+| `?tier=phone` / `?tier=desktop` | either tier on any machine; works without `?debug` |
+| `?debug&off=post` | renders straight to the canvas (`Direct` in `Post.tsx`) |
+| `off=dome` | hides the sky dome |
+| `off=water` | hides the sea surface |
+| `off=noise` | every fractal noise field returns zero — `noise.ts`, the one door they all go through now |
+| `off=isle`, `islands`, `landmarks` | hides that group |
+| `off=rider` | hides his body; the rig, the board and the behaviour stay |
+| `off=spray` | unmounts the particles, compute and draw |
+
+Several at once: `?debug&off=post,noise`. A part is hidden rather than
+unmounted wherever something else reads it, so what is timed is the drawing.
+`off` is ignored without `?debug`. A part's cost on a device is its frame time
+with and without it.
+
+### What the container could say
+
+The same harness as "Frame cost" (a built copy, headless Chromium,
+swiftshader, WebGL2 — the WebGPU adapter there fails on texture-view swizzle,
+which is the browser and not this change), 1280×800, ten frames or so per
+run, so only the large differences mean anything:
+
+| `off=` | Median frame | Triangles |
+|---|---|---|
+| nothing | 2,307 ms | 500k |
+| noise | 1,090 ms | 500k |
+| water | 1,614 ms | 385k |
+| rider | 2,167 ms | 318k |
+| isle | 2,060 ms | 346k |
+
+- **Noise is half the frame** on a CPU rasteriser. That is what the baked noise
+  texture in Phase 1 goes after, and `fractal()` is already the place it lands.
+- **Hiding the rider takes 182k triangles off, twice his 91k**, because his
+  outline (`OUTLINE` in `Ship.tsx`) is an inverted hull over the whole skinned
+  mesh — the same technique the anime look will use everywhere. Every triangle
+  taken off him is taken off twice.
+- `post`, `dome`, `islands`, `landmarks` and `spray` were inside the noise of
+  ten frames here. The phone is what decides those.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `npm run typecheck`, `npm run check` and `npm run build` pass; `oxlint`
+      adds no warnings
+- [x] Canvas chunk 478 kB gz (budget 600); `stats.ts` is all the first route gains
+- [x] Readout renders on a desktop viewport and an emulated phone, clear of the
+      logo and the menu button; every `off=` value takes its part out
+- [x] Without `?debug` nothing changes: no timestamps, no `off`, `Profiler`
+      not mounted
+
+### Needs Seb
+
+- [ ] Run it on a real phone — an iPhone 13 or newer, and a mid Android if one
+      is to hand — and fill in the table below. Roam rather than open a
+      landmark: flying into one navigates without the query string, and
+      `?debug` goes with it.
+- [ ] The same on the 2022 laptop.
+
+| Device, browser | Backend | nothing | post | noise | water | dome | rider |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+

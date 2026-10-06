@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
-import { mix, mx_fractal_noise_float, positionWorld, smoothstep, vec3 } from 'three/tsl'
+import { mix, positionWorld, smoothstep, vec3 } from 'three/tsl'
+import { fractal } from './noise'
 import { ISLAND_SPREAD, LANDMARKS } from './world'
 import { PROFILE, rim, seedOf } from './plateau'
 
@@ -60,7 +61,7 @@ export function Islands() {
     col = mix(col, SAND, smoothstep(-0.1, 0.08, y))
     col = mix(col, GRASS, smoothstep(0.2, 0.42, y))
     // Without this the plateau is one flat disc of colour and reads as plastic.
-    ground.colorNode = col.mul(mx_fractal_noise_float(positionWorld.mul(0.35), 2).mul(0.12).add(1))
+    ground.colorNode = col.mul(fractal(positionWorld.mul(0.35), 2).mul(0.12).add(1))
     return { geometries, ground }
   }, [])
 

@@ -3740,3 +3740,25 @@ main {
   width: 100%;
   height: 100%;
 }
+
+/*
+  `?debug`'s frame readout (`stats.ts`). Top left, under the logo and clear
+  of the menu button, which on a phone is the same height and most of the
+  width away. A diagnostic, not part of the page, so it sits over whatever
+  is there. Its own ink on its own ground, because
+  the water under it goes from navy to sand.
+*/
+.perf {
+  position: fixed;
+  z-index: 3;
+  top: 4.25rem;
+  left: 0.75rem;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  font: 400 10.5px/1.45 var(--mono);
+  color: #e8f4f2;
+  background: rgb(4 20 24 / 0.72);
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: pre;
+}

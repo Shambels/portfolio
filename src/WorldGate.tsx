@@ -4,6 +4,7 @@ import {
 } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { SOURCE_LOCALE, STRINGS, isWorldPath, localeOf, slugOf } from './i18n'
+import { STATS, summary } from './stats'
 
 /** Invariant 3 and the bundle budget in one line: the canvas is a chunk that is
  *  fetched the first time a route wants it, and after that it never unmounts. */
@@ -205,23 +206,25 @@ export function WorldGate({ children }: { children: ReactNode }) {
   const [sound, setSound] = useState(false)
 
   const [backend, setBackend] = useState('detecting…')
-  const [fps, setFps] = useState('')
+  // `?debug`'s readout. `Profiler`, inside the canvas, writes `STATS` every
+  // frame; this prints it twice a second. Lines rather than one string, so a
+  // phone in portrait can still read all of it.
+  const [perf, setPerf] = useState<string[]>([])
   useEffect(() => {
     if (!debug || !mounted) return
-    let frames = 0
-    let last = performance.now()
-    let raf = requestAnimationFrame(function tick() {
-      frames++
-      const now = performance.now()
-      if (now - last >= 500) {
-        setFps(`${Math.round((frames * 1000) / (now - last))} fps`)
-        frames = 0
-        last = now
-      }
-      raf = requestAnimationFrame(tick)
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [debug, mounted])
+    const id = setInterval(() => {
+      const sum = STATS.live ? summary() : null
+      if (!sum) return setPerf([])
+      const ms = (v: number) => `${v.toFixed(1)} ms`
+      setPerf([
+        `${Math.round(sum.fps)} fps · ${ms(sum.median)} median · ${ms(sum.worst)} worst 1%`,
+        `gpu ${STATS.gpu === null ? 'n/a' : ms(STATS.gpu)} · ${STATS.calls} calls · ${(STATS.triangles / 1000).toFixed(0)}k tris${STATS.computes ? ` · ${STATS.computes} compute` : ''}`,
+        `${STATS.width}×${STATS.height} @ ${STATS.dpr.toFixed(2)} · ${STATS.tier} tier · ${backend}`,
+        ...(STATS.off.length ? [`off: ${STATS.off.join(', ')}`] : []),
+      ])
+    }, 500)
+    return () => clearInterval(id)
+  }, [debug, mounted, backend])
 
   const world = useMemo<World>(
     () => ({
@@ -273,6 +276,10 @@ export function WorldGate({ children }: { children: ReactNode }) {
         </Suspense>
       )}
 
+      {active && debug && perf.length > 0 && (
+        <pre className="perf">{perf.join('\n')}</pre>
+      )}
+
       {active && (
         <p className="hud">
           {/* Six sentences: two per craft, because the phone has no shift and
@@ -284,7 +291,6 @@ export function WorldGate({ children }: { children: ReactNode }) {
             : model === 'boat'
               ? touch ? STRINGS[locale].worldControlsBoatTouch : STRINGS[locale].worldControlsBoat
               : touch ? STRINGS[locale].worldControlsSurferTouch : STRINGS[locale].worldControlsSurfer}
-          {debug && ` · ${backend}${fps ? ` · ${fps}` : ''}`}
         </p>
       )}
     </WorldContext.Provider>

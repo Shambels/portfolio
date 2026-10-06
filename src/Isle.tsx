@@ -2,9 +2,10 @@ import { Suspense, useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  clamp, mix, mx_fractal_noise_float, normalWorld, oneMinus, positionLocal, positionWorld,
+  clamp, mix, normalWorld, oneMinus, positionLocal, positionWorld,
   sin, smoothstep, vec3, vertexStage,
 } from 'three/tsl'
+import { fractal } from './noise'
 import { octaves } from './device'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
 import { STAIR, stairDoor, stairPortal } from './stairs'
@@ -158,9 +159,9 @@ function materials() {
   // about twenty metres and the grid is a vertex every metre and a half or so, so
   // the interpolation is the same field; per pixel it was three octaves of 3D
   // noise on the largest surface on screen, for nothing the eye could find.
-  const blotch = vertexStage(mx_fractal_noise_float(positionWorld.mul(0.045), 3))
-  const clump = mx_fractal_noise_float(positionWorld.mul(0.26), octaves(3, 2))
-  const grain = mx_fractal_noise_float(positionWorld.mul(0.95), octaves(2, 1))
+  const blotch = vertexStage(fractal(positionWorld.mul(0.045), 3))
+  const clump = fractal(positionWorld.mul(0.26), octaves(3, 2))
+  const grain = fractal(positionWorld.mul(0.95), octaves(2, 1))
 
   const land = new THREE.MeshStandardNodeMaterial({ roughness: 0.94 })
   let col = mix(SEABED, SHELF, smoothstep(-7, -1.4, y))
@@ -204,7 +205,7 @@ function materials() {
   // land in the same place on all thirty of them, which is what they do.
   const bark = new THREE.MeshStandardNodeMaterial({ roughness: 0.88 })
   bark.colorNode = mix(BARK_DARK, BARK, sin(positionLocal.y.mul(10.5)).mul(0.5).add(0.5).mul(0.55).add(0.45))
-    .mul(mx_fractal_noise_float(positionWorld.mul(1.4), octaves(2, 1)).mul(0.16).add(1))
+    .mul(fractal(positionWorld.mul(1.4), octaves(2, 1)).mul(0.16).add(1))
 
   // A leaflet is one flat quad with no thickness, so it is lit from both sides
   // and the side facing up is the side the sun is putting through it. That
@@ -212,7 +213,7 @@ function materials() {
   // metal.
   const frond = new THREE.MeshStandardNodeMaterial({ roughness: 0.7, side: THREE.DoubleSide })
   frond.colorNode = mix(FROND, FROND_LIT, clamp(normalWorld.y.mul(0.5).add(0.5), 0, 1))
-    .mul(mx_fractal_noise_float(positionWorld.mul(0.8), octaves(2, 1)).mul(0.2).add(0.95))
+    .mul(fractal(positionWorld.mul(0.8), octaves(2, 1)).mul(0.2).add(0.95))
 
   const bush = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, side: THREE.DoubleSide })
   bush.colorNode = mix(SHRUB, FROND_LIT, clamp(normalWorld.y, 0, 1).mul(0.45))
@@ -223,8 +224,8 @@ function materials() {
   const rock = new THREE.MeshStandardNodeMaterial({ roughness: 1 })
   rock.colorNode = mix(
     ROCK, CRAG,
-    mx_fractal_noise_float(positionWorld.mul(1.9), octaves(3, 2)).mul(0.35)
-      .add(mx_fractal_noise_float(positionWorld.mul(6.5), octaves(2, 1)).mul(0.2)).add(0.5),
+    fractal(positionWorld.mul(1.9), octaves(3, 2)).mul(0.35)
+      .add(fractal(positionWorld.mul(6.5), octaves(2, 1)).mul(0.2)).add(0.5),
   )
 
   return { land, bark, frond, bush, rock }

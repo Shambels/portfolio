@@ -70,3 +70,21 @@ export function Post() {
 
   return null
 }
+
+/**
+ * The frame with no post-processing: the scene straight to the canvas, with
+ * the renderer's own tone mapping and colour space doing what `renderOutput`
+ * does above. No bloom, no FXAA, no HDR targets.
+ *
+ * Not "leave it to r3f": the spray's `useFrame` has a positive priority, so r3f
+ * has already handed the render to somebody, and without this nobody draws.
+ * Today it is `?debug&off=post` (`device.ts`) — how a phone says what `Post`
+ * costs it. It is also the phone tier's frame if that measurement says so.
+ */
+export function Direct() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  useFrame(() => gl.render(scene, camera), 1)
+  return null
+}
