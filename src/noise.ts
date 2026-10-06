@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { float, mx_fractal_noise_float, texture3D } from 'three/tsl'
+import { float, texture3D } from 'three/tsl'
 import { off } from './device'
 import { bakeNoise } from './noiseBake'
 
@@ -24,8 +24,7 @@ import { bakeNoise } from './noiseBake'
  * every field that moves, moves through the tile's third axis, so a repeat on
  * the water is never the same foam twice in a row.
  *
- * `?debug&off=baked` puts the computed noise back, for comparing the two on
- * a device; `off=noise` turns both to zero.
+ * `?debug&off=noise` turns every field to zero, to time what they cost.
  */
 
 /** Texels along each side of the tile. 128³ bytes is 2 MB of GPU memory. */
@@ -52,7 +51,7 @@ function fill(bytes: Uint8Array) {
 // Until the bytes arrive the texture is mid-grey, which reads as zero: a field
 // with no noise in it, for the fraction of a second before the models are in
 // anyway.
-if (!off('baked') && !off('noise')) {
+if (!off('noise')) {
   try {
     const worker = new Worker(new URL('./noise.worker.ts', import.meta.url), { type: 'module' })
     worker.onmessage = (e: MessageEvent<Uint8Array>) => {
@@ -70,15 +69,14 @@ if (!off('baked') && !off('noise')) {
 }
 
 /**
- * Fractal noise at `p`, `octaves` deep: the same field `mx_fractal_noise_float`
- * gives with its defaults, centred on zero, roughly ±1 and mostly within ±0.5.
+ * Fractal noise at `p`, `octaves` deep: the field MaterialX's
+ * `mx_fractal_noise_float` gives with its defaults, centred on zero, roughly ±1 and mostly within ±0.5.
  *
  * Read at level 0 — the tile has no mips — which is also what lets it run in
  * the vertex stage, where the isle's `blotch` is.
  */
 export function fractal(p: THREE.Node, octaves: number): THREE.Node<'float'> {
   if (off('noise')) return float(0)
-  if (off('baked')) return mx_fractal_noise_float(p, octaves)
 
   // Σ aᵢ·(2tᵢ − 1) = Σ 2aᵢ·tᵢ − Σ aᵢ, with aᵢ = ½ⁱ: the texture holds the noise
   // as a byte, and the constant comes out once rather than once an octave.

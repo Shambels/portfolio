@@ -6,12 +6,6 @@ export type Locale = (typeof LOCALES)[number]
 /** English is the source of truth for content and for every structural field. */
 export const SOURCE_LOCALE = 'en' satisfies Locale
 
-export const LOCALE_LABELS: Record<Locale, string> = {
-  en: 'English',
-  fr: 'Français',
-  nl: 'Nederlands',
-}
-
 export function isLocale(value: string | undefined): value is Locale {
   return LOCALES.includes(value as Locale)
 }
