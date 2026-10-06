@@ -430,6 +430,8 @@ src/noise.ts            `fractal()` — every noise field goes through it, never
 src/noiseBake.ts        that tile: improved Perlin, periodic, baked to bytes —
                         run by `noise.worker.ts`
 src/Resolution.tsx      the pixel ratio, stepping down when the frame rate falls
+src/toon.ts             the anime look's cel light — `toon()`, `band()` — for
+                        `?look=anime` (`ANIME` in `device.ts`)
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch

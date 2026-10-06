@@ -77,5 +77,26 @@ export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'is
  */
 const OFF = new Set(PROFILE ? (PARAMS.get('off') ?? '').split(',').map((s) => s.trim()) : [])
 export const off = (part: Part) => OFF.has(part)
+/**
+ * `?debug&turn`: spawn on the water facing the isle instead of on its beach
+ * facing out to sea — the one view of the isle a screenshot can get without
+ * flying there. A diagnostic, ignored without `?debug`.
+ */
+export const TURN = PROFILE && PARAMS.has('turn')
+
 /** For the readout: what this load took out, as typed. */
 export const OFF_LIST = [...OFF].filter(Boolean)
+
+/**
+ * `?look=anime`: the anime look, while it is being judged (Phase 2 of the
+ * anime-look plan). Cel-shaded light, flat colour bands and hard edges in
+ * place of the noise and the physically based shading — on the isle, the
+ * project islands, the water and the sky for now, the parts the pilot covers.
+ * Everything else is drawn as it always was.
+ *
+ * A switch rather than a branch so it can be deployed and looked at on a
+ * phone beside the current world, and flipped once it is the world. Read
+ * once, like `PHONE`: the materials are built from it.
+ */
+export const ANIME = PARAMS.get('look') === 'anime'
+

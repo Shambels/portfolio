@@ -6,7 +6,8 @@ import {
   sin, smoothstep, vec3, vertexStage,
 } from 'three/tsl'
 import { fractal } from './noise'
-import { octaves } from './device'
+import { ANIME, octaves } from './device'
+import { band, toon } from './toon'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
 import { STAIR, stairDoor, stairPortal } from './stairs'
 import { FALL } from './falls'
@@ -146,6 +147,7 @@ const FROND_LIT = vec3(0.55, 0.78, 0.22) // the lime the sun puts through a leaf
 const SHRUB = vec3(0.13, 0.3, 0.12)
 
 function materials() {
+  if (ANIME) return animeMaterials()
   // Slope, 0 flat and 1 vertical. The one thing a height function gives away
   // for free and the one thing a colour band needs: sand on a cliff is what
   // makes a generated island look generated.
@@ -227,6 +229,69 @@ function materials() {
     fractal(positionWorld.mul(1.9), octaves(3, 2)).mul(0.35)
       .add(fractal(positionWorld.mul(6.5), octaves(2, 1)).mul(0.2)).add(0.5),
   )
+
+  return { land, bark, frond, bush, rock }
+}
+
+/**
+ * The isle under `?look=anime` (`device.ts`). Same palette, same places, same
+ * hole in the mountain; drawn instead of lit.
+ *
+ * Every band that was a long smoothstep is an edge here — sand, scrub, jungle,
+ * rock — and what keeps an edge from reading as a contour line is the one
+ * short-scale noise (`brush`) that pushes it about by a hand's width, the way a
+ * brush would. The canopy's shade is patches with edges, not a gradient, and
+ * the fine grain that kept the old bands from looking painted is gone, because
+ * here they are meant to.
+ *
+ * A little warmer and more saturated than the lit palette, which loses some of
+ * its colour to the violet shadow.
+ */
+const A_SAND = vec3(0.9, 0.86, 0.52)
+const A_SCRUB = vec3(0.5, 0.66, 0.22)
+const A_JUNGLE = vec3(0.15, 0.45, 0.17)
+const A_CANOPY = vec3(0.06, 0.27, 0.13)
+const A_ROCK = vec3(0.12, 0.11, 0.18)
+const A_CRAG = vec3(0.22, 0.2, 0.29)
+const A_FROND = vec3(0.1, 0.36, 0.13)
+const A_FROND_LIT = vec3(0.26, 0.72, 0.2)
+
+function animeMaterials() {
+  const slope = oneMinus(clamp(normalWorld.y, 0, 1))
+  const y = positionWorld.y
+  const blotch = vertexStage(fractal(positionWorld.mul(0.045), 3))
+  const clump = fractal(positionWorld.mul(0.26), 2)
+  const brush = fractal(positionWorld.mul(0.9), 1)
+
+  const land = new THREE.MeshBasicNodeMaterial()
+  let col = mix(SEABED, SHELF, smoothstep(-7, -1.4, y))
+  col = mix(col, WET, band(-0.6, y, 0.25))
+  col = mix(col, A_SAND, band(0.12, y.add(brush.mul(0.12)), 0.03))
+  col = mix(col, A_SCRUB, band(2.25, y.add(blotch.mul(1.1)).add(brush.mul(0.35)), 0.04))
+  col = mix(col, A_JUNGLE, band(4.3, y.add(blotch.mul(1.6)).add(brush.mul(0.35)), 0.04))
+  col = mix(col, A_CANOPY, band(0.1, clump.add(brush.mul(0.1)), 0.02).mul(band(3.9, y.add(blotch), 0.1)))
+  col = mix(col, A_ROCK, band(0.47, slope.add(brush.mul(0.06)), 0.015).mul(band(1.1, y, 0.2)))
+  col = mix(col, A_CRAG, band(11, y.add(brush.mul(0.6)), 0.08).mul(band(0.3, slope, 0.02)))
+  land.colorNode = toon(col)
+
+  const hole = (d: { x: number; y: number; z: number }) =>
+    smoothstep(PORTAL - 0.35, PORTAL,
+      positionWorld.distance(vec3(d.x, d.y + PORTAL * 0.35, d.z)))
+  land.opacityNode = hole(stairDoor()).mul(hole(stairPortal()))
+  land.alphaTest = 0.5
+
+  // Two tones up the trunk, ring and gap.
+  const bark = new THREE.MeshBasicNodeMaterial()
+  bark.colorNode = toon(mix(BARK_DARK, BARK, band(0, sin(positionLocal.y.mul(10.5)), 0.15)))
+
+  const frond = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
+  frond.colorNode = toon(A_FROND, { twoSided: true, sunlit: A_FROND_LIT })
+
+  const bush = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
+  bush.colorNode = toon(SHRUB, { twoSided: true, sunlit: A_FROND_LIT.mul(0.8) })
+
+  const rock = new THREE.MeshBasicNodeMaterial()
+  rock.colorNode = toon(mix(A_ROCK, A_CRAG, band(0.08, fractal(positionWorld.mul(1.9), 2), 0.02)))
 
   return { land, bark, frond, bush, rock }
 }

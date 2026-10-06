@@ -7813,3 +7813,51 @@ seconds on any device that was already fine. `?debug&off=adapt` holds it.
 - [ ] Fly around for a minute on each phone with `?debug` and note the worst 1%
       near the landmarks: that decides the shader warm-up
 
+## Phase 2a — the anime look, the pilot
+
+Seb's call on 6 Oct: the anime direction is approved, the render pipeline may
+change, the rider and the ship are repainted before anything is regenerated,
+and the model-budget rows may be overridden where needed.
+
+Behind a switch for now: **`?look=anime`** (`ANIME` in `device.ts`). Without
+it nothing has changed. The pilot covers what the plan said it would — the
+isle, its palms, the project islands' ground, the water and the clouds — so
+it can be judged in place before the landmarks, the rider and the ship follow.
+
+### What is drawn differently
+
+- **`toon.ts`** — the light every cel-shaded material ends in, in place of
+  `MeshStandardNodeMaterial`: three tones (shadow, a half-tone past the
+  terminator, full sun) with edges a few hundredths of N·L wide, a shadow
+  pulled toward violet, and a warm rim on the sun's side of a silhouette. Its
+  full-sun brightness is the old sun plus fill, so a lit surface is as bright
+  as it was. `MeshBasicNodeMaterial` plus this; the scene's lights are not read.
+- **The isle** — the same bands in the same places as edges rather than ramps,
+  pushed about by one short noise (`brush`) so they read as brushwork and not
+  contour lines; canopy shade in patches; two-tone bark rings; fronds bottle
+  green in shadow and leaf green where the sun comes through; violet basalt.
+- **The project islands** — their four bands as edges, cel-lit.
+- **The water** — three blues by depth with edges between them, the lagoon's two
+  greens, the sky's reflection in patches where the chop tilts it, foam that is
+  white or not, and thin pale contour lines drifting on the near water.
+- **The clouds** — shapes with an edge, a lit body and a warm shaded belly.
+
+### `?debug&turn`
+
+Spawns on the water looking back at the isle — the view a screenshot needs
+and the spawn never gives. Diagnostic only.
+
+### Cost
+
+Swiftshader, 1280×800, `off=adapt`: the spawn view 1,122 → 1,058 ms, the turned
+view 1,382 → 1,087 ms (−21%). Cheaper as well as different, but the real
+saving in this phase was always going to be the landmarks' and the post
+chain's, which the pilot does not touch.
+
+### Needs Seb
+
+- [ ] Look at it — `pinchs.be/en/world?look=anime` on a phone and the laptop,
+      and `?look=anime&debug&turn` for the isle face on — and say whether this
+      is the direction, and what to push: the cloud shapes and the water lines
+      are the two places most open to taste.
+
