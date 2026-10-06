@@ -557,7 +557,7 @@ export function Scenery({ sea }: {
  *   surface, near the camera only — the scribbled highlight of drawn water.
  * - **Foam is white or it is not**, on exactly the old mask.
  */
-const A_DEEP = vec3(0.004, 0.055, 0.12)
+const A_DEEP = vec3(0.008, 0.085, 0.18)
 const A_MID = vec3(0.01, 0.2, 0.32)
 const A_LIGHT = vec3(0.03, 0.4, 0.5)
 
@@ -569,11 +569,11 @@ function animeWater({ n, crest, shal, foam, bounce, fresnel, horizon, far }: {
   let col: Vec3 = mix(A_DEEP, A_MID, edge(0.35, tilt, 0.04))
   col = mix(col, A_LIGHT, edge(0.75, tilt, 0.04))
   col = mix(col, mix(LAGOON, SHORE_WATER, edge(0.8, shal)), edge(0.28, shal))
-  col = mix(col, sky(bounce, { lit: false }), edge(0.42, fresnel, 0.03).mul(0.85))
+  col = mix(col, sky(bounce, { lit: false }), edge(0.48, fresnel, 0.03).mul(0.8))
 
   const near = smoothstep(45, 15, length(positionWorld.xz.sub(cameraPosition.xz)))
   const field = fractal(vec3(positionWorld.x.mul(0.16), positionWorld.z.mul(0.45), T.mul(0.12)), 1)
-  const lines = oneMinus(smoothstep(0.004, 0.018, abs(field.sub(0.12)))).mul(near).mul(0.35)
+  const lines = oneMinus(smoothstep(0.003, 0.011, abs(field.sub(0.12)))).mul(near).mul(oneMinus(shal)).mul(0.28)
   col = mix(col, FOAM, lines)
 
   col = mix(col, FOAM, edge(0.62, foam, 0.03))

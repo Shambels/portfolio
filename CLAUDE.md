@@ -432,6 +432,9 @@ src/noiseBake.ts        that tile: improved Perlin, periodic, baked to bytes —
 src/Resolution.tsx      the pixel ratio, stepping down when the frame rate falls
 src/toon.ts             the anime look's cel light — `toon()`, `band()` — for
                         `?look=anime` (`ANIME` in `device.ts`)
+src/Ink.tsx             the anime look's outlines — every lit mesh under it, inked
+tools/flatten.py        the anime look's repaint — a model's texture to a dozen
+                        flat colours, `src/models/*.flat.png`
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch

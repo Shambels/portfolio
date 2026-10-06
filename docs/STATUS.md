@@ -7861,3 +7861,85 @@ chain's, which the pilot does not touch.
       is the direction, and what to push: the cloud shapes and the water lines
       are the two places most open to taste.
 
+## Phase 2b — the anime look, everywhere
+
+Still behind `?look=anime`; without it nothing has changed. The pilot drew
+the isle, the water and the sky; this draws the rest of the world the same
+way.
+
+### Every lit material, in one place
+
+The landmarks, the three hulls, the rider, the board, the stair and the fall
+are forty-odd `MeshStandardNodeMaterial`s, many with colour, emissive and
+opacity graphs of their own. They are not rewritten. Under `?look=anime`,
+`toon.ts` replaces the lighting model on the class — `CelLightingModel`
+instead of the physically based one — so every one of them lights itself in
+the same three bands, violet fill and warm rim that `toon()` gives the isle,
+from the scene's own two lights. The ore still glows, the lens still flashes,
+the proximity tint still lands: only the light changed.
+
+### Ink
+
+`Ink.tsx` outlines every lit, opaque, one-sided mesh under it — the
+landmarks, the hulls, the stair — with the inverted hull the rider and the
+board already had, its push grown with distance so a landmark sixty metres
+off is inked as thick on screen as the board. Skinned, instanced, transparent
+and double-sided meshes are left alone, and so is anything that already draws
+its own (`OUTLINE` in `Ship.tsx`). It looks again every half second, because
+models arrive behind `Suspense`, and inks a mesh once; the outline is the
+mesh's child, so it moves and hides with it. +50 draw calls, +21k triangles
+at the spawn.
+
+### The repaint
+
+Seb's call: repaint first, regenerate only if it still looks out of place.
+`tools/flatten.py` reduces each generated texture to a dozen flat colours on
+the same UVs — k-means, then a mode filter over the labels so the generator's
+baked shading becomes regions with edges — and writes `*.flat.png` beside the
+model. `Ship.tsx` swaps it in under `?look=anime`; the meshes, the rig and all
+seven clips are untouched.
+
+| Model | Colours | Size | File |
+|---|---|---|---|
+| `surfer.flat.png` | 14 | 2048² | 365 kB |
+| `surfboard.flat.png` | 8 | 512² | 8 kB |
+| `pirate_ship.flat.png` | 12 | 1024² | 136 kB |
+
+The rider's is at the source's full size: his texture is an atlas of
+hundreds of small islands, skin beside wetsuit, and at half size the filter
+bled skin into the suit along every seam. A few flecks are still there. They
+are fetched only under `?look=anime` — 510 kB on top of the world's 2.41 MB,
+inside the 3 MB budget — and until one lands the model wears its own texture.
+
+### The spray
+
+Under `?look=anime` a droplet is a disc with an edge rather than a soft dot.
+
+### Tuned from the pilot
+
+The water's contour lines are thinner, fainter and out of the lagoons, the
+deep blue is lighter, and less of the sky's gold comes back off the chop.
+
+### Cost
+
+Swiftshader, 1280×800, `off=adapt`: the spawn 1,062 ms drawn the old way,
+1,012 ms in the anime look with every outline. Cheaper than the world it
+replaces, with fifty more draw calls.
+
+### Not done
+
+- **Speed lines while charging.** A nice-to-have from the plan; nothing in
+  the look needs it.
+- **Painted cloud cards.** The pilot's cel clouds hold up.
+- **The case-study stages** (`Darkroom`, `Atelier`, …) are their own canvases
+  and keep their look.
+
+### Needs Seb
+
+- [ ] `pinchs.be/en/world?look=anime` on the phones and the laptop: the
+      landmarks up close (`/en/work/polarsense?look=anime` and the others), the
+      rider, and the boat from the menu
+- [ ] Decide whether the rider's repaint is enough, or he is regenerated
+- [ ] Re-run the measurements with `?look=anime` — then Phase 3, the phone
+      frame without post, and making the anime look the default
+
