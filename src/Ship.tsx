@@ -13,7 +13,7 @@ import { FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, landmarkAt, landmarkO
 import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
-import { off } from './device'
+import { TURN as TURN_AROUND, off } from './device'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
 import pirateUrl from './models/pirate_ship.glb?url'
@@ -577,6 +577,14 @@ const _target = new THREE.Vector3()
 const _cam = new THREE.Vector3()
 const _accel = new THREE.Vector3()
 
+/** `spawn()`, or under `?debug&turn` (`device.ts`) off the beach and
+ *  looking back at the isle — the one view of it a screenshot can get. */
+function startAt(ashore: boolean) {
+  if (!TURN_AROUND) return spawn(ashore)
+  const s = spawn(false)
+  return { ...s, yaw: s.yaw + Math.PI }
+}
+
 export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   hover?: number
   /** False on every route with no world showing. The ship stops reading keys. */
@@ -610,7 +618,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
    * not move anything, the same as the deep link below.
    */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const start = useMemo(() => spawn(model === 'surfer' && !REDUCED), [])
+  const start = useMemo(() => startAt(model === 'surfer' && !REDUCED), [])
   // Pointed the way the camera looks, not the way it sits: the camera is astern
   // of the heading, so a hull spawned facing the island would put the camera on
   // the far side of it, looking back at the sea over a hill. `spawn` faces the

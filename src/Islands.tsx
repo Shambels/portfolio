@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import { mix, positionWorld, smoothstep, vec3 } from 'three/tsl'
 import { fractal } from './noise'
+import { ANIME } from './device'
+import { band, toon } from './toon'
 import { ISLAND_SPREAD, LANDMARKS } from './world'
 import { PROFILE, rim, seedOf } from './plateau'
 
@@ -52,8 +54,18 @@ export function Islands() {
   const { geometries, ground } = useMemo(() => {
     const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug)))
 
-    const ground = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
     const y = positionWorld.y
+    if (ANIME) {
+      // `?look=anime`: the same four bands as edges, cel-lit (`toon.ts`).
+      const brush = fractal(positionWorld.mul(0.9), 1)
+      const ground = new THREE.MeshBasicNodeMaterial()
+      let col = mix(ROCK, WET, band(-0.6, y, 0.2))
+      col = mix(col, SAND, band(-0.02, y.add(brush.mul(0.05)), 0.02))
+      col = mix(col, vec3(0.38, 0.52, 0.2), band(0.3, y.add(brush.mul(0.08)), 0.02))
+      ground.colorNode = toon(col)
+      return { geometries, ground }
+    }
+    const ground = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
     // Sea floor, wet rock, beach, then the plateau. The sand band straddles
     // y = 0 so the waterline is where the colour changes, not where a texture
     // seam would be.
