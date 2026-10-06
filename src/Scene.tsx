@@ -9,7 +9,7 @@ import { Particles } from './Particles'
 import { Sound } from './Sound'
 import { Debug } from './Debug'
 import { Direct, Post } from './Post'
-import { PHONE, PROFILE, off } from './device'
+import { PHONE, POST, PROFILE, off } from './device'
 import { Profiler } from './Profiler'
 import { Resolution } from './Resolution'
 import { Ink } from './Ink'
@@ -76,11 +76,15 @@ export default function Scene({
         // expensive one: four times the colour, emissive and depth storage, at
         // the canvas's full pixel ratio. `Post` says FXAA is what this world
         // uses, and now it is the only one.
+        //
+        // Except where there is no `Post` (`POST` in `device.ts` — a phone):
+        // there the canvas is the only target, and 4× MSAA on a tiled GPU is
+        // resolved on the chip, which is the cheapest anti-aliasing a phone has.
         // `trackTimestamp` under `?debug` only: GPU timestamp queries are
         // what `Profiler` reads GPU time from, and they cost a little on
         // every pass. Where the device has none (WebGL2, most phones today)
         // three turns them back off and the readout says so.
-        const r = new THREE.WebGPURenderer({ ...props, antialias: false, trackTimestamp: PROFILE } as never)
+        const r = new THREE.WebGPURenderer({ ...props, antialias: !POST && !off('msaa'), trackTimestamp: PROFILE } as never)
         return r.init().then(() => {
           onBackend((r.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2')
           return r
@@ -100,7 +104,7 @@ export default function Scene({
       </group>
       {/* The isle carries no project, so nothing here is passed to it and
           nothing is read back: it is ground, trees and a coastline. */}
-      {/* `Ink` outlines what is under it under `?look=anime` (`Ink.tsx`), and
+      {/* `Ink` outlines what is under it in the anime look (`Ink.tsx`), and
           is a plain group otherwise. */}
       <group visible={!off('isle')}>
         <Ink>
@@ -121,8 +125,8 @@ export default function Scene({
       </group>
       {/* Reads the ship too, and rides this frame loop rather than one of its own. */}
       <Sound on={sound && active} />
-      {/* `?debug&off=post` swaps the chain for a plain render, to time it. */}
-      {off('post') ? <Direct /> : <Post />}
+      {/* The chain on a computer, a plain render on a phone (`POST`). */}
+      {POST ? <Post /> : <Direct />}
       {/* Lowers the pixel ratio when the frame rate falls; holds otherwise. */}
       <Resolution />
       {debug && <Debug />}

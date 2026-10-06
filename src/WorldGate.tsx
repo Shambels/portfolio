@@ -220,6 +220,7 @@ export function WorldGate({ children }: { children: ReactNode }) {
         `${Math.round(sum.fps)} fps · ${ms(sum.median)} median · ${ms(sum.worst)} worst 1%`,
         `gpu ${STATS.gpu === null ? 'n/a' : ms(STATS.gpu)} · ${STATS.calls} calls · ${(STATS.triangles / 1000).toFixed(0)}k tris${STATS.computes ? ` · ${STATS.computes} compute` : ''}`,
         `${STATS.width}×${STATS.height} @ ${STATS.dpr.toFixed(2)} · ${STATS.tier} tier · ${backend}`,
+        STATS.frame,
         ...(STATS.off.length ? [`off: ${STATS.off.join(', ')}`] : []),
       ])
     }, 500)

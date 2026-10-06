@@ -1,12 +1,12 @@
 """
-The anime look's repaint (`?look=anime`, `src/device.ts`): a model's own
+The anime look's repaint (`ANIME`, `src/device.ts`): a model's own
 basecolour texture reduced to a handful of flat colours, on the same UVs.
 
     python3 tools/flatten.py
 
 Writes `src/models/{surfer,surfboard,pirate_ship}.flat.png` from the
 textures inside their glb files. `Ship.tsx` swaps one in for the model's
-own texture under `?look=anime` — the mesh, the rig and every clip stay as
+own texture in the anime look — the mesh, the rig and every clip stay as
 they are, which was Seb's call: repaint first, regenerate only if the
 repaint still looks out of place.
 

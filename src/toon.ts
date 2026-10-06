@@ -8,7 +8,7 @@ import { ANIME } from './device'
 import { SUN } from './Scenery'
 
 /**
- * The anime look's light (`?look=anime`, `device.ts`). One function every
+ * The anime look's light (`ANIME`, `device.ts`). One function every
  * cel-shaded material ends in, in place of `MeshStandardNodeMaterial`'s
  * physically based lighting.
  *
@@ -73,7 +73,7 @@ export function toon(albedo: Vec3, { twoSided = false, sunlit }: { twoSided?: bo
  * — the landmarks, the hulls, the rider, the board, the stair, the fall — is
  * a `MeshStandardNodeMaterial`, forty-odd of them, many with colour, emissive
  * and opacity graphs of their own that should survive untouched. So under
- * `?look=anime` the materials stay what they are and only their light changes:
+ * the anime look the materials stay what they are and only their light changes:
  * `CelLightingModel` replaces the physically based one on the class, and
  * every standard or physical material built after this module loads lights
  * itself in bands. Same numbers as `toon()` — three tones, the violet fill,

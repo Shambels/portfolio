@@ -49,7 +49,7 @@ export const octaves = (desktop: number, phone: number) => (PHONE ? phone : desk
 export const PROFILE = PARAMS.has('debug')
 
 /** The parts of the world `?off=` can take out, one at a time or several. */
-export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
+export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'msaa' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
 
 /**
  * `?debug&off=post,noise`: the world with those parts taken out, so a phone
@@ -63,6 +63,7 @@ export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'is
  *   noise      every fractal noise field returns zero (`noise.ts`)
  *   baked      noise computed per pixel again, instead of read from the
  *              baked texture (`noise.ts`) — to compare the two
+ *   msaa       no 4× MSAA on the canvas where there is no `Post` (`POST`)
  *   adapt      the pixel ratio stays put instead of following the frame
  *              rate (`Resolution.tsx`), so runs compare at one ratio
  *   isle       the home isle, its palms, stair and fall
@@ -88,15 +89,31 @@ export const TURN = PROFILE && PARAMS.has('turn')
 export const OFF_LIST = [...OFF].filter(Boolean)
 
 /**
- * `?look=anime`: the anime look, while it is being judged (Phase 2 of the
- * anime-look plan). Cel-shaded light, flat colour bands and hard edges in
- * place of the noise and the physically based shading — on the isle, the
- * project islands, the water and the sky for now, the parts the pilot covers.
- * Everything else is drawn as it always was.
+ * The anime look — cel-shaded light, flat colour bands, ink outlines and the
+ * repainted rider and ship (`toon.ts`, `Ink.tsx`, `tools/flatten.py`). The
+ * world's look since 6 Oct 2026 (Phase 3 of the anime-look plan).
  *
- * A switch rather than a branch so it can be deployed and looked at on a
- * phone beside the current world, and flipped once it is the world. Read
- * once, like `PHONE`: the materials are built from it.
+ * `?look=classic` is the lit world it replaced, kept for comparing the two
+ * on a device until Seb decides to delete it. Read once, like `PHONE`: the
+ * materials are built from it.
  */
-export const ANIME = PARAMS.get('look') === 'anime'
+export const ANIME = PARAMS.get('look') !== 'classic'
+
+/**
+ * Whether the frame goes through `Post` — bloom off the emissive buffer, then
+ * FXAA — or straight to the canvas (`Direct`).
+ *
+ * Straight to the canvas on a phone. The post chain renders the scene into
+ * two half-float targets and reads them back, and memory bandwidth is the one
+ * thing a phone's tiled GPU is worst at: taking it out was a third of the
+ * iPhone SE's frame (`docs/STATUS.md`, "Measuring"). What it loses is the
+ * glow round the saucer's lamp and the ore, which on a screen that size is a
+ * few pixels; the edges keep their anti-aliasing from the canvas's own 4×
+ * MSAA instead (`Scene.tsx`), which a tiled GPU resolves on the chip almost
+ * for free — the opposite of a desktop GPU, which is why a computer keeps FXAA.
+ *
+ * `?debug&post` puts the chain back on a phone, to compare; `?debug&off=post`
+ * takes it off a computer.
+ */
+export const POST = !off('post') && (!PHONE || (PROFILE && PARAMS.has('post')))
 

@@ -234,7 +234,7 @@ function materials() {
 }
 
 /**
- * The isle under `?look=anime` (`device.ts`). Same palette, same places, same
+ * The isle in the anime look (`ANIME`, `device.ts`). Same palette, same places, same
  * hole in the mountain; drawn instead of lit.
  *
  * Every band that was a long smoothstep is an edge here — sand, scrub, jungle,

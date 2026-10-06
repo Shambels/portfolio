@@ -1917,12 +1917,12 @@ const lit = (loaded: THREE.Material, flat?: string): THREE.MeshStandardNodeMater
 }
 
 /**
- * `?look=anime`: the same model with its colour repainted in flat fills.
+ * The anime look: the same model with its colour repainted in flat fills.
  *
  * `*.flat.png` is the generator's texture reduced to a dozen or so colours and
  * smoothed into regions (`tools/flatten.py`), on the same UVs, so the mesh and
  * every clip are untouched — Seb's call: repaint first, regenerate only if the
- * repaint still looks out of place. It is fetched only under `?look=anime`,
+ * repaint still looks out of place. It is not fetched under `?look=classic`,
  * and until it lands the model wears its own texture, so nothing waits on it.
  */
 const flats = new THREE.TextureLoader()

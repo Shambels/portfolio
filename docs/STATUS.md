@@ -7943,3 +7943,55 @@ replaces, with fifty more draw calls.
 - [ ] Re-run the measurements with `?look=anime` — then Phase 3, the phone
       frame without post, and making the anime look the default
 
+## Phase 3 — the anime look is the world, and a phone frame without post
+
+### The anime look is the default
+
+`ANIME` (`device.ts`) is on unless the page is loaded with **`?look=classic`**,
+which keeps the lit world for comparing the two on a device. Deleting the
+classic paths is Seb's call, once nobody wants the comparison.
+
+### A phone draws straight to the canvas
+
+`POST` (`device.ts`): a computer keeps `Post` — bloom off the emissive buffer,
+then FXAA. A phone renders the scene straight to the canvas (`Direct` in
+`Post.tsx`) with the canvas's own 4× MSAA as its anti-aliasing.
+
+- **Why:** the chain writes the whole frame into two half-float targets and
+  reads it back, and bandwidth is what a phone's tiled GPU is worst at. On the
+  iPhone SE it was a third of the GPU time (22.7 → 15.2 ms, "Measuring").
+- **Why MSAA and not nothing:** the ink outlines and the band edges alias
+  without it, and on a tiled GPU 4× MSAA is resolved in tile memory before
+  anything is written out — close to free there, unlike a desktop GPU, which
+  is why the computer keeps FXAA instead.
+- **What a phone loses:** the glow round the saucer's lamp, the ore and the
+  camera's flash. They still are the brightest things in the frame; they only
+  stop spilling. On a screen that size that is a few pixels.
+- **Not done from the plan's phone table:** trimming the ink to the rider and
+  board, and halving the spray. Neither measured as a cost.
+
+`?debug&post` puts the chain back on a phone; `?debug&off=msaa` takes the
+MSAA off; the readout's fourth line says which frame it is (`post`,
+`direct + msaa`, `direct`) and which look.
+
+### What the container can and cannot say
+
+Swiftshader, phone viewport, `off=adapt`:
+
+| Frame | Median |
+|---|---|
+| post | 525 ms |
+| direct + msaa | 699 ms |
+| direct | 370 ms |
+
+Straight to the canvas is 30% cheaper on a CPU. MSAA there costs four
+times the shading, which is exactly what a tiled GPU does not pay — so this
+table cannot say whether the phone default is right. The phones can.
+
+### Needs Seb
+
+- [ ] On each phone, three loads: `?debug` (direct + MSAA), `?debug&post`, and
+      `?debug&off=msaa`. If MSAA costs a phone more than a millisecond or two,
+      it comes off and the edges go without.
+- [ ] Re-run the laptop's six links: the desktop frame is the anime look now.
+

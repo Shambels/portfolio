@@ -56,7 +56,7 @@ export function Islands() {
 
     const y = positionWorld.y
     if (ANIME) {
-      // `?look=anime`: the same four bands as edges, cel-lit (`toon.ts`).
+      // The anime look (`ANIME`): the same four bands as edges, cel-lit (`toon.ts`).
       const brush = fractal(positionWorld.mul(0.9), 1)
       const ground = new THREE.MeshBasicNodeMaterial()
       let col = mix(ROCK, WET, band(-0.6, y, 0.2))
