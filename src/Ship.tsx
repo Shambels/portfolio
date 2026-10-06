@@ -13,6 +13,7 @@ import { FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, landmarkAt, landmarkO
 import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
+import { off } from './device'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
 import pirateUrl from './models/pirate_ship.glb?url'
@@ -1844,9 +1845,14 @@ function Surfer({ visible, onRider }: { visible: boolean; onRider: () => void })
 
       {/* And the man. Outside the group above, because he is the one who
           carries it. */}
-      <Suspense fallback={null}>
-        <Rider visible={visible} onLoad={onRider} />
-      </Suspense>
+      {/* `?debug&off=rider` hides his body and nothing else: the rig still
+          runs, so the board is still carried and the leash still knows
+          where his ankle is. See `device.ts`. */}
+      <group visible={!off('rider')}>
+        <Suspense fallback={null}>
+          <Rider visible={visible} onLoad={onRider} />
+        </Suspense>
+      </group>
 
       {/* The wake stays on the water, where it belongs: it is the sea's mark
           and not a thing the board wears. */}

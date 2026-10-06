@@ -2,11 +2,11 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { useFrame } from '@react-three/fiber'
 import {
-  abs, cameraPosition, clamp, cos, dot, float, length, max, mix, mx_fractal_noise_float,
-  normalize, oneMinus, positionLocal, positionWorld, pow, reflect, sin, smoothstep, time,
+  abs, cameraPosition, clamp, cos, dot, float, length, max, mix, normalize, oneMinus, positionLocal, positionWorld, pow, reflect, sin, smoothstep, time,
   uniform, vec2, vec3,
 } from 'three/tsl'
-import { octaves } from './device'
+import { fractal } from './noise'
+import { octaves, off } from './device'
 import { LAGOONS, SHOAL, SHOALS, SPLASH, shoal } from './world'
 import type { Sea } from './WorldGate'
 
@@ -111,7 +111,7 @@ function clouds(dir: Vec3) {
   // Three octaves, two on a phone: the third is the fine curdling at the edge
   // of a cumulus, and the sky is the one surface here that is never closer
   // than half a kilometre.
-  const n = mx_fractal_noise_float(vec3(p.add(vec2(T.mul(0.004), T.mul(0.002))), T.mul(0.01)), octaves(3, 2))
+  const n = fractal(vec3(p.add(vec2(T.mul(0.004), T.mul(0.002))), T.mul(0.01)), octaves(3, 2))
   const cover = smoothstep(0.22, 0.6, n)
   // Thin out overhead and at the horizon: cumulus live in a band, and a hard
   // edge where the projection blows up would read as a seam.
@@ -470,7 +470,7 @@ function waves(p: Vec2) {
   // The ripple is one octave on a phone. It is a slope detail — it never
   // moves the water, only the light on it — and the second octave of it is a
   // centimetre of texture on a screen four inches across.
-  const ripple = mx_fractal_noise_float(vec3(p.mul(0.6 * CHOP.freq), T.mul(0.25 * CHOP.speed)), octaves(2, 1))
+  const ripple = fractal(vec3(p.mul(0.6 * CHOP.freq), T.mul(0.25 * CHOP.speed)), octaves(2, 1))
     .mul(0.05 * Math.sqrt(CHOP.amp))
   const r = rollerNode(p)
   return {
@@ -522,11 +522,13 @@ export function Scenery({ sea }: {
           which is the whole point of the swing. */}
       <ambientLight color="#8fa9c9" intensity={2.1} />
 
-      <mesh material={dome}>
+      {/* `?debug&off=dome` and `off=water`: the two largest surfaces in the
+          frame, hidden to time them. See `device.ts`. */}
+      <mesh material={dome} visible={!off('dome')}>
         <sphereGeometry args={[520, 32, 24]} />
       </mesh>
 
-      <mesh geometry={surface} material={water} />
+      <mesh geometry={surface} material={water} visible={!off('water')} />
     </>
   )
 }
@@ -584,7 +586,7 @@ function useMaterials() {
     // field so the foam is patches travelling with the water rather than a band
     // drawn along the crest. `crest` carries `uRoll`, so a calm sea has none of
     // this and pays for it only in graph size.
-    const breakup = mx_fractal_noise_float(vec3(positionWorld.xz.mul(3.2), T.mul(0.4)), octaves(3, 2))
+    const breakup = fractal(vec3(positionWorld.xz.mul(3.2), T.mul(0.4)), octaves(3, 2))
     const caps = smoothstep(0.45, 0.92, crest).mul(smoothstep(0.0, 0.4, breakup))
 
     // And the ring a landing opens. Same white, so it belongs to the same water:

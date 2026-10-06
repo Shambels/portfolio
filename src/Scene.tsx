@@ -8,8 +8,9 @@ import { Landmarks } from './Landmarks'
 import { Particles } from './Particles'
 import { Sound } from './Sound'
 import { Debug } from './Debug'
-import { Post } from './Post'
-import { PHONE } from './device'
+import { Direct, Post } from './Post'
+import { PHONE, PROFILE, off } from './device'
+import { Profiler } from './Profiler'
 import type { Sea, ShipModel } from './WorldGate'
 
 extend(THREE as never)
@@ -73,7 +74,11 @@ export default function Scene({
         // expensive one: four times the colour, emissive and depth storage, at
         // the canvas's full pixel ratio. `Post` says FXAA is what this world
         // uses, and now it is the only one.
-        const r = new THREE.WebGPURenderer({ ...props, antialias: false } as never)
+        // `trackTimestamp` under `?debug` only: GPU timestamp queries are
+        // what `Profiler` reads GPU time from, and they cost a little on
+        // every pass. Where the device has none (WebGL2, most phones today)
+        // three turns them back off and the readout says so.
+        const r = new THREE.WebGPURenderer({ ...props, antialias: false, trackTimestamp: PROFILE } as never)
         return r.init().then(() => {
           onBackend((r.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'WebGPU' : 'WebGL2')
           return r
@@ -85,18 +90,31 @@ export default function Scene({
           palette rather than either end of it — see `.stage` in `index.css`. */}
       <color attach="background" args={['#106e80']} />
       <Scenery sea={sea} />
-      <Islands />
+      {/* The `visible` groups are `?debug&off=…` (`device.ts`): hidden rather
+          than unmounted, so what is timed without them is the drawing and
+          not a world with less in it. Always true otherwise. */}
+      <group visible={!off('islands')}>
+        <Islands />
+      </group>
       {/* The isle carries no project, so nothing here is passed to it and
           nothing is read back: it is ground, trees and a coastline. */}
-      <Isle />
+      <group visible={!off('isle')}>
+        <Isle />
+      </group>
       <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
-      {/* Reads the ship's position, so it is mounted after it. */}
-      <Particles />
-      <Landmarks near={slug} />
+      {/* Reads the ship's position, so it is mounted after it. The one part
+          `off` unmounts: nothing reads the spray back, and most of what it
+          costs is its compute pass, which hiding would not stop. */}
+      {!off('spray') && <Particles />}
+      <group visible={!off('landmarks')}>
+        <Landmarks near={slug} />
+      </group>
       {/* Reads the ship too, and rides this frame loop rather than one of its own. */}
       <Sound on={sound && active} />
-      <Post />
+      {/* `?debug&off=post` swaps the chain for a plain render, to time it. */}
+      {off('post') ? <Direct /> : <Post />}
       {debug && <Debug />}
+      {debug && <Profiler />}
     </Canvas>
   )
 }

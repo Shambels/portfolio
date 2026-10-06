@@ -333,7 +333,8 @@ src/MiniMap.tsx         the world's index since the panel went away — a top vi
                         in the corner, a letter per project, the ship's arrow
 src/Scene.tsx           the <Canvas> and everything in it
 src/Scenery.tsx         sky, sun, ocean, clouds — all TSL, no assets
-src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only
+src/Post.tsx            the render pipeline — FXAA, and bloom off emissive only;
+                        `Direct`, the frame without it
 src/Particles.tsx       the spray under the ship — GPU compute, WebGPU only
 src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by default
 src/Islands.tsx         the ground under each landmark — lathed from
@@ -421,6 +422,11 @@ tools/palm.py           not a landmark — a library: three palms, a fern and a
                         boulder, instanced across the isle by `Isle.tsx`
 src/Debug.tsx           ?debug — radii, blockout boxes, waypoints, prop discs
                         and the mine's wall
+src/Profiler.tsx        ?debug's numbers — frame times, GPU time, draw calls,
+                        triangles — written to `stats.ts` for the HUD
+src/stats.ts            the bridge: no imports, so the first route can read it
+src/noise.ts            `fractal()` — every noise field goes through it, never
+                        `mx_fractal_noise_float` directly
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
@@ -430,9 +436,10 @@ src/camera.ts           the follow camera's two sums — a push read against the
                         astern of the heading — with its check beside it
 src/world.ts            landmark layout + proximity, read from the content;
                         coastlines, moorings and lagoons, isles included
-src/device.ts           `PHONE` — a finger and no hover — and `octaves()`.
-                        The only thing that may differ between a phone and a
-                        computer is what a frame costs, never what is in it
+src/device.ts           `PHONE` — a finger and no hover, or `?tier=` — and
+                        `octaves()`; `?debug&off=` to take parts out and time
+                        them. The only thing that may differ between a phone
+                        and a computer is what a frame costs, never what is in it
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
                         classes on <html> that pin the chrome over the sea

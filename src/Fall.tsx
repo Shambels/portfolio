@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
 import {
-  abs, clamp, float, mix, mx_fractal_noise_float, oneMinus, pow, smoothstep, time, uv, vec3,
+  abs, clamp, float, mix, oneMinus, pow, smoothstep, time, uv, vec3,
 } from 'three/tsl'
+import { fractal } from './noise'
 import { fallAt, fallFoot, fallGround } from './falls'
 
 /**
@@ -120,9 +121,9 @@ export function Fall() {
     // thing but a dozen ropes of it side by side.
     const u = uv().x
     const d = uv().y
-    const fine = mx_fractal_noise_float(
+    const fine = fractal(
       vec3(u.mul(34), d.mul(6).sub(time.mul(1.9)), 4.1), 3)
-    const rope = mx_fractal_noise_float(
+    const rope = fractal(
       vec3(u.mul(11), d.mul(2.2).sub(time.mul(1.15)), 0.7), 2)
     const flow = clamp(fine.mul(0.45).add(rope.mul(0.55)).mul(0.5).add(0.5), 0, 1)
 
@@ -143,7 +144,7 @@ export function Fall() {
     const spray = new THREE.MeshBasicNodeMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
     })
-    const churn = mx_fractal_noise_float(
+    const churn = fractal(
       vec3(uv().x.mul(16), uv().y.mul(4).add(time.mul(0.7)), 9.3), 3)
     spray.colorNode = FOAM
     spray.opacityNode = clamp(

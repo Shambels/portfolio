@@ -4,9 +4,10 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
   abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, min, mix, mod,
-  modelWorldMatrix, mx_fractal_noise_float, oneMinus, positionLocal, positionWorld, round, select,
+  modelWorldMatrix, oneMinus, positionLocal, positionWorld, round, select,
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
+import { fractal } from './noise'
 import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
   LENSES, PRINTS, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
@@ -508,7 +509,7 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   const butt = smoothstep(0, 0.03, min(sheet, oneMinus(sheet)))
   // Each sheet a shade off its neighbour: no two came off the pile the same.
   const lot = fract(sin(floor(positionLocal.z.div(0.78)).mul(21.31)).mul(4318.7)).mul(0.14).add(0.93)
-  const veneer = mx_fractal_noise_float(positionLocal.mul(vec3(26, 2.2, 1.6)), 2).mul(0.06)
+  const veneer = fractal(positionLocal.mul(vec3(26, 2.2, 1.6)), 2).mul(0.06)
   const worn = oneMinus(smoothstep(0.24, 0.62, abs(positionLocal.x.sub(MRAMP.x))))
   deck.colorNode = mix(color(c.plyDark), color(c.ply), butt)
     .mul(veneer.add(1))
@@ -518,7 +519,7 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   // The kerbs and the ribs under them: painted steel, and rusting from the
   // ground up, which is the only part of this island the sea gets at.
   const rib = new THREE.MeshStandardNodeMaterial({ roughness: 0.74, metalness: 0.12 })
-  const speck = mx_fractal_noise_float(positionLocal.mul(6.5), 3).mul(0.5).add(0.5)
+  const speck = fractal(positionLocal.mul(6.5), 3).mul(0.5).add(0.5)
   const damp = oneMinus(smoothstep(0.05, 0.95, positionLocal.y))
   rib.colorNode = mix(color(c.paint), color(c.rust), smoothstep(0.5, 0.86, speck.mul(damp.mul(0.5).add(0.5))))
 
@@ -530,7 +531,7 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   // a brass band on the seam itself — three materials out of one slab, told
   // apart by height in the body's own tilted frame and by nothing else.
   const body = new THREE.MeshStandardNodeMaterial({ roughness: 0.86 })
-  const pebble = mx_fractal_noise_float(positionLocal.mul(24), 2).mul(0.5).add(0.5)
+  const pebble = fractal(positionLocal.mul(24), 2).mul(0.5).add(0.5)
   const hide = mix(color(c.leather), color(c.grain), smoothstep(0.42, 0.86, pebble).mul(0.42))
   const plate = smoothstep(0.4, 0.46, CAM_UPQ)
   const seam = oneMinus(smoothstep(0.004, 0.024, abs(CAM_UPQ.sub(0.4))))
@@ -605,7 +606,7 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   // where the three of them meet, and brass on the feet — which is what a
   // tripod that holds a camera this heavy has always been made of.
   const tripod = new THREE.MeshStandardNodeMaterial()
-  const grain = mx_fractal_noise_float(positionLocal.mul(vec3(24, 2.2, 24)), 2).mul(0.5).add(0.5)
+  const grain = fractal(positionLocal.mul(vec3(24, 2.2, 24)), 2).mul(0.5).add(0.5)
   const foot = oneMinus(smoothstep(0.1, 0.15, positionLocal.y))
   const casting = smoothstep(CAM_HIP_Y - 0.12, CAM_HIP_Y + 0.02, positionLocal.y)
   const timber = mix(color(c.ash), color(c.ashDark), smoothstep(0.34, 0.78, grain))
@@ -655,7 +656,7 @@ function makeMats(hi: boolean) {
   // 0.06, down from 0.14: at 0.14 the lateral wobble was most of a band's own
   // period, so the layers wandered far enough to read as camouflage rather than
   // as strata — and a vein crossing camouflage reads as nothing at all.
-  const wobble = mx_fractal_noise_float(positionWorld.mul(vec3(0.45, 0.1, 0.45)), 2).mul(0.06)
+  const wobble = fractal(positionWorld.mul(vec3(0.45, 0.1, 0.45)), 2).mul(0.06)
   const band = sin(positionWorld.y.add(wobble).mul(8.5)).mul(0.5).add(0.5)
   const u = positionWorld.x.mul(-0.496).add(positionWorld.z.mul(0.868)).mul(1.82)
   const slot = floor(u)
@@ -713,7 +714,7 @@ function makeMats(hi: boolean) {
   // Brush marks, and only from close enough that they read as marks. Farther out
   // they would be exactly the generic noise BUILD-PLAN says does not ship.
   const canvasNear = approach(positionWorld.xz, 4.5, 9)
-  canvas.colorNode = paint.mul(mx_fractal_noise_float(vec3(p.mul(5.5), 0), 3).mul(0.12).mul(canvasNear).add(1))
+  canvas.colorNode = paint.mul(fractal(vec3(p.mul(5.5), 0), 3).mul(0.12).mul(canvasNear).add(1))
 
   // The move that was there, settling into it. Sqrubs finds the play nobody
   // saw; the seven tiles hang over the squares they belong in, and they come
