@@ -49,7 +49,7 @@ export const octaves = (desktop: number, phone: number) => (PHONE ? phone : desk
 export const PROFILE = PARAMS.has('debug')
 
 /** The parts of the world `?off=` can take out, one at a time or several. */
-export type Part = 'post' | 'dome' | 'water' | 'noise' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
+export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
 
 /**
  * `?debug&off=post,noise`: the world with those parts taken out, so a phone
@@ -61,6 +61,10 @@ export type Part = 'post' | 'dome' | 'water' | 'noise' | 'isle' | 'islands' | 'l
  *   dome       the sky dome, whose shader covers half of most frames
  *   water      the sea surface
  *   noise      every fractal noise field returns zero (`noise.ts`)
+ *   baked      noise computed per pixel again, instead of read from the
+ *              baked texture (`noise.ts`) — to compare the two
+ *   adapt      the pixel ratio stays put instead of following the frame
+ *              rate (`Resolution.tsx`), so runs compare at one ratio
  *   isle       the home isle, its palms, stair and fall
  *   islands    the project islands under the landmarks
  *   landmarks  the five landmarks
