@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { useFrame, useThree } from '@react-three/fiber'
-import { OFF_LIST, PHONE, PROFILE } from './device'
+import { ANIME, OFF_LIST, PHONE, POST, PROFILE, off } from './device'
 import { STATS, pushFrame } from './stats'
 
 /**
@@ -33,6 +33,7 @@ export function Profiler() {
     gl.info.reset()
     STATS.tier = PHONE ? 'phone' : 'desktop'
     STATS.off = OFF_LIST
+    STATS.frame = `${POST ? 'post' : off('msaa') ? 'direct' : 'direct + msaa'} · ${ANIME ? 'anime' : 'classic'}`
     return () => {
       gl.info.autoReset = true
       STATS.live = false

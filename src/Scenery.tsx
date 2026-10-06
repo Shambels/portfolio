@@ -116,7 +116,7 @@ function clouds(dir: Vec3) {
   // edge where the projection blows up would read as a seam.
   const band = smoothstep(0.004, 0.055, dir.y).mul(oneMinus(smoothstep(0.45, 0.95, dir.y)).mul(0.75).add(0.25))
   if (ANIME) {
-    // `?look=anime`: a cloud is a shape with an edge, in two tones. The body
+    // The anime look: a cloud is a shape with an edge, in two tones. The body
     // is the lit colour; where the same field, read a little toward the
     // horizon, is thinner, is the underside in the warm shadow — so every
     // cloud has a lit top and a shaded belly rather than a soft glow.
@@ -543,7 +543,7 @@ export function Scenery({ sea }: {
 }
 
 /**
- * The sea under `?look=anime` (`device.ts`). The same waves, the same rollers,
+ * The sea in the anime look (`ANIME`, `device.ts`). The same waves, the same rollers,
  * the same foam in the same places — drawn in flat colour rather than lit.
  *
  * - **Three blues by depth, and the two lagoon greens**, with edges between them
@@ -665,7 +665,7 @@ function useMaterials() {
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)
     const horizon = sky(normalize(vec3(view.x, 0.015, view.z)), { lit: false }).mul(0.93)
 
-    // `?look=anime` draws the same terms in flat colour (`animeWater`).
+    // The anime look draws the same terms in flat colour (`animeWater`).
     water.colorNode = ANIME
       ? animeWater({ n, crest, shal, foam, bounce, fresnel, horizon, far })
       : mix(

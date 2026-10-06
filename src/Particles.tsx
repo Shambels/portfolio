@@ -171,7 +171,7 @@ function build() {
   material.colorNode = FOAM
   // No emissive node anywhere here, which is the point: `Post` blooms the
   // emissive buffer only, so foam cannot glow however much of it piles up.
-  // Under `?look=anime` a droplet is a disc with an edge rather than a soft
+  // In the anime look a droplet is a disc with an edge rather than a soft
   // dot: drawn spray, the same size and lifetime.
   material.opacityNode = (ANIME
     ? oneMinus(smoothstep(0.36, 0.4, uv().sub(vec2(0.5)).length())).mul(1.6)

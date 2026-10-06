@@ -33,6 +33,8 @@ export const STATS = {
   height: 0,
   dpr: 0,
   tier: '',
+  /** `post` or `direct` (`POST` in `device.ts`), and the look. */
+  frame: '',
   off: [] as string[],
 }
 

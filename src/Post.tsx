@@ -78,8 +78,9 @@ export function Post() {
  *
  * Not "leave it to r3f": the spray's `useFrame` has a positive priority, so r3f
  * has already handed the render to somebody, and without this nobody draws.
- * Today it is `?debug&off=post` (`device.ts`) — how a phone says what `Post`
- * costs it. It is also the phone tier's frame if that measurement says so.
+ * It is the phone's frame (`POST` in `device.ts`): the measurement said the
+ * chain was a third of an iPhone's GPU time, and a phone's own MSAA is the
+ * anti-aliasing instead. And `?debug&off=post` on a computer, to time it.
  */
 export function Direct() {
   const gl = useThree((s) => s.gl)

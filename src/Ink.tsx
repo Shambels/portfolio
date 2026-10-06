@@ -22,7 +22,7 @@ function inkable(o: THREE.Object3D): o is THREE.Mesh {
  * Inks every inkable mesh under it, including the ones whose model arrives
  * later: models load behind `Suspense`, so it looks again every half second
  * and a mesh is inked once. The outline is a child of the mesh it
- * outlines, so it moves, hides and unmounts with it. Without `?look=anime`
+ * outlines, so it moves, hides and unmounts with it. Under `?look=classic`
  * it is the group and nothing else.
  */
 export function Ink({ children }: { children: ReactNode }) {

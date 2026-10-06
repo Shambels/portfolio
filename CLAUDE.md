@@ -431,7 +431,7 @@ src/noiseBake.ts        that tile: improved Perlin, periodic, baked to bytes —
                         run by `noise.worker.ts`
 src/Resolution.tsx      the pixel ratio, stepping down when the frame rate falls
 src/toon.ts             the anime look's cel light — `toon()`, `band()` — for
-                        `?look=anime` (`ANIME` in `device.ts`)
+                        the world's look; `?look=classic` is the old one
 src/Ink.tsx             the anime look's outlines — every lit mesh under it, inked
 tools/flatten.py        the anime look's repaint — a model's texture to a dozen
                         flat colours, `src/models/*.flat.png`
@@ -445,8 +445,10 @@ src/camera.ts           the follow camera's two sums — a push read against the
 src/world.ts            landmark layout + proximity, read from the content;
                         coastlines, moorings and lagoons, isles included
 src/device.ts           `PHONE` — a finger and no hover, or `?tier=` — and
-                        `octaves()`; `?debug&off=` to take parts out and time
-                        them. The only thing that may differ between a phone
+                        `octaves()`; `ANIME` (`?look=classic` for the old
+                        look); `POST` — `Post` on a computer, straight to the
+                        canvas with MSAA on a phone; `?debug&off=` to take parts
+                        out and time them. The only thing that may differ between a phone
                         and a computer is what a frame costs, never what is in it
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
