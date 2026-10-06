@@ -11,6 +11,7 @@ import { Debug } from './Debug'
 import { Direct, Post } from './Post'
 import { PHONE, PROFILE, off } from './device'
 import { Profiler } from './Profiler'
+import { Resolution } from './Resolution'
 import type { Sea, ShipModel } from './WorldGate'
 
 extend(THREE as never)
@@ -113,6 +114,8 @@ export default function Scene({
       <Sound on={sound && active} />
       {/* `?debug&off=post` swaps the chain for a plain render, to time it. */}
       {off('post') ? <Direct /> : <Post />}
+      {/* Lowers the pixel ratio when the frame rate falls; holds otherwise. */}
+      <Resolution />
       {debug && <Debug />}
       {debug && <Profiler />}
     </Canvas>

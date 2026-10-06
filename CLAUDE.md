@@ -426,7 +426,10 @@ src/Profiler.tsx        ?debug's numbers — frame times, GPU time, draw calls,
                         triangles — written to `stats.ts` for the HUD
 src/stats.ts            the bridge: no imports, so the first route can read it
 src/noise.ts            `fractal()` — every noise field goes through it, never
-                        `mx_fractal_noise_float` directly
+                        `mx_fractal_noise_float` directly; reads a baked tile
+src/noiseBake.ts        that tile: improved Perlin, periodic, baked to bytes —
+                        run by `noise.worker.ts`
+src/Resolution.tsx      the pixel ratio, stepping down when the frame rate falls
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch

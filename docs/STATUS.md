@@ -7703,13 +7703,113 @@ run, so only the large differences mean anything:
 
 ### Needs Seb
 
-- [ ] Run it on a real phone — an iPhone 13 or newer, and a mid Android if one
-      is to hand — and fill in the table below. Roam rather than open a
+- [x] Run it on a real phone — an iPhone SE and a Pixel 10a, 6 Oct — and fill
+      in the table below. Roam rather than open a
       landmark: flying into one navigates without the query string, and
       `?debug` goes with it.
-- [ ] The same on the 2022 laptop.
+- [x] The same on a laptop — a MacBook Pro M3.
+- [x] One more baseline run on the Pixel — 8.1 ms.
 
-| Device, browser | Backend | nothing | post | noise | water | dome | rider |
+GPU time per frame, ms, with each part taken out (`off=`). Spawn view,
+standing still, 6 Oct 2026, measured on the deployed build:
+
+| Device, browser | Backend, buffer | nothing | post | noise | water | dome | rider |
 |---|---|---|---|---|---|---|---|
-| | | | | | | | |
+| MacBook Pro M3, Chrome | WebGPU, 2268×1293 @ 1.5 | 8.1 | 4.9 | 3.6 | 5.0 | 7.3 | 8.8 |
+| Pixel 10a, Chrome | WebGPU, 514×981 @ 1.25 | 8.1 | 7.7 | 5.0 | 5.6 | 7.8 | 7.1 |
+| iPhone SE, Firefox (WebKit) | WebGPU, 468×673 @ 1.25 | 22.7 | 15.2 | 14.0 | 21.1 | 21.0 | 20.9 |
+
+- **Every device holds its refresh rate at spawn**: 120 fps on the Mac, 60 on
+  both phones. The slowest 1% of frames is 9.4 ms on the Mac and 17–21 ms on
+  the phones — a dropped frame now and then, not a slow world.
+- **The Mac has no headroom.** 8.1 ms of GPU against an 8.3 ms frame at 120 Hz:
+  anything heavier than the spawn view drops it to 60.
+- **Noise is the largest cost on every device** — 56% of the Mac's GPU time, 38%
+  of the iPhone's, 38% of the Pixel's. Post is second (40%, 33%, 5%). Those are the two things the
+  plan goes after first: the baked noise texture and the phone frame without
+  post.
+- **The rider's triangles cost next to nothing.** Taking away 182k of them
+  changed the GPU time within the noise of the measurement on all three. His
+  repaint is art direction; there is no performance case for decimating him.
+- The water is a real cost on the Mac and the Pixel (3 ms of 8); the dome is not
+  (under 1 ms anywhere).
+- The iPhone's GPU times add up to more than its 17 ms frame, which a tiled GPU
+  can do when passes overlap; read them against each other, not as absolutes.
+  It also showed no waves, which is invariant 6 doing its job if the phone has
+  Reduce Motion on — the shader cost is the same, the spawn point is not.
+
+## Phase 1 — baked noise, and a pixel ratio that follows the frame rate
+
+The two things "Measuring" pointed at that keep the look exactly as it is.
+
+### Baked noise
+
+`fractal()` (`noise.ts`) no longer computes MaterialX Perlin noise per pixel.
+One tile of the same noise is baked at load into a 128³ single-channel 3D
+texture (2 MB of GPU memory, nothing downloaded) and every octave is one
+filtered read of it.
+
+- **Same field.** `noiseBake.ts` is Perlin's improved noise — the twelve edge
+  gradients, the quintic fade and the 0.982 scale `mx_perlin_noise_float`
+  uses. Only the hash differs, so the features fall in different places with
+  the same size and spread: mean 0.000, standard deviation 0.264.
+- **Tiles at 32 noise units**, four texels to a lattice cell. The smallest
+  repeat in the world is 10 m, on the whitecaps; side by side with the computed
+  noise, no repeat could be seen on the water, the isle or the clouds.
+- **Baked in a worker** (`noise.worker.ts`), about 0.1 s on a laptop, more on a
+  phone, while the models load. Until it lands the texture reads as zero; if a
+  worker cannot be made it bakes on the main thread.
+- **The fields are not the same pixels.** Clouds, foam and the isle's clumps
+  are where the new hash puts them. Nothing else moved.
+- `?debug&off=baked` puts the computed noise back, to compare on a device.
+
+Container, swiftshader WebGL2, `off=adapt` on both, median frame:
+
+| | computed noise | baked | noise off |
+|---|---|---|---|
+| 1280×800 @ 1 | 2,183 ms | 1,122 ms | 1,090 ms (Phase 0) |
+| phone, 487×1055 @ 1.25 | 1,039 ms | 569 ms | — |
+
+Baked noise costs almost exactly what no noise did. On the real devices that
+should be most of the 4.5 ms the MacBook spent on it and most of the 3 ms the
+Pixel did — which is the measurement to make next.
+
+### The pixel ratio follows the frame rate
+
+`Resolution.tsx`. The world starts at the ratio it always had and stays there
+while the frame rate holds — which is everywhere measured so far. Two seconds
+under 80% of the refresh rate steps the ratio down a quarter of its range
+(computer 1.5 → 1, phone 1.25 → 0.75); five seconds back at the refresh rate
+steps it up. After four changes of direction it settles at the lowest it went.
+Its own controller rather than drei's `PerformanceMonitor`, which counts a rise
+at the top of the range as a change of direction and so gives up after ten
+seconds on any device that was already fine. `?debug&off=adapt` holds it.
+
+### Not done, and why
+
+- **Shader warm-up.** `compileAsync` compiles for the canvas, not for `Post`'s
+  MRT targets, so it would not warm what is drawn; the alternative is one frame
+  with culling off, heavy, and it would land on the opening run. Worth doing
+  only if flying shows hitches: watch the worst 1% while flying past landmarks.
+- **Lighter rider and ship.** The rider's 182k drawn triangles measured as
+  nothing on all three devices.
+- **A camera-following water mesh.** The water's cost is its shader, and most of
+  that was the whitecap noise, now baked.
+- **Merged landmark meshes, fewer spray sprites.** 100–150 draw calls and one
+  compute pass are not where the time is.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `npm run typecheck`, `npm run check`, `npm run build` pass; the worker is
+      its own 1.6 kB chunk; canvas chunk 480 kB gz (budget 600)
+- [x] Baked and computed noise side by side, desktop and phone viewports: same
+      water, isle and sky, no visible repeat
+- [x] Baked noise frame ≈ noise-off frame on swiftshader
+
+### Needs Seb
+
+- [ ] The six links from "Measuring" again on the three devices — and
+      `?debug&off=baked` once on each, to see the saving directly
+- [ ] Fly around for a minute on each phone with `?debug` and note the worst 1%
+      near the landmarks: that decides the shader warm-up
 
