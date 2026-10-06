@@ -12,6 +12,7 @@ import { Direct, Post } from './Post'
 import { PHONE, PROFILE, off } from './device'
 import { Profiler } from './Profiler'
 import { Resolution } from './Resolution'
+import { Ink } from './Ink'
 import type { Sea, ShipModel } from './WorldGate'
 
 extend(THREE as never)
@@ -99,16 +100,24 @@ export default function Scene({
       </group>
       {/* The isle carries no project, so nothing here is passed to it and
           nothing is read back: it is ground, trees and a coastline. */}
+      {/* `Ink` outlines what is under it under `?look=anime` (`Ink.tsx`), and
+          is a plain group otherwise. */}
       <group visible={!off('isle')}>
-        <Isle />
+        <Ink>
+          <Isle />
+        </Ink>
       </group>
-      <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
+      <Ink>
+        <Ship enabled={active} model={model} slug={slug} onNear={onNear} />
+      </Ink>
       {/* Reads the ship's position, so it is mounted after it. The one part
           `off` unmounts: nothing reads the spray back, and most of what it
           costs is its compute pass, which hiding would not stop. */}
       {!off('spray') && <Particles />}
       <group visible={!off('landmarks')}>
-        <Landmarks near={slug} />
+        <Ink>
+          <Landmarks near={slug} />
+        </Ink>
       </group>
       {/* Reads the ship too, and rides this frame loop rather than one of its own. */}
       <Sound on={sound && active} />

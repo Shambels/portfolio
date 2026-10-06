@@ -7,6 +7,7 @@ import {
 } from 'three/tsl'
 import { SHIP } from './Ship'
 import { SPLASH, overWater } from './world'
+import { ANIME } from './device'
 
 /**
  * Phase 4's compute particles: the spray the saucer's downwash tears off the
@@ -170,7 +171,11 @@ function build() {
   material.colorNode = FOAM
   // No emissive node anywhere here, which is the point: `Post` blooms the
   // emissive buffer only, so foam cannot glow however much of it piles up.
-  material.opacityNode = oneMinus(smoothstep(0.08, 0.5, uv().sub(vec2(0.5)).length()))
+  // Under `?look=anime` a droplet is a disc with an edge rather than a soft
+  // dot: drawn spray, the same size and lifetime.
+  material.opacityNode = (ANIME
+    ? oneMinus(smoothstep(0.36, 0.4, uv().sub(vec2(0.5)).length())).mul(1.6)
+    : oneMinus(smoothstep(0.08, 0.5, uv().sub(vec2(0.5)).length())))
     .mul(smoothstep(0, 0.1, life).mul(oneMinus(smoothstep(0.3, 1, life))))
     .mul(OPACITY)
 

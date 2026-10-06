@@ -1,8 +1,10 @@
 import {
-  abs, cameraPosition, clamp, dot, normalWorld, normalize, oneMinus, positionWorld,
-  smoothstep, vec3,
+  BRDF_Lambert, abs, cameraPosition, clamp, diffuseColor, dot, modelPosition, modelScale,
+  normalLocal, normalView, normalWorld, normalize, oneMinus, positionLocal, positionViewDirection,
+  positionWorld, smoothstep, vec3,
 } from 'three/tsl'
-import type * as THREE from 'three/webgpu'
+import * as THREE from 'three/webgpu'
+import { ANIME } from './device'
 import { SUN } from './Scenery'
 
 /**
@@ -64,3 +66,60 @@ export function toon(albedo: Vec3, { twoSided = false, sunlit }: { twoSided?: bo
   const rim = band(0.72, edge, 0.03).mul(band(0.2, dot(normalWorld, L), 0.05)).mul(0.35)
   return shadow.add(sun.sub(shadow).mul(t)).add(RIM.mul(rim))
 }
+
+/* ------------------------------------------------------- everything else lit
+ *
+ * The isle's materials call `toon()` themselves. Everything else in the world
+ * — the landmarks, the hulls, the rider, the board, the stair, the fall — is
+ * a `MeshStandardNodeMaterial`, forty-odd of them, many with colour, emissive
+ * and opacity graphs of their own that should survive untouched. So under
+ * `?look=anime` the materials stay what they are and only their light changes:
+ * `CelLightingModel` replaces the physically based one on the class, and
+ * every standard or physical material built after this module loads lights
+ * itself in bands. Same numbers as `toon()` — three tones, the violet fill,
+ * the warm rim — read off the scene's own two lights, so the ore still glows,
+ * the lens still flashes and the proximity tint still lands.
+ */
+
+/** The fill toward violet: `SHADE` over the ambient's own colour, per channel. */
+const VIOLET = vec3(1.36, 0.87, 1.1)
+
+/** The surface's own colour over π, as three's Lambert has it. */
+const lambert = () => BRDF_Lambert({ diffuseColor: diffuseColor.rgb }) as unknown as THREE.Node<'vec3'>
+
+class CelLightingModel extends THREE.LightingModel {
+  direct({ lightDirection, lightColor, reflectedLight }: THREE.LightingModelDirectInput) {
+    const ndl = normalView.dot(lightDirection as THREE.Node<'vec3'>)
+    const t = band(0.01, ndl, 0.03).mul(0.55).add(band(0.45, ndl, 0.03).mul(0.45))
+    const edge = oneMinus(clamp(normalView.dot(positionViewDirection), 0, 1))
+    const rim = band(0.72, edge, 0.03).mul(band(0.2, ndl, 0.05)).mul(0.12)
+    const light = lightColor as THREE.Node<'vec3'>
+    ;(reflectedLight.directDiffuse as THREE.Node<'vec3'>).addAssign(light.mul(t).mul(lambert()).add(light.mul(rim)))
+  }
+
+  indirect(builder: THREE.NodeBuilder) {
+    const { irradiance, reflectedLight } = (builder as unknown as {
+      context: { irradiance: THREE.Node<'vec3'>; reflectedLight: { indirectDiffuse: THREE.Node<'vec3'> } }
+    }).context
+    reflectedLight.indirectDiffuse.addAssign(irradiance.mul(VIOLET).mul(lambert()))
+  }
+}
+
+if (ANIME) {
+  const cel = () => new CelLightingModel()
+  ;(THREE.MeshStandardNodeMaterial.prototype as unknown as { setupLightingModel: () => THREE.LightingModel }).setupLightingModel = cel
+  ;(THREE.MeshPhysicalNodeMaterial.prototype as unknown as { setupLightingModel: () => THREE.LightingModel }).setupLightingModel = cel
+}
+
+/* -------------------------------------------------------------------- ink
+ *
+ * The outline, for everything that does not draw its own. The rider and the
+ * board already have one (`OUTLINE` in `Ship.tsx`); this is the same
+ * inverted hull — the mesh again, inside out, pushed out along its normals —
+ * with the push grown with distance, so a landmark sixty metres off is inked
+ * as thick on screen as the board under your feet.
+ */
+export const INK = new THREE.MeshBasicNodeMaterial({ color: '#0a0d14', side: THREE.BackSide })
+INK.positionNode = positionLocal.add(
+  normalLocal.mul(cameraPosition.distance(modelPosition).mul(0.0016).div(modelScale.x)),
+)
