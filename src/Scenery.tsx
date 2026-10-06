@@ -6,7 +6,7 @@ import {
   uniform, vec2, vec3,
 } from 'three/tsl'
 import { fractal } from './noise'
-import { ANIME, octaves, off } from './device'
+import { octaves, off } from './device'
 import { LAGOONS, SHOAL, SHOALS, SPLASH, shoal } from './world'
 import type { Sea } from './WorldGate'
 
@@ -82,8 +82,6 @@ const CLOUD_LIT = vec3(1.0, 0.7454, 0.6038)
 // Pink, not grey. A cumulus at this sun angle is lit from underneath, and the
 // shaded side of one takes the horizon's warmth rather than the zenith's blue.
 const CLOUD_DARK = vec3(0.3278, 0.1714, 0.2384)
-const DEEP = vec3(0.0018, 0.0331, 0.0467)
-const SHALLOW = vec3(0.007, 0.4452, 0.4564)
 // The same white the spray is made of, so a whitecap and the foam the ship
 // tears off the same water are not two different whites.
 const FOAM = vec3(0.86, 0.93, 0.97)
@@ -115,17 +113,13 @@ function clouds(dir: Vec3) {
   // Thin out overhead and at the horizon: cumulus live in a band, and a hard
   // edge where the projection blows up would read as a seam.
   const band = smoothstep(0.004, 0.055, dir.y).mul(oneMinus(smoothstep(0.45, 0.95, dir.y)).mul(0.75).add(0.25))
-  if (ANIME) {
-    // The anime look: a cloud is a shape with an edge, in two tones. The body
-    // is the lit colour; where the same field, read a little toward the
-    // horizon, is thinner, is the underside in the warm shadow — so every
-    // cloud has a lit top and a shaded belly rather than a soft glow.
-    const below = fractal(vec3(p.add(vec2(T.mul(0.004), T.mul(0.002))).mul(1.0).add(vec2(0, 0.09)), T.mul(0.01)), octaves(3, 2))
-    const cover = smoothstep(0.42, 0.45, n)
-    return { cover: cover.mul(band), shade: smoothstep(0.45, 0.48, below).mul(0.75).add(0.25) }
-  }
-  const cover = smoothstep(0.22, 0.6, n)
-  return { cover: cover.mul(band), shade: smoothstep(0.0, 0.55, n) }
+  // A cloud is a shape with an edge, in two tones. The body is the lit colour;
+  // where the same field, read a little toward the horizon, is thinner, is the
+  // underside in the warm shadow — so every cloud has a lit top and a shaded
+  // belly rather than a soft glow.
+  const below = fractal(vec3(p.add(vec2(T.mul(0.004), T.mul(0.002))).add(vec2(0, 0.09)), T.mul(0.01)), octaves(3, 2))
+  const cover = smoothstep(0.42, 0.45, n)
+  return { cover: cover.mul(band), shade: smoothstep(0.45, 0.48, below).mul(0.75).add(0.25) }
 }
 
 /**
@@ -543,31 +537,30 @@ export function Scenery({ sea }: {
 }
 
 /**
- * The sea in the anime look (`ANIME`, `device.ts`). The same waves, the same rollers,
- * the same foam in the same places — drawn in flat colour rather than lit.
+ * The sea's colour. The waves, the rollers and the foam are worked out in
+ * `useMaterials` below; this draws them in flat colour rather than lighting them.
  *
  * - **Three blues by depth, and the two lagoon greens**, with edges between them
  *   instead of ramps. The tops of the rollers and the faces of the chop that
  *   tilt toward the sky are the middle blue, so a swell is a lighter shape
  *   on a darker one.
- * - **The sky it mirrors comes in as patches**, where the old Fresnel blend
- *   was a gradient: the chop's own normals break it up, which is how water
- *   is painted.
+ * - **The sky it mirrors comes in as patches** past a Fresnel edge: the
+ *   chop's own normals break it up, which is how water is painted.
  * - **Lines**: thin pale contours of a slow noise field drifting over the
  *   surface, near the camera only — the scribbled highlight of drawn water.
- * - **Foam is white or it is not**, on exactly the old mask.
+ * - **Foam is white or it is not.**
  */
-const A_DEEP = vec3(0.008, 0.085, 0.18)
-const A_MID = vec3(0.01, 0.2, 0.32)
-const A_LIGHT = vec3(0.03, 0.4, 0.5)
+const DEEP = vec3(0.008, 0.085, 0.18)
+const MID = vec3(0.01, 0.2, 0.32)
+const LIGHT = vec3(0.03, 0.4, 0.5)
 
-function animeWater({ n, crest, shal, foam, bounce, fresnel, horizon, far }: {
+function waterColour({ n, crest, shal, foam, bounce, fresnel, horizon, far }: {
   n: Vec3; crest: Float; shal: Float; foam: Float; bounce: Vec3; fresnel: Float; horizon: Vec3; far: Float
 }): Vec3 {
   const edge = (e: number, x: Float, w = 0.02) => smoothstep(e - w, e + w, x)
   const tilt = max(clamp(n.y.sub(0.965).mul(14), 0, 1), crest.mul(0.7))
-  let col: Vec3 = mix(A_DEEP, A_MID, edge(0.35, tilt, 0.04))
-  col = mix(col, A_LIGHT, edge(0.75, tilt, 0.04))
+  let col: Vec3 = mix(DEEP, MID, edge(0.35, tilt, 0.04))
+  col = mix(col, LIGHT, edge(0.75, tilt, 0.04))
   col = mix(col, mix(LAGOON, SHORE_WATER, edge(0.8, shal)), edge(0.28, shal))
   col = mix(col, sky(bounce, { lit: false }), edge(0.48, fresnel, 0.03).mul(0.8))
 
@@ -620,15 +613,8 @@ function useMaterials() {
     // the back of a roller, which are most of what the water mirrors — are
     // both in the cheap sky and both kept. `docs/STATUS.md`, "Frame cost".
     const fresnel = pow(oneMinus(clamp(dot(n, view.negate()), 0, 1)), 4.5).mul(0.92).add(0.06)
-    // Deep in the troughs, lighter on the crests. The normal's own tilt says
-    // that for the chop; a roller's face is steep the whole way up, so its crest
-    // height says it there instead, or a swell shades to one dark slab.
-    const open = mix(DEEP, SHALLOW, max(clamp(n.y.sub(0.965).mul(14), 0, 1), crest.mul(0.7)))
-    // Over a shelf the water's own colour wins over the trough-and-crest term
-    // entirely: a lagoon is turquoise in the troughs too.
+    // Over a shelf the water is the lagoon's own colour (`waterColour`).
     const shal = shallows(positionWorld.xz)
-    const body = mix(open, mix(LAGOON, SHORE_WATER, smoothstep(0.55, 1, shal)), smoothstep(0.0, 0.85, shal))
-    const glitter = pow(clamp(dot(bounce, sunDir), 0, 1), 420).mul(2.2)
 
     // Whitecaps, on the top of a roller and nowhere else — broken up by a noise
     // field so the foam is patches travelling with the water rather than a band
@@ -665,18 +651,8 @@ function useMaterials() {
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)
     const horizon = sky(normalize(vec3(view.x, 0.015, view.z)), { lit: false }).mul(0.93)
 
-    // The anime look draws the same terms in flat colour (`animeWater`).
-    water.colorNode = ANIME
-      ? animeWater({ n, crest, shal, foam, bounce, fresnel, horizon, far })
-      : mix(
-        mix(
-          mix(body, sky(bounce, { lit: false }), fresnel).add(SUN_TINT.mul(glitter)),
-          FOAM,
-          foam.mul(0.85),
-        ),
-        horizon,
-        far,
-      )
+    // Drawn in flat colour from all of the above (`waterColour`).
+    water.colorNode = waterColour({ n, crest, shal, foam, bounce, fresnel, horizon, far })
     return { dome, water, surface }
   }, [])
 }

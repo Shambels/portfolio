@@ -250,9 +250,9 @@ Breaking one is allowed. Doing it without saying so is not.
 | First-route JS | ≤ 200 kB gz, excluding canvas chunk |
 | Canvas chunk | ≤ 600 kB gz |
 | Per landmark model | ≤ 300 kB compressed, ≤ 25k triangles |
-| The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass". **1.09 MB (914 kB gz) since the fourth**, with seven motion-capture clips in it — "The rider, fourth pass" |
-| The board, `surfboard.glb` | 10k triangles, ~180 kB — decimated from the generator's 95k; nobody looks at it for long |
-| The ship, `pirate_ship.glb` | 117k triangles, 1.15 MB — 1.00 MB gz. **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
+| The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass". **1.09 MB (914 kB gz) since the fourth**, with seven motion-capture clips in it — "The rider, fourth pass". **1.10 MB since the anime repaint**: the generator's JPEG swapped for a 14-colour PNG (`tools/flatten.py`) |
+| The board, `surfboard.glb` | 10k triangles, ~100 kB since the anime repaint — decimated from the generator's 95k; nobody looks at it for long |
+| The ship, `pirate_ship.glb` | 117k triangles, 1.05 MB since the anime repaint (1.15 MB before). **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
 | Whole world, compressed | ≤ 3 MB, loaded progressively — 2.41 MB of it spent |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
@@ -430,11 +430,12 @@ src/noise.ts            `fractal()` — every noise field goes through it, never
 src/noiseBake.ts        that tile: improved Perlin, periodic, baked to bytes —
                         run by `noise.worker.ts`
 src/Resolution.tsx      the pixel ratio, stepping down when the frame rate falls
-src/toon.ts             the anime look's cel light — `toon()`, `band()` — for
-                        the world's look; `?look=classic` is the old one
-src/Ink.tsx             the anime look's outlines — every lit mesh under it, inked
-tools/flatten.py        the anime look's repaint — a model's texture to a dozen
-                        flat colours, `src/models/*.flat.png`
+src/toon.ts             the world's light: cel bands — `toon()`, `band()` — and
+                        `CelLightingModel`, which every standard material uses
+src/Ink.tsx             the outlines — every lit mesh under it, inked
+tools/flatten.py        the repaint — a glb's texture reduced to a dozen flat
+                        colours and written back in; run after surfer.py or
+                        pirate_ship.py
 src/Ship.tsx            the character: the flight controller, and the two hulls
                         it drives — a hovering saucer and a boat on the water
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
@@ -445,10 +446,9 @@ src/camera.ts           the follow camera's two sums — a push read against the
 src/world.ts            landmark layout + proximity, read from the content;
                         coastlines, moorings and lagoons, isles included
 src/device.ts           `PHONE` — a finger and no hover, or `?tier=` — and
-                        `octaves()`; `ANIME` (`?look=classic` for the old
-                        look); `POST` — `Post` on a computer, straight to the
-                        canvas with MSAA on a phone; `?debug&off=` to take parts
-                        out and time them. The only thing that may differ between a phone
+                        `octaves()`; `POST` — `Post` on a computer, straight to
+                        the canvas with MSAA on a phone; `?debug&off=` to take
+                        parts out and time them. The only thing that may differ between a phone
                         and a computer is what a frame costs, never what is in it
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two

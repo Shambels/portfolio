@@ -200,4 +200,4 @@ export const fallFootWidth = () => {
  *  going and finding the isle for itself. */
 export const fallGround = (x: number, z: number) => isleHeight(ISLE, x, z)
 
-export { BEARING as FALL_BEARING, PAD as FALL_PAD }
+export { BEARING as FALL_BEARING }

@@ -49,7 +49,7 @@ export const octaves = (desktop: number, phone: number) => (PHONE ? phone : desk
 export const PROFILE = PARAMS.has('debug')
 
 /** The parts of the world `?off=` can take out, one at a time or several. */
-export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'msaa' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
+export type Part = 'post' | 'dome' | 'water' | 'noise' | 'adapt' | 'msaa' | 'isle' | 'islands' | 'landmarks' | 'rider' | 'spray'
 
 /**
  * `?debug&off=post,noise`: the world with those parts taken out, so a phone
@@ -61,8 +61,6 @@ export type Part = 'post' | 'dome' | 'water' | 'noise' | 'baked' | 'adapt' | 'ms
  *   dome       the sky dome, whose shader covers half of most frames
  *   water      the sea surface
  *   noise      every fractal noise field returns zero (`noise.ts`)
- *   baked      noise computed per pixel again, instead of read from the
- *              baked texture (`noise.ts`) — to compare the two
  *   msaa       no 4× MSAA on the canvas where there is no `Post` (`POST`)
  *   adapt      the pixel ratio stays put instead of following the frame
  *              rate (`Resolution.tsx`), so runs compare at one ratio
@@ -87,17 +85,6 @@ export const TURN = PROFILE && PARAMS.has('turn')
 
 /** For the readout: what this load took out, as typed. */
 export const OFF_LIST = [...OFF].filter(Boolean)
-
-/**
- * The anime look — cel-shaded light, flat colour bands, ink outlines and the
- * repainted rider and ship (`toon.ts`, `Ink.tsx`, `tools/flatten.py`). The
- * world's look since 6 Oct 2026 (Phase 3 of the anime-look plan).
- *
- * `?look=classic` is the lit world it replaced, kept for comparing the two
- * on a device until Seb decides to delete it. Read once, like `PHONE`: the
- * materials are built from it.
- */
-export const ANIME = PARAMS.get('look') !== 'classic'
 
 /**
  * Whether the frame goes through `Post` — bloom off the emissive buffer, then

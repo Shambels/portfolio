@@ -13,13 +13,10 @@ import { FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, landmarkAt, landmarkO
 import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
-import { ANIME, TURN as TURN_AROUND, off } from './device'
+import { TURN as TURN_AROUND, off } from './device'
 import surferUrl from './models/surfer.glb?url'
 import surfboardUrl from './models/surfboard.glb?url'
 import pirateUrl from './models/pirate_ship.glb?url'
-import surferFlat from './models/surfer.flat.png?url'
-import surfboardFlat from './models/surfboard.flat.png?url'
-import pirateFlat from './models/pirate_ship.flat.png?url'
 
 // Saucer silhouette, rotated around Y. [radius, height]
 const PROFILE: [number, number][] = [
@@ -1604,7 +1601,7 @@ function Hull() {
   const ship = useMemo(() => {
     const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
     if (!mesh) throw new Error('pirate_ship.glb: no mesh — rebuild it with tools/pirate_ship.py')
-    mesh.material = lit(mesh.material as THREE.Material, pirateFlat)
+    mesh.material = lit(mesh.material as THREE.Material)
 
     // Measured with the transform cleared, because `useGLTF` caches the scene
     // and this runs again on a remount: fitting a model that is already fitted
@@ -1907,35 +1904,15 @@ function Surfer({ visible, onRider }: { visible: boolean; onRider: () => void })
  * the swap keeps that and drops the rest. The cast is the narrow one at a
  * library boundary that CLAUDE.md allows — `map` is on every material the
  * loader can produce for a textured primitive and on none of the types.
+ *
+ * The texture is the anime repaint — the generator's own, reduced to a dozen
+ * flat colours by `tools/flatten.py` and written back into the glb — and the
+ * light on it is `toon.ts`'s cel bands, like every standard material here.
  */
-const lit = (loaded: THREE.Material, flat?: string): THREE.MeshStandardNodeMaterial => {
+const lit = (loaded: THREE.Material): THREE.MeshStandardNodeMaterial => {
   const map = (loaded as THREE.Material & { map?: THREE.Texture | null }).map ?? null
   if (import.meta.env.DEV && !map) throw new Error(`${loaded.name}: no basecolour — rebuild it with its tools/ script`)
-  const m = new THREE.MeshStandardNodeMaterial({ map, roughness: 0.55, metalness: 0 })
-  if (ANIME && flat && map) repaint(m, map, flat)
-  return m
-}
-
-/**
- * The anime look: the same model with its colour repainted in flat fills.
- *
- * `*.flat.png` is the generator's texture reduced to a dozen or so colours and
- * smoothed into regions (`tools/flatten.py`), on the same UVs, so the mesh and
- * every clip are untouched — Seb's call: repaint first, regenerate only if the
- * repaint still looks out of place. It is not fetched under `?look=classic`,
- * and until it lands the model wears its own texture, so nothing waits on it.
- */
-const flats = new THREE.TextureLoader()
-function repaint(m: THREE.MeshStandardNodeMaterial, original: THREE.Texture, url: string) {
-  flats.load(url, (t) => {
-    t.flipY = original.flipY
-    t.colorSpace = original.colorSpace
-    t.wrapS = original.wrapS
-    t.wrapT = original.wrapT
-    t.anisotropy = original.anisotropy
-    m.map = t
-    m.needsUpdate = true
-  })
+  return new THREE.MeshStandardNodeMaterial({ map, roughness: 0.55, metalness: 0 })
 }
 
 /**
@@ -2947,7 +2924,7 @@ function Rider({ visible, onLoad }: { visible: boolean; onLoad: () => void }) {
   const rig = useMemo(() => {
     const mesh = scene.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh | undefined
     if (!mesh) throw new Error('surfer.glb: not skinned — rebuild it with tools/surfer.py')
-    mesh.material = lit(mesh.material as THREE.Material, surferFlat)
+    mesh.material = lit(mesh.material as THREE.Material)
     // The outline is the same geometry and the *same skeleton*, not a copy of
     // either: one set of bone matrices, computed once, read by both draws. It
     // is added beside the rider rather than under it so the two share a parent
@@ -3002,7 +2979,7 @@ function Surfboard() {
   const board = useMemo(() => {
     const mesh = scene.getObjectByProperty('isMesh', true) as THREE.Mesh | undefined
     if (!mesh) throw new Error('surfboard.glb: no mesh — rebuild it with tools/surfer.py')
-    mesh.material = lit(mesh.material as THREE.Material, surfboardFlat)
+    mesh.material = lit(mesh.material as THREE.Material)
     if (!scene.getObjectByName('outline')) {
       const edge = new THREE.Mesh(mesh.geometry, OUTLINE)
       edge.name = 'outline'

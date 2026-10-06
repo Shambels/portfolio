@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three/webgpu'
-import { mix, positionWorld, smoothstep, vec3 } from 'three/tsl'
+import { mix, positionWorld, vec3 } from 'three/tsl'
 import { fractal } from './noise'
-import { ANIME } from './device'
 import { band, toon } from './toon'
 import { ISLAND_SPREAD, LANDMARKS } from './world'
 import { PROFILE, rim, seedOf } from './plateau'
@@ -32,7 +31,7 @@ const SEGMENTS = 48
 const ROCK = vec3(0.09, 0.12, 0.14)
 const WET = vec3(0.36, 0.31, 0.24)
 const SAND = vec3(0.84, 0.74, 0.55)
-const GRASS = vec3(0.27, 0.34, 0.2)
+const GRASS = vec3(0.38, 0.52, 0.2)
 
 function island(radius: number, seed: number) {
   const g = new THREE.LatheGeometry(
@@ -54,26 +53,17 @@ export function Islands() {
   const { geometries, ground } = useMemo(() => {
     const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug)))
 
+    // Sea floor, wet rock, beach, then the plateau, as edges and cel-lit
+    // (`toon.ts`). The sand band straddles y = 0 so the waterline is where
+    // the colour changes, and a short noise moves each edge by a hand's
+    // width so it reads as brushwork rather than a contour.
     const y = positionWorld.y
-    if (ANIME) {
-      // The anime look (`ANIME`): the same four bands as edges, cel-lit (`toon.ts`).
-      const brush = fractal(positionWorld.mul(0.9), 1)
-      const ground = new THREE.MeshBasicNodeMaterial()
-      let col = mix(ROCK, WET, band(-0.6, y, 0.2))
-      col = mix(col, SAND, band(-0.02, y.add(brush.mul(0.05)), 0.02))
-      col = mix(col, vec3(0.38, 0.52, 0.2), band(0.3, y.add(brush.mul(0.08)), 0.02))
-      ground.colorNode = toon(col)
-      return { geometries, ground }
-    }
-    const ground = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
-    // Sea floor, wet rock, beach, then the plateau. The sand band straddles
-    // y = 0 so the waterline is where the colour changes, not where a texture
-    // seam would be.
-    let col = mix(ROCK, WET, smoothstep(-1.2, -0.12, y))
-    col = mix(col, SAND, smoothstep(-0.1, 0.08, y))
-    col = mix(col, GRASS, smoothstep(0.2, 0.42, y))
-    // Without this the plateau is one flat disc of colour and reads as plastic.
-    ground.colorNode = col.mul(fractal(positionWorld.mul(0.35), 2).mul(0.12).add(1))
+    const brush = fractal(positionWorld.mul(0.9), 1)
+    const ground = new THREE.MeshBasicNodeMaterial()
+    let col = mix(ROCK, WET, band(-0.6, y, 0.2))
+    col = mix(col, SAND, band(-0.02, y.add(brush.mul(0.05)), 0.02))
+    col = mix(col, GRASS, band(0.3, y.add(brush.mul(0.08)), 0.02))
+    ground.colorNode = toon(col)
     return { geometries, ground }
   }, [])
 

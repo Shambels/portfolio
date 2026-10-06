@@ -7995,3 +7995,63 @@ table cannot say whether the phone default is right. The phones can.
       it comes off and the edges go without.
 - [ ] Re-run the laptop's six links: the desktop frame is the anime look now.
 
+## Cleanup — one look, and nothing that does not ship
+
+Seb's call on 6 Oct: the classic look goes, and so does anything in the repo
+that is not used.
+
+### The classic look, deleted
+
+`ANIME` and `?look=classic` are gone, with every path they guarded: the lit
+isle and its palette, the lit project islands, the Fresnel-blended sea, the
+soft clouds, the soft spray. `toon.ts` lights every standard material in
+bands unconditionally and `Ink` inks unconditionally. One palette per
+surface, named plainly (`SAND`, `DEEP`…) rather than beside a second one.
+
+### The repaint is in the models
+
+`tools/flatten.py` now writes the flat texture into the glb in place of the
+generator's JPEG, instead of a `*.flat.png` beside it that `Ship.tsx` swapped
+in at runtime. The three PNGs, the loader and the swap are gone; the mesh,
+rig and clips in each glb are byte for byte what they were. It has to be run
+after `tools/surfer.py` or `tools/pirate_ship.py`, which write the
+generator's texture back.
+
+| Model | Before (glb + flat PNG) | After |
+|---|---|---|
+| `surfer.glb` | 1,063 + 380 kB | 1,097 kB |
+| `surfboard.glb` | 174 + 15 kB | 99 kB |
+| `pirate_ship.glb` | 1,174 + 146 kB | 1,049 kB |
+
+The default load is about 330 kB lighter, and the ship another 270 kB when
+it is chosen.
+
+### Removed
+
+- `?debug&off=baked` and the computed-noise path it switched to: Phase 1 is
+  measured and done.
+- `src/assets/hero.png`, `react.svg`, `vite.svg` and `public/icons.svg` — the
+  Vite template's, imported by nothing.
+- `LOCALE_LABELS` (`i18n/locales.ts`) and the `FALL_PAD` alias (`falls.ts`),
+  exported and read nowhere.
+
+### Kept, on purpose
+
+- **Everything in `tools/`.** Each `.blend`, generator `.glb`, Mixamo `.fbx`
+  and `tools/art/` image is read by a script that builds something in `src/`
+  — the 22 MB `pirate_ship.glb` is `pirate_ship.py`'s input — and
+  `polarsense-logo.png` is the input the PolarSense plate was generated from.
+  Deleting them now would make the shipped assets unrebuildable; it would not
+  make the repository smaller either, because they stay in its history.
+- **`?debug` and every `off=` switch** — the phone measurements of Phase 3 are
+  still to come.
+- **`src/mdx.d.ts`** — flagged by `knip` as unused, but it is what lets
+  TypeScript import an `.mdx` file.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `npm run typecheck`, `npm run check`, `npm run build` pass; `oxlint`
+      reports nothing new
+- [x] The spawn, the ship and a landmark render as before, textures from the
+      rewritten glbs
+

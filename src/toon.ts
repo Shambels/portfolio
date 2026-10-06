@@ -4,11 +4,10 @@ import {
   positionWorld, smoothstep, vec3,
 } from 'three/tsl'
 import * as THREE from 'three/webgpu'
-import { ANIME } from './device'
 import { SUN } from './Scenery'
 
 /**
- * The anime look's light (`ANIME`, `device.ts`). One function every
+ * The world's light. One function every
  * cel-shaded material ends in, in place of `MeshStandardNodeMaterial`'s
  * physically based lighting.
  *
@@ -72,8 +71,8 @@ export function toon(albedo: Vec3, { twoSided = false, sunlit }: { twoSided?: bo
  * The isle's materials call `toon()` themselves. Everything else in the world
  * — the landmarks, the hulls, the rider, the board, the stair, the fall — is
  * a `MeshStandardNodeMaterial`, forty-odd of them, many with colour, emissive
- * and opacity graphs of their own that should survive untouched. So under
- * the anime look the materials stay what they are and only their light changes:
+ * and opacity graphs of their own that should survive untouched. So the
+ * materials stay what they are and only their light changes:
  * `CelLightingModel` replaces the physically based one on the class, and
  * every standard or physical material built after this module loads lights
  * itself in bands. Same numbers as `toon()` — three tones, the violet fill,
@@ -105,7 +104,7 @@ class CelLightingModel extends THREE.LightingModel {
   }
 }
 
-if (ANIME) {
+{
   const cel = () => new CelLightingModel()
   ;(THREE.MeshStandardNodeMaterial.prototype as unknown as { setupLightingModel: () => THREE.LightingModel }).setupLightingModel = cel
   ;(THREE.MeshPhysicalNodeMaterial.prototype as unknown as { setupLightingModel: () => THREE.LightingModel }).setupLightingModel = cel

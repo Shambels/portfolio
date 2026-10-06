@@ -6,7 +6,6 @@ import {
   sin, smoothstep, vec3, vertexStage,
 } from 'three/tsl'
 import { fractal } from './noise'
-import { ANIME, octaves } from './device'
 import { band, toon } from './toon'
 import { ISLES, ISLE_EXTENT, type Isle as IsleData, isleHeight, isleShore } from './isles'
 import { STAIR, stairDoor, stairPortal } from './stairs'
@@ -111,25 +110,22 @@ function terrain(isle: IsleData) {
   return g
 }
 
-// The palette, and it is the reference photograph's rather than the world's:
-// pale gold sand, a jungle saturated enough to read as jungle at sixty metres,
-// and basalt dark enough that the ridge has an edge against the sky. The three
-// project islands keep their own muted bands — this is the tropical one.
+// The palette: pale gold sand, a jungle saturated enough to read as jungle at
+// sixty metres, and a basalt dark and cold enough that the ridge has an edge
+// against the sky. A little warmer and more saturated than a lit palette would
+// be, because the violet shadow (`toon.ts`) takes some of the colour back.
 const SEABED = vec3(0.03, 0.09, 0.11)
 const SHELF = vec3(0.34, 0.62, 0.58) // the lagoon floor, on the rare frame a trough shows it
 const WET = vec3(0.58, 0.55, 0.42)
-const SAND = vec3(0.97, 0.86, 0.6)
-const SCRUB = vec3(0.46, 0.57, 0.2)
-const JUNGLE = vec3(0.13, 0.36, 0.15)
-// The canopy is two greens and not one. A single one on a smooth hill is a
-// billiard ball: what makes a jungle read from the water is that it is lit in
-// patches, and the patches are bigger than the trees.
-const CANOPY = vec3(0.04, 0.17, 0.09)
-// Basalt, and it is deliberately colder than everything around it: the sun in
-// this world is low and warm, so the one thing that reads as volcanic rather
-// than as mud is a rock that does not take the gold.
-const ROCK = vec3(0.062, 0.068, 0.088)
-const CRAG = vec3(0.135, 0.142, 0.16)
+const SAND = vec3(0.9, 0.86, 0.52)
+const SCRUB = vec3(0.5, 0.66, 0.22)
+const JUNGLE = vec3(0.15, 0.45, 0.17)
+// The canopy's shade, in patches: a single green on a smooth hill is a billiard
+// ball, and what makes a jungle read from the water is that it is lit in
+// patches bigger than the trees.
+const CANOPY = vec3(0.06, 0.27, 0.13)
+const ROCK = vec3(0.12, 0.11, 0.18)
+const CRAG = vec3(0.22, 0.2, 0.29)
 
 /** How wide a hole each doorway cuts in the mountain's shading.
  *
@@ -142,121 +138,26 @@ const PORTAL = STAIR.half + 0.8
 
 const BARK = vec3(0.42, 0.33, 0.24)
 const BARK_DARK = vec3(0.2, 0.15, 0.11)
-const FROND = vec3(0.16, 0.42, 0.13)
-const FROND_LIT = vec3(0.55, 0.78, 0.22) // the lime the sun puts through a leaf
+const FROND = vec3(0.1, 0.36, 0.13)
+const FROND_LIT = vec3(0.26, 0.72, 0.2) // the green the sun puts through a leaf
 const SHRUB = vec3(0.13, 0.3, 0.12)
 
-function materials() {
-  if (ANIME) return animeMaterials()
-  // Slope, 0 flat and 1 vertical. The one thing a height function gives away
-  // for free and the one thing a colour band needs: sand on a cliff is what
-  // makes a generated island look generated.
-  const slope = oneMinus(clamp(normalWorld.y, 0, 1))
-  const y = positionWorld.y
-  // Two scales of noise, and they do different jobs: the wide one moves the
-  // treeline so it is not a contour, the fine one keeps a band from reading as
-  // paint.
-  //
-  // The wide one is worked out per vertex and interpolated. Its wavelength is
-  // about twenty metres and the grid is a vertex every metre and a half or so, so
-  // the interpolation is the same field; per pixel it was three octaves of 3D
-  // noise on the largest surface on screen, for nothing the eye could find.
-  const blotch = vertexStage(fractal(positionWorld.mul(0.045), 3))
-  const clump = fractal(positionWorld.mul(0.26), octaves(3, 2))
-  const grain = fractal(positionWorld.mul(0.95), octaves(2, 1))
-
-  const land = new THREE.MeshStandardNodeMaterial({ roughness: 0.94 })
-  let col = mix(SEABED, SHELF, smoothstep(-7, -1.4, y))
-  col = mix(col, WET, smoothstep(-1.1, -0.06, y))
-  col = mix(col, SAND, smoothstep(-0.05, 0.5, y))
-  // The treeline: scrub first, then the canopy, both pushed around by the wide
-  // noise so the island has clearings and the beach has a ragged edge.
-  col = mix(col, SCRUB, smoothstep(1.4, 3.1, y.add(blotch.mul(1.1))))
-  col = mix(col, JUNGLE, smoothstep(3.0, 5.6, y.add(blotch.mul(1.6))))
-  // And the shade inside it: a mid-scale noise, only where there is canopy to
-  // be shaded. Without this the hill is one smooth green surface with trees
-  // standing on it, which is exactly what it is and exactly what it must not
-  // look like.
-  col = mix(col, CANOPY, clump.mul(0.5).add(0.5).mul(smoothstep(2.6, 5.2, y)).mul(0.72))
-  // Rock where it is too steep to hold anything, and the crest of the ridge,
-  // which is bare because it is the ridge.
-  col = mix(col, ROCK, smoothstep(0.34, 0.6, slope).mul(smoothstep(0.4, 1.8, y)))
-  col = mix(col, CRAG, smoothstep(9.5, 12.5, y).mul(smoothstep(0.16, 0.44, slope)))
-  land.colorNode = col.mul(grain.mul(0.19).add(1))
-
-  // And the two holes in it.
-  //
-  // The passage inside the spire (`src/stair.ts`) has a doorway at each end,
-  // and a doorway needs the mountain to stop being there. A polar grid cannot
-  // easily have a hole cut in it, so this is a hole in the *shading*: a
-  // fragment within `PORTAL` of either door's centre is discarded, and what is
-  // behind it is the tunnel's own mesh.
-  //
-  // Cheaper than it looks and the cost is the honest part: `alphaTest` puts
-  // this material on the alpha-tested path for the whole island. It buys a
-  // hole that moves when the stair moves, which is the same bargain every
-  // other number on this island is made on.
-  const hole = (d: { x: number; y: number; z: number }) =>
-    smoothstep(PORTAL - 0.35, PORTAL,
-      positionWorld.distance(vec3(d.x, d.y + PORTAL * 0.35, d.z)))
-  land.opacityNode = hole(stairDoor()).mul(hole(stairPortal()))
-  land.alphaTest = 0.5
-
-  // Ring scars up the trunk. `positionLocal` and not world: every palm is the
-  // same instanced geometry, so this is the tree's own height and the rings
-  // land in the same place on all thirty of them, which is what they do.
-  const bark = new THREE.MeshStandardNodeMaterial({ roughness: 0.88 })
-  bark.colorNode = mix(BARK_DARK, BARK, sin(positionLocal.y.mul(10.5)).mul(0.5).add(0.5).mul(0.55).add(0.45))
-    .mul(fractal(positionWorld.mul(1.4), octaves(2, 1)).mul(0.16).add(1))
-
-  // A leaflet is one flat quad with no thickness, so it is lit from both sides
-  // and the side facing up is the side the sun is putting through it. That
-  // one term is the whole of why a crown reads as leaves rather than as green
-  // metal.
-  const frond = new THREE.MeshStandardNodeMaterial({ roughness: 0.7, side: THREE.DoubleSide })
-  frond.colorNode = mix(FROND, FROND_LIT, clamp(normalWorld.y.mul(0.5).add(0.5), 0, 1))
-    .mul(fractal(positionWorld.mul(0.8), octaves(2, 1)).mul(0.2).add(0.95))
-
-  const bush = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, side: THREE.DoubleSide })
-  bush.colorNode = mix(SHRUB, FROND_LIT, clamp(normalWorld.y, 0, 1).mul(0.45))
-
-  // Two scales again, and here the fine one is doing the work: a boulder is two
-  // metres across, so a noise field with a nine-metre wavelength paints one
-  // half of it light and the other half dark and it reads as two rocks.
-  const rock = new THREE.MeshStandardNodeMaterial({ roughness: 1 })
-  rock.colorNode = mix(
-    ROCK, CRAG,
-    fractal(positionWorld.mul(1.9), octaves(3, 2)).mul(0.35)
-      .add(fractal(positionWorld.mul(6.5), octaves(2, 1)).mul(0.2)).add(0.5),
-  )
-
-  return { land, bark, frond, bush, rock }
-}
-
 /**
- * The isle in the anime look (`ANIME`, `device.ts`). Same palette, same places, same
- * hole in the mountain; drawn instead of lit.
+ * The isle, drawn rather than lit (`toon.ts`).
  *
- * Every band that was a long smoothstep is an edge here — sand, scrub, jungle,
- * rock — and what keeps an edge from reading as a contour line is the one
- * short-scale noise (`brush`) that pushes it about by a hand's width, the way a
- * brush would. The canopy's shade is patches with edges, not a gradient, and
- * the fine grain that kept the old bands from looking painted is gone, because
- * here they are meant to.
+ * Every colour band is an edge — sand, scrub, jungle, rock — and what keeps an
+ * edge from reading as a contour line is one short-scale noise (`brush`) that
+ * pushes it about by a hand's width, the way a brush would. The treeline rides
+ * a wide noise worked out per vertex (`blotch`: a twenty-metre wavelength on a
+ * metre-and-a-half grid interpolates to the same field), so the island has
+ * clearings and the beach a ragged edge.
  *
- * A little warmer and more saturated than the lit palette, which loses some of
- * its colour to the violet shadow.
+ * The two doorways of the passage through the spire (`src/stairs.ts`) are holes
+ * in the shading: a fragment within `PORTAL` of either door is discarded, and
+ * what shows is the tunnel's own mesh. It puts the whole island on the
+ * alpha-tested path, and buys a hole that moves when the stair moves.
  */
-const A_SAND = vec3(0.9, 0.86, 0.52)
-const A_SCRUB = vec3(0.5, 0.66, 0.22)
-const A_JUNGLE = vec3(0.15, 0.45, 0.17)
-const A_CANOPY = vec3(0.06, 0.27, 0.13)
-const A_ROCK = vec3(0.12, 0.11, 0.18)
-const A_CRAG = vec3(0.22, 0.2, 0.29)
-const A_FROND = vec3(0.1, 0.36, 0.13)
-const A_FROND_LIT = vec3(0.26, 0.72, 0.2)
-
-function animeMaterials() {
+function materials() {
   const slope = oneMinus(clamp(normalWorld.y, 0, 1))
   const y = positionWorld.y
   const blotch = vertexStage(fractal(positionWorld.mul(0.045), 3))
@@ -266,12 +167,12 @@ function animeMaterials() {
   const land = new THREE.MeshBasicNodeMaterial()
   let col = mix(SEABED, SHELF, smoothstep(-7, -1.4, y))
   col = mix(col, WET, band(-0.6, y, 0.25))
-  col = mix(col, A_SAND, band(0.12, y.add(brush.mul(0.12)), 0.03))
-  col = mix(col, A_SCRUB, band(2.25, y.add(blotch.mul(1.1)).add(brush.mul(0.35)), 0.04))
-  col = mix(col, A_JUNGLE, band(4.3, y.add(blotch.mul(1.6)).add(brush.mul(0.35)), 0.04))
-  col = mix(col, A_CANOPY, band(0.1, clump.add(brush.mul(0.1)), 0.02).mul(band(3.9, y.add(blotch), 0.1)))
-  col = mix(col, A_ROCK, band(0.47, slope.add(brush.mul(0.06)), 0.015).mul(band(1.1, y, 0.2)))
-  col = mix(col, A_CRAG, band(11, y.add(brush.mul(0.6)), 0.08).mul(band(0.3, slope, 0.02)))
+  col = mix(col, SAND, band(0.12, y.add(brush.mul(0.12)), 0.03))
+  col = mix(col, SCRUB, band(2.25, y.add(blotch.mul(1.1)).add(brush.mul(0.35)), 0.04))
+  col = mix(col, JUNGLE, band(4.3, y.add(blotch.mul(1.6)).add(brush.mul(0.35)), 0.04))
+  col = mix(col, CANOPY, band(0.1, clump.add(brush.mul(0.1)), 0.02).mul(band(3.9, y.add(blotch), 0.1)))
+  col = mix(col, ROCK, band(0.47, slope.add(brush.mul(0.06)), 0.015).mul(band(1.1, y, 0.2)))
+  col = mix(col, CRAG, band(11, y.add(brush.mul(0.6)), 0.08).mul(band(0.3, slope, 0.02)))
   land.colorNode = toon(col)
 
   const hole = (d: { x: number; y: number; z: number }) =>
@@ -285,13 +186,13 @@ function animeMaterials() {
   bark.colorNode = toon(mix(BARK_DARK, BARK, band(0, sin(positionLocal.y.mul(10.5)), 0.15)))
 
   const frond = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
-  frond.colorNode = toon(A_FROND, { twoSided: true, sunlit: A_FROND_LIT })
+  frond.colorNode = toon(FROND, { twoSided: true, sunlit: FROND_LIT })
 
   const bush = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
-  bush.colorNode = toon(SHRUB, { twoSided: true, sunlit: A_FROND_LIT.mul(0.8) })
+  bush.colorNode = toon(SHRUB, { twoSided: true, sunlit: FROND_LIT.mul(0.8) })
 
   const rock = new THREE.MeshBasicNodeMaterial()
-  rock.colorNode = toon(mix(A_ROCK, A_CRAG, band(0.08, fractal(positionWorld.mul(1.9), 2), 0.02)))
+  rock.colorNode = toon(mix(ROCK, CRAG, band(0.08, fractal(positionWorld.mul(1.9), 2), 0.02)))
 
   return { land, bark, frond, bush, rock }
 }

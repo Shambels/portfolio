@@ -1,7 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three/webgpu'
-import { ANIME } from './device'
 import { INK } from './toon'
 
 /** A mesh that can take an outline: lit, opaque, one-sided, not skinned or
@@ -22,14 +21,12 @@ function inkable(o: THREE.Object3D): o is THREE.Mesh {
  * Inks every inkable mesh under it, including the ones whose model arrives
  * later: models load behind `Suspense`, so it looks again every half second
  * and a mesh is inked once. The outline is a child of the mesh it
- * outlines, so it moves, hides and unmounts with it. Under `?look=classic`
- * it is the group and nothing else.
+ * outlines, so it moves, hides and unmounts with it.
  */
 export function Ink({ children }: { children: ReactNode }) {
   const group = useRef<THREE.Group>(null!)
   const next = useRef(0)
   useFrame(() => {
-    if (!ANIME) return
     const now = performance.now()
     if (now < next.current) return
     next.current = now + 500
