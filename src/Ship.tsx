@@ -78,6 +78,12 @@ const HULL = { beam: 0.5, len: 1.35, draft: 0.18 }
 // The rollers get no such multiplier. Their face is twenty degrees of real
 // displaced geometry, and a hull leaning three times that is a hull upside down.
 const WAVE_TILT = 3
+// And the boat no longer answers to any of it. A galleon heeling three times
+// the slope of a ripple and lifting 16 cm on every one of them was riding a
+// "wave" all the time, on a sea whose geometry is flat everywhere but under a
+// roller — so it now floats on the rollers alone (`chop` 0 in `CRAFT_WATER`):
+// flat on calm water, and every roller exactly as it was. The surfer keeps the
+// chop; a board two metres long does feel it.
 const HEEL = 0.6 // radians, about 34 degrees — a big sea, not a capsize
 
 // The surfer. Same controller, same water, a lighter thing on it: 2 units of
@@ -164,16 +170,18 @@ const AGILITY: Record<ShipModel, { speed: number; turn: number }> = {
  * again as hard and leaves much smaller ones (`pop`, `popMin`), it leans
  * further into a wave face (`tilt`, `heel`), it cannot be driven under (`sink`
  * — a board rides on the surface where a hull sits in it), and it lands with
- * less to compress (`squash`).
+ * less to compress (`squash`). `chop` is how much of the small, painted water
+ * a craft feels at all — height and heel both: the board all of it, the boat
+ * none, so the boat rides the rollers and nothing smaller.
  */
 const CRAFT_WATER = {
   boat: {
     buoyK: BUOY_K, buoyC: BUOY_C, pop: POP, popMin: POP_MIN, launch: LAUNCH,
-    tilt: WAVE_TILT, heel: HEEL, sink: SINK, squash: LAND_SQUASH,
+    tilt: WAVE_TILT, heel: HEEL, sink: SINK, squash: LAND_SQUASH, chop: 0,
   },
   surfer: {
     buoyK: 105, buoyC: 11, pop: 1.95, popMin: 1, launch: 12,
-    tilt: 4.6, heel: 0.95, sink: 0.12, squash: 0.34,
+    tilt: 4.6, heel: 0.95, sink: 0.12, squash: 0.34, chop: 1,
   },
 }
 
@@ -1295,7 +1303,8 @@ const RISE = 10
       ride = hull.current
     }
     if (floats) {
-      const surface = s.y
+      // The rollers, and only as much of the chop as this craft feels.
+      const surface = s.y - (1 - water.chop) * s.cy
       // And the ground of a project island under the board — see `SIT`. A
       // long way under the sea for the boat, and everywhere there is no
       // island, so that `max` against the water is the water.
@@ -1431,8 +1440,9 @@ const RISE = 10
       // this is the pair of numbers a screenshot settles and arithmetic does not.
       // The chop's slope is exaggerated and the roller's is not: one is 15 cm of
       // painted water, the other is a thirty-degree face you can see.
-      roll = soft((s.dx * cy - s.dz * sy) * water.tilt + (s.rx * cy - s.rz * sy), water.heel) * wet.current
-      heel = soft(-((s.dx * sy + s.dz * cy) * water.tilt + (s.rx * sy + s.rz * cy)), water.heel) * wet.current
+      const ct = water.tilt * water.chop
+      roll = soft((s.dx * cy - s.dz * sy) * ct + (s.rx * cy - s.rz * sy), water.heel) * wet.current
+      heel = soft(-((s.dx * sy + s.dz * cy) * ct + (s.rx * sy + s.rz * cy)), water.heel) * wet.current
       // On an island the sea is still under the ground and its chop is still
       // in `s`; a board on the grass does not heel to it. Faded over the
       // first `DRY_IN` of beach so the waterline is not a step.

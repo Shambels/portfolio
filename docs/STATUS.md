@@ -8399,3 +8399,22 @@ at once.
 - **The lane's width** (`PART_IN`, `PART_OUT`) against the mesh's 3.75.
 - Frame cost on hardware: the lane is three segment distances per water
   fragment and vertex, and `Glow` 121 height reads a frame.
+
+## The boat rides the rollers, not the ripples
+
+The boat bobbed and heeled on the chop — the small, fast water both sea states
+share — lifting about 16 cm and heeling three times the ripple's slope
+(`WAVE_TILT`) on every one, so it was riding a "wave" all the time. That water
+is painted normals on a flat mesh; nothing under the hull actually moves
+except the rollers. So `swell()` now also returns `cy`, the chop's share of
+the height, and the boat's column in `CRAFT_WATER` has `chop: 0`: its surface
+is `y - cy` and its heel takes no chop slope. On a calm sea it floats level
+and still; on an agitated one every roller lifts, heels, throws and lands it
+exactly as before, because the roller terms are untouched. The surfer has
+`chop: 1` and is unchanged.
+
+### Open, and Seb's
+
+- Whether a dead-still boat on a calm sea reads as moored rather than afloat.
+  If it wants a little life back, `chop` takes a fraction — 0.15 is a gentle
+  sway, nowhere near the old bob.
