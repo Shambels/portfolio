@@ -151,22 +151,29 @@ const CRAG_BEARING = Math.PI * 0.72
 
 export const ISLES: Isle[] = [
   // The first one, and `spawn()` reads `ISLES[0]` — this is where the world
-  // begins, so it stays first. Not one number of it has changed.
-  { id: 'palm-isle', pos: [-52, -58], radius: 35, seed: 2.4, peak: 14, ridge: 0.72 },
+  // begins, so it stays first. Moved once, outward along its own bearing from
+  // the origin (x1.65 of the old [-52, -58]) when the archipelago was spread,
+  // so `spawn()`'s heading — and `SPAWN.bearing`'s gap in the ferns, which is
+  // measured from that bearing — did not move with it. PolarSense, the first
+  // stop on the chart's route, is 91 units off: a 46 m crossing, coast to coast.
+  { id: 'palm-isle', pos: [-85.8, -95.7], radius: 35, seed: 2.4, peak: 14, ridge: 0.72 },
 
   /**
    * The second, and it is the other thing an island can be: a crescent round
    * an almost-closed lagoon, with a 23 m crag standing over the far shore and
    * a waterfall coming off it into the water.
    *
-   * 110 units from `palm-isle` and 67 from the easel's mooring at the closest,
-   * both clear by the sum this file's own asserts make, with 14 m to spare at
-   * the tightest. The other side of the three landmarks from `palm-isle`, so
-   * the world has somewhere to go rather than somewhere to go back to.
+   * The end of the line. The chart on `/work` runs PolarSense, Arts by Sandra,
+   * Sqrubs, Memojo, the Sudoku Solver, and this is 150 units on past the last
+   * of them along the leg that arrives there — the longest crossing in the
+   * world, so it reads as somewhere further rather than one more stop. 222
+   * from `palm-isle`. Its lagoon still opens on `CRAG_BEARING`, which faces
+   * away from the sudoku now: the crag is what you sail at, and the entrance
+   * is round the far side.
    */
   {
     id: 'crag-isle',
-    pos: [58, -54],
+    pos: [-194, 98],
     // "Similarly sized" — the same 35 m mean radius, 70 m of coast to coast.
     radius: 35,
     seed: 5.1,

@@ -24,9 +24,9 @@ import { readFileSync } from 'node:fs'
 import {
   BOARD, DECKS, GROUND, LENSES, PRINTS, PROFILE, PROP_SETS, RAMPS, RIDER_MASS, TIDY_AFTER,
   TIDY_FOR, WALLED,
-  deckAt, displaced, footprint, hull2d, inShot, inside, makeProp, makeSet, printAt, profileAt,
+  BEAM, deckAt, displaced, footprint, hull2d, inFront, inShot, inside, makeProp, makeSet, printAt, profileAt,
   rampLift, rim, seedOf, stepProps,
-  type Board, type Hit, type Poly, type Terrain,
+  type Beam, type Board, type Hit, type Poly, type Terrain, type Zap,
 } from './plateau.ts'
 import { PANEL } from './sudoku.ts'
 
@@ -684,6 +684,79 @@ function ride(withRamp: boolean) {
   }
   // Halfway out is halfway out: a roller at one speed, not an ease.
   assert.ok(Math.abs(printAt(print, print.out / 2).out - 0.5) < 1e-12, 'the feed is not linear')
+}
+
+{
+  // The saucer over the row. Parked over the fifth tile, its underside 0.2
+  // over the deck: the tiles under it are drawn in, lifted, and come apart at
+  // the hull — one zap each — and the ones outside the beam, and the heavy
+  // thing on the deck, never move. Then it leaves, and the tidy-up puts every
+  // one of them back together where it belongs.
+  const { set, terrain, cx, cz, rot } = boardIsland()
+  const mid = set.props[2]! // t5, local x -0.72
+  const w = toWorld(cx, cz, rot, mid.px, mid.pz)
+  const hull = board(w.x, w.z, 0, 0)
+  hull.len = 0.01
+  hull.r = 0.9
+  hull.y = GROUND + DECK
+  const beam: Beam = { x: w.x, z: w.z, y: GROUND + DECK + 0.2 }
+  const hits: Hit[] = []
+  const zaps: Zap[] = []
+  let rose = false
+  for (let f = 0; f < 3 * 120; f++) {
+    stepProps(set, DT, hull, true, terrain, hits, beam, zaps)
+    if (mid.held > 0 && mid.y > 0.05 && mid.gone === 0) rose = true
+  }
+  const near = set.props.filter((p) => p.m <= 1.5 && Math.abs(p.px - mid.px) < BEAM.r - p.r * 0.5)
+  const far = set.props.filter((p) => p.m <= 1.5 && Math.abs(p.px - mid.px) > BEAM.r + 0.05)
+  assert.ok(rose, 'the tile under the saucer never rose')
+  assert.ok(near.length >= 3, `only ${near.length} tiles under the beam`)
+  for (const p of near) assert.equal(p.gone, 1, `${p.id} was under the beam and is still there`)
+  for (const p of far) assert.ok(p.gone === 0 && !displaced(p), `${p.id} was outside the beam and moved`)
+  const heavy = set.props[set.props.length - 1]!
+  assert.ok(heavy.gone === 0 && !displaced(heavy), 'the beam took something that is not a tile')
+  assert.equal(zaps.length, near.length + set.props.filter((p) => p.gone === 1 && !near.includes(p)).length,
+    'a zap per tile taken')
+  assert.equal(hits.filter((h) => h.kind === 'zap').length, zaps.length, 'a zap is heard per tile')
+  assert.ok(zaps.every((z) => z.y > beam.y - BEAM.reach - 0.01 && z.y <= beam.y + 0.01),
+    'a tile came apart somewhere other than at the hull')
+  // And back: the saucer gone, the tidy-up reassembles them at home.
+  const away = board(500, 500, 0, 0)
+  let frames = 0
+  while (frames < 60 * 120 && set.props.some((p) => p.loose)) {
+    stepProps(set, DT, away, true, terrain, hits, null, zaps)
+    frames++
+  }
+  for (const p of set.props) assert.ok(p.gone === 0 && !displaced(p) && !p.loose, `${p.id} never came back`)
+  assert.ok(frames * DT < TIDY_AFTER + TIDY_FOR + 1, `taken tiles came back after ${(frames * DT).toFixed(1)} s`)
+}
+
+{
+  // The saucer past the giant camera. It hovers far under the cone, so it is
+  // the wedge on the ground that sees it: across the lens's bearing, a few
+  // metres out, it fires; behind the camera, beside it, and past its reach,
+  // it does not.
+  const cx = 24, cz = 18
+  const rot = Math.atan2(-cx, -cz)
+  const set = makeSet('memojo', cx, cz, rot, [], [], LENSES.ramp!)
+  const lens = LENSES.ramp!
+  const a = Math.hypot(lens.dx, lens.dz)
+  const ux = lens.dx / a, uz = lens.dz / a
+  const at = (d: number, side: number) =>
+    toWorld(cx, cz, rot, lens.x + ux * d - uz * side, lens.z + uz * d + ux * side)
+  let fired = 0
+  for (let side = -6; side <= 6; side += 0.25) {
+    const p = at(5, side)
+    if (inFront(set, p.x, p.z)) fired++
+  }
+  assert.ok(fired >= 8 && fired < 49, `a pass in front of the lens fired on ${fired} of 49 stations`)
+  const behind = at(-4, 0)
+  assert.ok(!inFront(set, behind.x, behind.z), 'the lens sees the saucer behind it')
+  const close = at(0.6, 0)
+  assert.ok(!inFront(set, close.x, close.z), 'the lens fires at a saucer against the tripod')
+  const gone = at(lens.reach + 1, 0)
+  assert.ok(!inFront(set, gone.x, gone.z), 'the lens sees the saucer past its reach')
+  assert.ok(!inFront(makeSet('sqrubs', 0, 14, 0, [], []), 0, 12), 'a landmark with no lens saw the saucer')
 }
 
 {

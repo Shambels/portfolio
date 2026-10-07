@@ -4,9 +4,9 @@ import * as THREE from 'three/webgpu'
 import { abs, atan, fract, mix, oneMinus, positionLocal, positionWorld, smoothstep, vec3 } from 'three/tsl'
 import { fractal } from './noise'
 import { band, toon } from './toon'
-import { ISLAND_SPREAD, LANDMARKS, type Landmark } from './world'
+import { BERG_FACING, ISLAND_SPREAD, LANDMARKS, type Landmark } from './world'
 import { GROUND, PROFILE, rim, seedOf } from './plateau'
-import { BERG_PROFILE, FLOATS, LIFT, pose } from './berg'
+import { FLOATS, LIFT, apronWeight, bergProfile, pose } from './berg'
 
 /**
  * The ground under each landmark. One `LatheGeometry` per island, revolved from
@@ -45,7 +45,10 @@ const ICE_HI = vec3(0.5, 0.86, 0.97)
 const ICE_LO = vec3(0.2, 0.68, 0.88)
 const ICE_DEEP = vec3(0.08, 0.42, 0.62)
 
-function island(radius: number, seed: number, profile: [number, number][] = PROFILE) {
+/** `shape`, when given, is the profile on each bearing — the berg's, whose
+ *  apron runs out in front of the adit — and must be `profile`'s length. */
+function island(radius: number, seed: number, profile: [number, number][] = PROFILE,
+  shape?: (theta: number) => [number, number][]) {
   const g = new THREE.LatheGeometry(
     // Handed over bottom-up. A lathe winds its faces by the order of its
     // points, and top-down — the way `PROFILE` is written, axis first — winds
@@ -57,11 +60,17 @@ function island(radius: number, seed: number, profile: [number, number][] = PROF
     SEGMENTS,
   )
   const p = g.attributes.position
+  const n = profile.length
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i)
     const z = p.getZ(i)
-    const f = rim(Math.atan2(z, x), seed)
-    p.setXYZ(i, x * f, p.getY(i), z * f)
+    const th = Math.atan2(z, x)
+    const f = rim(th, seed)
+    if (!shape) { p.setXYZ(i, x * f, p.getY(i), z * f); continue }
+    // A lathe lays its points ring by ring, in the order it was handed them —
+    // which was reversed above.
+    const [r, y] = shape(th)[n - 1 - (i % n)]!
+    p.setXYZ(i, Math.cos(th) * r * radius * f, y, Math.sin(th) * r * radius * f)
   }
   g.computeVertexNormals()
   return g
@@ -104,7 +113,8 @@ export function Islands() {
     const bi = LANDMARKS.findIndex((l) => l.landmark === FLOATS)
     if (bi >= 0) {
       const l = LANDMARKS[bi]!
-      geometries[bi] = island(l.radius * ISLAND_SPREAD, seedOf(l.slug), BERG_PROFILE)
+      geometries[bi] = island(l.radius * ISLAND_SPREAD, seedOf(l.slug), bergProfile(0),
+        (th) => bergProfile(apronWeight(th, BERG_FACING)))
     }
     return { geometries, ground, berg }
   }, [])

@@ -9,12 +9,15 @@
  * past the caps, back through level and settled; and on the ice a glide keeps
  * its speed and its direction whatever the input says, while a man stopped on
  * it can still creep off — and one riding in from the sea at cruise gets up
- * the shore onto the snow.
+ * the shore onto the snow. And the apron: round the back the berg is exactly
+ * `BERG_PROFILE`, in front of the adit a nearly flat run of ice `APRON.width`
+ * long is spliced in after the roll-off and the coast stands that much further
+ * out, and the ride up from the sea makes it to the snow across that too.
  */
 import assert from 'node:assert/strict'
 import {
-  BERG_PROFILE, ICE_IN, LIFT, MAX_HEAVE, MAX_TILT, SKATE,
-  bergLift, glide, kick, onIce, pose, shove, stepBerg, type BergState,
+  APRON, BERG_PROFILE, ICE_IN, LIFT, MAX_HEAVE, MAX_TILT, SKATE,
+  apronWeight, bergLift, bergProfile, glide, kick, onIce, pose, shove, stepBerg, type BergState,
 } from './berg.ts'
 import { GROUND, profileAt } from './plateau.ts'
 
@@ -161,6 +164,65 @@ function fresh(): BergState {
     y += u * DT
   }
   assert.ok(y >= f * R, 'a man stopped on the shore stayed there')
+}
+
+// ------------------------------------------------------------ the apron
+{
+  // Round the back it is the berg it was, to the millimetre.
+  const back = bergProfile(0)
+  assert.equal(back.length, BERG_PROFILE.length + 1)
+  for (let k = 0; k <= 1200; k++) {
+    const f = k / 1000
+    assert.equal(profileAt(1, 0, f, 0, back), profileAt(1, 0, f, 0, BERG_PROFILE), `the back moved at ${f}`)
+  }
+  // In front of the adit, full; round the back, none; between, between.
+  assert.equal(apronWeight(0.4, 0.4), 1)
+  assert.equal(apronWeight(0.4 + Math.PI, 0.4), 0)
+  const mid = apronWeight(0.4 + (APRON.full + APRON.gone) / 2, 0.4)
+  assert.ok(mid > 0.2 && mid < 0.8, `the apron's edge is not an edge: ${mid}`)
+  // Full: never climbing, the run nearly flat and all of it ice, and the
+  // coast moved out by exactly the run.
+  const front = bergProfile(1)
+  const [h0, y0] = BERG_PROFILE[APRON.hinge]!
+  const water = -(GROUND + LIFT)
+  let last = Infinity
+  let wet = -1
+  let wetBack = -1
+  for (let k = 0; k <= 1600; k++) {
+    const f = k / 1000
+    const y = profileAt(1, 0, f, 0, front)
+    assert.ok(y <= last + 1e-9, `the apron climbs at ${f}`)
+    if (f > h0 && f <= h0 + APRON.width) {
+      assert.ok(onIce(f), `the apron is snow at ${f}`)
+      assert.ok(y >= y0 - APRON.drop - 1e-9, `the apron is not flat at ${f}`)
+    }
+    if (wet < 0 && y < water) wet = f
+    if (wetBack < 0 && profileAt(1, 0, f, 0, BERG_PROFILE) < water) wetBack = f
+    last = y
+  }
+  // (A shade under the run: the shore past it starts `drop` lower, so it goes
+  // under a little sooner.)
+  const moved = wet - wetBack
+  assert.ok(moved > APRON.width - 0.02 && moved <= APRON.width, `the apron moved the coast ${moved.toFixed(3)}`)
+  // Nearly flat means the skate beats it: a man stopped on it gets off it
+  // whichever way he points.
+  const grade = APRON.drop / (APRON.width * R)
+  assert.ok(GRAV * grade < SKATE.accel / 5, `the apron is a slope: ${(grade * 100).toFixed(1)}%`)
+  // And the ride in at cruise, from the sea across all of it, onto the snow.
+  let x = wet * R
+  let v = -7.5 * 1.18
+  let t = 0
+  while (x > ICE_IN * R && t < 10) {
+    const e = 0.01
+    const slope = (profileAt(R, 0, x + e, 0, front) - profileAt(R, 0, x - e, 0, front)) / (2 * e)
+    const vv = { x: v, z: 0 }
+    glide(vv, { x: 0, z: 0 }, slope, 0, GRAV, DT)
+    v = vv.x
+    x += v * DT
+    t += DT
+    assert.ok(v < 0, `a cruise ride across the apron stalled at ${(x / R).toFixed(2)}`)
+  }
+  assert.ok(x <= ICE_IN * R, 'he never reached the snow across the apron')
 }
 
 console.log('berg: ok')

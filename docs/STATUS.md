@@ -8176,3 +8176,226 @@ always described; if it was liked the way it was, that line is the revert.
 - **The mountain's likeness to the logo** — three passes in Blender's
   preview and two in the world; the ridge table at the top of `mine.py` is
   where to push it.
+
+## The archipelago is spread out — the world follows the chart
+
+The five project islands were 24–43 units apart centre to centre, which is
+5–15 m of water between two coasts and a second or two at cruise. Every `pos`
+in the English frontmatter is now **2.5×** what it was, scaled about the
+origin, and every `waypoint` keeps its old offset from its `pos` — so each
+landmark's yaw (`landmarkYaw` faces the origin), its approach side and both
+of `world.ts`'s waypoint asserts are exactly what they were.
+
+| | pos | next leg, centre to centre |
+|---|---|---|
+| 05 PolarSense | [-35, -20] | 65 to Arts by Sandra |
+| 04 Arts by Sandra | [30, -12.5] | 56 to Sqrubs |
+| 03 Sqrubs | [0, 35] | 61 to Memojo |
+| 02 Memojo | [60, 45] | 110 to the Sudoku Solver |
+| 01 Sudoku Solver | [-47.5, 67.5] | 150 to `crag-isle` |
+
+That is the route the `/work` chart draws and the order its ledger reads, so a
+visitor can sail it in the same order: the beach, PolarSense, and on down to
+01. At cruise (7.5 u/s) a crossing is now 5–12 s instead of under 2.
+
+**The chart did not change.** `STRETCH` in `work.tsx` divides every `pos` by
+the same 2.5 before drawing, and leaves the coasts alone — at true scale the
+islands would be specks on a route. The scale bar now reads 25 m, which is
+true of the water and not of the islands, the same licence `mapScale` already
+took.
+
+**`palm-isle`** moved outward along its own bearing from the origin
+(×1.65, `[-85.8, -95.7]`), because PolarSense at 2.5× would have overlapped
+it. Same bearing, so `spawn()`'s heading and `SPAWN.bearing`'s gap in the
+ferns are unchanged; PolarSense is 91 units off the spawn beach, 46 m of
+crossing. **`crag-isle`** moved from `[58, -54]` to `[-194, 98]`: 150 units on
+past the Sudoku Solver, along the Memojo → Sudoku leg, the longest crossing in
+the world. It was not rotated — its lagoon opens on `CRAG_BEARING`, which used
+to face the archipelago and now faces away from it, so a visitor arrives at
+the crag's back and sails round to the entrance. Rotating it moves the fall
+against the sun and every check `stairs`/`falls` hold, which was not asked for.
+
+`npm run check` (all thirteen) and `npx tsc -b` pass. `world.ts`'s dev asserts
+were worked by hand: the tightest isle-to-mooring gap is `palm-isle` to
+PolarSense, 91 against roughly 57 needed.
+
+### Open, and Seb's
+
+- **The water's edge.** The sea is a fixed 900-unit plane centred on the
+  origin (`EXTENT`, `Scenery.tsx`); `crag-isle`'s far coast is now ~235 units
+  out, ~215 from the edge where it was ~330. Nothing stops a hull sailing to
+  the edge either way, but this is closer to where people now go.
+- **The spawn shot.** `SPAWN`'s comment says the origin sits 9° left of centre
+  "with all three islands still in the frame". The bearing is unchanged; how
+  many islands are in that frame at 1.65× the distance is a look, not a check.
+- **The minimap** (`SPAN` 120) now sees one or two islands at a time and pins
+  the rest to its edge — intended, but worth a glance.
+
+## The berg's apron — flat ice in front of the adit
+
+The ice shore was the same 10° ring all the way round, 3.4 m of it from the
+snow to the water. On the side the adit faces — the world's centre, where the
+visitor comes from — it is now run out: **an apron of nearly flat ice** half
+the radius long (~4.3 m at the bearing the adit looks along) is spliced in
+after the roll-off, and the shore beyond it is moved out by the same run. So
+the coast stands that much further out there, and between the snow and the sea
+there is a floe's worth of glassy ice to glide across before the slope takes
+the board down into the water.
+
+**Where it is.** `APRON` in `src/berg.ts`: full over ±20° of the facing
+bearing (`BERG_FACING` in `world.ts` — `atan2` of the berg's position toward
+the origin, because `landmarkYaw` turns the mountain to face it and the mouth
+is on the model's +Z), gone by ±57°, smoothstepped between. Round the back the
+berg is `BERG_PROFILE` to the millimetre.
+
+**Nearly flat, not flat.** It drops 5 cm over its whole run, a 1% grade toward
+the sea, so a man stopped on it drifts off the way the shore would take him —
+0.1 u/s² against the skate's 1.4, so the skate always wins. The tilt of a
+rider standing out on it (`LEAN`) is steeper than the apron's own grade, so it
+is the berg dipping under him that decides which way he drifts, not the ice.
+
+**One profile, three readers.** `bergProfile(w)` is `BERG_PROFILE` with the run
+spliced in at weight `w`, one point longer for every `w` (at 0 the spliced
+point sits on the hinge), so:
+
+- `Islands.tsx` bends the berg's lathe by it per bearing (`island()` took an
+  optional `shape`);
+- `plateau()` reads it through `profileAt`, which now stops at the profile's
+  last ring rather than at 1;
+- `iceAt` and `overBerg` know the berg reaches past 1 there.
+
+The boat, the spray and the sound read the coast through `apronOut`:
+`moorRadius` takes an optional bearing, and `offshore`, `landmarkAt` (moored),
+`overWater` and the hull's shove on the berg in `Ship.tsx` pass it, so a boat
+is held off the apron's edge and still opens the panel from that side. The
+berg's `SHOALS` circle is widened by the full run, so the rollers are damped
+over the apron as they are over the rest of the shore. `LAGOONS` and the
+spacing asserts still use the round shore — the nearest coast in front of the
+adit is Sqrubs', 65 units away.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b`, all thirteen checks, `npm run build`
+- [x] `berg.check.ts` holds the apron: the back is unchanged; the run never
+      climbs, is all ice and stays within `drop`; the coast moves out by the
+      run; the skate beats its grade; and a cruise ride from the sea across
+      the whole apron reaches the snow without stalling
+- [x] Rendered headless (swiftshader, WebGL2) from a waypoint in front of the
+      adit with each craft: the apron is drawn, the boat stops at its edge
+
+### Open, and Seb's
+
+- **How long and how wide.** `APRON.width` 0.5, `full` 0.35, `gone` 1.0.
+- **Its colour.** The apron sits 7–12 cm under the snow line, which is where
+  the ice gradient is at its palest, so it reads as pale blue ice with streaks
+  rather than the shore's cyan. If it should read as obviously ice from a
+  distance, that is the mix in `Islands.tsx`, not the shape.
+
+## PolarSense's summary is the extension's
+
+The one-line summary in all three locales is now what the extension does
+rather than its first feature: rows, column statistics and charts, plus
+column completion, typo checks and hover statistics for polars, pandas and
+duckdb. EN is Seb's wording; **FR and NL are unreviewed**.
+
+## The saucer comes down to the islands
+
+Seven changes to the saucer, asked for together. Every one is the saucer's
+alone: the board, the boat and the surfer ride, collide and photograph exactly
+as they did.
+
+**It hovers low over the islands, and nothing on them is a ghost any more.**
+It flew every project island at its sea hover — 45 cm over a plateau and
+straight through the plinths, the ramp, the berg, the easel and the camera's
+tripod. Now `saucerRide` in `Ship.tsx` reads `plateau()`, the board's own
+floor, over the hull's rim and a third of a second ahead, and hovers `LOW`
+(0.3 m) over it. It comes down from its 0.9 sea hover over the first
+`LOW_IN` (0.25 m) of beach, so a plateau is *lower* than the sea, which is
+the opposite of the isle's `CLEAR` and on purpose. It rides up the ramp and
+over the plinths. And it is a body to `stepProps` now: a 0.85 m disc, twice
+the rider's weight, so the mountain and the tripod are walls it slides along
+(a hit on the berg's mountain shoves the berg, as the board's does) and the
+easel and the table are props it pushes. The isle is unchanged — `clearance`
+still decides there, and is the higher of the two.
+
+**Space lets go slowly.** `DESCEND` 1.3 against `CLIMB` 4: back from the
+ceiling to the hover in about two seconds instead of under one.
+
+**It parts the sea.** `PART` in `Scenery.tsx`: four points of its path,
+newest first, each healing over `LANE_HEAL` (2.4 s). Inside `PART_IN` (2.2)
+of that path every wave — chop and rollers — is scaled to nothing, back by
+`PART_OUT` (5), so the water under the hull is always at sea level whatever
+the sea is doing. The shader displaces and shades with it (glassy water in
+the lane, its slope left out of the normal) and draws white lips along both
+edges where the moved water stands; `swell()` multiplies by it with the
+product rule, so a tile floating in the lane floats on the water the visitor
+sees, and the dev finite-difference assert now runs with a lane as well.
+`PART_IN` is wider than the hull because the water mesh has a vertex every
+3.75 units, and a narrower lane is one it cannot draw. In a calm sea it is
+shading only; in an agitated one a roller visibly splits round it.
+
+**Light under it.** `Glow` in `Ship.tsx`: a pool and rings walking out of it,
+on an 11×11 grid laid over `max(sea level, plateau(), ground())` every frame,
+so the one mesh lies on the sea, the islands and the isle. The beam cone is
+stretched to reach whatever is under it, and widens as it goes.
+
+**The tiles go up the beam.** `BEAM` and the beam pass in `stepProps`
+(`plateau.ts`): a tile under the hull and within a metre of its axis is drawn
+to the axis, lifted at 1.4 u/s and spun; `Landmarks.tsx` stretches and twists
+it by how long it has been held (`held`); and the moment it reaches the
+underside it comes apart. It is put back at home, unseen (`gone`), with a
+`zap` for the sound (a swept saw over a crackle in `Sound.tsx`) and a dozen
+chips thrown from where it touched (`Dust`, one instanced mesh, none under
+reduced motion). The tidy-up that puts every loose prop back is what
+reassembles it, growing it back over `TIDY_FOR`. At the hover the taking is
+quick; held up on Space it is a slow float up three metres of beam. Only
+tiles; the found tiles still in the air are left alone.
+
+**Memojo takes a sighting.** The lens's cone is framed on the air over the
+lip and the saucer is never there, so `inFront` is a wedge on the ground
+instead: same bearing and reach, any height, `cos` 0.8, not within 1.5 m.
+Passing it at more than 1.5 u/s fires the shutter (`FLASH.ufo`), not more
+often than every three seconds. `Shutter.tsx` then swings the lens onto the
+saucer for that one frame, a hand's breadth off, through a 34° lens, into a
+**44-pixel** target of the same format as the real one (so every program
+`warmUp` built is reused), and the card draws it smeared along a shake,
+drained toward green, grainy, lifted and vignetted — a blurred black disc
+over grey water, which is every UFO photograph ever taken.
+
+**The hologram gets a crop circle.** A saucer through the panel
+(`throughPanel` in `sudoku.ts`) does not scramble it the way the board does:
+it leaves a formation — a centre, two rings, three satellites on a path with
+spokes, six marks round the edge, laid crop bright in a swirl and standing
+crop as dim stalks with two tramlines — spreading out from the middle over
+`CROP.draw` (1.4 s), holding `CROP.hold` (6 s) after the saucer was last
+through, and taken back in over `CROP.fade`. Under reduced motion it is all
+at once.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b`, all thirteen checks, `npm run build`
+- [x] `plateau.check.ts`: a saucer parked over the row takes every tile in
+      its beam and only those, a zap each, at the hull, never the heavy prop;
+      the tidy-up brings every one back; and a pass in front of the lens fires
+      while behind it, against the tripod and past its reach do not
+- [x] `sudoku.check.ts`: what is through the panel and what is not, and the
+      formation's draw, hold and fade
+- [x] Rendered headless (swiftshader, WebGL2) with the saucer from each
+      island's waypoint: low over Sqrubs with tiles stretching up into it;
+      along Memojo's ramp past the lens, and the print it put out; through
+      the sudoku's panel with the crop circle spreading over it; against the
+      berg's mountain, sliding along it; and the lane and its lips behind it
+      at sea. The sighting itself was read back off its render target on a
+      throwaway build: the saucer, central, at 44 pixels
+
+### Open, and Seb's
+
+- **How low.** `LOW` 0.3. Lower and the rim's shadowless underside reads as
+  sitting on the plinth.
+- **How quickly the tiles go.** `BEAM.rise` 1.4 and `r` 1.0. Slower is more
+  to watch from a hover and fewer taken on a pass.
+- **The sighting's murk.** Grain, drain and vignette in `Shutter.tsx`; the
+  saucer should still be guessable.
+- **The lane's width** (`PART_IN`, `PART_OUT`) against the mesh's 3.75.
+- Frame cost on hardware: the lane is three segment distances per water
+  fragment and vertex, and `Glow` 121 height reads a frame.

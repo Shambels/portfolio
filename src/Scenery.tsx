@@ -270,6 +270,67 @@ const SPLASH_WIDTH = 1.3 // how thick the ring is, world units
 const SPLASH_FLASH = 2.1 // radius of the white water under the hull, world units
 const SPLASH_FLASH_LIFE = 0.26 // and how long that lasts — it is the impact, not the wake
 
+/* ---------------------------------------------------------------------------
+ * The lane.
+ *
+ * The saucer parts the sea. Under it, and along the last couple of seconds of
+ * its path, the water is level: every wave, chop and roller alike, is scaled
+ * down to nothing inside `PART_IN` of the path and comes back by `PART_OUT`,
+ * and the path heals behind it over `PART_HEAL`. So the water directly under
+ * the hull is always at the same height — sea level — whatever the sea is
+ * doing, and a roller that meets the saucer splits round it.
+ *
+ * The path is four points, newest first, each with its own strength, written
+ * by `Ship` (`PART`), and it is read twice like everything else here: by the
+ * shader, which displaces and shades the water with it, and by `swell()`, so a
+ * prop floating in the lane floats on the level water the visitor sees.
+ * `PART_IN` is wider than the hull on purpose: the water is a vertex every
+ * 3.75 units, and a lane narrower than that is a lane the mesh cannot draw.
+ * ------------------------------------------------------------------------ */
+export const PART_IN = 2.2
+export const PART_OUT = 5
+/** x, z and strength, four points, newest first. `Ship` writes it. */
+export const PART = new Float32Array(12)
+const uPart = [0, 1, 2, 3].map(() => uniform(new THREE.Vector3()))
+
+/** How much of the sea is left at a world XZ: 1 out of the lane, 0 in it. */
+function partAt(x: number, z: number): number {
+  let k = 0
+  for (let i = 0; i < 3; i++) {
+    const ax = PART[i * 3]!, az = PART[i * 3 + 1]!, as = PART[i * 3 + 2]!
+    const bx = PART[i * 3 + 3]!, bz = PART[i * 3 + 4]!, bs = PART[i * 3 + 5]!
+    if (as <= 0 && bs <= 0) continue
+    const dx = bx - ax, dz = bz - az
+    const l2 = dx * dx + dz * dz
+    const t = l2 > 1e-9 ? Math.min(Math.max(((x - ax) * dx + (z - az) * dz) / l2, 0), 1) : 0
+    const d = Math.hypot(x - ax - dx * t, z - az - dz * t)
+    if (d >= PART_OUT) continue
+    const u = Math.min(Math.max((d - PART_IN) / (PART_OUT - PART_IN), 0), 1)
+    k = Math.max(k, (as + (bs - as) * t) * (1 - u * u * (3 - 2 * u)))
+  }
+  return 1 - k
+}
+
+/** The same in TSL — the lane's `1 - k`, and the `k` for the foam on its lips. */
+function laneNode(p: Vec2) {
+  let k: Float = float(0)
+  let lip: Float = float(0)
+  for (let i = 0; i < 3; i++) {
+    const a = uPart[i]!
+    const b = uPart[i + 1]!
+    const ab = vec2(b.x.sub(a.x), b.y.sub(a.y))
+    const ap = vec2(p.x.sub(a.x), p.y.sub(a.y))
+    const t = clamp(dot(ap, ab).div(max(dot(ab, ab), 1e-6)), 0, 1)
+    const d = length(ap.sub(ab.mul(t)))
+    const st = mix(a.z, b.z, t)
+    k = max(k, st.mul(oneMinus(smoothstep(PART_IN, PART_OUT, d))))
+    // The lips: where the water that was moved aside stands, just outside the
+    // flat — a band of white either side of the lane.
+    lip = max(lip, st.mul(smoothstep(PART_IN * 0.9, PART_IN * 1.35, d)).mul(oneMinus(smoothstep(PART_IN * 1.35, PART_OUT * 0.85, d))))
+  }
+  return { keep: oneMinus(k), lip }
+}
+
 /**
  * The sea on the CPU: a height and two gradients at a world XZ.
  *
@@ -334,6 +395,24 @@ export function swell(x: number, z: number, t: number) {
     rz = (hz * s.f + h * s.dz) * SEA.roll
   }
 
+  // The lane, last: the whole sea times how much of it is left, and the
+  // product rule for the slope — the lane's own gradient read by a central
+  // difference, which is exact enough and costs four reads of four points.
+  // Off when the saucer is not out, which is almost always.
+  if (PART[2]! > 0 || PART[5]! > 0) {
+    const keep = partAt(x, z)
+    if (keep < 1) {
+      const e = 0.01
+      const gx = (partAt(x + e, z) - partAt(x - e, z)) / (2 * e)
+      const gz = (partAt(x, z + e) - partAt(x, z - e)) / (2 * e)
+      dx *= keep
+      dz *= keep
+      rx = rx * keep + y * gx
+      rz = rz * keep + y * gz
+      y *= keep
+    }
+  }
+
   _swell.y = y
   _swell.dx = dx
   _swell.dz = dz
@@ -353,18 +432,22 @@ export function swell(x: number, z: number, t: number) {
 if (import.meta.env.DEV) {
   const e = 1e-4
   const was = SEA.roll
-  for (const roll of [0, 1]) {
+  const lane = PART.slice()
+  for (const roll of [0, 1]) for (const parted of [false, true]) {
     SEA.roll = roll
-    for (const [x, z, t] of [[3, -7, 0.4], [-11, 22, 9.1], [-2, -5, 5.5]]) {
+    // A lane through two of the three points, healing along its length.
+    PART.set(parted ? [2, -4, 1, -1, -7, 0.7, -6, -9, 0.3, -9, -9, 0] : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    for (const [x, z, t] of [[3, -7, 0.4], [-11, 22, 9.1], [-2, -5, 5.5], [0.5, -7.5, 2.2]]) {
       const s = swell(x, z, t)
       const dx = (swell(x + e, z, t).y - swell(x - e, z, t).y) / (2 * e)
       const dz = (swell(x, z + e, t).y - swell(x, z - e, t).y) / (2 * e)
       console.assert(
         Math.abs(dx - (s.dx + s.rx)) < 1e-3 && Math.abs(dz - (s.dz + s.rz)) < 1e-3,
-        `swell at ${x},${z}, roll ${roll}: the gradient is not the height's — the water and the boat disagree`,
+        `swell at ${x},${z}, roll ${roll}${parted ? ', parted' : ''}: the gradient is not the height's — the water and the boat disagree`,
       )
     }
   }
+  PART.set(lane)
   SEA.roll = was
 }
 
@@ -461,13 +544,17 @@ function rollerNode(p: Vec2) {
   }
 
   const s = shoalNode(p)
+  // Parted under the saucer. The slope is scaled and the lane's own slope is
+  // left out: it is shading, a hand's breadth of it, and the hull that rides
+  // this water never shares it with the saucer.
+  const keep = laneNode(p).keep
   return {
-    h: h.mul(s.f).mul(uRoll),
-    dx: hx.mul(s.f).add(h.mul(s.dx)).mul(uRoll),
-    dz: hz.mul(s.f).add(h.mul(s.dz)).mul(uRoll),
+    h: h.mul(s.f).mul(uRoll).mul(keep),
+    dx: hx.mul(s.f).add(h.mul(s.dx)).mul(uRoll).mul(keep),
+    dz: hz.mul(s.f).add(h.mul(s.dz)).mul(uRoll).mul(keep),
     /** The sum as a fraction of the tallest single crest — so foam lands on the
      *  big ones and on the places two trains agree, and nowhere else. */
-    crest: h.div(TALLEST).mul(s.f).mul(uRoll),
+    crest: h.div(TALLEST).mul(s.f).mul(uRoll).mul(keep),
   }
 }
 
@@ -494,9 +581,12 @@ function waves(p: Vec2) {
   const ripple = fractal(vec3(p.mul(0.6 * CHOP.freq), T.mul(0.25 * CHOP.speed)), octaves(2, 1))
     .mul(0.05 * Math.sqrt(CHOP.amp))
   const r = rollerNode(p)
+  // And glass in the lane: the chop and the ripple go with the rollers.
+  const lane = laneNode(p)
   return {
-    n: normalize(vec3(dx.add(ripple).add(r.dx).negate(), 1, dz.sub(ripple).add(r.dz).negate())),
+    n: normalize(vec3(dx.add(ripple).mul(lane.keep).add(r.dx).negate(), 1, dz.sub(ripple).mul(lane.keep).add(r.dz).negate())),
     crest: r.crest,
+    lip: lane.lip,
   }
 }
 
@@ -519,6 +609,7 @@ export function Scenery({ sea }: {
     // read of it, three numbers into two uniforms.
     uSplash.value.set(SPLASH.x, SPLASH.z, SPLASH.force)
     uSplashAge.value = SPLASH.age
+    for (let i = 0; i < 4; i++) uPart[i]!.value.set(PART[i * 3]!, PART[i * 3 + 1]!, PART[i * 3 + 2]!)
 
     if (k.current === target) return
     // The same clamp `Ship` makes: a backgrounded tab comes back with one
@@ -620,7 +711,7 @@ function useMaterials() {
     water.positionNode = positionLocal.add(vec3(0, rollerNode(positionLocal.xz).h, 0))
 
     const view = normalize(positionWorld.sub(cameraPosition))
-    const { n, crest } = waves(positionWorld.xz)
+    const { n, crest, lip } = waves(positionWorld.xz)
     const bounce = reflect(view, n)
 
     // Grazing angles mirror the sky, steep ones show the water's own colour.
@@ -664,7 +755,10 @@ function useMaterials() {
     const beat = sin(T.mul(0.7).add(positionWorld.x.mul(0.09)).add(positionWorld.z.mul(0.07)))
     const surf = smoothstep(0.86, 1, shal.add(beat.mul(0.05)))
       .mul(smoothstep(-0.3, 0.45, breakup))
-    const foam = max(max(caps, surf), max(ring, flash))
+    // And the lane's lips: the water the saucer moved aside, standing white
+    // along both edges of its path and torn up like everything else here.
+    const lips = smoothstep(0.25, 0.7, lip).mul(smoothstep(-0.4, 0.5, breakup))
+    const foam = max(max(max(caps, surf), max(ring, flash)), lips)
 
     // Fade into the horizon's own colour, or the plane ends in a visible edge.
     const far = smoothstep(140, 880, length(positionWorld.xz.sub(cameraPosition.xz))).mul(0.8)

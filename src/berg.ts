@@ -59,6 +59,49 @@ export const BERG_PROFILE: [number, number][] = [
  *  hair inside the roll-off, so the first of the slope is already ice. */
 export const ICE_IN = 0.5
 
+/* --------------------------------------------------------------- the apron */
+
+/**
+ * The shore in front of the adit, run out. On the side the mountain's mouth
+ * faces — which is the world's centre, where the visitor comes from — the
+ * roll-off off the snow does not go straight down the shore: a run of nearly
+ * flat ice is spliced in after it, `width` of the radius long and falling only
+ * `drop` over all of it, and the whole shore beyond is moved out by that run.
+ * So the berg's coast stands further out there, and between the snow and the
+ * sea there is a floe's worth of glassy ice to glide across rather than a
+ * slope to slide down.
+ *
+ * Nearly flat and not flat: a 1% grade toward the sea, so a man stopped on it
+ * drifts off it the way the shore would take him, slowly enough that the skate
+ * beats it. `hinge` is the profile point the run is spliced after — the foot
+ * of the roll-off, already ice (`ICE_IN`). Full over `full` radians either side
+ * of the facing bearing, gone by `gone`, smoothstepped between.
+ */
+export const APRON = { hinge: 2, width: 0.5, drop: 0.05, full: 0.35, gone: 1.0 }
+
+/** How much of the apron a bearing gets, 0 to 1. `facing` is the bearing the
+ *  adit looks along, in the same `atan2(dz, dx)` as `rim`. */
+export function apronWeight(theta: number, facing: number): number {
+  const a = Math.cos(APRON.gone)
+  const t = Math.min(Math.max((Math.cos(theta - facing) - a) / (Math.cos(APRON.full) - a), 0), 1)
+  return t * t * (3 - 2 * t)
+}
+
+/** The berg's profile on a bearing whose apron weight is `w`: `BERG_PROFILE`
+ *  with the flat run spliced in after the hinge. One point longer than it, for
+ *  every `w` — at 0 the spliced point sits on the hinge — so the lathe can bend
+ *  one mesh by it and the floor can read it with `profileAt`. */
+export function bergProfile(w: number): [number, number][] {
+  const ext = w * APRON.width
+  const dy = w * APRON.drop
+  const [r0, y0] = BERG_PROFILE[APRON.hinge]!
+  return [
+    ...BERG_PROFILE.slice(0, APRON.hinge + 1),
+    [r0 + ext, y0 - dy],
+    ...BERG_PROFILE.slice(APRON.hinge + 1).map(([r, y]): [number, number] => [r + ext, y - dy]),
+  ]
+}
+
 /* ---------------------------------------------------------------- the pose */
 
 /** Periods (s) and damping ratios. Slow and lightly damped on purpose, like

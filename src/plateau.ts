@@ -73,7 +73,8 @@ export function profileAt(radius: number, seed: number, dx: number, dz: number,
   profile: [number, number][] = PROFILE): number {
   const d = Math.hypot(dx, dz)
   const f = d / (radius * rim(Math.atan2(dz, dx), seed))
-  if (f >= 1) return profile[profile.length - 1]![1]
+  // Past the last ring, which is 1 for every island but the berg on its apron.
+  if (f >= profile[profile.length - 1]![0]) return profile[profile.length - 1]![1]
   for (let i = 1; i < profile.length; i++) {
     const [r1, y1] = profile[i]!
     if (f > r1) continue
@@ -231,6 +232,15 @@ export type Prop = {
   fz: number
   fy: number
   fyaw: number
+  /** In the saucer's beam this frame — no gravity, no friction. */
+  beamed: boolean
+  /** How long it has been in the beam, 0 to 1: what stretches and twists it
+   *  as it rises (`Landmarks.tsx`). Falls back to 0 once it is out. */
+  held: number
+  /** Taken: 1 the moment the beam delivers it to the hull and it comes
+   *  apart, back to 0 as the tidy-up puts it together again — so it is
+   *  drawn at `1 - gone` of its size, at home, while it reassembles. */
+  gone: number
 }
 
 /**
@@ -409,7 +419,7 @@ export type Board = {
  *  something the board hit, it is something that went off because of where the
  *  board was. The machinery is identical — a one-shot the sound plays once at
  *  a level — and a second list beside this one would be the same list. */
-export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter'; force: number }
+export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter' | 'zap'; force: number }
 
 /**
  * Is a world point in a landmark's lens? False for every landmark that has no
@@ -432,6 +442,74 @@ export function inShot(set: PropSet, wx: number, wy: number, wz: number): boolea
   const d = Math.hypot(rx, ry, rz)
   if (d < 1e-6 || d > l.reach) return false
   return (rx * l.dx + ry * l.dy + rz * l.dz) / d >= l.cos
+}
+
+/**
+ * Is a world XZ in front of a landmark's lens, at any height? The saucer's
+ * test, where `inShot` is the board's.
+ *
+ * The cone is framed on the air over the lip — where a rider is when he is
+ * worth a photograph — and the saucer is never there: it hovers a third of a
+ * metre off whatever it is over, which from the lens is well under the cone's
+ * lower edge. So for the saucer the lens is a wedge on the ground instead, the
+ * same bearing and reach, `cos` of its own, and no opinion about height; and
+ * the photograph is aimed at the saucer rather than at the lip (`Shutter.tsx`).
+ * `near` keeps it from going off at a hull parked against the tripod.
+ */
+export const IN_FRONT = { cos: 0.8, near: 1.5 }
+export function inFront(set: PropSet, wx: number, wz: number): boolean {
+  const l = set.lens
+  if (!l) return false
+  const cr = Math.cos(set.rot)
+  const sr = Math.sin(set.rot)
+  const dx = wx - set.cx
+  const dz = wz - set.cz
+  const rx = dx * cr - dz * sr - l.x
+  const rz = dx * sr + dz * cr - l.z
+  const d = Math.hypot(rx, rz)
+  const a = Math.hypot(l.dx, l.dz)
+  if (d < IN_FRONT.near || d > l.reach || a < 1e-6) return false
+  return (rx * l.dx + rz * l.dz) / (d * a) >= IN_FRONT.cos
+}
+
+/* ------------------------------------------------------------- the beam
+ *
+ * The saucer does not knock tiles about. It takes them: a tile under the
+ * hull and inside `r` of its axis is drawn in to the axis, lifted, and spun,
+ * and the moment it reaches the hull it comes apart — `gone`, a `zap` for the
+ * sound, and a point in `zaps` where `Ship.tsx` throws the pieces. It is put
+ * back at home, unseen, and the tidy-up that puts every other loose prop back
+ * is what reassembles it. Only tiles: anything heavier is something a low
+ * saucer runs into, and the contact code above handles that as it does the
+ * board.
+ *
+ * The saucer hovers a third of a metre over the plinth, so at its hover the
+ * taking is quick — a fifth of a second, stretched as it goes. Held up on
+ * Space it is three metres, and the same beam is a slow float up into it.
+ */
+export type Beam = {
+  /** The axis, in world XZ, and the underside of the hull in world Y. */
+  x: number
+  z: number
+  y: number
+}
+export type Zap = { x: number; y: number; z: number }
+export const BEAM = {
+  /** How far from the axis it reaches, world units — the hull's own radius. */
+  r: 1.0,
+  /** The pull to the axis, per second squared per unit off it, and its damping. */
+  pull: 14,
+  damp: 4.5,
+  /** How fast it rises once taken, units a second, and how quickly it gets
+   *  there: quick enough that a saucer passing at cruise — a quarter of a
+   *  second over any one tile — still takes what it crosses, and slow enough
+   *  that one held up on Space draws them up over a couple of seconds. */
+  rise: 1.4,
+  lift: 7,
+  /** The spin it is given, radians a second. */
+  swirl: 9,
+  /** How far under the hull's underside counts as arriving. */
+  reach: 0.06,
 }
 
 /** What the props stand on: the island and the sea at a world XZ, in world Y. */
@@ -474,6 +552,7 @@ export function makeProp(id: string, px: number, pz: number, r: number, m: numbe
     id, px, pz, r, m, rest,
     x: 0, z: 0, y: 0, yaw: 0, vx: 0, vz: 0, vy: 0, w: 0,
     fixed: false, loose: false, asleep: true, fx: 0, fz: 0, fy: 0, fyaw: 0,
+    beamed: false, held: 0, gone: 0,
   }
 }
 
@@ -653,7 +732,7 @@ const force = (v: number) => Math.min(Math.max((v - HIT_MIN) / (HIT_FULL - HIT_M
  * nothing touches them.
  */
 export function stepProps(set: PropSet, dt: number, board: Board, active: boolean,
-  terrain: Terrain, hits: Hit[]): void {
+  terrain: Terrain, hits: Hit[], beam: Beam | null = null, zaps: Zap[] | null = null): void {
   // Nothing to do, almost always: the board is out at sea and everything is
   // where the model put it.
   const far = Math.hypot(board.x - set.cx, board.z - set.cz) > set.reach + board.len + board.r + 1
@@ -693,7 +772,9 @@ export function stepProps(set: PropSet, dt: number, board: Board, active: boolea
     for (const p of set.props) {
       if (!p.loose) continue
       p.x = p.fx * (1 - k); p.z = p.fz * (1 - k); p.y = p.fy * (1 - k); p.yaw = p.fyaw * (1 - k)
-      if (set.back >= 1) { p.loose = false; p.asleep = true; p.vx = p.vz = p.vy = p.w = 0 }
+      // A tile the saucer took grows back where it belongs.
+      if (p.gone > 0) p.gone = 1 - k
+      if (set.back >= 1) { p.loose = false; p.asleep = true; p.vx = p.vz = p.vy = p.w = 0; p.gone = 0 }
     }
     if (set.back >= 1) { set.back = 0; set.still = 0 }
   }
@@ -701,7 +782,9 @@ export function stepProps(set: PropSet, dt: number, board: Board, active: boolea
   // The board against each prop. A disc against a capsule: the closest point
   // on the board's spine to the prop's centre, and the gap between.
   if (active) for (const p of set.props) {
-    if (p.fixed) continue
+    if (p.fixed || p.gone > 0) continue
+    // Under the saucer a tile is the beam's, not the hull's to hit.
+    if (beam && p.m <= 1.5) continue
     const cx = p.px + p.x
     const cz = p.pz + p.z
     onSegment(ax, az, ex, ez, cx, cz, _c)
@@ -756,15 +839,54 @@ export function stepProps(set: PropSet, dt: number, board: Board, active: boolea
     if (f > 0) hits.push({ kind: p.m <= 1.5 ? 'tile' : 'wood', force: f })
   }
 
+  // The beam. In landmark space like everything else here, so the axis comes
+  // in through the same turn the board did.
+  for (const p of set.props) p.beamed = false
+  if (beam) {
+    toLocal(beam.x, beam.z, _c)
+    for (const p of set.props) {
+      if (p.fixed || p.gone > 0 || p.m > 1.5) continue
+      const ox = _c.x - (p.px + p.x)
+      const oz = _c.z - (p.pz + p.z)
+      const base = p.rest + p.y
+      if (ox * ox + oz * oz > BEAM.r * BEAM.r || base >= beam.y) {
+        p.held = Math.max(0, p.held - dt * 2)
+        continue
+      }
+      wake(p)
+      if (set.back > 0) freeze(set)
+      p.beamed = true
+      p.held = Math.min(1, p.held + dt * 1.6)
+      // Drawn to the axis, round it a little, up, and spun.
+      p.vx += (ox * BEAM.pull - p.vx * BEAM.damp - oz * BEAM.swirl * 0.3) * dt
+      p.vz += (oz * BEAM.pull - p.vz * BEAM.damp + ox * BEAM.swirl * 0.3) * dt
+      p.vy += (BEAM.rise - p.vy) * Math.min(1, BEAM.lift * dt)
+      p.w += (BEAM.swirl - p.w) * Math.min(1, 2 * dt)
+      if (base >= beam.y - BEAM.reach) {
+        // Arrived. It comes apart where it is, and is put home unseen.
+        const cx = p.px + p.x
+        const cz = p.pz + p.z
+        zaps?.push({ x: set.cx + cx * cr + cz * sr, y: base, z: set.cz - cx * sr + cz * cr })
+        hits.push({ kind: 'zap', force: 0.8 })
+        p.gone = 1
+        p.beamed = false
+        p.held = 0
+        p.x = p.z = p.y = p.yaw = 0
+        p.vx = p.vz = p.vy = p.w = 0
+        p.asleep = true
+      }
+    }
+  } else for (const p of set.props) p.held = Math.max(0, p.held - dt * 2)
+
   // Props against each other, discs, once per pair. Heavier things push
   // lighter ones the way the board pushes them.
   const ps = set.props
   for (let i = 0; i < ps.length; i++) {
     const a = ps[i]!
-    if (a.fixed) continue
+    if (a.fixed || a.gone > 0) continue
     for (let k = i + 1; k < ps.length; k++) {
       const b = ps[k]!
-      if (b.fixed || (a.asleep && b.asleep)) continue
+      if (b.fixed || b.gone > 0 || (a.asleep && b.asleep)) continue
       if (Math.abs((a.rest + a.y) - (b.rest + b.y)) > 0.4) continue
       let nx = (b.px + b.x) - (a.px + a.x)
       let nz = (b.pz + b.z) - (a.pz + a.z)
@@ -806,7 +928,10 @@ export function stepProps(set: PropSet, dt: number, board: Board, active: boolea
     // the plate is at 0 there and 0.21 lower once it has slid off the plinth.
     const floor = here.land - p.rest
     const afloat = here.water > here.land
-    if (afloat) {
+    if (p.beamed) {
+      // Held: whatever the beam gave it, and nothing under it but the floor.
+      p.y = Math.max(p.y + p.vy * dt, floor)
+    } else if (afloat) {
       // Wood floats: a spring to the surface, damped, and the water's drag.
       const surface = here.water - p.rest
       p.vy += dt * ((surface - p.y) * FLOAT_K - p.vy * FLOAT_C)

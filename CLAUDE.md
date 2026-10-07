@@ -61,11 +61,11 @@ one major behind. Noted here rather than done quietly.
 
 | Slug | Landmark | Links |
 |---|---|---|
-| `polarsense` | An iceberg that floats and rocks under the rider: a frozen mountain of stepped ridges with the mine dug into it, and an ice shore with no grip | https://github.com/Shambels/polarSense |
+| `polarsense` | An iceberg that floats and rocks under the rider: a frozen mountain of stepped ridges with the mine dug into it, and an ice shore with no grip — run out in front of the adit into an apron of nearly flat ice | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `sqrubs` | A Scrabble board | — |
-| `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
-| `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive | https://github.com/Shambels/sudoku |
+| `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints — a blurred sighting, when it is the saucer | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
+| `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive, and a crop circle where the saucer went through | https://github.com/Shambels/sudoku |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
 — is English frontmatter, not a table anywhere in code.
@@ -128,6 +128,12 @@ Breaking one is allowed. Doing it without saying so is not.
   every frame the sea and the plateaus already had is unchanged. The boat is the same controller with its altitude pinned to the
   swell (`swell()` in `Scenery.tsx`, the CPU twin of the water's own waves) and
   a circle-vs-circle push out of each island's shoreline — still no engine. No ground following over flat terrain — only where the land stands higher than a plateau.
+  Since "The saucer comes down to the islands" the saucer reads the project
+  islands too: `plateau()` under its rim, hovering `LOW` (0.3 m) over it —
+  lower than over the sea — a disc to `stepProps`, so walls stop it and
+  props move, and a beam (`BEAM` in `plateau.ts`) that lifts tiles into the
+  hull where they come apart. It parts the sea under its path (`PART` in
+  `Scenery.tsx`, folded into `swell()` too), so the water under it is level.
   The surfer is the exception to that shoreline, and it is the only one: he
   crosses the isle's coast, picks the board up and walks, following the same
   `ground()` the saucer does with his soles on it instead of a metre above it —
@@ -172,7 +178,10 @@ Breaking one is allowed. Doing it without saying so is not.
   The ring of ice from `ICE_IN` out is the **ice shore**, and on it the board
   has no grip: `glide` keeps the velocity, lets the slope (the shore's and
   the tilt's) pull it, and the input only turns the board — plus a faint
-  skate below 1.1 u/s so the ice is never a trap. `berg.check.ts` holds it.
+  skate below 1.1 u/s so the ice is never a trap. In front of the adit the
+  shore is run out (`APRON`, `bergProfile`): half a radius of nearly flat ice
+  spliced in after the roll-off, the coast moved out with it, and the boat,
+  the spray and the sound told through `apronOut`. `berg.check.ts` holds it.
 - The character stays procedural — *was*, for both hulls. There are two
   exceptions now and the rule is the weaker for it. The **boat** is
   `src/models/pirate_ship.glb` since the ship, a generated galleon fitted into
@@ -455,8 +464,10 @@ src/Ink.tsx             the outlines — every lit mesh under it, inked
 tools/flatten.py        the repaint — a glb's texture reduced to a dozen flat
                         colours and written back in; run after surfer.py or
                         pirate_ship.py
-src/Ship.tsx            the character: the flight controller, and the two hulls
-                        it drives — a hovering saucer and a boat on the water
+src/Ship.tsx            the character: the flight controller, and the hulls
+                        it drives — a hovering saucer and a boat on the water —
+                        and the saucer's glow on the ground and the chips of
+                        the tiles its beam takes (`Glow`, `Dust`)
 src/useInput.ts         invariant 8 — the only place input is read, keys and touch
 src/stick.ts            the thumb stick's arithmetic, and its check beside it
 src/camera.ts           the follow camera's two sums — a push read against the
@@ -651,7 +662,8 @@ never reach the circle the saucer triggers on.
 
 The world gained a fourth island, and it is the only one that is not a project:
 70 m of coast at human scale, a 13 m ridge, a turquoise lagoon and thirty-eight
-palm trees, 78 units out in the half of the frame the camera looks into. It is
+palm trees, 128 units out (78 before the archipelago was spread) in the half
+of the frame the camera looks into. It is
 what unlocked ground following — the saucer rides the ridge — and it gave every
 island a lagoon and a line of surf on its beach, which is a change to the
 committed look of the three that were there already. `docs/STATUS.md`, "The
@@ -787,12 +799,20 @@ the landmarks stood on the water) and fixed it in one line — a visible
 change to the other four islands. `docs/STATUS.md`, "PolarSense is an
 iceberg", has the numbers and what is Seb's to feel on hardware.
 
+The archipelago is spread out to the chart. Every project `pos` is 2.5× what
+it was, about the origin, waypoints keeping their offsets, so the world is the
+`/work` chart's shape and a crossing takes 5–12 s at cruise; the chart itself
+is unchanged, because `STRETCH` in `work.tsx` divides the same 2.5 back out.
+`palm-isle` moved out along its own bearing so the spawn did not move with it,
+and `crag-isle` is 150 units past the Sudoku Solver, the last stop on the
+route. `docs/STATUS.md`, "The archipelago is spread out".
+
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the unreviewed
 FR/NL UI strings (`worldControls`, `sound`, `worldControlsTouch`, the boat's two
 control hints, the three craft labels, the reading view's `closeStudy` and
 `backToWorld`, and now `linkPlay`, `linkAppStore`, `linkMarketplace`, the two reworded `work`
-strings, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
+strings, PolarSense's new FR and NL summaries, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
 Solver's, which is the longest translation on the site, and Sqrubs' four
 new paragraphs on the board reader), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now

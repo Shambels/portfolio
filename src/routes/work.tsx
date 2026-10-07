@@ -43,12 +43,23 @@ import { STRINGS, type Locale } from '../i18n'
  */
 const SPREAD = 1.9
 
+/**
+ * How much further apart the islands stand in the world than on this chart.
+ * The world was spread out by this much so that the crossing between two
+ * projects takes a while; the chart was not, because at true scale its five
+ * islands are specks on a route. So every `pos` is divided by it here and the
+ * coasts are not — the shape of the archipelago is the world's, the size of
+ * each island is drawn up, as `mapScale` already drew some of them down, and
+ * the scale bar measures the water.
+ */
+const STRETCH = 2.5
+
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /**
  * The archipelago from above, in world units: +x right, +z down, which is what
  * the SVG's own axes already are and what the minimap draws. Each island at its
- * `pos`, its coast at `radius * SPREAD * mapScale`, the minimap's letter on it, and the
+ * `pos` over `STRETCH`, its coast at `radius * SPREAD * mapScale`, the minimap's letter on it, and the
  * route between them in `order`. A label sits on the side of its island that
  * faces away from the middle of the group, so no two meet over the water.
  *
@@ -130,11 +141,12 @@ function glide(el: Element, behavior: ScrollBehavior) {
 
 function Chart({ projects }: { projects: Project[] }) {
   const coast = (p: Project) => p.radius * SPREAD * p.mapScale
-  const cz = projects.reduce((s, p) => s + p.pos[1], 0) / projects.length
-  const x0 = Math.min(...projects.map((p) => p.pos[0] - coast(p))) - 3
-  const x1 = Math.max(...projects.map((p) => p.pos[0] + coast(p))) + 3
-  const z0 = Math.min(...projects.map((p) => p.pos[1] - coast(p))) - 5
-  const z1 = Math.max(...projects.map((p) => p.pos[1] + coast(p))) + 6
+  const at = (p: Project): [number, number] => [p.pos[0] / STRETCH, p.pos[1] / STRETCH]
+  const cz = projects.reduce((s, p) => s + at(p)[1], 0) / projects.length
+  const x0 = Math.min(...projects.map((p) => at(p)[0] - coast(p))) - 3
+  const x1 = Math.max(...projects.map((p) => at(p)[0] + coast(p))) + 3
+  const z0 = Math.min(...projects.map((p) => at(p)[1] - coast(p))) - 5
+  const z1 = Math.max(...projects.map((p) => at(p)[1] + coast(p))) + 6
   const grid = []
   for (let x = Math.ceil(x0 / 10) * 10; x < x1; x += 10) grid.push(`M${x} ${z0}V${z1}`)
   for (let z = Math.ceil(z0 / 10) * 10; z < z1; z += 10) grid.push(`M${x0} ${z}H${x1}`)
@@ -143,9 +155,9 @@ function Chart({ projects }: { projects: Project[] }) {
     <figure className="chart" aria-hidden="true">
       <svg viewBox={`${x0} ${z0} ${x1 - x0} ${z1 - z0}`}>
         <path className="grid" d={grid.join('')} />
-        <polyline className="route" points={projects.map((p) => p.pos.join(',')).join(' ')} />
+        <polyline className="route" points={projects.map((p) => at(p).join(',')).join(' ')} />
         {projects.map((p) => {
-          const [x, z] = p.pos
+          const [x, z] = at(p)
           const r = coast(p)
           const above = z < cz
           return (
@@ -181,7 +193,7 @@ function Chart({ projects }: { projects: Project[] }) {
         </g>
         <g className="scale" transform={`translate(${x1 - 16} ${z1 - 2.5})`}>
           <path d="M0-.5V.5M0 0H10M10-.5V.5" />
-          <text x="11" y=".45">10 m</text>
+          <text x="11" y=".45">{`${10 * STRETCH} m`}</text>
         </g>
       </svg>
     </figure>

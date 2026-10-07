@@ -1,11 +1,11 @@
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three/webgpu'
-import { color, normalLocal, positionLocal, sin, time, uniform, uv } from 'three/tsl'
+import { abs, color, fract, normalLocal, oneMinus, positionLocal, sin, smoothstep, time, uniform, uv } from 'three/tsl'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { useInput } from './useInput'
 import { steer, swing } from './camera'
-import { swell } from './Scenery'
+import { PART, swell } from './Scenery'
 import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
@@ -14,7 +14,9 @@ import {
   offshore, overBerg, plateau, spawn,
 } from './world'
 import { glide, kick, shove, stepBerg } from './berg'
-import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
+import {
+  BOARD, PROP_SETS, RIDER_MASS, inFront, inShot, stepProps, type Beam, type Board, type Terrain, type Zap,
+} from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
 import { TURN as TURN_AROUND, off } from './device'
@@ -42,7 +44,11 @@ const SPEED = 7.5     // units/sec
 const BOOST = 2.4     // Shift multiplier. Same ACCEL ramps in and out of it.
 const ACCEL = 7       // higher = twitchier
 const LIFT = 2.6      // ceiling above hover altitude, held with Space
-const CLIMB = 4       // altitude catch-up rate, both directions
+const CLIMB = 4       // altitude catch-up rate, going up
+// And coming back down once Space is let go — a third of the rate up, so the
+// saucer settles back to its hover rather than dropping to it: two seconds,
+// near enough, from the ceiling to the hover it left.
+const DESCEND = 1.3
 const TURN = 9        // yaw catch-up rate
 const BANK = 0.5      // max lean, radians. Flip the sign to lean the other way.
 const PITCH = 0.32    // max nose-up on acceleration, radians
@@ -282,6 +288,66 @@ const FEELERS = 4
 const LOOK = 0.35
 
 /**
+ * And over the project islands, which the saucer used to fly across at its
+ * sea hover — 45 cm over a plateau and straight through anything standing
+ * proud of one: the plinths, the ramp, the berg. It reads their ground now,
+ * `plateau()`, the board's own floor, and hovers `LOW` over it: almost on the
+ * ground, lower than over the sea, which is the opposite of the isle's
+ * `CLEAR` and on purpose — a saucer skimming a landmark is close enough to
+ * take its tiles. Read over the hull's rim and a little ahead of it, like
+ * the isle, so the rim never cuts a plinth's edge.
+ *
+ * `LOW_IN` is the height of ground over the sea across which it comes down
+ * from its sea hover to `LOW`, so the beach is a descent and not a step.
+ */
+const LOW = 0.3
+const LOW_IN = 0.25
+/** The hull's radius as the props and the walls see it — the lights' ring. */
+const SAUCER_R = 0.85
+/** How far under the hull's origin its underside is: where the beam ends. */
+const UNDERSIDE = 0.1
+/** Seconds between two photographs of the saucer. Longer than the board's
+ *  `SHUTTER_GAP`: a saucer can hang in front of the lens, and a sighting is
+ *  one blurred frame, not a contact sheet. */
+const UFO_GAP = 3
+/** How fast it has to be going for the lens to notice it, units a second —
+ *  passing, not parked. */
+const UFO_PASS = 1.5
+
+/** The lane it parts in the sea (`PART` in `Scenery.tsx`): a new point every
+ *  `LANE_STEP` units, and a point's strength gone over `LANE_HEAL` seconds. */
+const LANE_STEP = 2
+const LANE_HEAL = 2.4
+
+/**
+ * Where the saucer is for everything it touches that is not this file: the
+ * height of whatever is under it (sea, island or isle), its own height over
+ * that, and whether it is the craft at all. `Saucer` reads the gap for the
+ * beam's length, `Glow` the level for the light on the ground.
+ */
+export const UFO = { on: false, level: 0, gap: 0.9 }
+
+/** Pieces of tile the beam took, waiting to be thrown — `Dust` drains it. */
+const ZAPS: Zap[] = []
+
+function islandFloor(x: number, z: number, vx: number, vz: number) {
+  let h = plateau(x, z)
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2
+    h = Math.max(h, plateau(x + Math.cos(a) * SAUCER_R, z + Math.sin(a) * SAUCER_R))
+  }
+  return Math.max(h, plateau(x + vx * LOOK, z + vz * LOOK))
+}
+
+/** The saucer's ride, as `clearance` was: the isle's, or the islands', the
+ *  higher — over the hover, which `alt` adds. Zero at sea. */
+function saucerRide(x: number, z: number, vx: number, vz: number, hover: number) {
+  const pl = islandFloor(x, z, vx, vz)
+  const w = THREE.MathUtils.smoothstep(pl, 0, LOW_IN)
+  return Math.max(clearance(x, z, vx, vz), w * (pl + LOW - hover))
+}
+
+/**
  * How high the saucer wants to be above the plateau datum at an XZ, given the
  * velocity it is carrying. Zero at sea and zero over a landmark's flat top:
  * `ground()` is sea level everywhere but the isle, so every frame those two
@@ -439,7 +505,7 @@ const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
  * other interest in it. `CAM_OFFSET` above is exported for the same kind of
  * reason. Nothing writes to this but the frame loop below.
  */
-export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0 }
+export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0, saucer: false }
 
 /** Which way the input points on the ice, as a unit vector — `glide`'s. */
 const _want = { x: 0, z: 0 }
@@ -458,6 +524,13 @@ const BOAT_LEAN = 1.2
 const _board: Board = {
   x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, spin: 0, len: BOARD.len, r: BOARD.r, m: RIDER_MASS,
 }
+/** And the saucer, which is a disc: a capsule with no length. Twice his
+ *  weight, so a table it runs into goes where it is pushed. `y` is the ground
+ *  under it rather than the hull — it hovers `LOW` over what it would hit. */
+const _saucer: Board = {
+  x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, spin: 0, len: 0.01, r: SAUCER_R, m: RIDER_MASS * 2,
+}
+const _beam: Beam = { x: 0, z: 0, y: 0 }
 /** And what a prop stands on: the island's ground and the sea, at this
  *  frame's clock. The swell is `Scenery`'s, so a tile in the lagoon bobs on
  *  the water the visitor can see. */
@@ -658,6 +731,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   // should not have to ask it twice.
   const hull = useRef(0)
   const hullVel = useRef(0)
+  // The saucer's lane: four points, x, z and the time each was left, newest
+  // first — a time under zero is a point not yet laid. See `PART`.
+  const trail = useRef(new Float32Array(12).fill(-1))
   const lastSurface = useRef(0)
   const wet = useRef(1)   // 1 in the water, 0 in the air, smoothed between
   const flew = useRef(false) // last frame's answer, so leaving and landing are events
@@ -777,6 +853,8 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     spring.current.set(0, 0, 0)
     springVel.current.set(0, 0, 0)
     reset.current = true
+    // And the lane does not stretch from where it was to where it is now.
+    trail.current.fill(-1)
     // A deep link is a teleport and not a walk: every waypoint is out at sea,
     // so arriving at one is arriving on the board, however he left.
     beached.current = 0
@@ -981,7 +1059,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
           const dz = g.position.z - BERG_AT.pos[2]
           const d = Math.hypot(dx, dz)
           const into = d > 1e-6 ? -(vel.current.x * dx + vel.current.z * dz) / d : 0
-          const touching = d < moorRadius(BERG_AT)
+          const touching = d < moorRadius(BERG_AT, Math.atan2(dz, dx))
           if (touching && into > 0) {
             const k = bump.current ? BOAT_LEAN * dt : 1
             shove((-dx / d) * into * k, (-dz / d) * into * k)
@@ -992,27 +1070,35 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       }
       // What stands on the landmark islands, against the board. Stepped for
       // every craft — a tile floating in the lagoon keeps floating while the
-      // visitor is in the saucer — and *hitting* only for the board, riding:
-      // a man on foot never reaches one, and the boat cannot get there. The
-      // mine's wall writes the position and the velocity straight back.
-      _board.x = g.position.x
-      _board.z = g.position.z
-      _board.y = hull.current
-      _board.yaw = yaw.current
-      _board.vx = vel.current.x
-      _board.vz = vel.current.z
-      _board.spin = Math.atan2(Math.sin(yaw.current - lastYaw.current),
+      // visitor is in the boat — and *hitting* for the board, riding, and
+      // for the saucer, which hovers low enough over them now to run into a
+      // table and to take the tiles (`BEAM` in `plateau.ts`). A man on foot
+      // never reaches one, and the boat cannot get there. The mine's wall
+      // writes the position and the velocity straight back.
+      const ufo = model === 'saucer'
+      const b = ufo ? _saucer : _board
+      b.x = g.position.x
+      b.z = g.position.z
+      // Last frame's height, for the saucer: the vertical has not run yet.
+      b.y = ufo ? SHIP.pos.y - alt.current + hover - LOW : hull.current
+      b.yaw = yaw.current
+      b.vx = vel.current.x
+      b.vz = vel.current.z
+      b.spin = Math.atan2(Math.sin(yaw.current - lastYaw.current),
         Math.cos(yaw.current - lastYaw.current)) / dt
+      _beam.x = b.x
+      _beam.z = b.z
+      _beam.y = SHIP.pos.y - UNDERSIDE
       _terrain.t = REDUCED ? 0 : state.clock.elapsedTime
       for (const set of PROP_SETS.values()) {
-        const wasVx = _board.vx
-        const wasVz = _board.vz
-        stepProps(set, dt, _board, walks && afoot < 0.5, terrain, HITS)
+        const wasVx = b.vx
+        const wasVz = b.vz
+        stepProps(set, dt, b, ufo || (walks && afoot < 0.5), terrain, HITS, ufo ? _beam : null, ZAPS)
         // The board off the berg's mountain: what the wall took out of his
         // velocity is what it put into the berg, which rolls along it.
         if (BERG_AT && set.slug === BERG_AT.slug && !REDUCED) {
-          const dvx = _board.vx - wasVx
-          const dvz = _board.vz - wasVz
+          const dvx = b.vx - wasVx
+          const dvz = b.vz - wasVz
           if (dvx !== 0 || dvz !== 0) shove(-dvx, -dvz)
         }
         // And the giant camera, which does the opposite of the wall above: it
@@ -1021,15 +1107,25 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         // because the vertical has not run yet and last frame's is the one
         // every other event here is timed off.
         if (set.lens && walks && afoot < 0.5 && flew.current && FLASH.age > SHUTTER_GAP &&
-          inShot(set, _board.x, _board.y, _board.z)) {
+          inShot(set, b.x, b.y, b.z)) {
           FLASH.age = 0
+          FLASH.ufo = false
+          HITS.push({ kind: 'shutter', force: 1 })
+        }
+        // The saucer it sees from the ground: anywhere in front of it, at
+        // any height, as long as it is going somewhere. The photograph is
+        // the other half of the joke and it is `Shutter.tsx`'s.
+        if (set.lens && ufo && FLASH.age > UFO_GAP && Math.hypot(b.vx, b.vz) > UFO_PASS &&
+          inFront(set, b.x, b.z)) {
+          FLASH.age = 0
+          FLASH.ufo = true
           HITS.push({ kind: 'shutter', force: 1 })
         }
       }
-      g.position.x = _board.x
-      g.position.z = _board.z
-      vel.current.x = _board.vx
-      vel.current.z = _board.vz
+      g.position.x = b.x
+      g.position.z = b.z
+      vel.current.x = b.vx
+      vel.current.z = b.vz
       // And in through a door, if he is on his feet in front of one and facing
       // it. On foot only — a board does not go up a staircase — and not in the
       // air, because a man landing on a doorway is a man who did not choose to
@@ -1112,7 +1208,8 @@ const RISE = 10
     // rather than leaving it in the sentence doing nothing.
     const wasAlt = alt.current
     const wantAlt = floats ? 0 : input.ascend ? hover + LIFT : hover
-    alt.current += (wantAlt - alt.current) * (1 - Math.exp(-CLIMB * dt))
+    alt.current += (wantAlt - alt.current) *
+      (1 - Math.exp(-(wantAlt > alt.current ? CLIMB : DESCEND) * dt))
     const climbVel = (alt.current - wasAlt) / dt
 
     // The sea under the ship, and this one is read for both hulls: the boat
@@ -1126,8 +1223,35 @@ const RISE = 10
     // the water the visitor can see rather than a second sea that nearly
     // matches — and now that the rollers are displaced geometry, "nearly" would
     // be visible.
-    const s = swell(g.position.x, g.position.z, REDUCED ? 0 : state.clock.elapsedTime)
+    // The lane the saucer parts (`PART` in `Scenery.tsx`), written before the
+    // sea is read so the saucer's own sample is the level water under it.
+    // Point 0 is the hull, always; the other three are where it was, a
+    // `LANE_STEP` apart, each healing on its own clock. Not the saucer: all
+    // four at nothing, which is the sea as it always was.
+    const now = state.clock.elapsedTime
+    const tr = trail.current
+    if (!floats) {
+      if (Math.hypot(g.position.x - tr[3], g.position.z - tr[4]) > LANE_STEP || tr[5] < 0) {
+        tr.copyWithin(3, 0, 9)
+        tr[3] = g.position.x
+        tr[4] = g.position.z
+        tr[5] = now
+      }
+      tr[0] = g.position.x
+      tr[1] = g.position.z
+      tr[2] = now
+      for (let i = 0; i < 4; i++) {
+        PART[i * 3] = tr[i * 3]!
+        PART[i * 3 + 1] = tr[i * 3 + 1]!
+        PART[i * 3 + 2] = tr[i * 3 + 2]! < 0 ? 0 : Math.max(0, 1 - (now - tr[i * 3 + 2]!) / LANE_HEAL)
+      }
+    } else if (PART[2]! > 0) {
+      PART.fill(0)
+      tr.fill(-1)
+    }
+    const s = swell(g.position.x, g.position.z, REDUCED ? 0 : now)
     SHIP.sea = s.y
+    SHIP.saucer = UFO.on = !floats
     // The splash's clock is wall time, not the physics' clamped `dt`: it is a
     // thing the visitor watches fade rather than a thing that is integrated, and
     // on a slideshow it should still be gone in a second.
@@ -1159,7 +1283,7 @@ const RISE = 10
     let landK = 0
     let vertAccel = (climbVel - altVel.current) / dt
     if (!floats) {
-      const land = clearance(g.position.x, g.position.z, vel.current.x, vel.current.z)
+      const land = saucerRide(g.position.x, g.position.z, vel.current.x, vel.current.z, hover)
       // A deep link, or the first frame: arrive at that height rather than
       // climbing to it from the sea, exactly as a hull arrives floating.
       if (reset.current) {
@@ -1474,6 +1598,13 @@ const RISE = 10
     // position is one from each. Published here, after both have settled.
     SHIP.pos.set(g.position.x, body.current.position.y, g.position.z)
     SHIP.vel.copy(vel.current)
+    // What is under the saucer, and how far: the beam reaches it and the
+    // glow lies on it. The sea there is level (the lane), so it is the higher
+    // of that and the ground.
+    if (!floats) {
+      UFO.level = Math.max(s.y, plateau(g.position.x, g.position.z), ground(g.position.x, g.position.z))
+      UFO.gap = Math.max(SHIP.pos.y - UNDERSIDE - UFO.level, 0)
+    }
     // And the map's share of the same frame: XZ and heading, no altitude. The
     // arrow is drawn from `yaw`, not from the body's roll, so a hull leaning
     // into a wave does not swing the map.
@@ -1573,23 +1704,29 @@ const RISE = 10
   })
 
   return (
-    <group ref={rig} position={[start.x, 0, start.z]} rotation-y={start.yaw}>
-      <group ref={body} position-y={hover}>
-        {/* All three stay mounted and one of them is drawn. Toggling
-            `visible` costs a culled node; unmounting would hand back a
-            question about who disposes geometry the renderer no longer has,
-            for a tree that is two meshes deep. */}
-        <Saucer visible={model === 'saucer'} />
-        <Boat visible={model === 'boat'} />
-        <Surfer visible={model === 'surfer'} onRider={onRider} />
+    <>
+      <group ref={rig} position={[start.x, 0, start.z]} rotation-y={start.yaw}>
+        <group ref={body} position-y={hover}>
+          {/* All three stay mounted and one of them is drawn. Toggling
+              `visible` costs a culled node; unmounting would hand back a
+              question about who disposes geometry the renderer no longer has,
+              for a tree that is two meshes deep. */}
+          <Saucer visible={model === 'saucer'} />
+          <Boat visible={model === 'boat'} />
+          <Surfer visible={model === 'surfer'} onRider={onRider} />
+        </group>
       </group>
-    </group>
+      {/* In the world rather than on the hull: the glow lies on whatever is
+          under the saucer, and the pieces of a tile fly where they fly. */}
+      <Glow visible={model === 'saucer'} />
+      <Dust />
+    </>
   )
 }
 
 /** The Phase 0 character: a hovering saucer, revolved from `PROFILE`. */
 function Saucer({ visible }: { visible: boolean }) {
-  const { hull, dome, glass, beam } = useMemo(() => {
+  const { hull, dome, glass, beam, cone } = useMemo(() => {
     const hull = new THREE.MeshStandardNodeMaterial({ color: '#cfd8e3', roughness: 0.35, metalness: 0.6 })
 
     const glass = new THREE.MeshPhysicalNodeMaterial({
@@ -1600,12 +1737,25 @@ function Saucer({ visible }: { visible: boolean }) {
       color: new THREE.Color('#7dd3fc'), transparent: true,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     })
-    // Brightest where it leaves the hull, fading toward the ground.
-    beam.opacityNode = positionLocal.y.add(0.35).div(0.7).clamp().mul(0.3)
+    // Brightest where it leaves the hull, fading toward the ground. The cone
+    // is a unit long, apex at 0 and base at -1, and stretched to the ground
+    // every frame — so the fade is along the beam whatever its length.
+    beam.opacityNode = positionLocal.y.add(1).clamp().mul(0.3)
+    const cone = new THREE.ConeGeometry(0.6, 1, 32, 1, true).translate(0, -0.5, 0)
 
     const dome = new THREE.SphereGeometry(0.36, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2)
-    return { hull, dome, glass, beam }
+    return { hull, dome, glass, beam, cone }
   }, [])
+
+  // The beam reaches the ground, wherever the ground is: a plinth a third of a
+  // metre under it, or the sea three metres down with Space held. It widens as
+  // it goes, so a long beam is a wide one.
+  const shaft = useRef<THREE.Mesh>(null!)
+  useFrame(() => {
+    const len = Math.max(UFO.gap, 0.05)
+    const w = 0.55 + len * 0.3
+    shaft.current.scale.set(w / 0.6, len, w / 0.6)
+  })
 
 
   return (
@@ -1625,12 +1775,143 @@ function Saucer({ visible }: { visible: boolean }) {
         )
       })}
 
-      {/* Apex sits under the hull, base spreads toward the ground. No rotation needed. */}
-      <mesh material={beam} position-y={-0.45}>
-        <coneGeometry args={[0.6, 0.7, 32, 1, true]} />
-      </mesh>
+      {/* Apex sits under the hull, base on the ground. No rotation needed. */}
+      <mesh ref={shaft} material={beam} geometry={cone} position-y={-UNDERSIDE} />
     </group>
   )
+}
+
+/** The glow under the saucer: how far it reaches, and how finely it follows
+ *  the ground — a vertex every 40 cm, lifted onto whatever is there. */
+const GLOW_R = 2.1
+const GLOW_N = 10
+const GLOW_LIFT = 0.04
+
+/**
+ * The light the saucer puts on what is under it: a pool, and rings walking
+ * out of it. One mesh for the sea and the land both, because the sea under
+ * the saucer is level (the lane, `PART` in `Scenery.tsx`) and the land is
+ * `plateau()` and `ground()` — so a grid laid over the higher of those, eleven
+ * vertices a side and re-laid every frame, sits on all three without a
+ * shader in any of their materials knowing it exists. Fainter the higher the
+ * saucer is; under reduced motion the rings stand still.
+ */
+function Glow({ visible }: { visible: boolean }) {
+  const mesh = useRef<THREE.Mesh>(null!)
+  const { geo, mat, strength } = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(GLOW_R * 2, GLOW_R * 2, GLOW_N, GLOW_N).rotateX(-Math.PI / 2)
+    const strength = uniform(1)
+    const mat = new THREE.MeshBasicNodeMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    })
+    const r = uv().sub(0.5).length().mul(2)
+    const t = time.mul(REDUCED ? 0 : 1)
+    const pool = oneMinus(smoothstep(0, 1, r)).pow(2)
+    const ring = oneMinus(smoothstep(0, 0.1, abs(fract(r.mul(2.6).sub(t.mul(0.9))).sub(0.5))))
+      .mul(oneMinus(smoothstep(0.35, 1, r))).mul(smoothstep(0.05, 0.25, r))
+    mat.colorNode = color('#7dd3fc').mul(pool.mul(0.55).add(ring.mul(0.4))).mul(strength)
+    return { geo, mat, strength }
+  }, [])
+  useEffect(() => () => { geo.dispose(); mat.dispose() }, [geo, mat])
+
+  useFrame(() => {
+    const m = mesh.current
+    m.visible = visible
+    if (!visible) return
+    const x = SHIP.pos.x
+    const z = SHIP.pos.z
+    m.position.set(x, 0, z)
+    const p = geo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < p.count; i++) {
+      const wx = x + p.getX(i)
+      const wz = z + p.getZ(i)
+      p.setY(i, Math.max(0, plateau(wx, wz), ground(wx, wz)) + GLOW_LIFT)
+    }
+    p.needsUpdate = true
+    strength.value = 1.15 - THREE.MathUtils.smoothstep(UFO.gap, 0.3, 3.4) * 0.8
+  })
+
+  return <mesh ref={mesh} geometry={geo} material={mat} frustumCulled={false} renderOrder={1} />
+}
+
+/** How many pieces a tile comes apart into, how many can be in the air at
+ *  once, and how long one lasts. */
+const DUST_EACH = 12
+const DUST_MAX = 96
+const DUST_LIFE = 0.7
+
+/**
+ * A tile coming apart at the hull: a dozen chips of it thrown out from where
+ * it touched, spinning, shrinking, and gone in under a second. One instanced
+ * mesh, drawn only while something is flying. Under reduced motion the tile
+ * simply goes, and nothing is thrown.
+ */
+function Dust() {
+  const mesh = useRef<THREE.InstancedMesh>(null!)
+  const pool = useMemo(() => ({
+    p: new Float32Array(DUST_MAX * 3),
+    v: new Float32Array(DUST_MAX * 3),
+    age: new Float32Array(DUST_MAX).fill(DUST_LIFE),
+    size: new Float32Array(DUST_MAX),
+    next: 0,
+    live: 0,
+  }), [])
+  const { geo, mat } = useMemo(() => {
+    const geo = new THREE.BoxGeometry(0.07, 0.03, 0.07)
+    const mat = new THREE.MeshBasicNodeMaterial({ color: '#f1e4c3' })
+    return { geo, mat }
+  }, [])
+  useEffect(() => () => { geo.dispose(); mat.dispose() }, [geo, mat])
+  const m4 = useMemo(() => new THREE.Matrix4(), [])
+  const q = useMemo(() => new THREE.Quaternion(), [])
+  const e = useMemo(() => new THREE.Euler(), [])
+  const v3 = useMemo(() => new THREE.Vector3(), [])
+  const sc = useMemo(() => new THREE.Vector3(), [])
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05)
+    for (const z of ZAPS) {
+      if (REDUCED) continue
+      for (let k = 0; k < DUST_EACH; k++) {
+        const i = pool.next
+        pool.next = (pool.next + 1) % DUST_MAX
+        const a = Math.random() * Math.PI * 2
+        const out = 1 + Math.random() * 2.2
+        pool.p.set([z.x, z.y, z.z], i * 3)
+        pool.v.set([Math.cos(a) * out, Math.random() * 1.6 - 0.4, Math.sin(a) * out], i * 3)
+        pool.age[i] = 0
+        pool.size[i] = 0.6 + Math.random() * 0.8
+      }
+    }
+    ZAPS.length = 0
+    const im = mesh.current
+    let live = 0
+    for (let i = 0; i < DUST_MAX; i++) {
+      const age = pool.age[i]!
+      if (age >= DUST_LIFE) {
+        if (pool.live) { m4.makeScale(0, 0, 0); im.setMatrixAt(i, m4) }
+        continue
+      }
+      live++
+      pool.age[i] = age + dt
+      const k = i * 3
+      pool.v[k + 1]! -= 2.5 * dt
+      pool.p[k]! += pool.v[k]! * dt
+      pool.p[k + 1]! += pool.v[k + 1]! * dt
+      pool.p[k + 2]! += pool.v[k + 2]! * dt
+      const life = 1 - age / DUST_LIFE
+      e.set(age * 11 + i, age * 7 + i * 2, 0)
+      q.setFromEuler(e)
+      const s = pool.size[i]! * life
+      im.setMatrixAt(i, m4.compose(v3.set(pool.p[k]!, pool.p[k + 1]!, pool.p[k + 2]!), q, sc.set(s, s, s)))
+    }
+    if (live || pool.live) im.instanceMatrix.needsUpdate = true
+    pool.live = live
+    im.visible = live > 0
+  })
+
+  return <instancedMesh ref={mesh} args={[geo, mat, DUST_MAX]} frustumCulled={false} visible={false} />
 }
 
 /**
