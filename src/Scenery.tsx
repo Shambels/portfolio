@@ -353,7 +353,9 @@ function laneNode(p: Vec2) {
  *
  * Returns a shared object — read it, do not keep it.
  */
-const _swell = { y: 0, dx: 0, dz: 0, rx: 0, rz: 0 }
+// `cy` is the chop's share of `y` — the painted water, which the mesh never
+// moves — so a hull that should ride only the rollers can take it back out.
+const _swell = { y: 0, dx: 0, dz: 0, rx: 0, rz: 0, cy: 0 }
 export function swell(x: number, z: number, t: number) {
   let y = 0
   let dx = 0
@@ -367,6 +369,8 @@ export function swell(x: number, z: number, t: number) {
     dx += slope * dirX
     dz += slope * dirZ
   }
+
+  let cy = y
 
   // The rollers, and the shallows that damp them out. `h` is the train's own
   // height and `f` the island fade; the water is their product, so its gradient
@@ -410,10 +414,12 @@ export function swell(x: number, z: number, t: number) {
       rx = rx * keep + y * gx
       rz = rz * keep + y * gz
       y *= keep
+      cy *= keep
     }
   }
 
   _swell.y = y
+  _swell.cy = cy
   _swell.dx = dx
   _swell.dz = dz
   _swell.rx = rx
