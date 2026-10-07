@@ -8055,3 +8055,124 @@ it is chosen.
 - [x] The spawn, the ship and a landmark render as before, textures from the
       rewritten glbs
 
+
+## PolarSense is an iceberg — a frozen mountain, an ice shore, and an island that floats
+
+PolarSense's logo is a bar chart standing in water: seven bars above the
+line, the middle one tallest, and most of the chart under it. The index
+already puts it in water (`Iceberg.tsx`); the world now does too. Its island
+is a floating iceberg, which **replaces the committed look of the mine** —
+the terraced outcrop, the benches and the spoil are gone.
+
+**The berg.** `src/berg.ts`, pure, with `berg.check.ts` beside it.
+`BERG_PROFILE` replaces `PROFILE` for the one landmark shape that floats
+(`FLOATS = 'mine'`, keyed on shape like `DECKS` and `RAMPS`): flat snow to
+0.47 of the radius, a short roll-off, then the **ice shore** — a 10° run of
+bare ice to the water at 0.86, steepening to 28° for its last stretch so the
+berg has an edge at its waterline instead of a beach — and the skirt. It
+stands `LIFT` = 35 cm higher than a plateau (80 cm out of the water). The
+water round it is darker and bluer than a lagoon for 40% of its radius past
+the shore (`underIce` in `Scenery.tsx`): the part of the logo under the line.
+
+**It floats.** Three lightly damped oscillators — heave, and the surface's
+slope along world X and Z — 2.4 s and 3.4 s, damping 0.14 and 0.12, so a hit
+takes several swings to settle; drawn through soft caps of 30 cm and 4°
+(Seb's "readable" choice). What moves it:
+
+- **His weight**: standing on it sinks it 5 cm and leans it his way, up to
+  0.7° at the snow's edge.
+- **A landing**: a kick at the point he came down, sized by the fall —
+  a cruise landing at the snow's edge is ~20 cm and ~3°.
+- **Riding up the shore**: an arrival counts 0.35 of his speed as a fall
+  (`ARRIVE` in `Ship.tsx`), so coming up fast dips the edge he came up and
+  coming up slowly does nothing.
+- **The mountain**: what its wall takes out of the board's velocity is a
+  shove on the berg, which rolls along it.
+- **The boat**: a shove when its hull first touches the mooring circle, as
+  hard as it came in, and a steady lean for as long as it keeps pushing.
+- **The swell**: a slow idle bob and roll with nobody there.
+
+Under `prefers-reduced-motion` none of it runs: the berg is a still island.
+`Afloat` in `Islands.tsx` rides the island mesh and the landmark group on
+the pose, and `bergLift` — the same three numbers — lifts the floor the
+board rides in `plateau()`, so the board stays on what is drawn. Small-angle
+throughout; at 4° that is a quarter of a millimetre out at the waterline.
+
+**The glide.** On the ice shore the board has no grip (`iced` in `Ship.tsx`,
+`glide` in `berg.ts`). The velocity it came on with is kept — the lerp toward
+the input is skipped — and the input only **turns** him: the board faces
+where he is told to while the glide goes on where it was going. The ice
+takes 4% a second. Two things still act on it, both on purpose:
+
+- **The slope.** Gravity along the ground's gradient, which is the shore's
+  fall *and* the berg's tilt — so a dipped berg slides him toward the low
+  side. A man stopped halfway up the shore slides back into the sea; one
+  riding in at cruise reaches the snow with most of his speed (both held by
+  the check). Without it a board at rest on a slope would stand there.
+- **A faint skate**, Seb's choice for a man stopped on the ice: below
+  1.1 u/s the input pushes at 1.4 u/s², and above it nothing — so it is a
+  way off the ice and never a way to steer on it (the check steers hard
+  across a glide for a second: under a degree).
+
+The snow on top grips as before. In the air nothing changed.
+
+**The mountain.** `tools/mine.py`, rewritten. Seven ridges in the logo's
+order of height — 1.15, 1.9, 2.9, 3.85, 2.75, 1.75 and 0.95 m — each the
+lowest of five planes (steep flanks, a steep face, a fall behind, and a top
+cut on a slant, which is all that is left of a bar), unioned with a soft max
+over a low skirt: a massif whose skyline steps. The first pass was seven
+hexagonal prisms and read as a city of crystal towers; the second, one
+smooth peak, and read as nothing. The adit is cut into the foot of the
+tallest ridge with a boolean as before, with square sets, a dark liner,
+rails out across the snow and icicles off the cap; the head-frame stands on
+the lowest ridge, cut flat for it. One material key, `ice_`, for the whole
+massif (`Landmarks.tsx`): snow on anything that faces the sky, ice on the
+walls going from white high on a face to the logo's cyan at its foot, faint
+strata, and the veins kept as columns of clearer ice — the schema still in
+it. Proximity tint 0.3, not 0.72, for Memojo's reason. 14.4k triangles,
+316 kB (192 kB gz, was 166) — the whole world is ~26 kB gz heavier. The
+frontmatter `size` grew to 6.8 × 4.4 × 4.6.
+
+**The wall** is the mountain from 15 cm up (`WALLED.mine`: `part: 'ice_'`),
+so the drift round its foot is ridden over and the rails and head-frame are
+not walls; it knocks as **ice** — a new synthesised knock in `Sound.tsx`, a
+lowpassed thud with a bright crack on it, instead of the steel bang.
+`plateau.check.ts` changed with it: the massif is wider than the benches
+were, so a board aimed at its centre grazes a corner on some bearings, and
+the check now holds the bounce to the speed that went into the ice rather
+than to a reversal. Never ending a frame inside the wall is held as before.
+
+**Found on the way, and fixed: every project island was inside out.**
+`PROFILE` is written axis-first, top-down, and a `LatheGeometry` winds its
+faces by the order of its points — top-down winds every face *into* the
+island. So the top faced the sea floor and was culled, and all three
+project islands drew only the insides of their own underwater skirts: the
+easel, the board, the ramp and the hologram stood on the water, over a
+lagoon, and the surfer rode up a beach that was not drawn. It showed when
+the berg's snow would not. `island()` now hands the lathe its profile
+bottom-up — one line — and the plateaus, beaches and sand are back. **That
+is a visible change to the other four islands**, back to what `Islands.tsx`
+always described; if it was liked the way it was, that line is the revert.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b`, all thirteen checks (`berg` is the thirteenth), `oxlint`
+      (nothing new), `npm run build`
+- [x] Rendered headless (swiftshader, WebGL2): the berg from the approach
+      and from beside it, the mountain in Blender's preview, a ride up the
+      shore from the deep link — the berg dips on arrival, the board slides
+      turned against its glide, and back into the sea when it stops
+- [x] The Arts by Sandra island, drawn again
+
+### Open, and Seb's
+
+- **The feel of the glide and the rock, on hardware.** Swiftshader runs this
+  twenty times slower than wall time, so the numbers are the check's and not
+  a thumb's: `HEAVE`, `TILT`, `KICK_*`, `SHOVE_*` and `ARRIVE`; whether the
+  slope should pull at all; whether the skate is too faint.
+- **The colours.** Snow is pushed over white because the sun is low and
+  behind every landmark, and at 0.9 it read lavender; the ice shore's cyan
+  against it; the deep water ring.
+- **The mountain's likeness to the logo** — three passes in Blender's
+  preview and two in the world; the ridge table at the top of `mine.py` is
+  where to push it.

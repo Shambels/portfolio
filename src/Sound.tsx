@@ -284,6 +284,25 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
       strike(curtain.gain, t + 0.055, 0.001, 0.03, 0.4 + 0.4 * force)
     }
   },
+  // The iceberg's mountain. Ice struck is a dull thud with a crack on top of
+  // it — no ring, because a block that size has nothing in it free to ring —
+  // so a lowpassed thump for the mass and a short bright band of noise for
+  // the fracture, the crack louder the harder he hit.
+  ice(ctx, noise, out) {
+    const thud = new GainNode(ctx, { gain: 0 })
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 220 })
+    osc(ctx, 'sine', 72).connect(lp)
+    noise.connect(new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 300 })).connect(lp)
+    lp.connect(thud)
+    thud.connect(out)
+    const crack = new GainNode(ctx, { gain: 0 })
+    noise.connect(new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 3200, Q: 1.4 })).connect(crack)
+    crack.connect(out)
+    return (t, force) => {
+      strike(thud.gain, t, 0.003, 0.22, 0.7 + 0.3 * force)
+      strike(crack.gain, t + 0.004, 0.001, 0.05 + 0.07 * force, 0.2 + 0.6 * force)
+    }
+  },
   metal(ctx, noise, out) {
     const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 160 })
     const ring = new GainNode(ctx, { gain: 0 })

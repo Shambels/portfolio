@@ -36,7 +36,7 @@ and `plateau` — and all of them pass. **As of the fourth project there is no
 `node_modules` in this folder at all**, so neither command runs here: both
 went to the throwaway copy in the container on a real `npm install`, and
 `npm run build` with them. The check script runs ten since the hologram:
-`sudoku` is the tenth, `easel` the eleventh and `sqrubs` the twelfth. `react-router typegen` and `oxlint` are *not* safe:
+`sudoku` is the tenth, `easel` the eleventh, `sqrubs` the twelfth and `berg` the thirteenth. `react-router typegen` and `oxlint` are *not* safe:
 both ship native bindings built for macOS arm64, so they fail outright from
 Claude's Linux VM and `tsc` runs against whatever types typegen last wrote.
 Anything that needs a real install, a real build, typegen or the linter, Claude
@@ -61,7 +61,7 @@ one major behind. Noted here rather than done quietly.
 
 | Slug | Landmark | Links |
 |---|---|---|
-| `polarsense` | A mine | https://github.com/Shambels/polarSense |
+| `polarsense` | An iceberg that floats and rocks under the rider: a frozen mountain of stepped ridges with the mine dug into it, and an ice shore with no grip | https://github.com/Shambels/polarSense |
 | `arts-by-sandra` | An easel and canvas | https://artsbysandra.be/ |
 | `sqrubs` | A Scrabble board | — |
 | `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
@@ -161,6 +161,18 @@ Breaking one is allowed. Doing it without saying so is not.
   (`WALLED` names the meshes now, not just a height band — the tripod, or the
   hull would have swallowed the ramp) and a lens: `LENSES` and `inShot`, a
   cone that fires `FLASH` and a fourth knock when the rider is airborne in it.
+- And no engine for the one island that moves. PolarSense's is an iceberg
+  (`src/berg.ts`): its own profile (`BERG_PROFILE`, keyed on the shape
+  `FLOATS` like `DECKS`), `LIFT` higher than a plateau, and a pose of three
+  damped oscillators — heave and two slopes — that his weight leans, a
+  landing kicks, riding up the shore at speed kicks, the mountain's wall and
+  a boat's hull shove, and an idle swell rocks; none of it under reduced
+  motion. `Afloat` in `Islands.tsx` rides the island and the mountain on the
+  pose, and `bergLift` puts the same pose under the board in `plateau()`.
+  The ring of ice from `ICE_IN` out is the **ice shore**, and on it the board
+  has no grip: `glide` keeps the velocity, lets the slope (the shore's and
+  the tilt's) pull it, and the input only turns the board — plus a faint
+  skate below 1.1 u/s so the ice is never a trap. `berg.check.ts` holds it.
 - The character stays procedural — *was*, for both hulls. There are two
   exceptions now and the rule is the weaker for it. The **boat** is
   `src/models/pirate_ship.glb` since the ship, a generated galleon fitted into
@@ -207,7 +219,7 @@ Breaking one is allowed. Doing it without saying so is not.
   of parts `Isle.tsx` instances, and it argues its own case at the top of the
   file the way `surfer.py` does.
   Geometry only: materials stay in TSL, and a mesh's name prefix picks which one
-  it gets — or, where a mesh wants its own, `byName` in `Landmarks.tsx`, keyed
+  it gets — `ice_`, the iceberg's mountain, decides snow from ice by the normal — or, where a mesh wants its own, `byName` in `Landmarks.tsx`, keyed
   on the whole name. Memojo is the one landmark that is a *set* of those rather
   than a handful of exceptions: `makeMemojo(hi)` gives all ten of its meshes a
   material of their own — leatherette, chrome, brass, coated glass, felt, oxide
@@ -253,7 +265,7 @@ Breaking one is allowed. Doing it without saying so is not.
 | The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass". **1.09 MB (914 kB gz) since the fourth**, with seven motion-capture clips in it — "The rider, fourth pass". **1.10 MB since the anime repaint**: the generator's JPEG swapped for a 14-colour PNG (`tools/flatten.py`) |
 | The board, `surfboard.glb` | 10k triangles, ~100 kB since the anime repaint — decimated from the generator's 95k; nobody looks at it for long |
 | The ship, `pirate_ship.glb` | 117k triangles, 1.05 MB since the anime repaint (1.15 MB before). **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
-| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.41 MB of it spent |
+| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.44 MB of it spent (the iceberg's mountain +26 kB gz) |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
 | Frame rate | 60fps on a 2022 mid-tier laptop, or cut the effect |
@@ -338,7 +350,12 @@ src/Post.tsx            the render pipeline — FXAA, and bloom off emissive onl
 src/Particles.tsx       the spray under the ship — GPU compute, WebGPU only
 src/Sound.tsx           the ambient layer — Web Audio, synthesised, off by default
 src/Islands.tsx         the ground under each landmark — lathed from
-                        `plateau.ts`'s profile, no assets
+                        `plateau.ts`'s profile, no assets — and the iceberg's
+                        from `berg.ts`'s, and `Afloat`, which rides it and the
+                        mountain on the berg's pose
+src/berg.ts             PolarSense's iceberg: its profile, the ice shore, the
+                        pose and what moves it, and the glide — pure, with
+                        `berg.check.ts` beside it
 src/plateau.ts          the project islands as ridden: the ground's profile,
                         the loose props on it, the mine's wall, the two plinth
                         decks, Memojo's ramp, the lens that watches it and the
@@ -389,7 +406,9 @@ src/models/             the .glb files — geometry only, no materials, no UVs,
                         except the surfer's two and the ship, which carry a
                         basecolour texture each and nothing else
 tools/landmark.py       what every landmark script needs — axes, members, export
-tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless
+tools/mine.py           builds tools/mine.blend and src/models/mine.glb, headless:
+                        the frozen mountain — seven ridges in the logo's order
+                        of height — with the adit cut into it
 tools/easel.py          the same, for the easel
 tools/board.py          the same, for the board
 tools/moves.py          every legal move on Sqrubs' plate against ENABLE,
@@ -755,6 +774,18 @@ project", "The sudoku is a hologram" and "The sudoku was fixed", have it,
 including what the tray did
 to the minimap: `sqrubs` and `sudoku` are both S, so a disc's label is now
 as much of the slug as it takes to be unambiguous.
+
+PolarSense's island is an iceberg now, which replaces the mine's committed
+look: a frozen mountain of seven ridges stepping up and down in the logo's
+order of height, the adit dug into the tallest, the head-frame on the
+lowest; an ice shore the board glides on without grip, turning but not
+steering; and a body that heaves and rolls — under his weight, a landing, a
+fast arrival, a hit on the mountain, a boat against its side, and an idle
+swell. The same pass found every project island had been drawn inside out
+(the lathe wound its faces inward, so only the underwater skirts showed and
+the landmarks stood on the water) and fixed it in one line — a visible
+change to the other four islands. `docs/STATUS.md`, "PolarSense is an
+iceberg", has the numbers and what is Seb's to feel on hardware.
 
 What is open is Seb's: the first deploy and DNS/TLS (Phase 2's exit), Track B's
 *is traversal interesting or a chore* judgement, reviewing the unreviewed

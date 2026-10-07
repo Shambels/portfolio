@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
   abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, min, mix, mod,
-  modelWorldMatrix, oneMinus, positionLocal, positionWorld, round, select,
+  modelWorldMatrix, normalWorld, oneMinus, positionLocal, positionWorld, round, select,
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
 import { fractal } from './noise'
@@ -14,6 +14,8 @@ import {
   type Prop, type PropSet,
 } from './plateau'
 import { Shutter, flashLevel } from './Shutter'
+import { FLOATS } from './berg'
+import { Afloat } from './Islands'
 import { SHIP, SHIP_XZ } from './Ship'
 import { PANEL, PIERCE, SLOTS, holes, pierce, table } from './sudoku'
 import mineUrl from './models/mine.glb?url'
@@ -89,10 +91,13 @@ const PALETTE = {
   board: '#8d94a2',
   ore: '#d9a05c', // the veins — the one warm thing in the rock
   glass: '#1b2836', // the lens, which is dark until it is not
+  snow: '#eef4fb', // the iceberg's: snow on anything that faces the sky,
+  ice: '#bfe6f5', // ice high on a face,
+  deep: '#2fb2e0', // and the logo's cyan at the foot of it
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
-const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, board: 1, glass: 1, holo: 1 }
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, ice: 1, board: 1, glass: 1, holo: 1 }
 
 /* How bright the giant camera's lens is lives in `Shutter.tsx` now, with the
  * rest of what the camera does when it goes off. The glass material below is
@@ -671,6 +676,44 @@ function makeMats(hi: boolean) {
   // whole claim is that you can see the schema without going in and running it.
   rock.emissiveNode = color(c.ore).mul(vein.mul(0.14))
 
+  // The frozen mountain, since PolarSense's island became an iceberg. One
+  // material over the whole massif, deciding from the normal what is snow —
+  // anything that looks at the sky, its edge moved a little by noise so the
+  // line where a drift ends is drawn rather than ruled — and what is ice.
+  //
+  // The ice is the logo: white at the top of a face and its cyan at the foot,
+  // read off the height in the landmark's own space, so a heave of the berg
+  // does not slide the gradient up the mountain. And the schema is still in
+  // it: the strata that were in the rock are faint layers in the ice now, and
+  // the veins are columns of clearer, brighter ice — dead straight and
+  // vertical, through every step of the mountain, because a schema does not
+  // stop at the surface. Their axis is across the face, as the rock's was.
+  //
+  // The proximity tint is weak here (0.3): ice is cyan already, and at 0.72 the
+  // snow went the colour of the highlight before anyone was close enough to
+  // see it, which is Memojo's problem over again.
+  const ice = new THREE.MeshStandardNodeMaterial({ roughness: 0.6 })
+  {
+    const k = 0.3
+    const snowC = color(shade(PALETTE.snow, hi, k))
+    const hiC = color(shade(PALETTE.ice, hi, k))
+    const loC = color(shade(PALETTE.deep, hi, k))
+    const y = positionLocal.y
+    const grain = fractal(positionLocal.mul(vec3(1.1, 0.35, 1.1)), 2)
+    const iceBody = mix(loC, hiC, smoothstep(0.05, 3.2, y.add(grain.mul(0.35))))
+    const strata = sin(y.add(grain.mul(0.08)).mul(9)).mul(0.5).add(0.5)
+    const u = positionLocal.x.mul(0.94).add(positionLocal.z.mul(0.34)).mul(2.4)
+    const slot = floor(u)
+    const clear = step(0.6, fract(sin(slot.mul(37.719)).mul(6412.31)))
+    const vein = oneMinus(smoothstep(0.05, 0.16, fract(u).sub(0.5).abs())).mul(clear)
+    const iceC = iceBody.mul(smoothstep(0.25, 0.85, strata).mul(0.1).add(0.93))
+      .add(vec3(0.16, 0.2, 0.22).mul(vein))
+    const snow = smoothstep(0.52, 0.66, normalWorld.y.add(grain.mul(0.12)))
+    ice.colorNode = mix(iceC, snowC, snow)
+    // Enough glow in the veins to read on the face the sun is behind.
+    ice.emissiveNode = color('#5fd4ff').mul(vein.mul(oneMinus(snow)).mul(0.12))
+  }
+
   // The board's 15x15 grid and its premium squares, drawn on the top face
   // instead of built from 225 meshes. `floor(abs(cell))` folds the hash into one
   // quadrant, so the pattern comes out four-fold symmetric — which is what makes
@@ -751,7 +794,7 @@ function makeMats(hi: boolean) {
   const palette = new THREE.MeshStandardNodeMaterial({ color: c.board, roughness: 0.8 })
 
   return {
-    frame, panel, dark, rock, board, glass,
+    frame, panel, dark, rock, ice, board, glass,
     // The hologram is the same object in both sets: it is not tinted, because
     // it is not lit.
     holo: HOLO_MATS.panel,
@@ -831,7 +874,7 @@ function Mine(m: Mats) {
   return (
     <>
       {BENCHES.map(([w, h, d, x, y, z], i) => (
-        <mesh key={'b' + i} geometry={BOX} material={m.rock} position={[x, y, z]} scale={[w, h, d]} />
+        <mesh key={'b' + i} geometry={BOX} material={m.ice} position={[x, y, z]} scale={[w, h, d]} />
       ))}
       <mesh geometry={BOX} material={m.dark} position={[ADIT_X, 0.35, -0.45]} scale={[0.9, 0.7, 0.6]} />
       {ADIT_FRAME.map((s, i) => <mesh key={'a' + i} geometry={BOX} material={m.frame} {...s} />)}
@@ -843,7 +886,7 @@ function Mine(m: Mats) {
       </mesh>
       <mesh geometry={BOX} material={m.frame} position={[SHAFT[0], FRAME_TOP + 0.06, SHAFT[2]]} scale={[1.0, 0.1, 1.0]} />
       {/* Spoil. What came out of the hole, which is the point of digging it. */}
-      <mesh material={m.rock} position={[-1.55, 0.34, 1.7]}>
+      <mesh material={m.ice} position={[-1.55, 0.34, 1.7]}>
         <coneGeometry args={[0.7, 0.68, 14]} />
       </mesh>
     </>
@@ -1117,7 +1160,7 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
       pieces.push({ id, parts, landed: found ? landedGeometry(found.geometry) : undefined })
     }
     const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props,
-      wallPts.length ? [hull2d(wallPts)] : [], LENSES[l.landmark] ?? null)
+      wallPts.length ? [hull2d(wallPts)] : [], LENSES[l.landmark] ?? null, band?.knock)
     return { fixed, pieces, set }
   }, [scene, url, l])
 
@@ -1257,11 +1300,14 @@ export function Landmarks({ near }: { near: string | null }) {
         // and what stands in its place while the model is on the wire — one
         // fallback, not two, and nothing pops in from empty.
         const blockout = <group ref={(g) => { fits(g, l, 'blockout') }}>{BUILD[l.landmark]?.(m)}</group>
-        return (
+        const floats = l.landmark === FLOATS
+        const body = (
           // Turned to face the world's centre, which is where the visitor comes
           // from: the adit, the canvas and the tile rack all point at the
-          // approach without any of them carrying a hand-tuned angle.
-          <group key={l.slug} position={l.pos} rotation-y={landmarkYaw(l)}>
+          // approach without any of them carrying a hand-tuned angle. The one
+          // that floats is placed by `Afloat` instead, which rides it on the
+          // berg's heave and tilt — the same pose the ground under it has.
+          <group key={l.slug} position={floats ? undefined : l.pos} rotation-y={landmarkYaw(l)}>
             {url ? (
               <Suspense fallback={blockout}>
                 <group ref={(g) => { fits(g, l, 'model') }}>
@@ -1281,6 +1327,7 @@ export function Landmarks({ near }: { near: string | null }) {
             )}
           </group>
         )
+        return floats ? <Afloat key={l.slug} l={l}>{body}</Afloat> : body
       })}
     </>
   )

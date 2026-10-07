@@ -419,6 +419,24 @@ function shallows(p: Vec2) {
 }
 
 /**
+ * And the iceberg's, which is not sand under a metre of sea but the rest of
+ * the berg: the part of PolarSense's logo under the line. Wider than a
+ * lagoon — an iceberg is much bigger below the water than above it — and
+ * drawn in the ice's own blues over whatever the lagoon put there.
+ */
+function underIce(p: Vec2) {
+  let s: Float = float(0)
+  for (const c of LAGOONS) {
+    if (!c.ice) continue
+    const d = length(vec2(p.x.sub(c.x), p.y.sub(c.z)))
+    s = max(s, oneMinus(smoothstep(c.r * 0.95, c.r * 1.4, d)))
+  }
+  return s
+}
+const ICE_WATER = vec3(0.1, 0.52, 0.68)
+const ICE_WATER_DEEP = vec3(0.03, 0.3, 0.48)
+
+/**
  * The three trains at a world XZ: height above the base sea, gradient, and how
  * much of a full crest that adds up to. Called from the vertex stage to
  * displace the water and from the fragment stage to shade it — one function
@@ -554,14 +572,15 @@ const DEEP = vec3(0.008, 0.085, 0.18)
 const MID = vec3(0.01, 0.2, 0.32)
 const LIGHT = vec3(0.03, 0.4, 0.5)
 
-function waterColour({ n, crest, shal, foam, bounce, fresnel, horizon, far }: {
-  n: Vec3; crest: Float; shal: Float; foam: Float; bounce: Vec3; fresnel: Float; horizon: Vec3; far: Float
+function waterColour({ n, crest, shal, ice, foam, bounce, fresnel, horizon, far }: {
+  n: Vec3; crest: Float; shal: Float; ice: Float; foam: Float; bounce: Vec3; fresnel: Float; horizon: Vec3; far: Float
 }): Vec3 {
   const edge = (e: number, x: Float, w = 0.02) => smoothstep(e - w, e + w, x)
   const tilt = max(clamp(n.y.sub(0.965).mul(14), 0, 1), crest.mul(0.7))
   let col: Vec3 = mix(DEEP, MID, edge(0.35, tilt, 0.04))
   col = mix(col, LIGHT, edge(0.75, tilt, 0.04))
   col = mix(col, mix(LAGOON, SHORE_WATER, edge(0.8, shal)), edge(0.28, shal))
+  col = mix(col, mix(ICE_WATER_DEEP, ICE_WATER, edge(0.7, ice, 0.03)), edge(0.25, ice, 0.03))
   col = mix(col, sky(bounce, { lit: false }), edge(0.48, fresnel, 0.03).mul(0.8))
 
   const near = smoothstep(45, 15, length(positionWorld.xz.sub(cameraPosition.xz)))
@@ -652,7 +671,8 @@ function useMaterials() {
     const horizon = sky(normalize(vec3(view.x, 0.015, view.z)), { lit: false }).mul(0.93)
 
     // Drawn in flat colour from all of the above (`waterColour`).
-    water.colorNode = waterColour({ n, crest, shal, foam, bounce, fresnel, horizon, far })
+    const ice = underIce(positionWorld.xz)
+    water.colorNode = waterColour({ n, crest, shal, ice, foam, bounce, fresnel, horizon, far })
     return { dome, water, surface }
   }, [])
 }

@@ -69,18 +69,24 @@ export const seedOf = (slug: string) =>
  * profile's skirt down the beach, and -3.2 (a lot of water) past the last ring
  * — so `max` over the islands and the sea is always the sea out there.
  */
-export function profileAt(radius: number, seed: number, dx: number, dz: number): number {
+export function profileAt(radius: number, seed: number, dx: number, dz: number,
+  profile: [number, number][] = PROFILE): number {
   const d = Math.hypot(dx, dz)
   const f = d / (radius * rim(Math.atan2(dz, dx), seed))
-  if (f >= 1) return PROFILE[PROFILE.length - 1]![1]
-  for (let i = 1; i < PROFILE.length; i++) {
-    const [r1, y1] = PROFILE[i]!
+  if (f >= 1) return profile[profile.length - 1]![1]
+  for (let i = 1; i < profile.length; i++) {
+    const [r1, y1] = profile[i]!
     if (f > r1) continue
-    const [r0, y0] = PROFILE[i - 1]!
+    const [r0, y0] = profile[i - 1]!
     return y0 + ((y1 - y0) * (f - r0)) / (r1 - r0)
   }
   return 0
 }
+
+/** How far out an island is at `dx, dz`, as a fraction of its rim there —
+ *  0 at the axis, 1 at the last ring. What `onIce` in `berg.ts` is asked. */
+export const fractionAt = (radius: number, seed: number, dx: number, dz: number) =>
+  Math.hypot(dx, dz) / (radius * rim(Math.atan2(dz, dx), seed))
 
 /**
  * What stands proud of a plateau and is ridden over rather than into: the
@@ -368,6 +374,8 @@ export type PropSet = {
   walls: Poly[]
   /** The landmark's camera, if it has one — one landmark does. */
   lens: Lens | null
+  /** What a board hitting its wall sounds like. */
+  knock: Hit['kind']
   /** Seconds everything has been still and out of place. */
   still: number
   /** The tidy-up: 0 not running, else its progress toward 1. */
@@ -401,7 +409,7 @@ export type Board = {
  *  something the board hit, it is something that went off because of where the
  *  board was. The machinery is identical — a one-shot the sound plays once at
  *  a level — and a second list beside this one would be the same list. */
-export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'shutter'; force: number }
+export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter'; force: number }
 
 /**
  * Is a world point in a landmark's lens? False for every landmark that has no
@@ -470,7 +478,7 @@ export function makeProp(id: string, px: number, pz: number, r: number, m: numbe
 }
 
 export function makeSet(slug: string, cx: number, cz: number, rot: number, props: Prop[],
-  walls: Poly[], lens: Lens | null = null): PropSet {
+  walls: Poly[], lens: Lens | null = null, knock: Hit['kind'] = 'metal'): PropSet {
   let reach = 0
   for (const p of props) reach = Math.max(reach, Math.hypot(p.px, p.pz) + p.r)
   for (const w of walls) for (const v of w) reach = Math.max(reach, Math.hypot(v.x, v.z))
@@ -481,7 +489,7 @@ export function makeSet(slug: string, cx: number, cz: number, rot: number, props
     const b = props[k]!
     slack[n * i + k] = Math.max(0, a.r + b.r - Math.hypot(a.px - b.px, a.pz - b.pz))
   }
-  return { slug, cx, cz, rot, props, walls, lens, still: 0, back: 0, reach, slack }
+  return { slug, cx, cz, rot, props, walls, lens, knock, still: 0, back: 0, reach, slack }
 }
 
 /** Every landmark that has loaded its model, by slug. `Landmarks.tsx` writes
@@ -497,8 +505,12 @@ export const PROP_SETS = new Map<string, PropSet>()
  * vertex in the band, built from the model when it loads: a hand-kept list of
  * boxes would be wrong the first time a bench moved.
  */
-export const WALLED: Record<string, { band: [number, number]; part?: string } | undefined> = {
-  mine: { band: [0.02, 1.2] },
+export const WALLED: Record<string, { band: [number, number]; part?: string; knock?: Hit['kind'] } | undefined> = {
+  // The frozen mountain since the island became an iceberg: its own ice from
+  // 15 cm up — the snow drifted round its foot is ridden over, not into —
+  // and not the head-frame or the rails, which stand on it or run out of it.
+  // It knocks as ice and not as steel.
+  mine: { band: [0.15, 1.2], part: 'ice_', knock: 'ice' },
   // And the tripod under the giant camera, which is the one thing on Memojo's
   // island a board cannot ride through. `part` is why this grew a shape: the
   // hull is convex, the ramp's own deck sits in the same band as the legs, and
@@ -865,7 +877,7 @@ export function stepProps(set: PropSet, dt: number, board: Board, active: boolea
       dvx -= (1 + WALL_BOUNCE) * vn * nx
       dvz -= (1 + WALL_BOUNCE) * vn * nz
       const f = force(-vn)
-      if (f > 0) hits.push({ kind: 'metal', force: f })
+      if (f > 0) hits.push({ kind: set.knock, force: f })
     }
   }
 

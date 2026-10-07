@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three/webgpu'
-import { mix, positionWorld, vec3 } from 'three/tsl'
+import { abs, atan, fract, mix, oneMinus, positionLocal, positionWorld, smoothstep, vec3 } from 'three/tsl'
 import { fractal } from './noise'
 import { band, toon } from './toon'
-import { ISLAND_SPREAD, LANDMARKS } from './world'
-import { PROFILE, rim, seedOf } from './plateau'
+import { ISLAND_SPREAD, LANDMARKS, type Landmark } from './world'
+import { GROUND, PROFILE, rim, seedOf } from './plateau'
+import { BERG_PROFILE, FLOATS, LIFT, pose } from './berg'
 
 /**
  * The ground under each landmark. One `LatheGeometry` per island, revolved from
@@ -33,9 +35,25 @@ const WET = vec3(0.36, 0.31, 0.24)
 const SAND = vec3(0.84, 0.74, 0.55)
 const GRASS = vec3(0.38, 0.52, 0.2)
 
-function island(radius: number, seed: number) {
+// The iceberg's: snow on top, the ice shore, and the ice under the water.
+// Read off the berg's own Y and not the world's, because the berg heaves and
+// the snow line has to go up and down with it rather than sit on the sea.
+// The snow is over white on purpose: the sun is low and behind every landmark,
+// so a flat top sits in the half-tone, and at 0.9 it read as lavender felt.
+const SNOW = vec3(1.08, 1.1, 1.14)
+const ICE_HI = vec3(0.5, 0.86, 0.97)
+const ICE_LO = vec3(0.2, 0.68, 0.88)
+const ICE_DEEP = vec3(0.08, 0.42, 0.62)
+
+function island(radius: number, seed: number, profile: [number, number][] = PROFILE) {
   const g = new THREE.LatheGeometry(
-    PROFILE.map(([r, y]) => new THREE.Vector2(r * radius, y)),
+    // Handed over bottom-up. A lathe winds its faces by the order of its
+    // points, and top-down — the way `PROFILE` is written, axis first — winds
+    // every face into the island: the top faced the sea floor and was culled,
+    // so all three project islands drew only the insides of their own skirts,
+    // and their landmarks stood on the water. Found when the iceberg's snow
+    // would not show; `docs/STATUS.md`, "PolarSense is an iceberg".
+    [...profile].reverse().map(([r, y]) => new THREE.Vector2(r * radius, y)),
     SEGMENTS,
   )
   const p = g.attributes.position
@@ -50,7 +68,7 @@ function island(radius: number, seed: number) {
 }
 
 export function Islands() {
-  const { geometries, ground } = useMemo(() => {
+  const { geometries, ground, berg } = useMemo(() => {
     const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug)))
 
     // Sea floor, wet rock, beach, then the plateau, as edges and cel-lit
@@ -64,14 +82,68 @@ export function Islands() {
     col = mix(col, SAND, band(-0.02, y.add(brush.mul(0.05)), 0.02))
     col = mix(col, GRASS, band(0.3, y.add(brush.mul(0.08)), 0.02))
     ground.colorNode = toon(col)
-    return { geometries, ground }
+
+    // The berg. Snow to the roll-off, then the shore, which is the thing the
+    // visitor has to be able to tell apart at a glance — it is where the board
+    // stops gripping — so it is ice-blue and glassy against the snow's white,
+    // with long streaks around it like a floe's surface polished by the sea,
+    // and a sky-lit band along its top edge. Then the ice going down into the
+    // water, darker and bluer with depth: the bulk of an iceberg is under the
+    // line, and this is the top of it showing through.
+    const ly = positionLocal.y
+    const lb = fractal(positionLocal.mul(0.9), 1)
+    const water = -(GROUND + LIFT)
+    const theta = atan(positionLocal.z, positionLocal.x)
+    const r = positionLocal.xz.length()
+    const streak = oneMinus(smoothstep(0.0, 0.08, abs(fract(r.mul(1.7).add(theta.mul(0.6).sin().mul(0.4))).sub(0.5))))
+    let ice = mix(ICE_LO, ICE_HI, smoothstep(water, -0.05, ly))
+    ice = mix(ice, ICE_HI.add(0.08), streak.mul(0.35))
+    ice = mix(ICE_DEEP, ice, band(water - 0.2, ly, 0.08))
+    const berg = new THREE.MeshBasicNodeMaterial()
+    berg.colorNode = toon(mix(ice, SNOW, band(-0.035, ly.add(lb.mul(0.025)), 0.008)))
+    const bi = LANDMARKS.findIndex((l) => l.landmark === FLOATS)
+    if (bi >= 0) {
+      const l = LANDMARKS[bi]!
+      geometries[bi] = island(l.radius * ISLAND_SPREAD, seedOf(l.slug), BERG_PROFILE)
+    }
+    return { geometries, ground, berg }
   }, [])
 
   return (
     <>
-      {LANDMARKS.map((l, i) => (
-        <mesh key={l.slug} geometry={geometries[i]} material={ground} position={l.pos} />
-      ))}
+      {LANDMARKS.map((l, i) =>
+        l.landmark === FLOATS ? (
+          <Afloat key={l.slug} l={l}>
+            <mesh geometry={geometries[i]} material={berg} />
+          </Afloat>
+        ) : (
+          <mesh key={l.slug} geometry={geometries[i]} material={ground} position={l.pos} />
+        ),
+      )}
     </>
+  )
+}
+
+/**
+ * What floats rides the berg's pose (`src/berg.ts`): lifted `LIFT` above a
+ * plateau, heaved and tilted. The island under the mountain and the mountain
+ * on it are each wrapped in one of these, so they move as one body — and the
+ * floor the board rides is `bergLift`, the same three numbers, so the board
+ * stays on what is drawn. Small-angle: the tilt is a rotation by the slope.
+ */
+export function Afloat({ l, children }: { l: Landmark; children: ReactNode }) {
+  const g = useRef<THREE.Group>(null)
+  useFrame(() => {
+    const o = g.current
+    if (!o) return
+    const p = pose()
+    o.position.set(l.pos[0], l.pos[1] + LIFT + p.h, l.pos[2])
+    // A slope of sx along x is a turn about z by sx; along z, about x by -sz.
+    o.rotation.set(-p.sz, 0, p.sx)
+  })
+  return (
+    <group ref={g} position={[l.pos[0], l.pos[1] + LIFT, l.pos[2]]}>
+      {children}
+    </group>
   )
 }
