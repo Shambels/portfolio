@@ -235,7 +235,10 @@ const VOICES: Record<string, (ctx: AudioContext, noise: AudioNode, out: AudioNod
  *   camera on Memojo's island going off at a rider in the air. A focal-plane
  *   shutter is *two* events and that is the whole sound: the mirror and the
  *   front curtain together, then the rear curtain 55 ms behind them. One
- *   click is a switch; two clicks that far apart are a camera.
+ *   click is a switch; two clicks that far apart are a camera;
+ * - **zap** is the saucer's beam taking a tile: a tone swept down two octaves
+ *   in a tenth of a second over a crackle, which is what coming apart sounds
+ *   like in every film that ever had a saucer in it.
  */
 type Knock = (t: number, force: number) => void
 
@@ -301,6 +304,24 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
     return (t, force) => {
       strike(thud.gain, t, 0.003, 0.22, 0.7 + 0.3 * force)
       strike(crack.gain, t + 0.004, 0.001, 0.05 + 0.07 * force, 0.2 + 0.6 * force)
+    }
+  },
+  zap(ctx, noise, out) {
+    const tone = osc(ctx, 'sawtooth', 1400)
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 2400 })
+    const env = new GainNode(ctx, { gain: 0 })
+    tone.connect(lp)
+    lp.connect(env)
+    env.connect(out)
+    const fizz = new GainNode(ctx, { gain: 0 })
+    noise.connect(new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 5200, Q: 0.8 })).connect(fizz)
+    fizz.connect(out)
+    return (t, force) => {
+      tone.frequency.cancelScheduledValues(t)
+      tone.frequency.setValueAtTime(1400, t)
+      tone.frequency.exponentialRampToValueAtTime(330, t + 0.12)
+      strike(env.gain, t, 0.002, 0.12, 0.18 + 0.2 * force)
+      strike(fizz.gain, t, 0.001, 0.08, 0.25 + 0.3 * force)
     }
   },
   metal(ctx, noise, out) {

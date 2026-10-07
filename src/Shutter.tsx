@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three/webgpu'
 import { useFrame, useThree } from '@react-three/fiber'
-import { color, frontFacing, mix, smoothstep, step, texture, uniform, uv, vec2 } from 'three/tsl'
+import {
+  color, dot, float, floor, frontFacing, hash, length, mix, smoothstep, step, texture, uniform, uv, vec2, vec3,
+} from 'three/tsl'
 import { FLASH } from './world'
 import { printAt, type Lens, type Print } from './plateau'
 import { SHIP } from './Ship'
@@ -45,6 +47,19 @@ export const FLASH_FOR = 0.16
  *  metre across from several metres away, and every pixel past that is a
  *  megabyte of nothing. */
 const PHOTO = 512
+
+/**
+ * And the saucer's, which is a sighting and so is not a good photograph. It
+ * is taken at `SIGHTING` pixels square — about one pixel to the saucer's
+ * running light at the distance it is usually taken from — swung round onto
+ * it rather than framed on the lip, a little off true and through a longer
+ * lens, the way somebody grabbing a camera would; and the card draws it
+ * smeared sideways, grainy, washed out and dark at the corners. The same
+ * format as the real one, so every program `warmUp` built for that one is
+ * this one's too.
+ */
+const SIGHTING = 44
+const SIGHTING_FOV = 34
 
 /** How far down its own axis the burst is drawn, and how bright. Not a light
  *  in the render sense — the light is the `pointLight` below — but the air in
@@ -96,6 +111,7 @@ const RECHECK = 1
 const _up = new THREE.Vector3(0, 1, 0)
 const _m = new THREE.Matrix4()
 const _at = new THREE.Vector3()
+const _aim = new THREE.Vector3()
 
 export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
   const gl = useThree((s) => s.gl)
@@ -143,6 +159,16 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
     return t
   }, [])
   useEffect(() => () => rt.dispose(), [rt])
+  const lo = useMemo(() => {
+    const t = new THREE.RenderTarget(SIGHTING, SIGHTING, { depthBuffer: true, type: THREE.HalfFloatType })
+    t.texture.generateMipmaps = false
+    t.texture.minFilter = THREE.LinearFilter
+    t.texture.magFilter = THREE.LinearFilter
+    return t
+  }, [])
+  useEffect(() => () => lo.dispose(), [lo])
+  /** 1 while the card on show is a sighting. */
+  const lofi = useMemo(() => uniform(0), [])
 
   /** How far the card is out of the slot, and how far the picture has come up.
    *  Both from `printAt`, so the paper's own arithmetic is in the file node can
@@ -175,8 +201,22 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
     // comes out of the machine with the rider's head at the bottom. One
     // `oneMinus` and he is the right way up. It is the same on both backends —
     // it was found on WebGL2 and reported on WebGPU.
-    const shot = texture(rt.texture,
-      vec2(cu.sub(x0).div(x1 - x0), cv.sub(y0).div(y1 - y0).oneMinus())).rgb
+    const at = vec2(cu.sub(x0).div(x1 - x0), cv.sub(y0).div(y1 - y0).oneMinus())
+    const sharp = texture(rt.texture, at).rgb
+    // The sighting: five taps along a shake, so it is smeared as well as
+    // coarse, then the colour drained out of it toward a sick green, its
+    // shadows lifted, a grain over the lot and the corners gone dark.
+    const px = 1 / SIGHTING
+    let smear = texture(lo.texture, at).rgb.mul(0.3)
+    for (const [k, w] of [[-2.2, 0.15], [-1.1, 0.2], [1.1, 0.2], [2.2, 0.15]] as const) {
+      smear = smear.add(texture(lo.texture, at.add(vec2(k * px, k * px * 0.35))).rgb.mul(w))
+    }
+    const grey = dot(smear, vec3(0.3, 0.59, 0.11))
+    const drained = mix(vec3(grey, grey, grey), smear, 0.35).mul(vec3(0.92, 1.0, 0.86))
+    const grain = hash(floor(at.mul(150)).dot(vec2(1, 157))).sub(0.5).mul(0.12)
+    const vignette = smoothstep(0.85, 0.35, length(at.sub(0.5)))
+    const sighting = drained.mul(0.85).add(0.06).add(grain).mul(mix(float(0.45), float(1), vignette))
+    const shot = mix(sharp, sighting, lofi)
     // Undeveloped is not white: it is the flat grey-green of a print that has
     // not come up yet, and the picture arrives out of it rather than over it.
     const latent = color('#9aa3a0').rgb
@@ -187,7 +227,7 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
     const face = mix(stock, picture, inside)
     m.colorNode = frontFacing.select(face, stock)
     return { g, m }
-  }, [print, rt, outAt, devAt])
+  }, [print, rt, lo, lofi, outAt, devAt])
   useEffect(() => () => { paper.g.dispose(); paper.m.dispose() }, [paper])
 
   // The air in front of the flash. Additive, brightest at the glass, gone by
@@ -315,15 +355,34 @@ export function Shutter({ lens, print }: { lens: Lens; print: Print }) {
   function shoot() {
     const c = cam.current
     if (!c) return
+    const ufo = FLASH.ufo
+    lofi.value = ufo ? 1 : 0
+    const fov = c.fov
+    if (ufo) {
+      // Swung round onto the saucer, a hand's breadth off it, through a
+      // longer lens — and put back once the frame is taken.
+      _aim.copy(SHIP.pos)
+      _aim.x += (Math.random() - 0.5) * 0.7
+      _aim.y += (Math.random() - 0.5) * 0.5
+      c.lookAt(_aim)
+      c.fov = SIGHTING_FOV
+      c.updateProjectionMatrix()
+    }
     without(() => {
       c.updateMatrixWorld()
       // Narrow cast at a library boundary, as in `Post.tsx`: r3f types `gl` as a
       // WebGLRenderer and `Scene.tsx` hands it a WebGPURenderer.
       const r = gl as unknown as THREE.Renderer
-      r.setRenderTarget(rt)
+      r.setRenderTarget(ufo ? lo : rt)
       r.render(scene, c)
       r.setRenderTarget(null)
     })
+    if (ufo) {
+      c.quaternion.copy(pose.look)
+      c.fov = fov
+      c.updateProjectionMatrix()
+      c.updateMatrixWorld()
+    }
   }
 
   return (

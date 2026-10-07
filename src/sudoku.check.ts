@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { BOARD, PANEL, PIERCE, PUZZLE, SLOTS, candidates, cellAt, conflicts, enumerate, holes, pierce, solve, table, trace } from './sudoku.ts'
+import { BOARD, CROP, PANEL, PIERCE, PUZZLE, SLOTS, candidates, crop, throughPanel, cellAt, conflicts, enumerate, holes, pierce, solve, table, trace } from './sudoku.ts'
 
 // The board is the repository's: 81 cells, 31 clues, 50 open.
 assert.equal(PUZZLE.length, 81)
@@ -184,3 +184,33 @@ assert.equal(conflicts(solved).size, 0, 'the solution is clean')
 
 console.log('sudoku: 2019 search and rule check ok')
 
+
+{
+  // The crop circle. A saucer through the middle of the panel is through it,
+  // one beside it or a metre off its plane is not, and one hovering a third
+  // of a metre off the plinth still reaches the panel's foot.
+  assert(throughPanel(0, 0.6, PANEL.z), 'the saucer through the middle of the panel missed it')
+  assert(throughPanel(PANEL.side / 2, 0.3, PANEL.z + 0.5), 'the saucer through the panel\'s edge missed it')
+  assert(!throughPanel(PANEL.side / 2 + PIERCE.r + 0.1, 0.6, PANEL.z), 'a saucer beside the panel went through it')
+  assert(!throughPanel(0, 0.6, PANEL.z + PIERCE.reach + 0.1), 'a saucer in front of the panel went through it')
+  assert(!throughPanel(0, PANEL.foot + PANEL.side + 0.1, PANEL.z), 'a saucer over the panel went through it')
+  // Drawn out in `draw`, held for `hold`, taken back in over `fade`, and the
+  // level never leaves 0..1.
+  const dt = 1 / 60
+  let level = 0
+  let t = 0
+  let full = -1
+  while (t < CROP.hold + CROP.fade + 1) {
+    level = crop(level, t, dt)
+    assert(level >= 0 && level <= 1, 'the formation left 0..1')
+    if (level === 1 && full < 0) full = t
+    if (t > CROP.draw + 0.05 && t <= CROP.hold) assert.equal(level, 1, `the formation let go at ${t.toFixed(2)} s`)
+    t += dt
+  }
+  assert(Math.abs(full - CROP.draw) < 2 * dt, `the formation took ${full.toFixed(2)} s to draw`)
+  assert.equal(level, 0, 'the formation never went')
+  assert.equal(crop(0, 0, dt, true), 1)
+  assert.equal(crop(1, CROP.hold + 0.1, dt, true), 0)
+}
+
+console.log('sudoku: crop circle ok')

@@ -250,3 +250,40 @@ export function holes(now: number, strength: Float32Array, hitAt: Float32Array, 
   }
   return any
 }
+
+/* -------------------------------------------------------- the crop circle
+ *
+ * The saucer does not pierce the panel the way a board does. It leaves a
+ * crop circle on it: the puzzle is flattened outward from the middle into a
+ * formation — a centre, two rings, three satellites on a path, six marks
+ * round the edge, all in the panel's own green — which holds while the
+ * saucer is about and is taken back in, from the edge to the middle, once it
+ * has gone, with the puzzle standing where it was. `Landmarks.tsx` asks
+ * `throughPanel` every frame and steps `crop` with the answer; the shader
+ * reads the level as the radius the formation has reached.
+ */
+export const CROP = {
+  /** Seconds the formation holds after the saucer was last through it. */
+  hold: 6,
+  /** Seconds to draw it out to the edge, and to take it back in. */
+  draw: 1.4,
+  fade: 1.8,
+}
+
+/** Is a hull at landmark-local `(x, y, z)` — `y` its origin over the
+ *  landmark's floor — through the panel? The same capsule `pierce` uses, and
+ *  the same reach off the plane. */
+export function throughPanel(x: number, y: number, z: number): boolean {
+  if (Math.abs(z - PANEL.z) > PIERCE.reach) return false
+  if (Math.abs(x) > PANEL.side / 2 + PIERCE.r) return false
+  return y + PIERCE.h >= PANEL.foot && y <= PANEL.foot + PANEL.side
+}
+
+/** The formation's level after `dt`, 0 to 1, `since` seconds after the saucer
+ *  was last through: out over `draw` while it is within `hold`, back in over
+ *  `fade` after. `instant` is reduced motion: all or nothing. */
+export function crop(level: number, since: number, dt: number, instant = false): number {
+  const on = since <= CROP.hold
+  if (instant) return on ? 1 : 0
+  return Math.min(Math.max(level + (on ? dt / CROP.draw : -dt / CROP.fade), 0), 1)
+}

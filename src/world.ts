@@ -1,7 +1,7 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
-import { GROUND, deckAt, fractionAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
-import { BERG_PROFILE, FLOATS, bergLift, onIce } from './berg'
+import { GROUND, deckAt, fractionAt, profileAt, rampLift, rim, seedOf, type Hit } from './plateau'
+import { APRON, FLOATS, apronWeight, bergLift, bergProfile, onIce } from './berg'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -78,8 +78,9 @@ export const HITS: Hit[] = []
  * A level like `SPLASH` and for the same reason: any number of things may
  * want it and none of them should consume it. One number rather than a
  * position too, because unlike a splash it can only ever happen in one place.
+ * `ufo` is who it went off at: the saucer gets a different photograph.
  */
-export const FLASH = { age: 99 }
+export const FLASH = { age: 99, ufo: false }
 
 export const LANDMARKS: Landmark[] = PROJECTS[SOURCE_LOCALE].map((p) => ({
   slug: p.slug,
@@ -129,14 +130,16 @@ export function plateau(x: number, z: number): number {
     const dx = x - l.pos[0]
     const dz = z - l.pos[2]
     const R = l.radius * ISLAND_SPREAD
-    if (dx * dx + dz * dz > (R * 1.25) ** 2) continue
+    const reach = l.landmark === FLOATS ? R * 1.25 * (1 + APRON.width) : R * 1.25
+    if (dx * dx + dz * dz > reach * reach) continue
     const rot = landmarkYaw(l)
     const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
     const lz = dx * Math.sin(rot) + dz * Math.cos(rot)
     // The berg stands higher and is shaped otherwise, and it moves: its
-    // ground is its own profile, lifted and posed by `bergLift`.
+    // ground is its own profile, lifted and posed by `bergLift`, with the
+    // apron run out on the bearings in front of the adit.
     h = Math.max(h, l.landmark === FLOATS
-      ? GROUND + bergLift(dx, dz) + profileAt(R, seedOf(l.slug), dx, dz, BERG_PROFILE)
+      ? GROUND + bergLift(dx, dz) + profileAt(R, seedOf(l.slug), dx, dz, bergProfile(apronAt(dx, dz)))
       : GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
   }
   return h
@@ -148,21 +151,40 @@ export const BERG_AT = LANDMARKS.find((l) => l.landmark === FLOATS)
 /** Its radius as revolved, which is what every lever on it is measured over. */
 export const BERG_R = BERG_AT ? BERG_AT.radius * ISLAND_SPREAD : 1
 
+/** The bearing the adit looks along, as `atan2(dz, dx)` from the berg's
+ *  centre: the mountain is turned by `landmarkYaw` to face the world's centre,
+ *  and the mouth is on the model's +Z (`tools/mine.py`), so that is this. */
+export const BERG_FACING = BERG_AT ? Math.atan2(-BERG_AT.pos[2], -BERG_AT.pos[0]) : 0
+
+/** How much of the berg's apron (`APRON` in `berg.ts`) is under `dx, dz`
+ *  from its centre: 1 in front of the adit, 0 round the back. */
+const apronAt = (dx: number, dz: number) => apronWeight(Math.atan2(dz, dx), BERG_FACING)
+
+/** How much further out than any other island's the berg's coast stands at
+ *  bearing `theta`, in world units — its apron. Zero for one that does not
+ *  float. What the boat, the spray and the sound read the coast as. */
+export const apronOut = (l: Landmark, theta: number) =>
+  l.landmark === FLOATS
+    ? l.radius * ISLAND_SPREAD * rim(theta, seedOf(l.slug)) * APRON.width * apronWeight(theta, BERG_FACING)
+    : 0
+
 /** Is a world XZ on the berg's ice shore — the ring with no grip? */
 export function iceAt(x: number, z: number): boolean {
   const l = BERG_AT
   if (!l) return false
   const dx = x - l.pos[0]
   const dz = z - l.pos[2]
-  if (dx * dx + dz * dz > BERG_R * BERG_R) return false
-  return onIce(fractionAt(BERG_R, seedOf(l.slug), dx, dz))
+  const f = fractionAt(BERG_R, seedOf(l.slug), dx, dz)
+  return onIce(f) && f < 1 + APRON.width * apronAt(dx, dz)
 }
 
 /** Is a world XZ over the berg at all — inside its last ring? */
 export function overBerg(x: number, z: number): boolean {
   const l = BERG_AT
   if (!l) return false
-  return fractionAt(BERG_R, seedOf(l.slug), x - l.pos[0], z - l.pos[2]) < 1
+  const dx = x - l.pos[0]
+  const dz = z - l.pos[2]
+  return fractionAt(BERG_R, seedOf(l.slug), dx, dz) < 1 + APRON.width * apronAt(dx, dz)
 }
 
 /**
@@ -191,7 +213,8 @@ export function climb(x: number, z: number, vx: number, vz: number): number {
 
 /** True where the sea surface is: clear of every island's shoreline. */
 export function overWater(x: number, z: number): boolean {
-  if (LANDMARKS.some((l) => Math.hypot(x - l.pos[0], z - l.pos[2]) < shoreOf(l))) return false
+  if (LANDMARKS.some((l) => Math.hypot(x - l.pos[0], z - l.pos[2])
+    < shoreOf(l) + apronOut(l, Math.atan2(z - l.pos[2], x - l.pos[0])))) return false
   return !ISLES.some((i) => {
     const dx = x - i.pos[0]
     const dz = z - i.pos[1]
@@ -207,8 +230,10 @@ export function overWater(x: number, z: number): boolean {
  */
 const BEAM = 0.55
 
-/** The circle a floating hull may not enter. */
-export const moorRadius = (l: Landmark) => shoreOf(l) + BEAM
+/** The circle a floating hull may not enter — and, given the bearing it is
+ *  on, the berg's apron pushed out in front of the adit. */
+export const moorRadius = (l: Landmark, theta?: number) =>
+  shoreOf(l) + BEAM + (theta === undefined ? 0 : apronOut(l, theta))
 
 /**
  * How far past a shoreline the big rollers take to come back to full height.
@@ -246,7 +271,13 @@ export const LAGOONS = [
 ]
 
 export const SHOALS = [
-  ...LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) })),
+  // The berg's circle reaches round its apron, which stands further out in
+  // front of the adit than any other coast here — the same erring outward the
+  // isles get below, for the same roller over the same headland.
+  ...LANDMARKS.map((l) => ({
+    x: l.pos[0], z: l.pos[2],
+    r: shoreOf(l) + (l.landmark === FLOATS ? l.radius * ISLAND_SPREAD * APRON.width : 0),
+  })),
   // An isle's coast is not a circle, and this list is one the water shader
   // unrolls — so it gets the circle that contains the whole island. Erring
   // outward is the safe direction: the cost is a wider patch of sheltered
@@ -358,7 +389,7 @@ export function offshore(p: { x: number; z: number }, isles = true): void {
     const dx = p.x - l.pos[0]
     const dz = p.z - l.pos[2]
     const d = Math.hypot(dx, dz)
-    const r = moorRadius(l)
+    const r = moorRadius(l, Math.atan2(dz, dx))
     if (d >= r) continue
     // Dead centre has no direction to be pushed in. Due east is as good as any,
     // and the only way to be there is to have been put there.
@@ -386,7 +417,7 @@ export function landmarkAt(x: number, z: number, moored = false): Landmark | nul
     const dx = x - l.pos[0]
     const dz = z - l.pos[2]
     const d = dx * dx + dz * dz
-    const r = moored ? moorRadius(l) + MOOR_REACH : l.radius
+    const r = moored ? moorRadius(l, Math.atan2(dz, dx)) + MOOR_REACH : l.radius
     if (d < r * r && d < bestD) { bestD = d; best = l }
   }
   return best

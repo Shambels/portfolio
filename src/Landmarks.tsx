@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three/webgpu'
 import {
-  abs, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, min, mix, mod,
+  abs, atan, clamp, color, cos, exp, float, floor, fract, frontFacing, hash, length, max, min, mix, mod,
   modelWorldMatrix, normalWorld, oneMinus, positionLocal, positionWorld, round, select,
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
@@ -17,7 +17,7 @@ import { Shutter, flashLevel } from './Shutter'
 import { FLOATS } from './berg'
 import { Afloat } from './Islands'
 import { SHIP, SHIP_XZ } from './Ship'
-import { PANEL, PIERCE, SLOTS, holes, pierce, table } from './sudoku'
+import { PANEL, PIERCE, SLOTS, crop, holes, pierce, table, throughPanel } from './sudoku'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -261,6 +261,12 @@ const holeHitAt = new Float32Array(81)
  *  `Landmarks` from whether the sudoku is the landmark that is near. */
 const holoReveal = uniform(REDUCED ? 1 : 0)
 
+/** How far the saucer's crop circle has spread over the panel, 0 to 1 —
+ *  `crop` in `sudoku.ts`, stepped in `Landmarks` — and when the saucer was
+ *  last through it, in the frame clock's seconds. */
+const holoCrop = uniform(0)
+let cropAt = -1e9
+
 const GREEN = vec3(0.16, 1.0, 0.38)
 const HEAD = vec3(0.85, 1.0, 0.9)
 const LINE = vec3(0.2, 0.9, 0.45)
@@ -359,7 +365,41 @@ function makeHolo() {
   const place = cell.y.mul(9).add(floor(uFront.mul(9)))
   const hole = texture(HOLE_TEX, vec2(place.add(0.5).div(81), 0.5)).r
   const w = min(settle, oneMinus(hole))
-  const picture = mix(rain, grid, w)
+  const sudoku = mix(rain, grid, w)
+
+  // ---- the crop circle, where the saucer has been through. A formation in
+  // the panel's own green, the flattened crop bright and laid in a swirl and
+  // the standing crop a dim field of stalks with two tramlines through it —
+  // spreading out from the middle as `holoCrop` rises and taken back in as
+  // it falls, the puzzle standing outside it.
+  const cp = vec2(uFront.mul(2).sub(1), v.mul(2).sub(1))
+  const rr = length(cp)
+  const ang = atan(cp.y, cp.x)
+  const aa = 0.012
+  const disc = (d: Num, r: number) => oneMinus(smoothstep(r - aa, r + aa, d))
+  const ringAt = (d: Num, r: number, half: number) => oneMinus(smoothstep(half - aa, half + aa, abs(d.sub(r))))
+  let flat: Num = max(disc(rr, 0.17), max(ringAt(rr, 0.36, 0.028), ringAt(rr, 0.74, 0.022)))
+  flat = max(flat, ringAt(rr, 0.55, 0.011))
+  for (const deg of [90, 210, 330]) {
+    const a = (deg * Math.PI) / 180
+    const c = [Math.cos(a), Math.sin(a)]
+    const d = length(cp.sub(vec2(c[0] * 0.55, c[1] * 0.55)))
+    flat = max(flat, max(disc(d, 0.1), ringAt(d, 0.15, 0.014)))
+    // And the spoke from the centre out to the first ring, on the same bearing.
+    const along = cp.x.mul(c[0]).add(cp.y.mul(c[1]))
+    const off = abs(cp.x.mul(c[1]).sub(cp.y.mul(c[0])))
+    flat = max(flat, oneMinus(smoothstep(0.018 - aa, 0.018 + aa, off)).mul(step(0.15, along)).mul(step(along, 0.37)))
+  }
+  for (let k = 0; k < 6; k++) {
+    const a = ((30 + 60 * k) * Math.PI) / 180
+    flat = max(flat, disc(length(cp.sub(vec2(Math.cos(a) * 0.88, Math.sin(a) * 0.88))), 0.035))
+  }
+  const laid = sin(ang.mul(48).add(rr.mul(34))).mul(0.18).add(0.82)
+  const stalks = sin(cp.x.mul(260)).mul(0.3).add(0.7).mul(0.07)
+  const tram = oneMinus(smoothstep(0.006, 0.012, abs(abs(cp.x).sub(0.93)))).mul(0.18)
+  const field = GREEN.mul(flat.mul(laid).mul(0.95).add(oneMinus(flat).mul(stalks.add(tram))))
+  const spread = smoothstep(rr.sub(0.06), rr, holoCrop.mul(1.5))
+  const picture = mix(sudoku, field, spread)
 
   // ---- and a hologram's tell: scanlines, a slow rolling band, a faint wash
   // where nothing is lit, and edges that fade rather than cut.
@@ -1175,14 +1215,24 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
   const groups = useRef<(THREE.Group | null)[]>([])
   const hanging = useRef<(THREE.Mesh | null)[]>([])
   const landed = useRef<(THREE.Mesh | null)[]>([])
-  useFrame(() => {
+  useFrame((state) => {
+    const clock = state.clock.elapsedTime
     const set: PropSet = built.set
     for (let i = 0; i < set.props.length; i++) {
       const p = set.props[i]!
       const g = groups.current[i]
       if (g) {
-        g.position.set(p.px + p.x, p.y, p.pz + p.z)
+        // About its own foot, so the beam's stretch is a tile drawn up off
+        // the deck rather than a tile scaled away from the island's floor.
+        const foot = p.rest - GROUND
+        g.position.set(p.px + p.x, foot + p.y, p.pz + p.z)
         g.rotation.y = p.yaw
+        const keep = 1 - p.gone
+        const w = p.held
+        g.scale.set((1 - 0.4 * w) * keep, (1 + 1.8 * w) * keep, (1 - 0.4 * w) * keep)
+        g.rotation.x = w * 0.5 * Math.sin(clock * 13 + i)
+        g.rotation.z = w * 0.5 * Math.cos(clock * 11 + i * 2)
+        g.visible = keep > 0.01
       }
       const piece = built.pieces[i]!
       if (!piece.landed) continue
@@ -1207,8 +1257,8 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
       {built.pieces.map((piece, i) => {
         const p = built.set.props[i]!
         return (
-          <group key={piece.id} ref={(g) => { groups.current[i] = g }} position={[p.px, 0, p.pz]}>
-            <group position={[-p.px, 0, -p.pz]}>
+          <group key={piece.id} ref={(g) => { groups.current[i] = g }} position={[p.px, p.rest - GROUND, p.pz]}>
+            <group position={[-p.px, -(p.rest - GROUND), -p.pz]}>
               {piece.parts.map((part, j) =>
                 piece.landed && part.name.startsWith('panel_found') ? (
                   <group key={j}>
@@ -1269,6 +1319,20 @@ export function Landmarks({ near }: { near: string | null }) {
     // the sudoku is the landmark that is near, back down once it is not. The
     // same signal that opens the panel, so the board resolves as the visitor
     // starts reading about it. Pinned at 1 under reduced motion.
+    // The crop circle comes first, because it is the one thing here reduced
+    // motion still gets — all at once rather than drawn out.
+    const now = state.clock.elapsedTime
+    let saucerIn = false
+    if (HOLO_AT && SHIP.saucer) {
+      const l = HOLO_AT
+      const rot = landmarkYaw(l)
+      const dx = SHIP.pos.x - l.pos[0]
+      const dz = SHIP.pos.z - l.pos[2]
+      saucerIn = throughPanel(dx * Math.cos(rot) - dz * Math.sin(rot), SHIP.pos.y - l.pos[1],
+        dx * Math.sin(rot) + dz * Math.cos(rot))
+      if (saucerIn) cropAt = now
+    }
+    holoCrop.value = crop(holoCrop.value, now - cropAt, Math.min(dt, 0.05), REDUCED)
     if (REDUCED) return
     const here = LANDMARKS.some((l) => l.slug === near && l.landmark === 'sudoku')
     holoReveal.value = THREE.MathUtils.clamp(
@@ -1284,8 +1348,9 @@ export function Landmarks({ near }: { near: string | null }) {
       const dz = SHIP.pos.z - l.pos[2]
       const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
       const lz = dx * Math.sin(rot) + dz * Math.cos(rot)
-      const now = state.clock.elapsedTime
-      if (Math.abs(lz - PANEL.z) <= PIERCE.reach) pierce(lx, SHIP.pos.y - l.pos[1], now, holeStrength, holeHitAt)
+      // A board through it scrambles it; the saucer leaves a crop circle
+      // instead (above), and leaves the puzzle under it alone.
+      if (!saucerIn && Math.abs(lz - PANEL.z) <= PIERCE.reach) pierce(lx, SHIP.pos.y - l.pos[1], now, holeStrength, holeHitAt)
       const open = holes(now, holeStrength, holeHitAt, holeBytes)
       if (open || holeWasOpen) HOLE_TEX.needsUpdate = true
       holeWasOpen = open
