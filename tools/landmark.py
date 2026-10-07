@@ -37,7 +37,9 @@ from mathutils import Matrix, Quaternion, Vector
 # `bark`, `frond` and `bush` are the isle's, shaded by `Isle.tsx` rather than by
 # `Landmarks.tsx` — the same convention, a second file reading it. `holo` is
 # the sudoku's light: unlit, additive, and the only key that draws digits.
-KEYS = ("rock", "frame", "panel", "dark", "board", "glass", "holo", "bark", "frond", "bush")
+# `ice` is the iceberg's mountain: ice on its walls and snow wherever a face
+# looks at the sky, which the shader decides from the normal.
+KEYS = ("rock", "ice", "frame", "panel", "dark", "board", "glass", "holo", "bark", "frond", "bush")
 
 
 def T(x: float, y: float, z: float) -> Vector:

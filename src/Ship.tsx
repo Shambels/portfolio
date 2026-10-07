@@ -9,7 +9,11 @@ import { swell } from './Scenery'
 import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
-import { FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, landmarkAt, landmarkOf, offshore, plateau, spawn } from './world'
+import {
+  BERG_AT, BERG_R, FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, iceAt, landmarkAt, landmarkOf, moorRadius,
+  offshore, overBerg, plateau, spawn,
+} from './world'
+import { glide, kick, shove, stepBerg } from './berg'
 import { BOARD, PROP_SETS, RIDER_MASS, inShot, stepProps, type Board, type Terrain } from './plateau'
 import { STAIR_LATERAL, atDoor, stairAt, stairLength, stairNearest, stairStepOff } from './stairs'
 import type { ShipModel } from './WorldGate'
@@ -437,6 +441,19 @@ const AIM_DOWN = window.matchMedia('(pointer: coarse)').matches ? 1.15 : 0
  */
 export const SHIP = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), sea: 0 }
 
+/** Which way the input points on the ice, as a unit vector — `glide`'s. */
+const _want = { x: 0, z: 0 }
+
+/**
+ * The iceberg's two numbers that are about the craft rather than the berg.
+ * `ARRIVE`: how much of his speed riding up onto it counts as a fall — at
+ * cruise, about a third of a hard landing, so coming up the shore fast is a
+ * dip you can see and coming up it slowly is nothing. `BOAT_LEAN`: how hard a
+ * hull kept against its side leans it, per second, on top of the first bump.
+ */
+const ARRIVE = 0.35
+const BOAT_LEAN = 1.2
+
 /** The board as `plateau.ts` sees it, filled once a frame — see `SIT`. */
 const _board: Board = {
   x: 0, y: 0, z: 0, yaw: 0, vx: 0, vz: 0, spin: 0, len: BOARD.len, r: BOARD.r, m: RIDER_MASS,
@@ -644,6 +661,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
   const lastSurface = useRef(0)
   const wet = useRef(1)   // 1 in the water, 0 in the air, smoothed between
   const flew = useRef(false) // last frame's answer, so leaving and landing are events
+  // The iceberg (`berg.ts`): last frame's answers to "is the board on its ice
+  // shore", "is it standing on the berg at all", and "is the boat against it".
+  const iced = useRef(false)
+  const onBerg = useRef(false)
+  const bump = useRef(false)
+  const bergLoad = useRef(false)
   // Where the camera is round the hull, chasing `yaw` — see `CAM_SWING`. Its
   // own value rather than `yaw` read late, because the lag between the two *is*
   // the turn, and steering is measured against this one.
@@ -781,6 +804,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // this is the ramp between them. Last frame's position, deliberately —
     // nothing here is worth reordering the frame for.
     const walks = model === 'surfer'
+    if (!walks) iced.current = false
     // How long the change ashore has, when it has to be quicker than the
     // beach's own second and a quarter: a hull in the air over the sand lands
     // when its arc meets it, and the pickup has to be done by then — so it is
@@ -843,7 +867,25 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     _target.y = 0
     _target.multiplyScalar((boost ? SPEED * BOOST : SPEED) *
       (agile.speed + (WALK_SPEED - agile.speed) * afoot))
-    vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
+    if (iced.current) {
+      // On the berg's ice shore there is nothing to push against. The glide
+      // keeps the velocity it came on with, the slope of the ice pulls it
+      // downhill — which is the berg's tilt as much as the shore's own fall —
+      // and the input does not steer it: it turns the board (see `heading`
+      // below) and, only for a man nearly stopped, gives a faint skate so
+      // the ice is never a trap. `glide` in `berg.ts`, held by its check.
+      const len = Math.hypot(_target.x, _target.z)
+      _want.x = len > 1e-6 ? _target.x / len : 0
+      _want.z = len > 1e-6 ? _target.z / len : 0
+      const e = 0.05
+      const px = g.position.x
+      const pz = g.position.z
+      glide(vel.current, _want,
+        (plateau(px + e, pz) - plateau(px - e, pz)) / (2 * e),
+        (plateau(px, pz + e) - plateau(px, pz - e)) / (2 * e), GRAV, dt)
+    } else {
+      vel.current.lerp(_target, 1 - Math.exp(-ACCEL * dt))
+    }
 
     if (caveS.current !== null) {
       // Inside the stair. The wish is whatever the keys and the camera say it
@@ -930,7 +972,24 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       // motion runs along it and slides round the island instead of sticking.
       // No coast is a wall for the surfer any more: he walks up the isles and
       // rides up the landmark islands (`SIT`), so `offshore` is the boat's.
-      if (floats && !walks) offshore(g.position)
+      if (floats && !walks) {
+        // A hull against the iceberg rocks it: a shove when it first touches,
+        // harder the faster it came in, and a steady lean for as long as it
+        // keeps pushing. Read before `offshore` takes the hull back out.
+        if (BERG_AT && !REDUCED) {
+          const dx = g.position.x - BERG_AT.pos[0]
+          const dz = g.position.z - BERG_AT.pos[2]
+          const d = Math.hypot(dx, dz)
+          const into = d > 1e-6 ? -(vel.current.x * dx + vel.current.z * dz) / d : 0
+          const touching = d < moorRadius(BERG_AT)
+          if (touching && into > 0) {
+            const k = bump.current ? BOAT_LEAN * dt : 1
+            shove((-dx / d) * into * k, (-dz / d) * into * k)
+          }
+          bump.current = touching
+        }
+        offshore(g.position)
+      }
       // What stands on the landmark islands, against the board. Stepped for
       // every craft — a tile floating in the lagoon keeps floating while the
       // visitor is in the saucer — and *hitting* only for the board, riding:
@@ -946,7 +1005,16 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
         Math.cos(yaw.current - lastYaw.current)) / dt
       _terrain.t = REDUCED ? 0 : state.clock.elapsedTime
       for (const set of PROP_SETS.values()) {
+        const wasVx = _board.vx
+        const wasVz = _board.vz
         stepProps(set, dt, _board, walks && afoot < 0.5, terrain, HITS)
+        // The board off the berg's mountain: what the wall took out of his
+        // velocity is what it put into the berg, which rolls along it.
+        if (BERG_AT && set.slug === BERG_AT.slug && !REDUCED) {
+          const dvx = _board.vx - wasVx
+          const dvz = _board.vz - wasVz
+          if (dvx !== 0 || dvz !== 0) shove(-dvx, -dvz)
+        }
         // And the giant camera, which does the opposite of the wall above: it
         // touches nothing and only looks. It fires when the rider is off the
         // deck and inside the cone — `flew` and not this frame's answer,
@@ -1004,6 +1072,10 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // is a man spinning on a staircase.
     const heading = caveS.current !== null
       ? caveFace.current
+      // On the ice he faces where he is told to and the glide goes where it
+      // was going — the one place the two come apart. No input, no turn.
+      : iced.current
+        ? _target.lengthSq() > 1e-6 ? Math.atan2(_target.x, _target.z) : null
       : vel.current.lengthSq() > 0.0025
         ? Math.atan2(vel.current.x, vel.current.z)
         : null
@@ -1060,6 +1132,14 @@ const RISE = 10
     // thing the visitor watches fade rather than a thing that is integrated, and
     // on a slideshow it should still be gone in a second.
     if (SPLASH.age < 9) SPLASH.age += Math.min(delta, 0.25)
+    // The iceberg, a step: its idle swell, and the weight of a man standing
+    // on it, read off last frame's answer. Nothing moves it under reduced
+    // motion — not the swell, not him — so it is a still island there.
+    if (BERG_AT && !REDUCED) {
+      stepBerg(dt, state.clock.elapsedTime, BERG_R, bergLoad.current
+        ? { dx: g.position.x - BERG_AT.pos[0], dz: g.position.z - BERG_AT.pos[2] }
+        : null)
+    }
     if (FLASH.age < 9) FLASH.age += Math.min(delta, 0.25)
 
     // What the craft is riding: the sea for anything that floats, and for the
@@ -1174,6 +1254,13 @@ const RISE = 10
             const impact = Math.min(-hullVel.current, water.launch)
             springVel.current.y += impact * water.squash
             RIDE.slam = Math.min(impact / SPLASH_FULL, 1)
+            // Coming down on the berg: it sinks under him and dips his way,
+            // as hard as he landed. Counted as his arrival, so riding on
+            // from here does not kick it a second time.
+            if (BERG_AT && !REDUCED && overBerg(g.position.x, g.position.z)) {
+              kick(g.position.x - BERG_AT.pos[0], g.position.z - BERG_AT.pos[2], impact, BERG_R)
+              onBerg.current = true
+            }
           }
           hull.current = bed
           // The ramp. A floor climbing under the board carries the board up
@@ -1196,6 +1283,24 @@ const RISE = 10
       // squash, and `JOLT` already bounds it.
       vertAccel = (hullVel.current - wasVel) / dt
       ride = hull.current
+
+      // On the berg, and on its ice. Standing means on the floor and not in
+      // the air over it — a man jumping on the ice is not gliding on it, and
+      // he lands to the same rule. Riding on from the sea is an arrival, and
+      // an arrival at speed is a shove of its own: the faster he comes up the
+      // shore, the harder the berg dips at the edge he came up.
+      const standing = walks && afoot < 0.5 && dry && hull.current <= bed + 0.02
+      const there = standing && overBerg(g.position.x, g.position.z)
+      if (there && !onBerg.current && BERG_AT && !REDUCED) {
+        kick(g.position.x - BERG_AT.pos[0], g.position.z - BERG_AT.pos[2],
+          Math.hypot(vel.current.x, vel.current.z) * ARRIVE, BERG_R)
+      }
+      // Off it is only off it once he is in the sea or ashore somewhere else;
+      // a hop on the ice is still on the berg, or every landing would double.
+      if (there) onBerg.current = true
+      else if (!dry || !overBerg(g.position.x, g.position.z)) onBerg.current = false
+      iced.current = standing && iceAt(g.position.x, g.position.z)
+      bergLoad.current = there
 
       wet.current += ((flying ? 0 : 1) - wet.current) * (1 - Math.exp(-(flying ? DRY : WET) * dt))
       // Flip either sign if the hull leans into the wave rather than over it —

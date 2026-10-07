@@ -1,6 +1,7 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
-import { GROUND, deckAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
+import { GROUND, deckAt, fractionAt, profileAt, rampLift, seedOf, type Hit } from './plateau'
+import { BERG_PROFILE, FLOATS, bergLift, onIce } from './berg'
 import { SOURCE_LOCALE } from './i18n/locales'
 
 /**
@@ -132,9 +133,36 @@ export function plateau(x: number, z: number): number {
     const rot = landmarkYaw(l)
     const lx = dx * Math.cos(rot) - dz * Math.sin(rot)
     const lz = dx * Math.sin(rot) + dz * Math.cos(rot)
-    h = Math.max(h, GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
+    // The berg stands higher and is shaped otherwise, and it moves: its
+    // ground is its own profile, lifted and posed by `bergLift`.
+    h = Math.max(h, l.landmark === FLOATS
+      ? GROUND + bergLift(dx, dz) + profileAt(R, seedOf(l.slug), dx, dz, BERG_PROFILE)
+      : GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
   }
   return h
+}
+
+/** The landmark that floats — PolarSense's iceberg — if there is one. */
+export const BERG_AT = LANDMARKS.find((l) => l.landmark === FLOATS)
+
+/** Its radius as revolved, which is what every lever on it is measured over. */
+export const BERG_R = BERG_AT ? BERG_AT.radius * ISLAND_SPREAD : 1
+
+/** Is a world XZ on the berg's ice shore — the ring with no grip? */
+export function iceAt(x: number, z: number): boolean {
+  const l = BERG_AT
+  if (!l) return false
+  const dx = x - l.pos[0]
+  const dz = z - l.pos[2]
+  if (dx * dx + dz * dz > BERG_R * BERG_R) return false
+  return onIce(fractionAt(BERG_R, seedOf(l.slug), dx, dz))
+}
+
+/** Is a world XZ over the berg at all — inside its last ring? */
+export function overBerg(x: number, z: number): boolean {
+  const l = BERG_AT
+  if (!l) return false
+  return fractionAt(BERG_R, seedOf(l.slug), x - l.pos[0], z - l.pos[2]) < 1
 }
 
 /**
@@ -213,8 +241,8 @@ export const SHOAL = 7
  * and `Scenery` ramps outward from it.
  */
 export const LAGOONS = [
-  ...LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l) })),
-  ...ISLES.map((i) => ({ x: i.pos[0], z: i.pos[1], r: i.radius })),
+  ...LANDMARKS.map((l) => ({ x: l.pos[0], z: l.pos[2], r: shoreOf(l), ice: l.landmark === FLOATS })),
+  ...ISLES.map((i) => ({ x: i.pos[0], z: i.pos[1], r: i.radius, ice: false })),
 ]
 
 export const SHOALS = [

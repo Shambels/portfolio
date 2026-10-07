@@ -107,6 +107,7 @@ function wallFromGlb(path: string, shape: string): Poly {
 }
 
 const wall = wallFromGlb(new URL('./models/mine.glb', import.meta.url).pathname, 'mine')
+const KNOCK = WALLED.mine!.knock ?? 'metal'
 assert.ok(wall.length >= 6 && wall.length <= 64, `the mine's hull has ${wall.length} vertices`)
 // Counter-clockwise, and it holds the rock: the bench's own centre is inside.
 assert.ok(inside(wall, 0, -1.5), 'the benches are outside their own wall')
@@ -202,7 +203,7 @@ function clearance(b: Board, poly: Poly, cx: number, cz: number, rot: number): n
   const cx = -14, cz = -8
   const rot = Math.atan2(-cx, -cz)
   for (let k = 0; k < 8; k++) {
-    const set = makeSet('polarsense', cx, cz, rot, [], [wall])
+    const set = makeSet('polarsense', cx, cz, rot, [], [wall], null, KNOCK)
     const bearing = (k / 8) * Math.PI * 2
     // Start 6 out on the bearing, ride in along it at cruise.
     const b = board(cx - Math.sin(bearing) * 6, cz - Math.cos(bearing) * 6, bearing, 7.5)
@@ -219,18 +220,25 @@ function clearance(b: Board, poly: Poly, cx: number, cz: number, rot: number): n
       assert.ok(c >= b.r - 0.02, `bearing ${k}: frame ${f} is ${(b.r - c).toFixed(3)} into the mine`)
       if (hits.length && !bounced) {
         bounced = true
-        // The velocity's share along the approach is reversed, some of it.
+        // The velocity's share along the approach is cut — reversed on a
+        // square hit — and the bang is the size of what was cut. Since the
+        // iceberg the massif is wider than the first mine's benches, and a
+        // board aimed at its centre from the side grazes a corner on some
+        // bearings, so this holds the bounce to the part of the speed that
+        // went into the ice rather than to a reversal; that it never ends a
+        // frame inside the wall is the assert above.
         const along = (b.vx * v0x + b.vz * v0z) / Math.hypot(v0x, v0z)
-        assert.ok(along < 0, `bearing ${k}: no bounce — still going in at ${along.toFixed(2)}`)
-        assert.ok(hits[0]!.kind === 'metal', 'the mine is not metal')
-        assert.ok(hits[0]!.force > 0.5, `bearing ${k}: a bang of ${hits[0]!.force.toFixed(2)} for a hit at cruise`)
+        const lost = Math.hypot(v0x, v0z) - along
+        assert.ok(lost > 0.5, `bearing ${k}: no bounce — still going in at ${along.toFixed(2)}`)
+        assert.ok(hits[0]!.kind === KNOCK, `the mine does not knock as ${KNOCK}`)
+        assert.ok(hits[0]!.force > (along < 0 ? 0.5 : 0.05), `bearing ${k}: a bang of ${hits[0]!.force.toFixed(2)} for a hit at cruise`)
       }
     }
     assert.ok(bounced, `bearing ${k}: rode through the mine without touching it`)
     assert.ok(minClear < b.r + 0.05, `bearing ${k}: never reached the wall (${minClear.toFixed(2)})`)
   }
   // Swept in from the side rather than head-on: still out, still a bang.
-  const set = makeSet('polarsense', cx, cz, rot, [], [wall])
+  const set = makeSet('polarsense', cx, cz, rot, [], [wall], null, KNOCK)
   const b = board(cx + 3.2, cz + 2.5, Math.PI * 0.5, 0)
   b.vx = -5
   const hits: Hit[] = []
@@ -244,7 +252,7 @@ function clearance(b: Board, poly: Poly, cx: number, cz: number, rot: number): n
   // And the saucer, which is not a board: nothing happens.
   const s = board(cx, cz, 0, 7.5)
   const none: Hit[] = []
-  stepProps(makeSet('polarsense', cx, cz, rot, [], [wall]), DT, s, false, flat, none)
+  stepProps(makeSet('polarsense', cx, cz, rot, [], [wall], null, KNOCK), DT, s, false, flat, none)
   assert.equal(none.length, 0, 'the mine hit something that was not the board')
 }
 
