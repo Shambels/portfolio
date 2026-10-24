@@ -9,6 +9,7 @@ import { Backtrack } from '../Backtrack'
 import { Darkroom } from '../Darkroom'
 import { Rack } from '../Rack'
 import { Sounding } from '../Sounding'
+import { Survey } from '../Survey'
 
 /**
  * The flat case study's stage, where a project has one: its plate from the
@@ -22,6 +23,7 @@ const STAGE: Record<string, ComponentType<{ plate: Plate; locale: Locale }>> = {
   sudoku: Backtrack,
   easel: Atelier,
   board: Rack,
+  tablo: Survey,
 }
 
 /**

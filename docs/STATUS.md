@@ -8418,3 +8418,157 @@ exactly as before, because the roller terms are untouched. The surfer has
 - Whether a dead-still boat on a calm sea reads as moored rather than afloat.
   If it wants a little life back, `chop` takes a fraction — 0.15 is a gentle
   sway, nowhere near the old bob.
+
+## A sixth project — Tablo, a house drawn as its own plan
+
+Tablo draws and checks the diagrams of Belgian installations, and its one idea
+is that the single-line diagram and the position plan are one model drawn
+twice, every point tagged the same on both (A1, A2… as on the board). Its
+island is that model standing up, its plate on `/work` is a real board with
+the diagram pinned under it, and its page is a description rather than a
+case study, as Memojo's is: the repository is private.
+
+**Where.** `pos: [-20, -80]`, `order: 6` — first on the route from the spawn,
+62 m from PolarSense, which is the spacing the other crossings have (56–65 m;
+Memojo to the Sudoku Solver is the long one). It is 56 m ahead of the spawn
+and 38 m to the right of its sightline, so it is in the opening shot without
+standing in front of PolarSense, and 11.5 m of water clear of the isle's
+mooring. `radius: 6.5`, the biggest island yet, because a house needs a flat
+top: every corner of every wall, the cabinet and the door's far end are on
+`profileAt == 0` for the real seed, and the check says so. The chart grows
+north to take it; `mapScale: 0.6` keeps it from dominating.
+
+**The island** (`tools/tablo.py`, `src/models/tablo.glb`, 5,600 triangles,
+45 kB gz):
+
+- [x] **The plan is the floor.** A paper slab with a half-metre grid
+      (`plan_floor`), four rooms walled by graphite kerbs 32 cm high with
+      2.4 m doorways, a lamp on a post in the middle of each room and Belgian
+      socket outlets against the walls — the earth pin standing in the cup.
+- [x] **The board is at the door.** A cabinet ten times life size outside the
+      front wall, door open 160° with the diagram's sheet on its inside, and
+      on its rails the main switch, the house RCD (300 mA), three breakers,
+      the bathroom's RCD (30 mA, downstream of the 300 mA as on a Belgian
+      board) and its breaker, a terminal row and the ducts.
+- [x] **Every point is wired.** A conductor on the floor per point, straight
+      back from the board on its circuit's trunk then across to it
+      (`route()`): every run only moves away from the board, so the shader
+      reads "how far along the wire" as Manhattan distance from the trunk's
+      foot and the model carries no coordinate for it. The deeper rooms take
+      the inner trunks, so no two circuits cross.
+- [x] **Riding into a room is current going to it.** `live`, one number per
+      circuit (`stepWiring` in `tablo.ts`): the conductors light from the
+      board outward as a front, then carry dashes moving away from it; the
+      room's paper washes signal yellow; the lamp lights; the breaker's LED
+      glows. A circuit stays live for 45 s after its room was left, so riding
+      the house through draws the whole diagram.
+- [x] **A hard knock trips the RCD upstream.** A kerb hit at `force ≥ 0.5`
+      trips the bathroom's 30 mA in the bathroom and the house's 300 mA
+      anywhere else (the 300 mA takes the bathroom with it). The lever is
+      thrown in the shader about its own pivot (`panel_rcd0`, `panel_rcd1`),
+      the circuits go out at once, and 3.5 s later it re-arms and they come
+      back. A new knock, `trip` in `Sound.tsx`: a spring-loaded snap over the
+      mechanism's knock in its case, half the force coming back in.
+- [x] **Walls from the numbers, not the mesh.** `WALLED` builds one convex
+      hull per landmark, and a hull round the kerbs is a hull round the house.
+      So `FIXTURES` in `tablo.ts` carries the island's walls — every kerb run,
+      the cabinet, the open door, each post and each socket — and `Detailed`
+      adds them to the prop set beside any hull. Knock: `wood`.
+- [x] **A voice.** `VOICES.tablo`: a board under load hums at 100 Hz, so two
+      triangles an octave apart, lowpassed, breathing in long swells.
+- [x] Reduced motion: no dashes, no front — lit or not, at once — and the
+      lever is where it is going.
+
+**The plate** (`tools/tablo_plate.py`, `Switchboard.tsx`). There is no
+OpenArt access any more, so this one is not generated: it is Blender's,
+Cycles at the plate's proportions in the light the others asked for — one
+warm lamp from the upper left, the room dark — a life-size board on a plaster
+wall, and an A3 sheet taped up under it, blank.
+
+- [x] Rendered twice from the same camera, every lever up (`tablo.base.avif`)
+      and every lever down (`tablo.off.avif`); a device switched off is its
+      patch of the second render, so the lever that moves is the renderer's.
+- [x] The script prints where everything landed in plate units — device
+      boxes, label strips, the enclosure, the sheet's corners — and that is
+      `PLATE` in `tablo.ts`. Re-render, re-paste.
+- [x] The sheet is drawn by the overlay from `sheet()` in `tablo.ts`: the
+      single-line diagram (supply, Q1, Q2 300 mA, the bus, Q3–Q5, Q6 30 mA,
+      Q7, every point with its tag) over the 1:50 position plan of the very
+      house on the island, and a title block — through the affine map of the
+      sheet's corners, multiplied onto the paper so the light is still on it.
+      In the page's locale; the labels on the board's strips too.
+- [x] **Hover a device** and everything it feeds lights on the sheet;
+      **hover a room** on the plan and its breaker lights on the board;
+      **click** and it switches — downstream goes grey and broken on the
+      diagram, the lamps go out on the plan, the indicator goes out with Q1.
+- [x] With JS off, `Still` draws the same sheet in SVG, everything on.
+- [x] The signature, `tablo.svg`: the single-line diagram beside the plan of
+      the same four rooms, and on hover the current goes down each branch in
+      turn and the same lamp lights on both — A with A.
+
+**The page** (`tablo.{fr,en,nl}.mdx`, `Survey.tsx`). French first, as asked;
+English and Dutch follow it. Summaries are the store listings' promotional
+lines in each language (`docs/app-store-listing.md` in the repo). Facts are
+the repository's own — the README, the changelog, the store listing — and
+the page says nothing about how long it took.
+
+- [x] Seven sections: on site, the board in a photo, one model two drawings,
+      the checks, what comes out, as a team, what there is and is not. The
+      last says it is a description because the source is private, that the
+      phone apps are waiting for their store listings, and that the other
+      countries' rule packs are marked as in preparation.
+- [x] Only `site` is a link; no `repo`, no `play`, no `appStore` until the
+      listings are live.
+- [x] **The stage**, CSS only, off the headings' view timelines: the plan
+      draws on the first scroll; a scan runs down the board and the label
+      strips fill in; the single-line diagram draws itself off the same
+      points; the checker's red ring on the bathroom — *30 mA required* —
+      until the 30 mA RCD draws in above it and the ring goes green; the
+      title block. The paths are `Still`'s, so the stage, the plate and the
+      fallback are one drawing. No animation is the finished sheet.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b`, all fourteen checks (`tablo` is the fourteenth), `oxlint`
+      (nothing new), `npm run build` — 30 routes and the SPA fallback,
+      `/{lang}/work/tablo` in all three
+- [x] `tablo.check.ts`: the rooms tile the house and every point is in its
+      own; every doorway is 2.4 m and every room has one; all of it on the
+      flat top for the real seed and radius, inside the frontmatter box; every
+      run is monotone and none crosses another; the kerbs, conductors and RCD
+      levers in the .glb are where `tablo.ts` says; a board ridden at the
+      bedroom wall on eight headings never ends a frame inside a wall and
+      knocks; the deep link parks the board clear of every wall; and the
+      circuits — a room lights its own, a bathroom knock trips only the
+      30 mA, a soft one nothing, it re-arms by itself, the 300 mA takes
+      everything, and 45 s after leaving a room it goes out
+- [x] Dev asserts in the browser: no overlap with any island or mooring, the
+      waypoint inside its radius and on the side the others are approached
+      from, the model inside its box
+- [x] Rendered headless (swiftshader, WebGL2): the island from its waypoint,
+      from above, and from behind with the circuits forced live — the
+      conductors lit on the plan; the `/work` plate hovered and switched;
+      the stage at every act
+- [x] Cost: the home route's JS unchanged (+6 bytes); the canvas chunk
+      +1.4 kB gz; `/work` +14 kB gz, of which 8.7 kB is Tablo's three MDX
+      bodies in the shared content chunk and the rest the overlay and its
+      data; the world +45 kB gz (2.49 MB of 3)
+
+### Open, and Seb's
+
+- **The French, Dutch and English prose, and the stage's cards** — written
+  here, French first; Dutch and English unreviewed like the rest.
+- **The circuits on hardware**: `WIRING.hold` (45 s), `trip` (0.5), `reset`
+  (3.5 s); whether the lamps (2.4 emissive) bloom too much; whether the
+  floor's yellow wash reads from the water. The lit look was only seen
+  forced, from behind, at swiftshader's frame rate.
+- **The door.** Open 160° it stands in front of the living room's front
+  doorway; a rider gets past it, but not straight in. Hinged on the other
+  side it would do the same to the kitchen's.
+- **The plate's light.** More frontal than the others' so the board's shadow
+  stays off the diagram, and so a little flatter; the key is one number in
+  `light_and_camera`.
+- **The chart.** It grows north to take the sixth island.
+- Not Tablo's, noticed while rendering: two dev asserts that fail already on
+  `main` — `arts-by-sandra` built 2.74 tall in a 2.7 box, and `polarsense`
+  4.72 deep in a 4.6 box.

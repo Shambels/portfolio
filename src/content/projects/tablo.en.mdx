@@ -1,0 +1,117 @@
+---
+title: Tablo
+slug: tablo
+year: 2026
+stack: [TypeScript, React, Canvas, Tauri, Rust, SQLite, Claude]
+site: https://tablo-app.be
+summary: Site survey on your phone, single-line diagram and position plan generated for you, RGIE checks built in. Works offline on site.
+landmark: tablo
+order: 6
+pos: [-20, -80]
+size: [8.3, 2.7, 8.4]
+radius: 6.5
+mapScale: 0.6
+waypoint: [-20.1, -73.8]
+---
+
+Tablo draws and checks the diagrams of Belgian electrical installations, from
+the survey on site to the file handed to the inspection. It is made for the
+residential and commercial installer — the person who, for every house sold or
+renovated, has to produce a single-line diagram and a position plan that pass
+the approved inspection body.
+
+Today that work is done in CAD suites built for panel builders — powerful,
+expensive, slow to learn —, in free tools that draw but understand nothing, or
+on paper and in Excel. Tablo takes the other side: little to learn, and
+software that knows what it is drawing. It runs in the browser and as a desktop
+app (Linux, macOS, Windows) from the same code, and it is in free beta at
+tablo-app.be.
+
+## On site, on a phone
+
+Everything starts with the survey, and the survey is done standing up, in the
+house, with a phone. Room by room: pick the type of room and the floor, and add
+the sockets, lights, switches and appliances in one tap each, with their
+quantity. Every point belongs to a circuit, picked or created on the spot with
+the usual values — a 30 mA RCD is offered by default for a bathroom or a
+washing machine.
+
+The board is surveyed the same way: main switch, RCDs, breakers, cables and
+lengths, and the measured resistance of the earth electrode. The survey says
+what is still missing while you are still there, which is the only time that
+is any use.
+
+There is no signal in a cellar. The app installs from the site and works fully
+offline: projects and photos stay on the device, and a cloud project opens from
+its local copy and syncs when the connection comes back.
+
+## The board, in a photo
+
+Copying an existing board out by hand is the most tedious part of the job. You
+photograph it instead: the AI reads the devices — ratings, curves, RCDs,
+labels — and proposes the list of circuits, which the installer checks before
+it goes into the project. Circuits already surveyed keep their points.
+
+The same way in takes a sentence, typed or dictated — "kitchen, circuit C, six
+sockets on 2.5 mm², 20 A" —, a hand sketch, or a request to the assistant that
+edits the project: "add an EV charger, then generate the multi-line diagram".
+Whatever the AI proposes goes through a review step, and nothing changes the
+project except through the same undoable operations the editor uses. The
+server can also run a model hosted on your own machine instead of Claude, with
+the same features and the same checks.
+
+## One model, two drawings
+
+The heart of Tablo is that it does not draw two diagrams: it keeps one model
+and shows it twice. The single-line diagram, per board, and the position plan,
+per floor, are generated from the survey and tagged the same way — A1, A2,
+B1… as on the board —, so a point on the plan is always a point on a circuit.
+When the survey changes, the diagrams are regenerated in place, and a rule
+flags any that have fallen behind.
+
+The same model gives the multi-line diagram, the control schematics, the board
+layout on its rails, wire and terminal numbering, and cross-references between
+sheets. The architect's plan can sit underneath: an image, a PDF, or a DXF file
+placed at true scale with no calibration.
+
+## The checks, while you draw
+
+Because the software knows what a circuit is, it can check one. The RGIE rules
+run as you work: 30 mA RCDs in wet rooms, points per circuit, cable sections
+and ratings, voltage drop, maximum protected length. The calculations behind
+them are the trade's own — design current, current-carrying capacity by
+installation method, voltage drop, breaking capacity against the short-circuit
+current at the origin.
+
+Every finding explains the rule and says how to fix it. And Tablo also says
+what it is not: an aid to preparing the inspection, not the inspection. That
+stays with the approved body.
+
+## What comes out
+
+The file: sheets to size, with the RGIE title block filled from the project's
+details, as PDF, SVG, PNG or DXF; the circuit list; the board's labels; a
+handover pack with a QR code. And what comes right after the diagram in an
+installer's actual working life: the bill of materials and the quote —
+devices, cables by the diagram's own lengths, labour, prices from their
+wholesaler's list, VAT at 21 % or 6 %, as an Excel file with its formulas.
+
+## As a team
+
+With an account, projects sync between phone, tablet and computer, live
+between several people, with team workspaces and a shared library of symbols
+and templates. A read-only link shows the project to the client or to the
+inspection body, as it is or frozen at a revision. The app speaks French, Dutch
+and English, with Flemish terminology on the Dutch side, and the language of
+the drawings is a project setting, separate from the interface's. The server is
+in Europe.
+
+## What there is, and what there is not
+
+It is a free beta, online and as a desktop app; the iPhone and Android versions
+are waiting for their store listings. Belgium first, and the RGIE with it;
+other countries' rules are in preparation and marked as such.
+
+As with Memojo, this page describes the app rather than how it was built: the
+source is private, and the choices behind it are not mine to publish here. The
+link above goes to the app itself.

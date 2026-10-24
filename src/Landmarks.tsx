@@ -8,7 +8,7 @@ import {
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
 import { fractal } from './noise'
-import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
+import { GROUND, HITS, ISLAND_SPREAD, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
   LENSES, PRINTS, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
   type Prop, type PropSet,
@@ -18,11 +18,16 @@ import { FLOATS } from './berg'
 import { Afloat } from './Islands'
 import { SHIP, SHIP_XZ } from './Ship'
 import { PANEL, PIERCE, SLOTS, crop, holes, pierce, table, throughPanel } from './sudoku'
+import {
+  CABINET, CIRCUITS, DEVICES, FEED_Z, FIXTURES, HOUSE, KERB, LAMP, POINTS, RCDS, ROOMS, THROW, WALLS,
+  pivot, roomAt, stepWiring, wallRect, wiring,
+} from './tablo'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
 import memojoUrl from './models/memojo.glb?url'
 import sudokuUrl from './models/sudoku.glb?url'
+import tabloUrl from './models/tablo.glb?url'
 
 /**
  * The five landmarks: a mine, an easel, a Scrabble board, a ramp with a camera
@@ -97,7 +102,7 @@ const PALETTE = {
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
-const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, ice: 1, board: 1, glass: 1, holo: 1 }
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, ice: 1, board: 1, glass: 1, holo: 1, plan: 1, wire: 1, lamp: 1 }
 
 /* How bright the giant camera's lens is lives in `Shutter.tsx` now, with the
  * rest of what the camera does when it goes off. The glass material below is
@@ -666,6 +671,93 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   }
 }
 
+// ---------------------------------------------------------------- Tablo
+// A house drawn as its own position plan, wired back to the board at its
+// door (`src/tablo.ts`, `tools/tablo.py`). What lights is one number per
+// circuit — `live`, 0 to 1, stepped by `stepWiring` below from where the
+// rider is and how hard the kerbs were last hit — and where each RCD's lever
+// is. Every material that reads them is here.
+
+const TABLO_AT = LANDMARKS.find((l) => l.landmark === 'tablo')
+const TABLO = wiring()
+const tabloLive = CIRCUITS.map(() => uniform(0))
+const tabloLever = RCDS.map(() => uniform(1))
+/** Signal yellow, Tablo's own accent — what current is, on its plan. */
+const SIGNAL = '#ffc21a'
+/** The longest conductor on the plan, for the front that runs out along it
+ *  as a circuit comes live. */
+const RUN = Math.max(...POINTS.map((p) => Math.abs(p.x - CIRCUITS[p.circuit]!.trunk) + (FEED_Z - p.z))) + 0.4
+
+function makeTablo(hi: boolean): Record<string, THREE.Material> {
+  const k = 0.3 // a plan on paper takes the proximity tint as faintly as the ice
+  // The paper: a half-metre grid — a sheet's squares, scaled up — and each
+  // room washed with the signal yellow as its circuit comes live, so the plan
+  // shows which rooms are on as plainly as the lamps do.
+  const floor = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
+  {
+    const p = positionLocal.xz.div(0.5)
+    const edge = fract(p).sub(0.5).abs()
+    const grid = smoothstep(0.46, 0.5, max(edge.x, edge.y))
+    let wash: Num = float(0)
+    ROOMS.forEach((r, i) => {
+      const x = positionLocal.x
+      const z = positionLocal.z
+      const inside = step(r.x0, x).mul(step(x, r.x1)).mul(step(r.z0, z)).mul(step(z, r.z1))
+      wash = wash.add(inside.mul(tabloLive[i]!))
+    })
+    const paper = mix(color(shade('#ebe7de', hi, k)), color(shade('#9aa3b0', hi, k)), grid.mul(0.55))
+    floor.colorNode = mix(paper, color(SIGNAL), wash.mul(0.28))
+  }
+  // The kerbs are the plan's walls, so they are its ink: graphite.
+  const kerb = new THREE.MeshStandardNodeMaterial({ color: shade('#3b3e46', hi, k), roughness: 0.8 })
+  // The cabinet is a white plastic enclosure, like every board in a house.
+  const cabinet = new THREE.MeshStandardNodeMaterial({ color: shade('#dedad2', hi, k), roughness: 0.6 })
+  const out: Record<string, THREE.Material> = { frame_kerb: kerb, frame_cabinet: cabinet, frame_door: cabinet }
+
+  // A circuit's conductors: grey on the paper while it is dead; signal yellow
+  // from the board outward as it comes live — a front that runs the length of
+  // the wiring — and then current, dashes moving away from the board for as
+  // long as it is on. How far along the wire is plain Manhattan distance from
+  // the trunk's foot, because every run only ever moves away from it
+  // (`route` in `tablo.ts`). Double-sided so the ink leaves a strip on the
+  // floor alone.
+  CIRCUITS.forEach((cc, i) => {
+    const live = tabloLive[i]!
+    const m = abs(positionLocal.x.sub(cc.trunk)).add(float(FEED_Z).sub(positionLocal.z))
+    const lit = oneMinus(smoothstep(live.mul(RUN).sub(0.4), live.mul(RUN), m)).mul(step(0.001, live))
+    const t = REDUCED ? float(0) : time
+    const dash = REDUCED ? float(1) : smoothstep(0.25, 0.5, fract(m.mul(1.4).sub(t.mul(1.3)))).mul(0.8).add(0.4)
+    const wire = new THREE.MeshStandardNodeMaterial({ roughness: 0.7, side: THREE.DoubleSide })
+    wire.colorNode = mix(color(shade('#7b818b', hi, k)), color(SIGNAL), lit)
+    wire.emissiveNode = color(SIGNAL).mul(lit.mul(dash).mul(0.9))
+    out[`wire_${'abcd'[i]}`] = wire
+    // And what it lights: the globe on each of its lamps, and its breaker's LED.
+    const lamp = new THREE.MeshStandardNodeMaterial({ color: '#f2eee4', roughness: 0.4 })
+    lamp.emissiveNode = color('#ffd98a').mul(live.mul(2.4))
+    out[`lamp_${'abcd'[i]}`] = lamp
+  })
+
+  // The two RCD levers, thrown about their own pivots: up is in, down is out.
+  // Exported up; turned down by the throw times how far out it is. Not inked
+  // — the outline is a copy of the geometry at rest and would stay up.
+  RCDS.forEach((_, r) => {
+    const d = DEVICES.find((v) => v.kind === 'rcd' && v.ref === r)!
+    const [, py, pz] = pivot(d)
+    const a = oneMinus(tabloLever[r]!).mul(THROW.on - THROW.off)
+    const dy = positionLocal.y.sub(py)
+    const dz = positionLocal.z.sub(pz)
+    const lever = new THREE.MeshStandardNodeMaterial({ color: shade('#3d6fc0', hi, k), roughness: 0.5, side: THREE.DoubleSide })
+    lever.positionNode = vec3(
+      positionLocal.x,
+      float(py).add(dy.mul(cos(a))).sub(dz.mul(sin(a))),
+      float(pz).add(dy.mul(sin(a))).add(dz.mul(cos(a))),
+    )
+    out[`panel_rcd${r}`] = lever
+  })
+  out.plan_floor = floor
+  return out
+}
+
 function makeMats(hi: boolean) {
   const c = Object.fromEntries(
     Object.entries(PALETTE).map(([k, v]) => [k, shade(v, hi)]),
@@ -845,6 +937,9 @@ function makeMats(hi: boolean) {
       // `makeMemojo` above says why the one landmark made of things is here
       // and not in the prefixes.
       ...makeMemojo(hi),
+      // Tablo's, which are the circuits: a conductor and a lamp per circuit,
+      // the plan's paper and ink, and the two levers that throw.
+      ...makeTablo(hi),
       panel_canvases: canvas,
       panel_found: found,
       board_palette: palette,
@@ -1067,6 +1162,34 @@ function Sudoku(m: Mats) {
   )
 }
 
+// -------------------------------------------------------------- the house
+// Tablo. The plan's floor, its kerbs, the board at the door and a post for
+// every lamp, straight off `tablo.ts` — what stands there while the model is
+// on the wire, already the same plan and already a wall in the same places.
+
+function House(m: Mats) {
+  const w = HOUSE.x1 - HOUSE.x0
+  const d = HOUSE.z1 - HOUSE.z0
+  return (
+    <>
+      <mesh geometry={BOX} material={m.panel} position={[(HOUSE.x0 + HOUSE.x1) / 2, 0.006, (HOUSE.z0 + HOUSE.z1) / 2]} scale={[w, 0.012, d]} />
+      {WALLS.map((wall, i) => {
+        const r = wallRect(wall)
+        return (
+          <mesh key={i} geometry={BOX} material={m.dark}
+            position={[(r.x0 + r.x1) / 2, KERB.h / 2, (r.z0 + r.z1) / 2]} scale={[r.x1 - r.x0, KERB.h, r.z1 - r.z0]} />
+        )
+      })}
+      <mesh geometry={BOX} material={m.panel}
+        position={[(CABINET.x0 + CABINET.x1) / 2, CABINET.y1 / 2, (CABINET.z0 + CABINET.z1) / 2]}
+        scale={[CABINET.x1 - CABINET.x0, CABINET.y1, CABINET.z1 - CABINET.z0]} />
+      {POINTS.filter((p) => p.kind === 'lamp').map((p) => (
+        <mesh key={p.tag} geometry={BOX} material={m.frame} position={[p.x, LAMP.h / 2, p.z]} scale={[LAMP.post * 2, LAMP.h, LAMP.post * 2]} />
+      ))}
+    </>
+  )
+}
+
 // ----------------------------------------------------------------- the set
 
 /** Keyed by the `landmark` frontmatter field, not by slug: two projects may
@@ -1077,6 +1200,7 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
   board: Board,
   ramp: Kicker,
   sudoku: Sudoku,
+  tablo: House,
 }
 
 /**
@@ -1096,6 +1220,7 @@ const MODEL: Record<string, string> = {
   board: boardUrl,
   ramp: memojoUrl,
   sudoku: sudokuUrl,
+  tablo: tabloUrl,
 }
 
 type Part = { geometry: THREE.BufferGeometry; name: string }
@@ -1199,8 +1324,12 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
       const found = parts.find((p) => p.name.startsWith('panel_found'))
       pieces.push({ id, parts, landed: found ? landedGeometry(found.geometry) : undefined })
     }
+    // And walls that are not a hull of the model: Tablo's kerbs, which are
+    // many walls round many rooms (`FIXTURES` in `tablo.ts`).
+    const fixture = FIXTURES[l.landmark]
     const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props,
-      wallPts.length ? [hull2d(wallPts)] : [], LENSES[l.landmark] ?? null, band?.knock)
+      [...(wallPts.length ? [hull2d(wallPts)] : []), ...(fixture?.walls ?? [])],
+      LENSES[l.landmark] ?? null, band?.knock ?? fixture?.knock)
     return { fixed, pieces, set }
   }, [scene, url, l])
 
@@ -1333,6 +1462,25 @@ export function Landmarks({ near }: { near: string | null }) {
       if (saucerIn) cropAt = now
     }
     holoCrop.value = crop(holoCrop.value, now - cropAt, Math.min(dt, 0.05), REDUCED)
+    // Tablo's circuits: which room the rider is in, and the hardest knock on
+    // the island this frame — `Ship` has already pushed this frame's hits and
+    // `Sound` plays after this, so a trip is heard on the frame it happens.
+    // Before the reduced-motion return: under it the lamps still light, all
+    // at once (`stepWiring`).
+    if (TABLO_AT) {
+      const l = TABLO_AT
+      const rot = landmarkYaw(l)
+      const dx = SHIP.pos.x - l.pos[0]
+      const dz = SHIP.pos.z - l.pos[2]
+      const on = dx * dx + dz * dz < (l.radius * ISLAND_SPREAD) ** 2
+      const room = on ? roomAt(dx * Math.cos(rot) - dz * Math.sin(rot), dx * Math.sin(rot) + dz * Math.cos(rot)) : -1
+      let knock = 0
+      if (on) for (const h of HITS) if (h.kind === 'wood') knock = Math.max(knock, h.force)
+      const event = stepWiring(TABLO, Math.min(dt, 0.05), room, knock, REDUCED)
+      if (event) HITS.push({ kind: 'trip', force: event === 'trip' ? 1 : 0.5 })
+      for (let i = 0; i < tabloLive.length; i++) tabloLive[i]!.value = TABLO.live[i]!
+      for (let r = 0; r < tabloLever.length; r++) tabloLever[r]!.value = TABLO.lever[r]!
+    }
     if (REDUCED) return
     const here = LANDMARKS.some((l) => l.slug === near && l.landmark === 'sudoku')
     holoReveal.value = THREE.MathUtils.clamp(

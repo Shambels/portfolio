@@ -1,0 +1,110 @@
+---
+title: Tablo
+slug: tablo
+summary: Opname ter plaatse op de gsm, eendraadschema en situatieschema automatisch, AREI-controle ingebouwd. Werkt zonder netwerk op de werf.
+---
+
+Tablo tekent en controleert de schema's van Belgische elektrische installaties,
+van de opname op de werf tot het dossier voor de keuring. Het is gemaakt voor de
+installateur in woningbouw en tertiaire bouw — wie voor elke verkochte of
+gerenoveerde woning een eendraadschema en een situatieschema moet afleveren dat
+door het erkende keuringsorganisme raakt.
+
+Vandaag gebeurt dat werk in CAD-pakketten die voor bordenbouwers gemaakt zijn —
+krachtig, duur, traag om te leren —, in gratis programma's die tekenen maar
+niets begrijpen, of op papier en in Excel. Tablo kiest de andere kant: weinig te
+leren, en software die weet wat ze tekent. Het draait in de browser en als
+desktopapp (Linux, macOS, Windows) vanuit dezelfde code, en het is in gratis
+bèta op tablo-app.be.
+
+## Op de werf, op de gsm
+
+Alles begint met de opname, en de opname gebeurt rechtstaand, in de woning, met
+een gsm. Ruimte per ruimte: kies het soort ruimte en de verdieping, en voeg
+stopcontacten, lichtpunten, schakelaars en toestellen toe met één tik, met hun
+aantal. Elk punt hoort bij een kring, ter plaatse gekozen of aangemaakt met de
+gebruikelijke waarden — voor een badkamer of een wasmachine wordt standaard een
+differentieel van 30 mA voorgesteld.
+
+Het verdeelbord wordt op dezelfde manier opgenomen: hoofdschakelaar,
+differentiëlen, automaten, kabels en lengtes, en de gemeten spreidingsweerstand
+van de aarding. De opname zegt wat er nog ontbreekt terwijl u er nog bent, en
+dat is het enige moment waarop dat iets uithaalt.
+
+In een kelder is er geen bereik. De app installeert zich vanaf de site en werkt
+volledig offline: projecten en foto's blijven op het toestel, en een
+cloudproject opent vanuit zijn lokale kopie en synchroniseert zodra er weer
+verbinding is.
+
+## Het verdeelbord, op foto
+
+Een bestaand bord met de hand overnemen is het saaiste deel van het werk. U
+fotografeert het in de plaats: de AI leest de toestellen — kalibers, curves,
+differentiëlen, etiketten — en stelt de lijst van kringen voor, die de
+installateur nakijkt voor ze in het project komt. Kringen die al opgenomen zijn,
+houden hun punten.
+
+Dezelfde ingang neemt ook een zin, getypt of ingesproken — "keuken, kring C, zes
+stopcontacten in 2,5 mm², 20 A" —, een schets uit de vrije hand, of een vraag aan
+de assistent die het project aanpast: "voeg een laadpaal toe en maak dan het
+meerdraadsschema". Wat de AI voorstelt, gaat altijd langs een nalezing, en niets
+verandert het project behalve via dezelfde ongedaan te maken bewerkingen als de
+editor. De server kan ook een model gebruiken dat u zelf host in plaats van
+Claude, met dezelfde functies en dezelfde controles.
+
+## Eén model, twee tekeningen
+
+De kern van Tablo is dat het geen twee schema's tekent: het houdt één model bij
+en toont het twee keer. Het eendraadschema, per bord, en het situatieschema, per
+verdieping, worden uit de opname gemaakt en op dezelfde manier gecodeerd — A1,
+A2, B1… zoals op het bord —, zodat een punt op het plan altijd een punt op een
+kring is. Verandert de opname, dan worden de schema's ter plaatse opnieuw
+gemaakt, en een regel meldt welke achterlopen.
+
+Uit hetzelfde model komen het meerdraadsschema, de stuurschema's, de bordindeling
+op de rails, de nummering van draden en klemmen, en de kruisverwijzingen tussen
+bladen. Het plan van de architect kan eronder liggen: een afbeelding, een pdf, of
+een DXF-bestand dat op ware schaal geplaatst wordt, zonder kalibratie.
+
+## De controle, terwijl u tekent
+
+Omdat de software weet wat een kring is, kan ze er een controleren. De regels van
+het AREI lopen mee terwijl u werkt: differentieel 30 mA in natte ruimtes, aantal
+punten per kring, doorsnedes en kalibers, spanningsval, maximale beveiligde
+lengte. De berekeningen daarachter zijn die van het vak — bedrijfsstroom,
+toelaatbare stroom volgens de plaatsingswijze, spanningsval, onderbrekingsvermogen
+tegenover de kortsluitstroom aan de oorsprong.
+
+Elke opmerking legt de regel uit en zegt hoe het op te lossen. En Tablo zegt ook
+wat het niet is: een hulp bij de voorbereiding van de keuring, niet de keuring
+zelf. Die blijft bij het erkende organisme.
+
+## Wat eruit komt
+
+Het dossier: bladen op formaat, met het AREI-titelblok ingevuld uit de gegevens
+van het project, als pdf, SVG, PNG of DXF; de kringenlijst; de etiketten van het
+bord; een opleveringsdossier met een QR-code. En wat in het echte leven van een
+installateur meteen na het schema komt: de materiaallijst en de offerte —
+materiaal, kabels volgens de lengtes in het schema, arbeid, prijzen uit de lijst
+van de groothandel, btw aan 21 % of 6 %, als Excel-bestand met zijn formules.
+
+## In team
+
+Met een account synchroniseren projecten tussen gsm, tablet en computer, live
+tussen meerdere mensen, met teamwerkruimtes en een gedeelde bibliotheek van
+symbolen en sjablonen. Een link om te bekijken toont het project aan de klant of
+aan het keuringsorganisme, zoals het is of bevroren op een revisie. De app
+spreekt Nederlands, Frans en Engels, met Vlaamse vaktermen aan Nederlandstalige
+kant, en de taal van de schema's is een instelling van het project, los van die
+van de interface. De server staat in Europa.
+
+## Wat er is, en wat niet
+
+Het is een gratis bèta, online en als desktopapp; de versies voor iPhone en
+Android wachten op hun publicatie in de winkels. Eerst België, en het AREI
+daarmee; de regels van andere landen zijn in voorbereiding en als zodanig
+gemarkeerd.
+
+Net als bij Memojo beschrijft deze pagina de app en niet hoe ze gebouwd werd: de
+code is privé, en de keuzes erachter zijn niet aan mij om hier te publiceren. De
+link hierboven leidt naar de app zelf.

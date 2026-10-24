@@ -7,6 +7,7 @@ import { Instant } from '../Instant'
 import { Mark } from '../Mark'
 import { Tiles } from '../Tiles'
 import { Studio } from '../Studio'
+import { Switchboard } from '../Switchboard'
 import { STRINGS, type Locale } from '../i18n'
 
 /**
@@ -73,14 +74,16 @@ const pad = (n: number) => String(n).padStart(2, '0')
  * generated picture cannot be trusted with the digits; PolarSense's puts its
  * iceberg in water the cursor can stir; Arts by Sandra's gives the cursor a
  * brush and a palette; Memojo's is a camera that takes the picture; Sqrubs'
- * rack plays the best move on the board, then the ones a person might have.
+ * rack plays the best move on the board, then the ones a person might have;
+ * Tablo's board switches, and the sheet under it says what each device feeds.
  */
-const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: Plate }>> = {
+const OVERLAY: Record<string, ComponentType<{ on: boolean; plate: Plate; locale: Locale }>> = {
   sudoku: Hologram,
   mine: Iceberg,
   easel: Studio,
   ramp: Instant,
   board: Tiles,
+  tablo: Switchboard,
 }
 
 /**
@@ -112,7 +115,7 @@ function Stage({ projects, on, was }: { projects: Project[]; on: number; was: nu
               <div className="plate">
                 {p.plate.base && <img src={p.plate.base} alt="" decoding="async" />}
                 {p.plate.light && <img className="light" src={p.plate.light} alt="" decoding="async" />}
-                {Overlay && <Overlay on={n + 1 === on} plate={p.plate} />}
+                {Overlay && <Overlay on={n + 1 === on} plate={p.plate} locale={p.locale} />}
               </div>
             ) : (
               p.sig && <div className="plate sig" dangerouslySetInnerHTML={{ __html: p.sig }} />

@@ -1331,6 +1331,197 @@ main:has(.atlas) {
   }
 }
 
+/* Tablo: the survey (`Survey.tsx`). The same box over the plate as the
+   atelier's, one card at a time; under it, the sheet filling in. */
+.survey .slot {
+  flex: none;
+  display: grid;
+  height: 5.8rem;
+  width: min(100%, 25rem);
+  margin-inline: auto;
+}
+
+.survey .card {
+  grid-area: 1 / 1;
+  align-self: start;
+  padding: 0.6rem 0.8rem;
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font: 400 0.8rem/1.45 var(--sans);
+  color: var(--paper);
+  opacity: 0;
+}
+
+.survey .card.end {
+  opacity: 1;
+}
+
+.survey .card p {
+  margin: 0;
+}
+
+.survey .card .sub {
+  font: 400 0.72rem/1.5 var(--mono);
+  color: var(--paper-dim);
+}
+
+.survey .marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.survey .read {
+  fill: #26241f;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.survey .scan {
+  fill: #ffc21a;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px #ffc21a);
+}
+
+.survey .flag,
+.survey .ok {
+  fill: none;
+  stroke-width: 1.4;
+}
+
+.survey .flag {
+  stroke: #c5301f;
+  opacity: 0;
+}
+
+.survey .note {
+  fill: #c5301f;
+  stroke: none;
+  font: 700 5px "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.survey .ok {
+  stroke: #2c8a4b;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes sv-in {
+  from { opacity: 0; }
+}
+
+@keyframes sv-draw {
+  from { stroke-dashoffset: 1; }
+}
+
+@keyframes sv-scan {
+  0% { opacity: 0; transform: translateY(0); }
+  12% { opacity: 0.9; }
+  88% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(var(--run)); }
+}
+
+/*
+  When. The plan on the page's own first 9rem of scroll, as the atelier's
+  first strokes are, because the first heading is half way up a tall window
+  when the page opens. After that an act plays while its heading rises
+  through the middle of the window (`cover` 36–62%). The last two acts have
+  nothing left to draw on the sheet; they are their cards.
+*/
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .survey path.line,
+    .survey path.title,
+    .survey path.plan:not([fill='#26241f']) {
+      stroke-dasharray: 1;
+    }
+
+    .survey .plan {
+      animation: sv-in ease-out both;
+      animation-timeline: scroll(root);
+      animation-range: 0.3rem 9rem;
+    }
+
+    .survey .scan {
+      animation: sv-scan linear both;
+      animation-timeline: --s2;
+      animation-range: cover 36% cover 58%;
+    }
+
+    .survey .read {
+      animation: sv-in ease-out both;
+      animation-timeline: --s2;
+      animation-range: cover calc(38% + var(--n) * 2.4%) cover calc(42% + var(--n) * 2.4%);
+    }
+
+    .survey path.line {
+      animation: sv-draw ease-in-out both;
+      animation-timeline: --s3;
+      animation-range: cover 36% cover 60%;
+    }
+
+    .survey text.line {
+      animation: sv-in ease-out both;
+      animation-timeline: --s3;
+      animation-range: cover 48% cover 62%;
+    }
+
+    .survey path.line.rcd1,
+    .survey text.line.rcd1 {
+      animation-timeline: --s4;
+      animation-range: cover 48% cover 58%;
+    }
+
+    .survey .flag {
+      animation: dr-up linear both, dr-down linear both;
+      animation-timeline: --s4, --s4;
+      animation-range: cover 34% cover 40%, cover 54% cover 60%;
+      animation-composition: add;
+    }
+
+    .survey .ok {
+      animation: sv-in ease-out both;
+      animation-timeline: --s4;
+      animation-range: cover 56% cover 62%;
+    }
+
+    .survey path.title {
+      animation: sv-draw ease-in-out both;
+      animation-timeline: --s5;
+      animation-range: cover 36% cover 52%;
+    }
+
+    .survey text.title {
+      animation: sv-in ease-out both;
+      animation-timeline: --s5;
+      animation-range: cover 46% cover 58%;
+    }
+
+    /* The cards: each one in as its heading arrives and out as the next
+       one's does; the last one stays. */
+    .survey .card.survey {
+      animation: dr-up linear both, dr-down linear both;
+      animation-timeline: scroll(root), --s2;
+      animation-range: 0.3rem 5rem, cover 30% cover 36%;
+      animation-composition: add;
+    }
+    .survey .card.photo { animation: dr-up linear both, dr-down linear both; animation-timeline: --s2, --s3; animation-range: cover 36% cover 42%, cover 30% cover 36%; animation-composition: add; }
+    .survey .card.model { animation: dr-up linear both, dr-down linear both; animation-timeline: --s3, --s4; animation-range: cover 36% cover 42%, cover 30% cover 36%; animation-composition: add; }
+    .survey .card.check { animation: dr-up linear both, dr-down linear both; animation-timeline: --s4, --s5; animation-range: cover 36% cover 42%, cover 30% cover 36%; animation-composition: add; }
+    .survey .card.out { animation: dr-up linear both, dr-down linear both; animation-timeline: --s5, --s6; animation-range: cover 36% cover 42%, cover 30% cover 36%; animation-composition: add; }
+    .survey .card.team { animation: dr-up linear both, dr-down linear both; animation-timeline: --s6, --s7; animation-range: cover 36% cover 42%, cover 24% cover 30%; animation-composition: add; }
+    .survey .card.end {
+      animation: sv-in linear both;
+      animation-timeline: --s7;
+      animation-range: cover 30% cover 36%;
+    }
+  }
+}
+
 /* PolarSense: the sounding (`Sounding.tsx`). The editor, where the problem is. */
 /* A slot as tall as the editor is at the end, so the plate under it is the
    same size in every act and the list opening never moves the ice. */
@@ -3735,6 +3926,14 @@ main {
 
 /* Sqrubs' plate: the rack and the moves it plays (`Tiles.tsx`). */
 .tiles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Tablo's plate: the board and the sheet under it (`Switchboard.tsx`). */
+.switchboard {
   position: absolute;
   inset: 0;
   width: 100%;
