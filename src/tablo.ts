@@ -327,8 +327,10 @@ export function catchRail(x: number, z: number, yPrev: number, yNow: number): { 
 export type Grind = { edge: number; s: number; v: number }
 
 /** The grind's speed: whatever he landed with along the rail, held between
- *  these, drifting to `cruise` — the current pushing him. */
-export const GRIND = { min: 4, max: 8, cruise: 5, drift: 0.6, steer: 0.25, pop: 4.2 }
+ *  `min` and `max`, drifting to `cruise` — the current pushing him. Shift is
+ *  `boost` times that, as it is on the water (`BOOST` in `Ship.tsx`), reached
+ *  at `surge` a second; let go and he coasts back down at `drift`. */
+export const GRIND = { min: 4, max: 8, cruise: 5, drift: 0.6, steer: 0.25, pop: 4.2, boost: 2.4, surge: 3 }
 
 export function startGrind(c: { edge: number; s: number }, vx: number, vz: number): Grind {
   const p = pointAt(EDGES[c.edge]!, c.s)
@@ -355,12 +357,13 @@ export function chooseOut(node: number, steer: number, tx: number, tz: number): 
 }
 
 /**
- * One frame on the rail: along it at its speed, through any node into the
- * edge the steering picks, every appliance passed pushed to `passed`. Returns
+ * One frame on the rail: along it at its speed — faster with `boost` —
+ * through any node into the edge the steering picks, every appliance passed pushed to `passed`. Returns
  * where he is, which way he faces, his height and how fast it is changing.
  */
-export function stepGrind(g: Grind, dt: number, steer: number, passed: number[]) {
-  g.v += (GRIND.cruise - g.v) * Math.min(1, GRIND.drift * dt)
+export function stepGrind(g: Grind, dt: number, steer: number, passed: number[], boost = false) {
+  const want = boost ? GRIND.cruise * GRIND.boost : GRIND.cruise
+  g.v += (want - g.v) * Math.min(1, (boost ? GRIND.surge : GRIND.drift) * dt)
   let rest = g.v * dt
   for (let guard = 0; guard < 8 && rest > 0; guard++) {
     const e = EDGES[g.edge]!

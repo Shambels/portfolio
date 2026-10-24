@@ -215,7 +215,8 @@ Breaking one is allowed. Doing it without saying so is not.
   it: `catchRail` when the board comes *down* through the rail's top within
   half a metre of it (never from below, never beside it), `stepGrind` along it
   at the rail's own speed through whichever edge `chooseOut` picks from the
-  steering at a fork, and Space off it with the grind's vertical plus `pop`.
+  steering at a fork, Shift to `GRIND.boost` times cruise as on the water,
+  and Space off it with the grind's vertical plus `pop`.
   In `Ship.tsx` the rail is simply the floor (`bed`) while he is on it, so
   every rule that already stands a board on a plateau stands it on the rail.
   Every edge leads back to the board, so whichever way he steers he goes
