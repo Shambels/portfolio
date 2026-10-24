@@ -1062,8 +1062,9 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       const wasX = g.position.x
       const wasZ = g.position.z
       // On Tablo's rail he goes where it goes. The keys do not move him —
-      // across the rail they choose at the next fork — and Space is the way
-      // off: the grind's own vertical plus a pop, so leaving it is a jump.
+      // across the rail they choose at the next fork, and Shift is the boost
+      // it is on the water — and Space is the way off: the grind's own
+      // vertical plus a pop, so leaving it is a jump.
       if (grind.current && (!walks || !TABLO_RAIL)) grind.current = null
       if (grind.current && TABLO_RAIL) {
         if (jump) {
@@ -1072,7 +1073,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
           flew.current = true
         } else {
           const passed: number[] = []
-          const r = stepGrind(grind.current, dt, moveX, passed)
+          const r = stepGrind(grind.current, dt, moveX, passed, boost)
           const { cx, cz, c, s: sn } = TABLO_RAIL
           g.position.x = cx + r.x * c + r.z * sn
           g.position.z = cz - r.x * sn + r.z * c

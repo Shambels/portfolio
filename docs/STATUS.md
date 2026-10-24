@@ -8604,6 +8604,11 @@ the fillet. Four routes a lap, about 38 m and seven or eight seconds.
       out of the node if neither. He faces along the rail exactly. In
       `Ship.tsx` the rail is the floor (`bed`) while he is on it, so the
       landing, the knees and the camera are what they are on any plateau.
+- [x] **Faster on it.** Shift is the boost it is on the water — 2.4 times
+      the cruise, so 12 u/s, past `max` — reached at `surge` 3 a second
+      (about a second to get there) and let go of at `drift`, so he coasts
+      back down over a few seconds rather than braking. On a phone it is the
+      same `boost` the stick already writes. `tablo.check.ts` holds both ways.
 - [x] **Off it.** Space: the grind's own vertical plus a pop of 4.2, so it is
       a jump. There is no other way off and no way to fall off; a closed
       circuit has no end.
@@ -8657,7 +8662,7 @@ the fillet. Four routes a lap, about 38 m and seven or eight seconds.
 ### Open, and Seb's
 
 - **The feel, on hardware**: the grind speed (`GRIND.cruise` 5, `min` 4,
-  `max` 8), the pop (4.2), the catch window (`CATCH.reach` 0.5,
+  `max` 8, Shift ×2.4 at `surge` 3), the pop (4.2), the catch window (`CATCH.reach` 0.5,
   `above` 0.3), and whether steering at a fork should be the arrow across
   or something else on a phone. Swiftshader ran it at about two frames a
   second, which says nothing about feel.

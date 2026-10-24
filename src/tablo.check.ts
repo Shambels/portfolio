@@ -26,7 +26,7 @@ import {
 } from './plateau.ts'
 import {
   APPLIANCES, CIRCUITS, EDGES, FILLET, FIXTURES, GANTRY, HOLD, HOUSE, ISLAND_WALLS, NODES, OUTS, POINTS, RAIL, RCDS,
-  ROOMS, catchRail, chooseOut, heightAt, layout, litAt, pointAt, startGrind, stepGrind,
+  ROOMS, GRIND, catchRail, chooseOut, heightAt, layout, litAt, pointAt, startGrind, stepGrind,
 } from './tablo.ts'
 
 const DT = 1 / 120
@@ -140,6 +140,16 @@ const toWorld = (x: number, z: number) => ({
   assert.equal(new Set(sets).size, 4, `two routes light the same set: ${sets.join(' | ')}`)
   const all = new Set(routes.flatMap((r) => [...r.lit]))
   assert.equal(all.size, APPLIANCES.length, 'some appliance is on no route')
+
+  // Shift on the rail: up to the boost within two seconds, and coasting back
+  // toward cruise once it is let go — never under the cruise it drifts to.
+  {
+    const g = startGrind({ edge: 9, s: 0 }, 0, 5)
+    for (let f = 0; f < 2 / DT; f++) stepGrind(g, DT, 0, [], true)
+    assert.ok(g.v > GRIND.cruise * GRIND.boost * 0.97, `boosted to only ${g.v.toFixed(2)}`)
+    for (let f = 0; f < 6 / DT; f++) stepGrind(g, DT, 0, [])
+    assert.ok(g.v < GRIND.cruise * 1.3 && g.v > GRIND.cruise, `coasted to ${g.v.toFixed(2)}`)
+  }
 
   // On for `HOLD.on`, out over `HOLD.fade`.
   assert.equal(litAt(0.1), 1)
