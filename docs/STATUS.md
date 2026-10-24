@@ -8674,3 +8674,40 @@ the fillet. Four routes a lap, about 38 m and seven or eight seconds.
   approach some show their backs.
 - The lamps (2.6 emissive) on a computer with bloom, which the phone tier
   the renders used does not have.
+
+## Coming near Memojo no longer stops the world
+
+The world froze once, the first time the visitor came near Memojo's island,
+and never again. Same family as the first photograph: the shader compiler.
+
+### What it was
+
+Every landmark is tinted on approach by swapping its whole material set —
+`Landmarks` hands each one `near === l.slug ? hot : cold`. A set drawn for the
+first time is compiled on that frame, synchronously. For the shared prefixes
+(`frame`, `panel`, `dark`…) that is a handful of plain programs, and only the
+first landmark visited pays it. Memojo's ten `byName` materials are its own and
+noise-heavy (`fractal` on the deck, the kerbs, the leather and the tripod), so
+the first approach built ten fresh, heavy programs in one frame — in `Post`'s
+MRT pass, and again on the next shutter, because `Shutter`'s warm-up had
+compiled the cold set.
+
+### The fix (`Landmarks.tsx` only)
+
+Memojo has one material set, built once (`makeMemojo()` memoises it), and the
+proximity tint is a uniform, `memojoNear`, set every frame from `near`. Every
+colour is `mix(color(hex), color(HI), memojoNear * MEMOJO_HI)` — the same lerp
+`shade()` did on the CPU, so the colours near and far are unchanged. The
+programs the island is drawn with from across the sea are the ones it is drawn
+with up close; coming near changes a number, not a shader. The three plain
+materials that took `color:` (lip, slot, roller) take `colorNode` instead.
+
+### Verified
+
+`npx tsc -b` on Seb's working copy. Not measured in a browser this time.
+
+### Open, and Seb's
+
+- The approach on real hardware, both backends.
+- Tablo's `makeTablo(hi)` set is built the same way as Memojo's was and is also
+  its own; if its first approach hitches, the same uniform treatment applies.

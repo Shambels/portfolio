@@ -540,12 +540,32 @@ const MEMOJO = {
   fitting: '#46403a', // and the castings they meet in
 }
 
-/** The ten meshes of `memojo.glb`, one material each. `hi` is the same near/far
- *  switch every other material takes, on `MEMOJO_HI` instead of `shade`'s. */
-function makeMemojo(hi: boolean): Record<string, THREE.Material> {
+/**
+ * Whether Memojo is the landmark that is near, 0 or 1 — set by `Landmarks`
+ * every frame, read by all ten of its materials.
+ *
+ * Every other landmark is tinted by swapping the whole material set, `cold`
+ * for `hot`, and a set used for the first time is a set compiled on that
+ * frame. For the shared prefixes that is a handful of plain programs; for
+ * these ten it was ten noise-heavy ones, built synchronously the first time
+ * the visitor came near — the world stopped on the approach, once, and never
+ * again. So Memojo has one set, built once, and the tint is this uniform: the
+ * programs are the ones the island was already drawn with from across the sea,
+ * and coming near changes a number, not a shader. Same colours as `shade`
+ * gives — the lerp is the same one, done on the GPU instead.
+ */
+const memojoNear = uniform(0)
+
+/** The ten meshes of `memojo.glb`, one material each — one set for both sides
+ *  of the near/far switch (`memojoNear`, above), on `MEMOJO_HI` instead of
+ *  `shade`'s .72. */
+let MEMOJO_MATS: Record<string, THREE.Material> | null = null
+function makeMemojo(): Record<string, THREE.Material> {
+  if (MEMOJO_MATS) return MEMOJO_MATS
+  const toward = memojoNear.mul(MEMOJO_HI)
   const c = Object.fromEntries(
-    Object.entries(MEMOJO).map(([k, v]) => [k, shade(v, hi, MEMOJO_HI)]),
-  ) as Record<keyof typeof MEMOJO, THREE.Color>
+    Object.entries(MEMOJO).map(([k, v]) => [k, mix(color(v), color(HI), toward)]),
+  ) as Record<keyof typeof MEMOJO, THREE.Node<'vec3'>>
 
   // ---- the ramp. Birch ply laid the strong way, so the grain runs up the run
   // and the sheets butt across it; and the strip up the middle where the boards
@@ -558,7 +578,7 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   const lot = fract(sin(floor(positionLocal.z.div(0.78)).mul(21.31)).mul(4318.7)).mul(0.14).add(0.93)
   const veneer = fractal(positionLocal.mul(vec3(26, 2.2, 1.6)), 2).mul(0.06)
   const worn = oneMinus(smoothstep(0.24, 0.62, abs(positionLocal.x.sub(MRAMP.x))))
-  deck.colorNode = mix(color(c.plyDark), color(c.ply), butt)
+  deck.colorNode = mix(c.plyDark, c.ply, butt)
     .mul(veneer.add(1))
     .mul(lot)
     .mul(worn.mul(0.09).add(1))
@@ -568,21 +588,22 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   const rib = new THREE.MeshStandardNodeMaterial({ roughness: 0.74, metalness: 0.12 })
   const speck = fractal(positionLocal.mul(6.5), 3).mul(0.5).add(0.5)
   const damp = oneMinus(smoothstep(0.05, 0.95, positionLocal.y))
-  rib.colorNode = mix(color(c.paint), color(c.rust), smoothstep(0.5, 0.86, speck.mul(damp.mul(0.5).add(0.5))))
+  rib.colorNode = mix(c.paint, c.rust, smoothstep(0.5, 0.86, speck.mul(damp.mul(0.5).add(0.5))))
 
   // And the lip, which was the dark line that says where the deck stops and is
   // now the one thing on the ramp that catches the sun: steel coping.
-  const lip = new THREE.MeshStandardNodeMaterial({ color: c.steel, roughness: 0.3, metalness: 0.28 })
+  const lip = new THREE.MeshStandardNodeMaterial({ roughness: 0.3, metalness: 0.28 })
+  lip.colorNode = c.steel
 
   // ---- the body. Leatherette below the seam, a satin top plate above it, and
   // a brass band on the seam itself — three materials out of one slab, told
   // apart by height in the body's own tilted frame and by nothing else.
   const body = new THREE.MeshStandardNodeMaterial({ roughness: 0.86 })
   const pebble = fractal(positionLocal.mul(24), 2).mul(0.5).add(0.5)
-  const hide = mix(color(c.leather), color(c.grain), smoothstep(0.42, 0.86, pebble).mul(0.42))
+  const hide = mix(c.leather, c.grain, smoothstep(0.42, 0.86, pebble).mul(0.42))
   const plate = smoothstep(0.4, 0.46, CAM_UPQ)
   const seam = oneMinus(smoothstep(0.004, 0.024, abs(CAM_UPQ.sub(0.4))))
-  body.colorNode = mix(mix(hide, color(c.chrome), plate), color(c.brass), seam)
+  body.colorNode = mix(mix(hide, c.chrome, plate), c.brass, seam)
   body.roughnessNode = mix(float(0.88), float(0.33), plate)
   body.metalnessNode = mix(float(0.02), float(0.28), max(plate, seam))
 
@@ -617,11 +638,11 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   // Dark glass first, and the coating *added* to it rather than being it: an
   // amber ring where the light rakes the edge of the element, and one cool
   // highlight off the axis. A lens that is a two-colour bullseye is a target.
-  const coating = color(c.coat).mul(0.14)
-    .add(color(c.flare).mul(smoothstep(0.55, 0.98, CAM_R.div(0.46)).mul(0.5)))
-    .add(color(c.coat).mul(spot.mul(0.85)))
+  const coating = c.coat.mul(0.14)
+    .add(c.flare.mul(smoothstep(0.55, 0.98, CAM_R.div(0.46)).mul(0.5)))
+    .add(c.coat.mul(spot.mul(0.85)))
   barrel.colorNode = mix(
-    mix(color(c.barrel), color(c.chrome), bright).mul(mix(float(1), knurl, ring)),
+    mix(c.barrel, c.chrome, bright).mul(mix(float(1), knurl, ring)),
     coating, face,
   )
   barrel.roughnessNode = mix(
@@ -634,20 +655,22 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   // flash is untouched — `Shutter.tsx` still owns how bright it goes, and at
   // rest it declares nothing, which is what keeps it free of the bloom pass.
   const lens = new THREE.MeshStandardNodeMaterial({ roughness: 0.38, metalness: 0.12 })
-  lens.colorNode = mix(color(c.coat), color(c.flare), smoothstep(0.3, 1, CAM_R.div(0.42)))
+  lens.colorNode = mix(c.coat, c.flare, smoothstep(0.3, 1, CAM_R.div(0.42)))
   lens.emissiveNode = color('#eaf4ff').mul(flashLevel.mul(9))
 
   // ---- the finder hump: the same satin plate as the top of the body, with the
   // little window at the front of it in glass instead.
   const finder = new THREE.MeshStandardNodeMaterial({ metalness: 0.28 })
   const window_ = oneMinus(smoothstep(0.94, 1.0, CAM_D))
-  finder.colorNode = mix(color(c.chrome), color(c.barrel), window_)
+  finder.colorNode = mix(c.chrome, c.barrel, window_)
   finder.roughnessNode = mix(float(0.33), float(0.12), window_)
 
   // ---- and what the print comes out of: felt in the mouth, chrome on the two
   // rollers, because a roller that is not metal is a roller that is decoration.
-  const slot = new THREE.MeshStandardNodeMaterial({ color: c.trap, roughness: 1 })
-  const roller = new THREE.MeshStandardNodeMaterial({ color: c.chrome, roughness: 0.26, metalness: 0.3 })
+  const slot = new THREE.MeshStandardNodeMaterial({ roughness: 1 })
+  slot.colorNode = c.trap
+  const roller = new THREE.MeshStandardNodeMaterial({ roughness: 0.26, metalness: 0.3 })
+  roller.colorNode = c.chrome
 
   // ---- the tripod. Varnished ash with the grain down the leg, a dark casting
   // where the three of them meet, and brass on the feet — which is what a
@@ -656,16 +679,17 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
   const grain = fractal(positionLocal.mul(vec3(24, 2.2, 24)), 2).mul(0.5).add(0.5)
   const foot = oneMinus(smoothstep(0.1, 0.15, positionLocal.y))
   const casting = smoothstep(CAM_HIP_Y - 0.12, CAM_HIP_Y + 0.02, positionLocal.y)
-  const timber = mix(color(c.ash), color(c.ashDark), smoothstep(0.34, 0.78, grain))
-  tripod.colorNode = mix(mix(timber, color(c.fitting), casting), color(c.brass), foot)
+  const timber = mix(c.ash, c.ashDark, smoothstep(0.34, 0.78, grain))
+  tripod.colorNode = mix(mix(timber, c.fitting, casting), c.brass, foot)
   tripod.roughnessNode = mix(float(0.72), float(0.36), max(casting, foot))
   tripod.metalnessNode = max(casting, foot).mul(0.26)
 
-  return {
+  MEMOJO_MATS = {
     frame_deck: deck, frame_rib: rib, dark_lip: lip,
     dark_body: body, frame_barrel: barrel, glass_lens: lens, panel_finder: finder,
     dark_slot: slot, frame_roller: roller, frame_tripod: tripod,
   }
+  return MEMOJO_MATS
 }
 
 // ---------------------------------------------------------------- Tablo
@@ -932,7 +956,7 @@ function makeMats(hi: boolean) {
       // Memojo's ten, which are a set rather than a handful of exceptions:
       // `makeMemojo` above says why the one landmark made of things is here
       // and not in the prefixes.
-      ...makeMemojo(hi),
+      ...makeMemojo(),
       // Tablo's: the rail, and what lights, turns, fills and rolls up on
       // every appliance it feeds.
       ...makeTablo(hi),
@@ -1453,6 +1477,9 @@ export function Landmarks({ near }: { near: string | null }) {
     // The crop circle comes first, because it is the one thing here reduced
     // motion still gets — all at once rather than drawn out.
     const now = state.clock.elapsedTime
+    // Memojo's tint, which is a uniform rather than a second material set —
+    // `memojoNear` says why. Before the reduced-motion return: it is a colour.
+    memojoNear.value = LANDMARKS.some((l) => l.slug === near && l.landmark === 'ramp') ? 1 : 0
     let saucerIn = false
     if (HOLO_AT && SHIP.saucer) {
       const l = HOLO_AT
