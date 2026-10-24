@@ -39,7 +39,10 @@ from mathutils import Matrix, Quaternion, Vector
 # the sudoku's light: unlit, additive, and the only key that draws digits.
 # `ice` is the iceberg's mountain: ice on its walls and snow wherever a face
 # looks at the sky, which the shader decides from the normal.
-KEYS = ("rock", "ice", "frame", "panel", "dark", "board", "glass", "holo", "bark", "frond", "bush")
+# `plan`, `wire` and `lamp` are Tablo's: the paper its plan is drawn on, the
+# conductors that light from the board outward, and what they light.
+KEYS = ("rock", "ice", "frame", "panel", "dark", "board", "glass", "holo", "bark", "frond", "bush",
+        "plan", "wire", "lamp")
 
 
 def T(x: float, y: float, z: float) -> Vector:

@@ -1,0 +1,44 @@
+<svg class="sig sig-tablo" viewBox="0 0 216 160" xmlns="http://www.w3.org/2000/svg">
+<!-- Tablo: one model, drawn twice. On the left the single-line diagram — the supply,
+     the main switch, the 300 mA RCD, four breakers and a lamp on each — and on the right
+     the position plan of the same four rooms. On hover the current goes down each branch
+     in turn and the same lamp lights on both drawings: A with A, B with B. src/tablo.ts
+     is the installation; the island and the index's plate draw it too. -->
+<style>
+.sig-tablo path, .sig-tablo circle { fill: none; stroke: #ffffff55; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+.sig-tablo .wall { stroke: #ffffff8a; stroke-width: 2.2; }
+.sig-tablo .live { stroke: #ffc21a; stroke-dasharray: 3 4; opacity: 0; }
+.sig-tablo .glow { fill: #ffc21a; stroke: none; opacity: 0; }
+.sig-tablo text { font: 600 6px var(--mono); fill: #ffffff66; }
+@keyframes sig-current { from { opacity: 1; stroke-dashoffset: 14; } to { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes sig-on { to { opacity: 0.85; } }
+.entry:is(:hover, :focus-within) .sig-tablo .live { animation: sig-current 0.5s calc(var(--i) * 0.28s) linear infinite; }
+.entry:is(:hover, :focus-within) .sig-tablo .glow { animation: sig-on 0.25s calc(var(--i) * 0.28s + 0.2s) both; }
+</style>
+<!-- the supply, Q1, Q2 and the bus -->
+<path d="M22 14v12M19.5 22l2.5 4 2.5-4M22 26v5M18 32l4 9v5M22 46v4M18 51l4 9v4M22 54h4M26 52h5v5h-5zM22 64v6H106"/>
+<!-- four branches: a breaker and a lamp each -->
+<g>
+<path d="M34 70v6M30 77l4 9v6M32.4 75.4l3.2 3.2M35.6 75.4l-3.2 3.2M34 92v18M34 110h6"/><circle cx="44" cy="110" r="4"/><path d="M41.2 107.2l5.6 5.6M46.8 107.2l-5.6 5.6"/>
+<path class="live" d="M34 70v40h6" style="--i:0"/><circle class="glow" cx="44" cy="110" r="3.2" style="--i:0"/><text x="31" y="126">A</text>
+</g>
+<g>
+<path d="M58 70v6M54 77l4 9v6M56.4 75.4l3.2 3.2M59.6 75.4l-3.2 3.2M58 92v18M58 110h6"/><circle cx="68" cy="110" r="4"/><path d="M65.2 107.2l5.6 5.6M70.8 107.2l-5.6 5.6"/>
+<path class="live" d="M58 70v40h6" style="--i:1"/><circle class="glow" cx="68" cy="110" r="3.2" style="--i:1"/><text x="55" y="126">B</text>
+</g>
+<g>
+<path d="M82 70v6M78 77l4 9v6M80.4 75.4l3.2 3.2M83.6 75.4l-3.2 3.2M82 92v18M82 110h6"/><circle cx="92" cy="110" r="4"/><path d="M89.2 107.2l5.6 5.6M94.8 107.2l-5.6 5.6"/>
+<path class="live" d="M82 70v40h6" style="--i:2"/><circle class="glow" cx="92" cy="110" r="3.2" style="--i:2"/><text x="79" y="126">C</text>
+</g>
+<g>
+<path d="M106 70v6M102 77l4 9v6M104.4 75.4l3.2 3.2M107.6 75.4l-3.2 3.2M106 92v18M106 110h6"/><circle cx="116" cy="110" r="4"/><path d="M113.2 107.2l5.6 5.6M118.8 107.2l-5.6 5.6"/>
+<path class="live" d="M106 70v40h6" style="--i:3"/><circle class="glow" cx="116" cy="110" r="3.2" style="--i:3"/><text x="103" y="126">D</text>
+</g>
+<!-- the plan: four rooms, a lamp in each, the board at the door -->
+<path class="wall" d="M134 30h70v62h-70zM169 30v62M134 61h70"/>
+<path d="M164 92h10v5h-10z"/>
+<g><circle cx="151.5" cy="76.5" r="4"/><path d="M148.7 73.7l5.6 5.6M154.3 73.7l-5.6 5.6"/><circle class="glow" cx="151.5" cy="76.5" r="3.2" style="--i:0"/><text x="138" y="88">A1</text></g>
+<g><circle cx="186.5" cy="76.5" r="4"/><path d="M183.7 73.7l5.6 5.6M189.3 73.7l-5.6 5.6"/><circle class="glow" cx="186.5" cy="76.5" r="3.2" style="--i:1"/><text x="173" y="88">B1</text></g>
+<g><circle cx="151.5" cy="45.5" r="4"/><path d="M148.7 42.7l5.6 5.6M154.3 42.7l-5.6 5.6"/><circle class="glow" cx="151.5" cy="45.5" r="3.2" style="--i:2"/><text x="138" y="57">C1</text></g>
+<g><circle cx="186.5" cy="45.5" r="4"/><path d="M183.7 42.7l5.6 5.6M189.3 42.7l-5.6 5.6"/><circle class="glow" cx="186.5" cy="45.5" r="3.2" style="--i:3"/><text x="173" y="57">D1</text></g>
+</svg>

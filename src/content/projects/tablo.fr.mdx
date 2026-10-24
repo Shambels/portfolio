@@ -1,0 +1,113 @@
+---
+title: Tablo
+slug: tablo
+summary: Relevé sur site au téléphone, schéma unifilaire et plan de position générés, contrôle RGIE intégré. Fonctionne sans réseau sur chantier.
+---
+
+Tablo dessine et vérifie les schémas des installations électriques belges, du
+relevé sur chantier jusqu'au dossier qu'on remet au contrôle. Il est fait pour
+l'installateur résidentiel et tertiaire, c'est-à-dire pour la personne qui doit
+produire, pour chaque maison vendue ou rénovée, un schéma unifilaire et un plan
+de position qui passent chez l'organisme agréé.
+
+Aujourd'hui, ce travail se fait avec des suites de DAO taillées pour les
+tableautiers — puissantes, chères, longues à apprendre —, avec des outils
+gratuits qui dessinent mais ne comprennent rien, ou sur papier et dans Excel.
+Tablo prend le parti inverse : peu de choses à apprendre, et un logiciel qui
+sait ce qu'il dessine. Il tourne dans le navigateur et en application de bureau
+(Linux, macOS, Windows), à partir du même code, et il est en bêta gratuite sur
+tablo-app.be.
+
+## Sur le chantier, au téléphone
+
+Tout commence par le relevé, et le relevé se fait debout, dans la maison, avec
+un téléphone. Pièce par pièce : on choisit le type de pièce et l'étage, et on
+ajoute les prises, les points lumineux, les interrupteurs et les appareils d'un
+geste, avec leur quantité. Chaque point est rattaché à un circuit, choisi ou
+créé sur place avec des valeurs d'usage — un différentiel 30 mA est proposé
+d'office pour une salle de bain ou un lave-linge.
+
+Le tableau se relève de la même façon : interrupteur général, différentiels,
+disjoncteurs, câbles et longueurs, et la résistance de la prise de terre
+mesurée. Le relevé dit ce qui manque encore pendant qu'on est sur place, ce qui
+est le seul moment où ça sert.
+
+Il n'y a pas de réseau dans une cave. L'application s'installe depuis le site
+et fonctionne entièrement hors ligne : les projets et les photos restent sur
+l'appareil, et un projet en ligne s'ouvre depuis sa copie locale puis se
+synchronise quand la connexion revient.
+
+## Le tableau, en photo
+
+Recopier un tableau existant à la main est la partie la plus fastidieuse du
+métier. On le photographie à la place : l'IA lit les appareils — calibres,
+courbes, différentiels, étiquettes — et propose la liste des circuits, que
+l'installateur vérifie avant qu'elle n'entre dans le projet. Les circuits déjà
+relevés gardent leurs points.
+
+La même porte d'entrée accepte une phrase, tapée ou dictée — « cuisine, circuit
+C, six prises en 2,5 mm², 20 A » —, un croquis à main levée, ou une demande à
+l'assistant qui modifie le projet : « ajoute une borne de recharge puis génère
+le multifilaire ». Dans tous les cas, ce que l'IA propose passe par une étape de
+relecture, et rien ne modifie le projet sans passer par les mêmes opérations
+annulables que l'éditeur. Le serveur peut aussi utiliser un modèle hébergé chez
+soi plutôt que Claude, avec les mêmes fonctions et les mêmes vérifications.
+
+## Un modèle, deux dessins
+
+Le cœur de Tablo est qu'il ne dessine pas deux schémas : il en tient un modèle
+et le montre deux fois. Le schéma unifilaire, par tableau, et le plan de
+position, par étage, sont générés depuis le relevé et repérés de la même
+manière — A1, A2, B1… comme sur le tableau —, si bien qu'un point sur le plan
+est toujours un point sur un circuit. Quand le relevé change, les schémas se
+régénèrent en place, et une règle signale ceux qui ont pris du retard.
+
+Du même modèle sortent le schéma multifilaire, les schémas de commande,
+l'implantation du tableau sur ses rails, la numérotation des fils et des
+bornes, et les références croisées entre feuilles. Le plan de l'architecte peut
+servir de fond : une image, un PDF, ou un fichier DXF placé à l'échelle sans
+calibration.
+
+## Le contrôle, pendant qu'on dessine
+
+Parce que le logiciel sait ce qu'est un circuit, il peut le vérifier. Les règles
+du RGIE tournent pendant qu'on travaille : différentiel 30 mA des pièces
+humides, nombre de points par circuit, sections et calibres, chute de tension,
+longueur maximale protégée. Les calculs derrière sont ceux du métier — courant
+d'emploi, courant admissible selon le mode de pose, chute de tension, pouvoir de
+coupure face au courant de court-circuit à l'origine.
+
+Chaque remarque explique la règle et dit comment corriger. Et Tablo dit aussi
+ce qu'il n'est pas : une aide à la préparation du contrôle, pas le contrôle. Le
+contrôle reste celui de l'organisme agréé.
+
+## Ce qui en sort
+
+Le dossier : des feuilles au format, avec le cartouche RGIE rempli depuis les
+informations du projet, en PDF, SVG, PNG ou DXF ; la liste des circuits ; les
+étiquettes du tableau ; un dossier de remise avec un code QR. Et ce qui vient
+juste après le schéma dans la vraie vie d'un installateur : la nomenclature et
+le devis — matériel, câbles d'après les longueurs du schéma, main-d'œuvre,
+prix tirés de la liste de son grossiste, TVA à 21 % ou 6 %, en fichier Excel
+avec ses formules.
+
+## En équipe
+
+Avec un compte, les projets se synchronisent entre téléphone, tablette et
+ordinateur, en direct entre plusieurs personnes, avec des espaces d'équipe et
+une bibliothèque commune de symboles et de modèles. Un lien en lecture seule
+montre le projet au client ou à l'organisme de contrôle, tel qu'il est ou figé
+à une révision. L'application parle français, néerlandais et anglais, avec le
+vocabulaire flamand côté néerlandais, et la langue des schémas est un réglage
+du projet, distinct de celle de l'interface. Le serveur est en Europe.
+
+## Ce qu'il y a, et ce qu'il n'y a pas
+
+C'est une bêta gratuite, en ligne et en application de bureau ; les versions
+iPhone et Android attendent leur publication dans les boutiques. La Belgique
+d'abord, et le RGIE avec elle ; les règles d'autres pays sont en préparation et
+marquées comme telles.
+
+Comme pour Memojo, cette page décrit l'application plutôt que sa construction :
+le code est privé, et les choix qu'il y a derrière ne sont pas à publier ici.
+Le lien ci-dessus mène à l'application elle-même.

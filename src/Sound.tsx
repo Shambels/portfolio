@@ -215,6 +215,24 @@ const VOICES: Record<string, (ctx: AudioContext, noise: AudioNode, out: AudioNod
       period: 3.4,
     }
   },
+
+  // The board's hum. A distribution board under load buzzes at twice the
+  // mains — 100 Hz, and its harmonics off the laminations — so two triangles
+  // an octave apart, lowpassed, breathing in long swells rather than held,
+  // which would be a drone. It is the sound of current, which is what the
+  // whole island draws.
+  tablo(ctx, _noise, out) {
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 520 })
+    const env = new GainNode(ctx, { gain: 0 })
+    for (const [hz, g] of [[100, 1], [200, 0.45]] as const) {
+      const v = new GainNode(ctx, { gain: g })
+      osc(ctx, 'triangle', hz).connect(v)
+      v.connect(lp)
+    }
+    lp.connect(env)
+    env.connect(out)
+    return { pulse: (t) => strike(env.gain, t, 0.6, 1.9, 0.55), period: 2.4 }
+  },
 }
 
 /**
@@ -322,6 +340,24 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
       tone.frequency.exponentialRampToValueAtTime(330, t + 0.12)
       strike(env.gain, t, 0.002, 0.12, 0.18 + 0.2 * force)
       strike(fizz.gain, t, 0.001, 0.08, 0.25 + 0.3 * force)
+    }
+  },
+  // An RCD going out on Tablo's island, and coming back in: a breaker's
+  // lever is a spring-loaded snap, so a hard click with almost nothing
+  // after it, and under it the knock of the mechanism in its plastic case —
+  // short, low, boxy. Coming back in is the same sound at half the force.
+  trip(ctx, noise, out) {
+    const snap = new GainNode(ctx, { gain: 0 })
+    noise.connect(new BiquadFilterNode(ctx, { type: 'highpass', frequency: 3000 })).connect(snap)
+    snap.connect(out)
+    const box = new GainNode(ctx, { gain: 0 })
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 900, Q: 3 })
+    osc(ctx, 'square', 150).connect(lp)
+    lp.connect(box)
+    box.connect(out)
+    return (t, force) => {
+      strike(snap.gain, t, 0.0008, 0.018, 0.6 + 0.4 * force)
+      strike(box.gain, t + 0.002, 0.001, 0.05, 0.25 + 0.3 * force)
     }
   },
   metal(ctx, noise, out) {

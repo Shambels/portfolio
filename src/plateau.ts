@@ -417,9 +417,10 @@ export type Board = {
 
 /** `shutter` is the odd one out and deliberately lives here anyway: it is not
  *  something the board hit, it is something that went off because of where the
- *  board was. The machinery is identical — a one-shot the sound plays once at
+ *  board was. `trip` is the same kind of thing on Tablo's island: an RCD
+ *  going out because the board hit a kerb hard, or coming back in. The machinery is identical — a one-shot the sound plays once at
  *  a level — and a second list beside this one would be the same list. */
-export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter' | 'zap'; force: number }
+export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter' | 'zap' | 'trip'; force: number }
 
 /**
  * Is a world point in a landmark's lens? False for every landmark that has no
