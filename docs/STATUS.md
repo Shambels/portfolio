@@ -8572,3 +8572,100 @@ the page says nothing about how long it took.
 - Not Tablo's, noticed while rendering: two dev asserts that fail already on
   `main` — `arts-by-sandra` built 2.74 tall in a 2.7 box, and `polarsense`
   4.72 deep in a 4.6 box.
+
+## Tablo's island is a rail
+
+The house drawn as its own plan was the island for an evening. Seb wanted
+something to *do* on it, and the idea that came back is better: the
+single-line diagram is a circuit, so the island is that circuit, closed and
+stood up as a rail the surfer grinds. **This replaces the house** — the
+kerbs, the floor plan, the board at the door and the RCD that tripped are
+gone. The sheet's house survives where it belongs: on the plate and the
+stage, which draw the document Tablo produces, not the island.
+
+**The circuit** (`NODES`, `EDGES` in `tablo.ts`). Seven nodes and ten edges:
+the feed out of the board north to a split; each side snakes west or east to
+a fork; each fork's outer path stays at 0.6 m and its inner path climbs to
+1.05; the two join; both sides meet at the bottom and the return runs back up
+the middle, under the board, into the feed. Every corner is filleted to
+0.9 m and every edge leaves its node and arrives at the next on the node's
+own line, so a fork and a join are Ys and the grind never turns faster than
+the fillet. Four routes a lap, about 38 m and seven or eight seconds.
+
+- [x] **Catching it.** A board coming *down* through the rail's top within
+      half a metre of it in plan is on it — `catchRail`. Coming up through it
+      (riding under it, or a jump started under it) never is, and landing a
+      metre beside it is not. A jump from under a rail comes down onto it,
+      which is how it reads anyway.
+- [x] **On it.** `stepGrind`: along at the rail's own speed — what he landed
+      with along it, held between 4 and 8 and drifting to 5 — round every
+      corner, through whichever edge `chooseOut` picks at a fork: the branch
+      on his right if he is steering right, on his left if left, the first
+      out of the node if neither. He faces along the rail exactly. In
+      `Ship.tsx` the rail is the floor (`bed`) while he is on it, so the
+      landing, the knees and the camera are what they are on any plateau.
+- [x] **Off it.** Space: the grind's own vertical plus a pop of 4.2, so it is
+      a jump. There is no other way off and no way to fall off; a closed
+      circuit has no end.
+- [x] **What it lights.** Eleven appliances, one on every stretch: the board
+      (on a gantry, its cabinet over his head), three lamps, two sockets, a
+      washing machine, a heat pump, an EV charger, solar panels and their
+      inverter, a roller shutter. Each switches on the moment he passes it —
+      `LIT`, the time, written by `Ship`; `litAt` in `Landmarks`: on for 45 s
+      and out over three — with a breaker's snap (`trip`). Each lights its own
+      way: the lamps glow, the socket's ring, the washer's door, the charger's
+      five bars fill bottom-up and loop, the heat pump's fan spins up, the
+      roller shutter rolls up into its box and the room behind the window is
+      lit. Every route lights a different set and the four together light all
+      of them.
+- [x] **The rail itself** is copper, with a glow that rides with him two
+      metres either side while he is on it; the grind has a sound — the edge
+      on the tube and a 100 Hz buzz under it — and the landing a struck-tube
+      ring (`rail`).
+- [x] **The island is bigger and flatter.** `radius: 9` (coast 17 m), and the
+      first island with its own profile — `PROFILES.tablo` in `plateau.ts`,
+      flat to 0.72 instead of 0.52 — so every post, appliance and rail point
+      stands on level ground. `Islands.tsx` revolves it and `plateau()` rides
+      it. The appliances are walls on the ground (`ISLAND_WALLS`, `metal`
+      knock), skipped while he is grinding; the rail and its posts are not —
+      he rides under it, and his legs go through a 0.6 m rail if he does.
+- [x] Reduced motion: the appliances still light, but the fan does not turn
+      and the charge does not loop.
+
+### Verified, on a throwaway install in Claude's container
+
+- [x] `tsc -b`, all fourteen checks, `oxlint` (nothing new), `npm run build`
+- [x] `tablo.check.ts`: every edge on its nodes' lines and heights; no turn
+      tighter than the fillet; no dead end and every edge leads back to the
+      board; three forks, and steering right takes the branch on his right;
+      the catch from above, not from below or beside, at the high rail's
+      height and not the low one's; each of the four routes through the board
+      every lap, each lighting its own set, all four lighting all eleven;
+      every post, rail point and appliance on the flat top and inside the box;
+      every appliance clear of a grinding board; the deep link clear of every
+      wall; a board ridden into the washing machine stops and knocks; the
+      conductor in the .glb on the rail's line
+- [x] Rendered headless (swiftshader, WebGL2), with a probe on the rider's
+      state: jumped from under the return, came down, caught it on edge 9,
+      ground through the board into the feed and on round the west side at
+      4–4.7 m/s, 1.08 over the sea (plateau + rail + sit); the cabinet's LEDs
+      and a lamp lit as he passed; steering right took the east side
+- [x] Cost: `tablo.glb` 11,700 triangles, 105 kB gz (the house was 45); the
+      world 2.55 MB of 3; the canvas chunk +1.9 kB gz; the home route
+      unchanged
+
+### Open, and Seb's
+
+- **The feel, on hardware**: the grind speed (`GRIND.cruise` 5, `min` 4,
+  `max` 8), the pop (4.2), the catch window (`CATCH.reach` 0.5,
+  `above` 0.3), and whether steering at a fork should be the arrow across
+  or something else on a phone. Swiftshader ran it at about two frames a
+  second, which says nothing about feel.
+- **A lap is 7–8 s**, not the 15–20 I guessed in the sketch: the circuit is
+  38 m. Slower is `cruise`; longer is the layout.
+- **Riding under the rail** puts it through his legs. Making it a wall would
+  shut him inside the loops; making it higher would put it out of a jump.
+- **What faces the water.** Every appliance faces the rail, so from the
+  approach some show their backs.
+- The lamps (2.6 emissive) on a computer with bloom, which the phone tier
+  the renders used does not have.

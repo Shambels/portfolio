@@ -66,7 +66,7 @@ one major behind. Noted here rather than done quietly.
 | `sqrubs` | A Scrabble board | — |
 | `memojo` | A ramp at the island's near edge, and a giant camera standing past its lip that flashes and prints — a blurred sighting, when it is the saucer | [Play](https://play.google.com/store/apps/details?id=eu.memojo.memojo) · [App Store](https://apps.apple.com/us/app/memojo/id6742910168) |
 | `sudoku` | A hologram — digit rain that settles into the repository's own puzzle as you arrive, and a crop circle where the saucer went through | https://github.com/Shambels/sudoku |
-| `tablo` | A house drawn as its own position plan, wired back to a giant distribution board at its door: ride into a room and its circuit lights from the board outward; hit a kerb hard and the RCD upstream trips | https://tablo-app.be — the repo is private, the store listings pending |
+| `tablo` | The single-line diagram closed into a loop and stood up as a rail: land on it and grind, steer at the three forks, round and round through the board until you jump — every appliance on the way switching on as you pass | https://tablo-app.be — the repo is private, the store listings pending |
 
 Where each one sits in the world — `pos`, `size`, `radius`, `waypoint`, `order`
 — is English frontmatter, not a table anywhere in code.
@@ -209,17 +209,20 @@ Breaking one is allowed. Doing it without saying so is not.
   the phase still advanced by distance so a planted foot does not slide; the
   board and the arm that holds it are solved on top. The leash, its cuff and the wake are still
   built in `Ship.tsx`, because they run between the two files.
-- And no engine for the house on Tablo's island (`src/tablo.ts`). Its kerbs,
-  cabinet, door, posts and sockets are walls from the numbers — `FIXTURES`,
-  added to the prop set beside any `WALLED` hull, because a hull of the
-  kerbs would be one polygon round the whole house. What lights is one
-  number a circuit, `live`, stepped by `stepWiring` from the room the rider
-  is in and the hardest `wood` knock on the island this frame; a knock at
-  `WIRING.trip` trips the RCD upstream of the room (`trip` in `Sound.tsx`)
-  and it re-arms by itself. The conductors' flow is Manhattan distance from
-  the trunk's foot, which is exact because every run only moves away from
-  the board (`route()`). `tablo.check.ts` holds the plan, the wiring, the
-  file and the circuits.
+- And no engine for the rail on Tablo's island (`src/tablo.ts`). It is a
+  graph — seven nodes, ten edges, every corner filleted to `FILLET` and every
+  fork and join a Y on its node's own line — and the grind is a position along
+  it: `catchRail` when the board comes *down* through the rail's top within
+  half a metre of it (never from below, never beside it), `stepGrind` along it
+  at the rail's own speed through whichever edge `chooseOut` picks from the
+  steering at a fork, and Space off it with the grind's vertical plus `pop`.
+  In `Ship.tsx` the rail is simply the floor (`bed`) while he is on it, so
+  every rule that already stands a board on a plateau stands it on the rail.
+  Every edge leads back to the board, so whichever way he steers he goes
+  round. Appliances light off `LIT`, when he last passed each one, through
+  `litAt`. Its island is the first with its own profile (`PROFILES`), a
+  wider flat top, because the circuit wants ten metres of level ground.
+  `tablo.check.ts` holds the graph, the grind, the island and the file.
 - No i18n library. Typed string objects per locale in `src/i18n/`.
 - Canvas and models load via dynamic `import()`, never in the first-route chunk.
 - TypeScript strict, no `any`. A narrow cast at a library boundary is fine — see
@@ -241,7 +244,7 @@ Breaking one is allowed. Doing it without saying so is not.
   file the way `surfer.py` does.
   Geometry only: materials stay in TSL, and a mesh's name prefix picks which one
   it gets — `ice_`, the iceberg's mountain, decides snow from ice by the normal;
-  `plan_`, `wire_` and `lamp_` are Tablo's paper, conductors and lamps — or, where a mesh wants its own, `byName` in `Landmarks.tsx`, keyed
+  `wire_` and `lamp_` are Tablo's rail and whatever lights on it — or, where a mesh wants its own, `byName` in `Landmarks.tsx`, keyed
   on the whole name. Memojo is the one landmark that is a *set* of those rather
   than a handful of exceptions: `makeMemojo(hi)` gives all ten of its meshes a
   material of their own — leatherette, chrome, brass, coated glass, felt, oxide
@@ -287,7 +290,7 @@ Breaking one is allowed. Doing it without saying so is not.
 | The rider, `surfer.glb` | ~38k triangles, ~600 kB compressed — **a guideline, not a limit.** Its own row since the second pass, and loosened by Seb for the same reason it was raised: it is the one model that is looked at rather than walked past, so it is judged by how it reads at the size it is drawn and not by the number. Going over is a decision to write down, not a gate to fail. Meshopt is the lever if it has to come down. **Over since the third pass, on purpose:** 91k triangles and 964 kB (809 kB gz), all of the generator's mesh kept at Seb's choice of fidelity over size, and meshopt already pulled — `docs/STATUS.md`, "The rider, third pass". **1.09 MB (914 kB gz) since the fourth**, with seven motion-capture clips in it — "The rider, fourth pass". **1.10 MB since the anime repaint**: the generator's JPEG swapped for a 14-colour PNG (`tools/flatten.py`) |
 | The board, `surfboard.glb` | 10k triangles, ~100 kB since the anime repaint — decimated from the generator's 95k; nobody looks at it for long |
 | The ship, `pirate_ship.glb` | 117k triangles, 1.05 MB since the anime repaint (1.15 MB before). **Over what a landmark may have, on purpose**, and the largest single thing in the world. Every triangle the generator sent, kept at Seb's choice; the 20 MB that left were two texture maps nothing here samples. `docs/STATUS.md`, "The boat is a ship" |
-| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.49 MB of it spent (Tablo's house +45 kB gz) |
+| Whole world, compressed | ≤ 3 MB, loaded progressively — 2.55 MB of it spent (Tablo's rail +105 kB gz) |
 | LCP (4G) | < 2.0s |
 | Lighthouse, flat site | 100 / 100 / 100 / 100 |
 | Frame rate | 60fps on a 2022 mid-tier laptop, or cut the effect |
@@ -332,10 +335,11 @@ src/Switchboard.tsx     Tablo's plate, live: hover a device on the board and the
                         diagram over the position plan — click and it switches.
                         A 2D canvas over a Blender render; `Still` is the same
                         sheet in SVG, and what the stage draws on
-src/tablo.ts            Tablo: the house and its plan, the circuits, the walls,
-                        the wiring's behaviour, the sheet's drawing (`sheet()`)
-                        and where everything is in the plate (`PLATE`) — pure,
-                        with `tablo.check.ts` beside it
+src/tablo.ts            Tablo: the island's rail and the grind on it, the
+                        appliances it lights, `layout()` for the model; and the
+                        sheet's house, its drawing (`sheet()`) and where
+                        everything is in the plate (`PLATE`) — pure, with
+                        `tablo.check.ts` beside it
 src/Tiles.tsx           Sqrubs' plate, live: hover the rack and it plays the
                         best move on the board, then the runners-up — a 2D
                         canvas that draws every tile
@@ -430,7 +434,7 @@ src/Shutter.tsx         what the giant camera does when it goes off: the
                         compiled on approach (`compileAsync`, `WARM_AT`) and
                         never on the shutter frame
 src/Landmarks.tsx       the mine, the easel, the board, the ramp and its
-                        camera, the sudoku's hologram, Tablo's house — blockout in primitives
+                        camera, the sudoku's hologram, Tablo's rail — blockout in primitives
                         + TSL, and the detailed model where one exists (`MODEL`);
                         reads `~prop` off mesh names into `PROP_SETS`, and the
                         mine's wall off its vertices. The hologram is the one
@@ -453,8 +457,9 @@ tools/memojo.py         the same, for the ramp, the giant camera and the
 tools/sudoku.py         the same, for the sudoku's projector: the plinth, a
                         puck, and the quad the hologram is drawn on — the one
                         landmark that is mostly not geometry
-tools/tablo.py          the same, for Tablo's house: the plan's floor, kerbs,
-                        lamps, sockets, the conductors, the board at the door
+tools/tablo.py          the same, for Tablo's rail: the conductor on its posts,
+                        the board on its gantry and the ten appliances — built
+                        from `layout()` in `src/tablo.ts`, which it runs in node
 tools/tablo_plate.py    not a landmark — Tablo's /work plate, rendered in Cycles
                         rather than generated: the board on a wall and a blank
                         sheet, twice (levers up, levers down), and `PLATE`'s
@@ -831,16 +836,21 @@ change to the other four islands. `docs/STATUS.md`, "PolarSense is an
 iceberg", has the numbers and what is Seb's to feel on hardware.
 
 The world has a sixth project, and it is the first on the route from the
-spawn. Tablo draws and checks the diagrams of Belgian installations — one
-model drawn twice, the single-line diagram and the position plan, tagged
-alike — so its island is a house drawn as its own plan, wired back to a
-board ten times life size at its door. Riding into a room lights its circuit
-from the board outward; a hard knock on a kerb trips the RCD upstream of the
-room, the bathroom's 30 mA or the house's 300 mA. Its `/work` plate is a
-Blender render (no OpenArt any more) of a real board with a blank sheet under
-it, which `Switchboard.tsx` fills with the diagram and lets the visitor
-switch; its page is a description, French first, as Memojo's is, because the
-repository is private. `docs/STATUS.md`, "A sixth project".
+spawn. Tablo draws and checks the diagrams of Belgian installations, and its
+island is its single-line diagram closed into a loop and stood up as a rail:
+a feed out of the board, a split, a fork each side whose inner path stands
+higher than its outer, joins, and a return back up through the board. The
+surfer lands on it from a jump and grinds — carried at the rail's speed,
+steering only at the forks, round until he jumps off — and each of the ten
+appliances on the way (lamps, sockets, a washing machine, a heat pump, an EV
+charger, solar panels, a roller shutter, the board itself) switches on as he
+passes and stays on for 45 s. It replaced the first island, a house drawn as
+its own plan, the same evening. Its `/work` plate is a Blender render (no
+OpenArt any more) of a real board with a blank sheet under it, which
+`Switchboard.tsx` fills with the diagram and lets the visitor switch; its
+page is a description, French first, as Memojo's is, because the repository
+is private. `docs/STATUS.md`, "A sixth project" and "Tablo's island is a
+rail".
 
 The archipelago is spread out to the chart. Every project `pos` is 2.5× what
 it was, about the origin, waypoints keeping their offsets, so the world is the
