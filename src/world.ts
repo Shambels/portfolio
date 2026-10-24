@@ -1,6 +1,6 @@
 import { PROJECTS } from './content'
 import { ISLES, RIM_MAX, isleHeight, isleShore, pushOut } from './isles'
-import { GROUND, deckAt, fractionAt, profileAt, rampLift, rim, seedOf, type Hit } from './plateau'
+import { GROUND, deckAt, fractionAt, profileAt, profileOf, rampLift, rim, seedOf, type Hit } from './plateau'
 import { APRON, FLOATS, apronWeight, bergLift, bergProfile, onIce } from './berg'
 import { SOURCE_LOCALE } from './i18n/locales'
 
@@ -140,7 +140,7 @@ export function plateau(x: number, z: number): number {
     // apron run out on the bearings in front of the adit.
     h = Math.max(h, l.landmark === FLOATS
       ? GROUND + bergLift(dx, dz) + profileAt(R, seedOf(l.slug), dx, dz, bergProfile(apronAt(dx, dz)))
-      : GROUND + profileAt(R, seedOf(l.slug), dx, dz) + deckAt(l.landmark, lx, lz))
+      : GROUND + profileAt(R, seedOf(l.slug), dx, dz, profileOf(l.landmark)) + deckAt(l.landmark, lx, lz))
   }
   return h
 }

@@ -4,6 +4,7 @@ import { SHIP } from './Ship'
 import { seaRoll } from './Scenery'
 import { HITS, LANDMARKS, overWater, type Landmark } from './world'
 import type { Hit } from './plateau'
+import { RIDING } from './tablo'
 
 /**
  * Phase 4's ambient sound — the last item on the list, and the one BUILD-PLAN
@@ -342,10 +343,10 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
       strike(fizz.gain, t, 0.001, 0.08, 0.25 + 0.3 * force)
     }
   },
-  // An RCD going out on Tablo's island, and coming back in: a breaker's
-  // lever is a spring-loaded snap, so a hard click with almost nothing
-  // after it, and under it the knock of the mechanism in its plastic case —
-  // short, low, boxy. Coming back in is the same sound at half the force.
+  // An appliance on Tablo's island switching on as the grind passes it: a
+  // breaker's lever is a spring-loaded snap, so a hard click with almost
+  // nothing after it, and under it the knock of the mechanism in its
+  // plastic case — short, low, boxy.
   trip(ctx, noise, out) {
     const snap = new GainNode(ctx, { gain: 0 })
     noise.connect(new BiquadFilterNode(ctx, { type: 'highpass', frequency: 3000 })).connect(snap)
@@ -358,6 +359,27 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
     return (t, force) => {
       strike(snap.gain, t, 0.0008, 0.018, 0.6 + 0.4 * force)
       strike(box.gain, t + 0.002, 0.001, 0.05, 0.25 + 0.3 * force)
+    }
+  },
+  // The board landing on Tablo's rail: a steel tube struck lengthwise, so
+  // two partials that are not harmonics of anything, short, over the deck's
+  // own thud.
+  rail(ctx, noise, out) {
+    const ring = new GainNode(ctx, { gain: 0 })
+    const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 400 })
+    for (const [hz, g] of [[520, 1], [1370, 0.5], [2210, 0.25]] as const) {
+      const v = new GainNode(ctx, { gain: g })
+      osc(ctx, 'triangle', hz).connect(v)
+      v.connect(hp)
+    }
+    hp.connect(ring)
+    ring.connect(out)
+    const thud = new GainNode(ctx, { gain: 0 })
+    noise.connect(new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 260 })).connect(thud)
+    thud.connect(out)
+    return (t, force) => {
+      strike(ring.gain, t, 0.002, 0.22 + 0.2 * force, 0.35 + 0.5 * force)
+      strike(thud.gain, t, 0.003, 0.12, 0.6 + 0.4 * force)
     }
   },
   metal(ctx, noise, out) {
@@ -380,6 +402,8 @@ const KNOCKS: Record<Hit['kind'], (ctx: AudioContext, noise: AudioNode, out: Aud
   },
 }
 const KNOCK = 0.55
+/** The grind's level on the knock bus — under the knocks, over the sea. */
+const GRIND_LEVEL = 0.22
 /** Two hits in one frame are two hits, a hair apart, not one envelope
  *  restarted on top of itself. */
 const KNOCK_GAP = 0.012
@@ -393,6 +417,8 @@ type Rig = {
   tone: OscillatorNode[]
   voices: { l: Landmark; prox: GainNode; voice: Voice; next: number }[]
   knocks: Record<Hit['kind'], Knock>
+  /** The grind on Tablo's rail, held for as long as he is on it. */
+  grind: GainNode
 }
 
 function build(): Rig {
@@ -430,7 +456,16 @@ function build(): Rig {
     (Object.keys(KNOCKS) as Hit['kind'][]).map((k) => [k, KNOCKS[k](ctx, noise, bus)]),
   ) as Record<Hit['kind'], Knock>
 
-  return { ctx, master, sea, wind, hum, tone, voices, knocks }
+  // The grind: the board's metal edge on the conductor, a band of noise —
+  // and under it the current, a buzz at twice the mains, because he is it.
+  const grind = new GainNode(ctx, { gain: 0 })
+  noise.connect(new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 2600, Q: 1.2 })).connect(grind)
+  const buzz = new GainNode(ctx, { gain: 0.25 })
+  osc(ctx, 'sawtooth', 100).connect(new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 700 })).connect(buzz)
+  buzz.connect(grind)
+  grind.connect(bus)
+
+  return { ctx, master, sea, wind, hum, tone, voices, knocks, grind }
 }
 
 /**
@@ -490,6 +525,8 @@ export function Sound({ on }: { on: boolean }) {
 
     // What the board hit this frame. `Ship` filled the list before this ran
     // and empties it before it runs again.
+    set(r.grind.gain, RIDING.on ? GRIND_LEVEL : 0, t, 0.04)
+
     for (let i = 0; i < HITS.length; i++) {
       const h = HITS[i]!
       r.knocks[h.kind](t + i * KNOCK_GAP, h.force)

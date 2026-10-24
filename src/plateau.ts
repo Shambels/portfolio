@@ -43,6 +43,15 @@ export const PROFILE: [number, number][] = [
   [0, 0], [0.52, 0], [0.68, -0.12], [0.8, -0.3], [0.88, -0.55], [0.96, -1.6], [1, -3.2],
 ]
 
+/** And an island that wants more flat top than that: Tablo's, whose circuit
+ *  runs nearly ten metres out and wants all of it level under it. The same
+ *  beach, pushed out. Keyed by landmark shape, like `DECKS`; `Islands.tsx`
+ *  revolves it and `plateau()` rides it. */
+export const PROFILES: Record<string, [number, number][] | undefined> = {
+  tablo: [[0, 0], [0.72, 0], [0.8, -0.12], [0.86, -0.3], [0.9, -0.55], [0.97, -1.6], [1, -3.2]],
+}
+export const profileOf = (shape: string) => PROFILES[shape] ?? PROFILE
+
 /** Coastline radius at an angle, as a multiple of the nominal one. Three
  *  detuned harmonics: enough that the eye reads a shape rather than a disc,
  *  few enough that the plateau stays convex and a box never overhangs it. */
@@ -417,10 +426,11 @@ export type Board = {
 
 /** `shutter` is the odd one out and deliberately lives here anyway: it is not
  *  something the board hit, it is something that went off because of where the
- *  board was. `trip` is the same kind of thing on Tablo's island: an RCD
- *  going out because the board hit a kerb hard, or coming back in. The machinery is identical — a one-shot the sound plays once at
+ *  board was. `trip` is the same kind of thing on Tablo's island: an
+ *  appliance switching on as the grind passes it. `rail` is the board
+ *  landing on the rail. The machinery is identical — a one-shot the sound plays once at
  *  a level — and a second list beside this one would be the same list. */
-export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter' | 'zap' | 'trip'; force: number }
+export type Hit = { kind: 'tile' | 'wood' | 'metal' | 'ice' | 'shutter' | 'zap' | 'trip' | 'rail'; force: number }
 
 /**
  * Is a world point in a landmark's lens? False for every landmark that has no

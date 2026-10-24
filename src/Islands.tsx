@@ -5,7 +5,7 @@ import { abs, atan, fract, mix, oneMinus, positionLocal, positionWorld, smoothst
 import { fractal } from './noise'
 import { band, toon } from './toon'
 import { BERG_FACING, ISLAND_SPREAD, LANDMARKS, type Landmark } from './world'
-import { GROUND, PROFILE, rim, seedOf } from './plateau'
+import { GROUND, PROFILE, profileOf, rim, seedOf } from './plateau'
 import { FLOATS, LIFT, apronWeight, bergProfile, pose } from './berg'
 
 /**
@@ -78,7 +78,7 @@ function island(radius: number, seed: number, profile: [number, number][] = PROF
 
 export function Islands() {
   const { geometries, ground, berg } = useMemo(() => {
-    const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug)))
+    const geometries = LANDMARKS.map((l) => island(l.radius * ISLAND_SPREAD, seedOf(l.slug), profileOf(l.landmark)))
 
     // Sea floor, wet rock, beach, then the plateau, as edges and cel-lit
     // (`toon.ts`). The sand band straddles y = 0 so the waterline is where

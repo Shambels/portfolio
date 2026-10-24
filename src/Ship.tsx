@@ -10,9 +10,10 @@ import {
   BEACH, FOOT_DROP, WALK_SPEED, altitude, ashore, carried, follow, scarp,
 } from './beach'
 import {
-  BERG_AT, BERG_R, FLASH, GROUND, HITS, SPLASH, VIEW, climb, ground, iceAt, landmarkAt, landmarkOf, moorRadius,
-  offshore, overBerg, plateau, spawn,
+  BERG_AT, BERG_R, FLASH, GROUND, HITS, LANDMARKS, SPLASH, VIEW, climb, ground, iceAt, landmarkAt, landmarkOf,
+  landmarkYaw, moorRadius, offshore, overBerg, plateau, spawn,
 } from './world'
+import { GRIND, LIT, RIDING, catchRail, startGrind, stepGrind, type Grind } from './tablo'
 import { glide, kick, shove, stepBerg } from './berg'
 import {
   BOARD, PROP_SETS, RIDER_MASS, inFront, inShot, stepProps, type Beam, type Board, type Terrain, type Zap,
@@ -245,6 +246,18 @@ const HOP_G = 14
  *  at the surface with the fins 0.16 under, so this is the same board a
  *  little higher, not a different board. */
 const SIT = 0.05
+
+/**
+ * Tablo's island, as the rail sees it: its centre and the turn into its own
+ * frame, worked out once — the rail (`src/tablo.ts`) is in landmark space,
+ * and he is in the world. `RAIL_SIT` is how far over the conductor's top the
+ * board's underside rides, as `SIT` is over a plateau.
+ */
+const TABLO_L = LANDMARKS.find((l) => l.landmark === 'tablo')
+const TABLO_RAIL = TABLO_L
+  ? { cx: TABLO_L.pos[0], cz: TABLO_L.pos[2], c: Math.cos(landmarkYaw(TABLO_L)), s: Math.sin(landmarkYaw(TABLO_L)) }
+  : null
+const RAIL_SIT = 0.03
 /**
  * Seconds between one frame of the giant camera's and the next. A shutter is
  * an event and an event that can happen every frame is a level, so this is
@@ -768,6 +781,12 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
    * of this one value.
    */
   const caveS = useRef<number | null>(null)
+  // On Tablo's rail: where on it, and the height and yaw it gives him this
+  // frame — see `TABLO_RAIL` below. Null off it, which is nearly always.
+  const grind = useRef<Grind | null>(null)
+  const railY = useRef(0)
+  const railVy = useRef(0)
+  const railYaw = useRef(0)
   /** And how far across the passage, in metres either side of the centreline. */
   const caveLat = useRef(0)
   /**
@@ -867,6 +886,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // so arriving at one is arriving on the board, however he left.
     beached.current = 0
     dash.current = false
+    grind.current = null
     near.current = l.slug
     snap.current = true
     // `floats` is read above and is deliberately not a dependency — see the
@@ -1041,7 +1061,34 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     } else {
       const wasX = g.position.x
       const wasZ = g.position.z
-      g.position.addScaledVector(vel.current, dt)
+      // On Tablo's rail he goes where it goes. The keys do not move him —
+      // across the rail they choose at the next fork — and Space is the way
+      // off: the grind's own vertical plus a pop, so leaving it is a jump.
+      if (grind.current && (!walks || !TABLO_RAIL)) grind.current = null
+      if (grind.current && TABLO_RAIL) {
+        if (jump) {
+          grind.current = null
+          hullVel.current = railVy.current + GRIND.pop
+          flew.current = true
+        } else {
+          const passed: number[] = []
+          const r = stepGrind(grind.current, dt, moveX, passed)
+          const { cx, cz, c, s: sn } = TABLO_RAIL
+          g.position.x = cx + r.x * c + r.z * sn
+          g.position.z = cz - r.x * sn + r.z * c
+          const wtx = r.tx * c + r.tz * sn
+          const wtz = -r.tx * sn + r.tz * c
+          vel.current.set(wtx * grind.current.v, 0, wtz * grind.current.v)
+          railY.current = GROUND + r.y + RAIL_SIT
+          railVy.current = r.vy
+          railYaw.current = Math.atan2(wtx, wtz)
+          for (const a of passed) {
+            LIT[a] = state.clock.elapsedTime
+            HITS.push({ kind: 'trip', force: 0.45 })
+          }
+        }
+      }
+      if (!grind.current) g.position.addScaledVector(vel.current, dt)
       // And the part of that step which tried to climb a wall, taken back out.
       // On his feet only: a hull is held off a coast by `offshore` and the
       // saucer flies over it. `scarp` is a projection, so walking at a cliff on
@@ -1101,7 +1148,7 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
       for (const set of PROP_SETS.values()) {
         const wasVx = b.vx
         const wasVz = b.vz
-        stepProps(set, dt, b, ufo || (walks && afoot < 0.5), terrain, HITS, ufo ? _beam : null, ZAPS)
+        stepProps(set, dt, b, ufo || (walks && afoot < 0.5 && !grind.current), terrain, HITS, ufo ? _beam : null, ZAPS)
         // The board off the berg's mountain: what the wall took out of his
         // velocity is what it put into the berg, which rolls along it.
         if (BERG_AT && set.slug === BERG_AT.slug && !REDUCED) {
@@ -1174,7 +1221,11 @@ export function Ship({ hover = 0.9, enabled, model, slug, onNear }: {
     // way he is going. The rail's is not read off `vel`, because `vel` there is
     // the rail's direction times a signed push — and a push that crosses zero
     // is a man spinning on a staircase.
-    const heading = caveS.current !== null
+    // On the rail he faces along it, exactly: it is filleted, so that is a
+    // turn and not a snap, and a lag would put the board across the rail.
+    if (grind.current) yaw.current = railYaw.current
+    RIDING.on = !!grind.current
+    const heading = grind.current ? null : caveS.current !== null
       ? caveFace.current
       // On the ice he faces where he is told to and the glide goes where it
       // was going — the one place the two come apart. No input, no turn.
@@ -1308,7 +1359,9 @@ const RISE = 10
       // And the ground of a project island under the board — see `SIT`. A
       // long way under the sea for the boat, and everywhere there is no
       // island, so that `max` against the water is the water.
-      const bed = walks ? plateau(g.position.x, g.position.z) + SIT : -1e9
+      // On Tablo's rail the rail is the floor — the same floor every other
+      // rule here already knows how to stand on.
+      const bed = walks ? Math.max(plateau(g.position.x, g.position.z) + SIT, grind.current ? railY.current : -1e9) : -1e9
       const dry = bed > surface
       if (reset.current) {
         // A deep link puts the hull down beside a landmark. It arrives floating,
@@ -1371,6 +1424,7 @@ const RISE = 10
         ? -GRAV
         : (surface - hull.current) * water.buoyK - (hullVel.current - surfVel) * water.buoyC)
       hullVel.current = Math.min(hullVel.current, water.launch)
+      const wasHull = hull.current
       hull.current += hullVel.current * dt
       // What the deck under him is doing to him, in units a second. Zero
       // everywhere but on Memojo's ramp (`climb` in `world.ts`), which is the
@@ -1409,6 +1463,37 @@ const RISE = 10
         // disappeared. It stops at the draft it has, and the spring floats it back.
         hull.current = surface - water.sink
         hullVel.current = Math.max(hullVel.current, 0)
+      }
+      // Tablo's rail. On it, he is at its height and moving at its rate.
+      // Off it, coming down through its top from above inside `CATCH` of it
+      // in plan, he is on it: the board lands on the conductor, his knees
+      // take it, and the grind starts at the speed he came in with along it.
+      if (grind.current) {
+        hull.current = railY.current
+        hullVel.current = railVy.current
+      } else if (TABLO_RAIL && walks && afoot < 0.5 && hullVel.current < 0) {
+        const { cx, cz, c, s: sn } = TABLO_RAIL
+        const dx = g.position.x - cx
+        const dz = g.position.z - cz
+        const lx = dx * c - dz * sn
+        const lz = dx * sn + dz * c
+        const caught = catchRail(lx, lz, wasHull - GROUND - RAIL_SIT, hull.current - GROUND - RAIL_SIT)
+        if (caught) {
+          const vlx = vel.current.x * c - vel.current.z * sn
+          const vlz = vel.current.x * sn + vel.current.z * c
+          grind.current = startGrind(caught, vlx, vlz)
+          const r = stepGrind(grind.current, 0, 0, [])
+          g.position.x = cx + r.x * c + r.z * sn
+          g.position.z = cz - r.x * sn + r.z * c
+          railY.current = GROUND + r.y + RAIL_SIT
+          railVy.current = r.vy
+          const impact = Math.min(-hullVel.current, water.launch)
+          springVel.current.y += impact * water.squash
+          RIDE.slam = Math.min(impact / SPLASH_FULL, 1)
+          HITS.push({ kind: 'rail', force: Math.min(impact / 6, 1) })
+          hull.current = railY.current
+          hullVel.current = railVy.current
+        }
       }
       // The landing, the wave face and the drop off a crest all reach the body
       // through the bounce spring below rather than through a case of their own:

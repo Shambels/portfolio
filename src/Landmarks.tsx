@@ -8,7 +8,7 @@ import {
   sin, smoothstep, step, texture, time, uniform, vec2, vec3, vec4,
 } from 'three/tsl'
 import { fractal } from './noise'
-import { GROUND, HITS, ISLAND_SPREAD, LANDMARKS, landmarkYaw, type Landmark } from './world'
+import { GROUND, LANDMARKS, landmarkYaw, type Landmark } from './world'
 import {
   LENSES, PRINTS, PROP_SETS, RAMPS, WALLED, deckAt, footprint, hull2d, makeProp, makeSet,
   type Prop, type PropSet,
@@ -18,10 +18,7 @@ import { FLOATS } from './berg'
 import { Afloat } from './Islands'
 import { SHIP, SHIP_XZ } from './Ship'
 import { PANEL, PIERCE, SLOTS, crop, holes, pierce, table, throughPanel } from './sudoku'
-import {
-  CABINET, CIRCUITS, DEVICES, FEED_Z, FIXTURES, HOUSE, KERB, LAMP, POINTS, RCDS, ROOMS, THROW, WALLS,
-  pivot, roomAt, stepWiring, wallRect, wiring,
-} from './tablo'
+import { APPLIANCES, EDGES, FIXTURES, GANTRY, LIT, PARTS, RIDING, litAt } from './tablo'
 import mineUrl from './models/mine.glb?url'
 import easelUrl from './models/easel.glb?url'
 import boardUrl from './models/board.glb?url'
@@ -102,7 +99,7 @@ const PALETTE = {
 }
 const HI = new THREE.Color('#7dd3fc') // proximity, unchanged from the blockout boxes
 
-const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, ice: 1, board: 1, glass: 1, holo: 1, plan: 1, wire: 1, lamp: 1 }
+const MATERIAL_KEYS = { frame: 1, panel: 1, dark: 1, rock: 1, ice: 1, board: 1, glass: 1, holo: 1, wire: 1, lamp: 1 }
 
 /* How bright the giant camera's lens is lives in `Shutter.tsx` now, with the
  * rest of what the camera does when it goes off. The glass material below is
@@ -672,89 +669,88 @@ function makeMemojo(hi: boolean): Record<string, THREE.Material> {
 }
 
 // ---------------------------------------------------------------- Tablo
-// A house drawn as its own position plan, wired back to the board at its
-// door (`src/tablo.ts`, `tools/tablo.py`). What lights is one number per
-// circuit — `live`, 0 to 1, stepped by `stepWiring` below from where the
-// rider is and how hard the kerbs were last hit — and where each RCD's lever
-// is. Every material that reads them is here.
+// The circuit as a rail, and what it feeds (`src/tablo.ts`, `tools/tablo.py`).
+// What lights is one number per appliance, `tabloLit`, read every frame off
+// `LIT` — when `Ship` last ground past it — through `litAt`: on for 45 s,
+// then out over three. The three parts that move are moved here too: the
+// heat pump's fan by an angle the frame accumulates, the charger's bars by a
+// charge that climbs while it is on, the shutter by its own light.
 
-const TABLO_AT = LANDMARKS.find((l) => l.landmark === 'tablo')
-const TABLO = wiring()
-const tabloLive = CIRCUITS.map(() => uniform(0))
-const tabloLever = RCDS.map(() => uniform(1))
-/** Signal yellow, Tablo's own accent — what current is, on its plan. */
+const tabloLit = APPLIANCES.map(() => uniform(0))
+const tabloFan = APPLIANCES.map(() => uniform(0))
+const tabloCharge = APPLIANCES.map(() => uniform(0))
+const tabloGrinding = uniform(0)
+/** Signal yellow, Tablo's own accent — what current is. */
 const SIGNAL = '#ffc21a'
-/** The longest conductor on the plan, for the front that runs out along it
- *  as a circuit comes live. */
-const RUN = Math.max(...POINTS.map((p) => Math.abs(p.x - CIRCUITS[p.circuit]!.trunk) + (FEED_Z - p.z))) + 0.4
+/** What each kind of appliance glows when it is on. */
+const GLOW: Record<string, string> = {
+  board: SIGNAL, lamp: '#ffd98a', socket: SIGNAL, washer: '#bfe6ff', heatpump: '#7dffa8',
+  charger: '#7dffa8', solar: '#8fd0ff', shutter: '#ffcf7a',
+}
 
 function makeTablo(hi: boolean): Record<string, THREE.Material> {
-  const k = 0.3 // a plan on paper takes the proximity tint as faintly as the ice
-  // The paper: a half-metre grid — a sheet's squares, scaled up — and each
-  // room washed with the signal yellow as its circuit comes live, so the plan
-  // shows which rooms are on as plainly as the lamps do.
-  const floor = new THREE.MeshStandardNodeMaterial({ roughness: 0.95 })
-  {
-    const p = positionLocal.xz.div(0.5)
-    const edge = fract(p).sub(0.5).abs()
-    const grid = smoothstep(0.46, 0.5, max(edge.x, edge.y))
-    let wash: Num = float(0)
-    ROOMS.forEach((r, i) => {
-      const x = positionLocal.x
-      const z = positionLocal.z
-      const inside = step(r.x0, x).mul(step(x, r.x1)).mul(step(r.z0, z)).mul(step(z, r.z1))
-      wash = wash.add(inside.mul(tabloLive[i]!))
-    })
-    const paper = mix(color(shade('#ebe7de', hi, k)), color(shade('#9aa3b0', hi, k)), grid.mul(0.55))
-    floor.colorNode = mix(paper, color(SIGNAL), wash.mul(0.28))
-  }
-  // The kerbs are the plan's walls, so they are its ink: graphite.
-  const kerb = new THREE.MeshStandardNodeMaterial({ color: shade('#3b3e46', hi, k), roughness: 0.8 })
-  // The cabinet is a white plastic enclosure, like every board in a house.
-  const cabinet = new THREE.MeshStandardNodeMaterial({ color: shade('#dedad2', hi, k), roughness: 0.6 })
-  const out: Record<string, THREE.Material> = { frame_kerb: kerb, frame_cabinet: cabinet, frame_door: cabinet }
-
-  // A circuit's conductors: grey on the paper while it is dead; signal yellow
-  // from the board outward as it comes live — a front that runs the length of
-  // the wiring — and then current, dashes moving away from the board for as
-  // long as it is on. How far along the wire is plain Manhattan distance from
-  // the trunk's foot, because every run only ever moves away from it
-  // (`route` in `tablo.ts`). Double-sided so the ink leaves a strip on the
-  // floor alone.
-  CIRCUITS.forEach((cc, i) => {
-    const live = tabloLive[i]!
-    const m = abs(positionLocal.x.sub(cc.trunk)).add(float(FEED_Z).sub(positionLocal.z))
-    const lit = oneMinus(smoothstep(live.mul(RUN).sub(0.4), live.mul(RUN), m)).mul(step(0.001, live))
-    const t = REDUCED ? float(0) : time
-    const dash = REDUCED ? float(1) : smoothstep(0.25, 0.5, fract(m.mul(1.4).sub(t.mul(1.3)))).mul(0.8).add(0.4)
-    const wire = new THREE.MeshStandardNodeMaterial({ roughness: 0.7, side: THREE.DoubleSide })
-    wire.colorNode = mix(color(shade('#7b818b', hi, k)), color(SIGNAL), lit)
-    wire.emissiveNode = color(SIGNAL).mul(lit.mul(dash).mul(0.9))
-    out[`wire_${'abcd'[i]}`] = wire
-    // And what it lights: the globe on each of its lamps, and its breaker's LED.
-    const lamp = new THREE.MeshStandardNodeMaterial({ color: '#f2eee4', roughness: 0.4 })
-    lamp.emissiveNode = color('#ffd98a').mul(live.mul(2.4))
-    out[`lamp_${'abcd'[i]}`] = lamp
+  const k = 0.3
+  const out: Record<string, THREE.Material> = {}
+  // The conductor: copper, and where the board is on it, current — a glow
+  // that rides with him along it, two metres either side.
+  const rail = new THREE.MeshStandardNodeMaterial({ color: shade('#d08a4c', hi, k), roughness: 0.45 })
+  const near = oneMinus(smoothstep(0.3, 2.4, length(positionWorld.xz.sub(SHIP_XZ))))
+  // A little of its own colour back out, because the sun is behind every
+  // landmark and a thin copper tube on the shadow side reads as a black
+  // line — and this one has to read as a rail from the water.
+  rail.emissiveNode = color('#c4703a').mul(0.35).add(color(SIGNAL).mul(near.mul(tabloGrinding).mul(1.6)))
+  out.wire_rail = rail
+  out.panel_cabinet = new THREE.MeshStandardNodeMaterial({ color: shade('#dedad2', hi, k), roughness: 0.6 })
+  APPLIANCES.forEach((a, i) => {
+    const lit = tabloLit[i]!
+    // What lights: dark glass or a dead bulb while it is off.
+    const glow = new THREE.MeshStandardNodeMaterial({ color: shade('#3a3f47', hi, k), roughness: 0.35 })
+    glow.colorNode = mix(color(shade('#3a3f47', hi, k)), color(GLOW[a.kind]!), lit.mul(0.7))
+    glow.emissiveNode = color(GLOW[a.kind]!).mul(lit.mul(a.kind === 'lamp' ? 2.6 : 1.8))
+    out[`lamp_a${i}`] = glow
+    if (a.kind === 'heatpump') {
+      // The fan, turned about the unit's own vertical by an angle the frame
+      // winds on faster the more it is on.
+      const fan = new THREE.MeshStandardNodeMaterial({ color: shade('#5b6170', hi, k), roughness: 0.6 })
+      const ang = tabloFan[i]!
+      const dx = positionLocal.x.sub(a.x)
+      const dz = positionLocal.z.sub(a.z)
+      fan.positionNode = vec3(
+        float(a.x).add(dx.mul(cos(ang))).sub(dz.mul(sin(ang))),
+        positionLocal.y,
+        float(a.z).add(dx.mul(sin(ang))).add(dz.mul(cos(ang))),
+      )
+      out[`panel_fan${i}`] = fan
+    }
+    if (a.kind === 'charger') {
+      // Five bars filling, bottom up, the charge looping while it is on.
+      const bars = new THREE.MeshStandardNodeMaterial({ color: shade('#2a3a32', hi, k), roughness: 0.4 })
+      const b = PARTS.bars
+      const at = positionLocal.y.sub(b.y0).div(b.y1 - b.y0)
+      const on = step(at, tabloCharge[i]!).mul(lit)
+      bars.colorNode = mix(color(shade('#2a3a32', hi, k)), color(GLOW.charger!), on.mul(0.7))
+      bars.emissiveNode = color(GLOW.charger!).mul(on.mul(1.8))
+      out[`lamp_bars${i}`] = bars
+    }
+    if (a.kind === 'shutter') {
+      // The slats roll up into the box as the house comes on, and the room
+      // behind the window shows.
+      const slats = new THREE.MeshStandardNodeMaterial({ color: shade('#c9c4b8', hi, k), roughness: 0.7 })
+      const top = PARTS.shutter.y1
+      slats.positionNode = vec3(positionLocal.x,
+        float(top).sub(float(top).sub(positionLocal.y).mul(oneMinus(lit.mul(0.92)))), positionLocal.z)
+      out[`panel_shutter${i}`] = slats
+    }
+    if (a.kind === 'solar') {
+      // The panels: dark blue cells in a silver grid. Their own glass, and
+      // not the lens's, which flashes with Memojo's camera.
+      const cells = new THREE.MeshStandardNodeMaterial({ roughness: 0.25 })
+      const g = fract(positionLocal.xz.mul(5.5)).sub(0.5).abs()
+      cells.colorNode = mix(color(shade('#1f3a66', hi, k)), color(shade('#b8c2cf', hi, k)),
+        smoothstep(0.42, 0.48, max(g.x, g.y)))
+      out[`glass_solar${i}`] = cells
+    }
   })
-
-  // The two RCD levers, thrown about their own pivots: up is in, down is out.
-  // Exported up; turned down by the throw times how far out it is. Not inked
-  // — the outline is a copy of the geometry at rest and would stay up.
-  RCDS.forEach((_, r) => {
-    const d = DEVICES.find((v) => v.kind === 'rcd' && v.ref === r)!
-    const [, py, pz] = pivot(d)
-    const a = oneMinus(tabloLever[r]!).mul(THROW.on - THROW.off)
-    const dy = positionLocal.y.sub(py)
-    const dz = positionLocal.z.sub(pz)
-    const lever = new THREE.MeshStandardNodeMaterial({ color: shade('#3d6fc0', hi, k), roughness: 0.5, side: THREE.DoubleSide })
-    lever.positionNode = vec3(
-      positionLocal.x,
-      float(py).add(dy.mul(cos(a))).sub(dz.mul(sin(a))),
-      float(pz).add(dy.mul(sin(a))).add(dz.mul(cos(a))),
-    )
-    out[`panel_rcd${r}`] = lever
-  })
-  out.plan_floor = floor
   return out
 }
 
@@ -937,8 +933,8 @@ function makeMats(hi: boolean) {
       // `makeMemojo` above says why the one landmark made of things is here
       // and not in the prefixes.
       ...makeMemojo(hi),
-      // Tablo's, which are the circuits: a conductor and a lamp per circuit,
-      // the plan's paper and ink, and the two levers that throw.
+      // Tablo's: the rail, and what lights, turns, fills and rolls up on
+      // every appliance it feeds.
       ...makeTablo(hi),
       panel_canvases: canvas,
       panel_found: found,
@@ -1162,30 +1158,36 @@ function Sudoku(m: Mats) {
   )
 }
 
-// -------------------------------------------------------------- the house
-// Tablo. The plan's floor, its kerbs, the board at the door and a post for
-// every lamp, straight off `tablo.ts` — what stands there while the model is
-// on the wire, already the same plan and already a wall in the same places.
+// --------------------------------------------------------------- the rail
+// Tablo. The rail as a string of thin boxes and the gantry over it, straight
+// off `tablo.ts` — what stands there while the model is on the wire.
 
-function House(m: Mats) {
-  const w = HOUSE.x1 - HOUSE.x0
-  const d = HOUSE.z1 - HOUSE.z0
+const RAIL_BITS = EDGES.flatMap((e) => {
+  const bits: { x: number; z: number; len: number; yaw: number }[] = []
+  for (let i = 4; i < e.xs.length; i += 4) {
+    const ax = e.xs[i - 4]!, az = e.zs[i - 4]!, bx = e.xs[i]!, bz = e.zs[i]!
+    bits.push({ x: (ax + bx) / 2, z: (az + bz) / 2, len: Math.hypot(bx - ax, bz - az), yaw: Math.atan2(bx - ax, bz - az) })
+  }
+  const n = e.xs.length - 1
+  if (n % 4) bits.push({ x: (e.xs[n - (n % 4)]! + e.xs[n]!) / 2, z: (e.zs[n - (n % 4)]! + e.zs[n]!) / 2,
+    len: Math.hypot(e.xs[n]! - e.xs[n - (n % 4)]!, e.zs[n]! - e.zs[n - (n % 4)]!),
+    yaw: Math.atan2(e.xs[n]! - e.xs[n - (n % 4)]!, e.zs[n]! - e.zs[n - (n % 4)]!) })
+  return bits
+})
+
+function Rail(m: Mats) {
+  const board = APPLIANCES[0]!
   return (
     <>
-      <mesh geometry={BOX} material={m.panel} position={[(HOUSE.x0 + HOUSE.x1) / 2, 0.006, (HOUSE.z0 + HOUSE.z1) / 2]} scale={[w, 0.012, d]} />
-      {WALLS.map((wall, i) => {
-        const r = wallRect(wall)
-        return (
-          <mesh key={i} geometry={BOX} material={m.dark}
-            position={[(r.x0 + r.x1) / 2, KERB.h / 2, (r.z0 + r.z1) / 2]} scale={[r.x1 - r.x0, KERB.h, r.z1 - r.z0]} />
-        )
-      })}
-      <mesh geometry={BOX} material={m.panel}
-        position={[(CABINET.x0 + CABINET.x1) / 2, CABINET.y1 / 2, (CABINET.z0 + CABINET.z1) / 2]}
-        scale={[CABINET.x1 - CABINET.x0, CABINET.y1, CABINET.z1 - CABINET.z0]} />
-      {POINTS.filter((p) => p.kind === 'lamp').map((p) => (
-        <mesh key={p.tag} geometry={BOX} material={m.frame} position={[p.x, LAMP.h / 2, p.z]} scale={[LAMP.post * 2, LAMP.h, LAMP.post * 2]} />
+      {RAIL_BITS.map((b, i) => (
+        <mesh key={i} geometry={BOX} material={m.frame} position={[b.x, 0.56, b.z]} rotation-y={b.yaw} scale={[0.1, 0.08, b.len]} />
       ))}
+      {[-1, 1].map((k) => (
+        <mesh key={k} geometry={BOX} material={m.frame} position={[board.x + k * GANTRY.half, GANTRY.top / 2, board.z]}
+          scale={[0.16, GANTRY.top, 0.3]} />
+      ))}
+      <mesh geometry={BOX} material={m.panel} position={[board.x, (GANTRY.cabinet + GANTRY.top) / 2, board.z]}
+        scale={[2.1, GANTRY.top - GANTRY.cabinet, 0.32]} />
     </>
   )
 }
@@ -1200,7 +1202,7 @@ const BUILD: Record<string, (m: Mats) => ReactNode> = {
   board: Board,
   ramp: Kicker,
   sudoku: Sudoku,
-  tablo: House,
+  tablo: Rail,
 }
 
 /**
@@ -1324,8 +1326,8 @@ function Detailed({ url, m, l }: { url: string; m: Mats; l: Landmark }) {
       const found = parts.find((p) => p.name.startsWith('panel_found'))
       pieces.push({ id, parts, landed: found ? landedGeometry(found.geometry) : undefined })
     }
-    // And walls that are not a hull of the model: Tablo's kerbs, which are
-    // many walls round many rooms (`FIXTURES` in `tablo.ts`).
+    // And walls that are not a hull of the model: what stands on Tablo's
+    // island, many things apart (`FIXTURES` in `tablo.ts`).
     const fixture = FIXTURES[l.landmark]
     const set = makeSet(l.slug, l.pos[0], l.pos[2], landmarkYaw(l), props,
       [...(wallPts.length ? [hull2d(wallPts)] : []), ...(fixture?.walls ?? [])],
@@ -1462,25 +1464,17 @@ export function Landmarks({ near }: { near: string | null }) {
       if (saucerIn) cropAt = now
     }
     holoCrop.value = crop(holoCrop.value, now - cropAt, Math.min(dt, 0.05), REDUCED)
-    // Tablo's circuits: which room the rider is in, and the hardest knock on
-    // the island this frame — `Ship` has already pushed this frame's hits and
-    // `Sound` plays after this, so a trip is heard on the frame it happens.
-    // Before the reduced-motion return: under it the lamps still light, all
-    // at once (`stepWiring`).
-    if (TABLO_AT) {
-      const l = TABLO_AT
-      const rot = landmarkYaw(l)
-      const dx = SHIP.pos.x - l.pos[0]
-      const dz = SHIP.pos.z - l.pos[2]
-      const on = dx * dx + dz * dz < (l.radius * ISLAND_SPREAD) ** 2
-      const room = on ? roomAt(dx * Math.cos(rot) - dz * Math.sin(rot), dx * Math.sin(rot) + dz * Math.cos(rot)) : -1
-      let knock = 0
-      if (on) for (const h of HITS) if (h.kind === 'wood') knock = Math.max(knock, h.force)
-      const event = stepWiring(TABLO, Math.min(dt, 0.05), room, knock, REDUCED)
-      if (event) HITS.push({ kind: 'trip', force: event === 'trip' ? 1 : 0.5 })
-      for (let i = 0; i < tabloLive.length; i++) tabloLive[i]!.value = TABLO.live[i]!
-      for (let r = 0; r < tabloLever.length; r++) tabloLever[r]!.value = TABLO.lever[r]!
+    // Tablo's appliances: how lit each one is, from when the grind last
+    // passed it — before the reduced-motion return, because under it they
+    // still light, they just do not move — and the parts that do.
+    for (let i = 0; i < APPLIANCES.length; i++) {
+      const lit = litAt(now - LIT[i]!)
+      tabloLit[i]!.value = lit
+      if (REDUCED) { tabloCharge[i]!.value = lit > 0 ? 1.01 : 0; continue }
+      tabloFan[i]!.value = (tabloFan[i]!.value + dt * (0.6 + 11 * lit)) % (Math.PI * 2)
+      tabloCharge[i]!.value = lit > 0 ? (tabloCharge[i]!.value + dt * 0.28) % 1.2 : 0
     }
+    tabloGrinding.value = RIDING.on ? 1 : 0
     if (REDUCED) return
     const here = LANDMARKS.some((l) => l.slug === near && l.landmark === 'sudoku')
     holoReveal.value = THREE.MathUtils.clamp(

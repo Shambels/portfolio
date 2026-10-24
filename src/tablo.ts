@@ -1,29 +1,34 @@
 /**
- * Tablo's island as data and arithmetic: a house drawn as its own position
- * plan, the distribution board that feeds it, and what riding through it does
- * to the circuits. Pure, no three and no DOM, so `tablo.check.ts` can ride the
- * plan in node — and so the index's plate (`Switchboard.tsx`) and the case
- * study's stage (`Survey.tsx`) draw the same installation the island is.
+ * Tablo's island, and the installation the index's plate and the case
+ * study's stage draw, as data and arithmetic. Pure, no three and no DOM, so
+ * `tablo.check.ts` can ride the island's rail in node.
  *
- * Tablo draws and checks the diagrams of Belgian installations, and its one
- * idea is that the single-line diagram and the position plan are one model
- * seen twice: a point on the plan is a point on a circuit, tagged A1, A2…
- * like the board. So the island is that model standing up. The floor is the
- * plan — four rooms, kerbs for walls, a lamp and sockets where an installer
- * would put them — and every point is wired back to a breaker in a board at
- * the front door. Riding into a room is current going to it: its conductors
- * light from the board outward, its lamp comes on, its breaker's LED glows.
- * Hit a kerb hard enough and the RCD upstream of the room trips, and every
- * circuit behind it goes dark until it re-arms.
+ * Tablo draws and checks the diagrams of Belgian installations, and the
+ * single-line diagram is a circuit: a feed out of the board, forks, branches,
+ * points on every branch. So the island is that circuit, closed and standing
+ * up as a rail the surfer grinds. He catches it by landing on it, and on it he
+ * is the current: carried downstream at the rail's own speed, round every
+ * corner, steering only at the forks — and every fork's two paths join again
+ * downstream, and the return runs back up through the board into the feed,
+ * so whichever way he goes he goes round until he jumps. Every appliance on
+ * the way switches on as he passes it, and stays on for a while.
  *
- * Everything below is in the landmark's own space, metres: +Z toward the
- * world's centre (the visitor's approach), y up from the plateau.
- * `tools/tablo.py` builds the model from the same numbers, and the check reads
- * the .glb back against them.
+ * Two installations live here, and they are not the same one. The island's
+ * is the rail (`NODES`, `EDGES`, `APPLIANCES`). The sheet's is a house — four
+ * rooms, four circuits, two RCDs — which the plate and the stage draw as a
+ * single-line diagram over a position plan (`sheet()`, at the end), because
+ * that is the document Tablo produces.
+ *
+ * Everything is in the landmark's own space, metres: +Z toward the world's
+ * centre (the visitor's approach), y up from the plateau. `tools/tablo.py`
+ * builds the model from `layout()` — it runs this file in node — so the rail
+ * the surfer rides and the rail the visitor sees are one set of numbers.
  */
 
 import type { Hit, Poly } from './plateau.ts'
+import { profileAt, profileOf, seedOf } from './plateau.ts'
 
+// ================================================================ the sheet's house
 // ------------------------------------------------------------------ the plan
 
 /** The house's outline. The board stands outside its front wall, at the
@@ -73,6 +78,7 @@ export function wallRect([axis, at, a, b]: (typeof WALLS)[number]): { x0: number
     : { x0: at - h, x1: at + h, z0: a - h, z1: b + h }
 }
 
+
 // -------------------------------------------------------------- the circuits
 
 export type Rcd = { ma: number; amps: number; type: 'A' | 'AC' }
@@ -92,17 +98,13 @@ export type Circuit = {
   amps: number
   curve: 'B' | 'C'
   mm2: number
-  /** Where its conductor leaves the board, across the landmark — see
-   *  `route`. The two deeper rooms take the inner trunks, so no circuit's
-   *  run crosses another's. */
-  trunk: number
 }
 
 export const CIRCUITS: Circuit[] = [
-  { tag: 'A', room: 0, rcd: 0, amps: 20, curve: 'C', mm2: 2.5, trunk: -0.27 },
-  { tag: 'B', room: 1, rcd: 0, amps: 20, curve: 'C', mm2: 2.5, trunk: 0.27 },
-  { tag: 'C', room: 2, rcd: 0, amps: 16, curve: 'B', mm2: 1.5, trunk: -0.09 },
-  { tag: 'D', room: 3, rcd: 1, amps: 20, curve: 'C', mm2: 2.5, trunk: 0.09 },
+  { tag: 'A', room: 0, rcd: 0, amps: 20, curve: 'C', mm2: 2.5 },
+  { tag: 'B', room: 1, rcd: 0, amps: 20, curve: 'C', mm2: 2.5 },
+  { tag: 'C', room: 2, rcd: 0, amps: 16, curve: 'B', mm2: 1.5 },
+  { tag: 'D', room: 3, rcd: 1, amps: 20, curve: 'C', mm2: 2.5 },
 ]
 
 export type Point = { circuit: number; kind: 'lamp' | 'socket'; x: number; z: number; tag: string }
@@ -121,124 +123,384 @@ export const POINTS: Point[] = ([
   tag: `${CIRCUITS[circuit]!.tag}${all.slice(0, i + 1).filter((p) => p[0] === circuit).length}`,
 }))
 
-/** A lamp: a post, and the globe on it. */
-export const LAMP = { post: 0.07, h: 1.45, r: 0.2 }
-/** A socket outlet, giant: a block against its wall. */
+/** A socket outlet on the sheet's plan, giant. */
 export const SOCKET = { w: 0.36, h: 0.36, d: 0.2 }
+/** Where the board stands on the sheet's plan: outside the front door. */
+export const CABINET = { x0: -0.95, x1: 0.95, z0: 3.62, z1: 4.07 }
 
-// ---------------------------------------------------------------- the board
-
-/** The cabinet, outside the front wall and facing the approach. */
-export const CABINET = { x0: -0.95, x1: 0.95, z0: 3.62, z1: 4.07, y0: 0.2, y1: 2.6 }
-/** The door, open on its left hinge and swung back flat against nothing:
- *  160° from shut, its inside — where the diagram lives — to the visitor. */
-export const DOOR = { hinge: [-0.95, 4.07] as const, w: 1.9, t: 0.05, open: (160 * Math.PI) / 180 }
-
-/** One DIN module, giant — ten times a real one, so a breaker reads as a
- *  breaker from the water's edge. */
-export const MODULE = { w: 0.18, h: 0.56 }
-/** The mounting plate's face, and how far a module stands proud of it:
- *  `base` all over, `nose` on the middle of the face. The lever's pivot is on
- *  the nose. */
-export const DEPTH = { plate: 3.7, base: 0.12, nose: 0.07 }
-export const ROW_Y = [1.98, 1.3] as const
-
-export type Device = { kind: 'main' | 'rcd' | 'breaker' | 'blank'; row: number; slot: number; mods: number; ref?: number }
-/** Left to right, row by row: the main switch, the house RCD and the three
- *  circuits under it; the bathroom's RCD and its one circuit, then blanks.
- *  `ref` is the RCD or the circuit the device is. */
-export const DEVICES: Device[] = [
-  { kind: 'main', row: 0, slot: 0, mods: 2 },
-  { kind: 'rcd', row: 0, slot: 2, mods: 2, ref: 0 },
-  { kind: 'breaker', row: 0, slot: 4, mods: 1, ref: 0 },
-  { kind: 'breaker', row: 0, slot: 5, mods: 1, ref: 1 },
-  { kind: 'breaker', row: 0, slot: 6, mods: 1, ref: 2 },
-  { kind: 'rcd', row: 1, slot: 0, mods: 2, ref: 1 },
-  { kind: 'breaker', row: 1, slot: 2, mods: 1, ref: 3 },
-  { kind: 'blank', row: 1, slot: 3, mods: 4 },
-]
-/** Seven modules a row, centred. */
-export const ROW_X0 = -3.5 * MODULE.w
-
-/** Where a device's lever turns: the middle of its width, on its nose. */
-export function pivot(d: Device): [number, number, number] {
-  return [ROW_X0 + (d.slot + d.mods / 2) * MODULE.w, ROW_Y[d.row]!, DEPTH.plate + DEPTH.base + DEPTH.nose]
-}
-
-/** A lever's throw: up is on, as on every board here, and down is off. */
-export const THROW = { on: 0.55, off: -0.55 }
-
-// -------------------------------------------------------------- the wiring
-
-/** Where every conductor starts: under the board, at its trunk. */
-export const FEED_Z = 3.55
-
-/**
- * A point's conductor, as the plan draws it: straight back from the board
- * on its circuit's trunk to the point's depth, then across to it. Two legs,
- * both always moving away from where it started — which is what lets the
- * shader read "how far along the wire" as plain Manhattan distance from the
- * trunk's foot, `flowAt`, without the model carrying a coordinate for it.
- */
-export function route(p: Point): [number, number][] {
-  const x = CIRCUITS[p.circuit]!.trunk
-  return [[x, FEED_Z], [x, p.z], [p.x, p.z]]
-}
-
-/** How far along its circuit's wiring a point on the floor is. */
-export const flowAt = (circuit: number, x: number, z: number) =>
-  Math.abs(x - CIRCUITS[circuit]!.trunk) + (FEED_Z - z)
-
-/** Which room an XZ is in, or -1 outside the house. */
-export function roomAt(x: number, z: number): number {
-  return ROOMS.findIndex((r) => x >= r.x0 && x < r.x1 && z >= r.z0 && z < r.z1)
-}
-
-/** Everything a board can hit on the island, as convex polygons
- *  counter-clockwise: the kerbs, the cabinet, its open door, the lamp posts
- *  and the sockets. Read by `Landmarks.tsx` into the island's prop set, so the
- *  walls come from the numbers and not from the mesh — a hull of the kerbs'
- *  vertices would be one polygon round the whole house. */
-export const PLAN_WALLS: Poly[] = (() => {
-  const rect = (x0: number, x1: number, z0: number, z1: number): Poly => [
-    { x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 },
-  ]
-  const out = WALLS.map((w) => {
-    const r = wallRect(w)
-    return rect(r.x0, r.x1, r.z0, r.z1)
-  })
-  out.push(rect(CABINET.x0, CABINET.x1, CABINET.z0, CABINET.z1))
-  // The door, a thin plank turned about its hinge.
-  const [hx, hz] = DOOR.hinge
-  const ux = Math.cos(DOOR.open)
-  const uz = Math.sin(DOOR.open)
-  const nx = -uz * DOOR.t
-  const nz = ux * DOOR.t
-  const door: Poly = [
-    { x: hx, z: hz }, { x: hx + ux * DOOR.w, z: hz + uz * DOOR.w },
-    { x: hx + ux * DOOR.w + nx, z: hz + uz * DOOR.w + nz }, { x: hx + nx, z: hz + nz },
-  ]
-  out.push(ccw(door))
-  for (const p of POINTS) {
-    if (p.kind === 'lamp') out.push(rect(p.x - LAMP.post, p.x + LAMP.post, p.z - LAMP.post, p.z + LAMP.post))
-    else out.push(rect(...socketBox(p)))
-  }
-  return out
-})()
-
-/** What a landmark carries as walls besides the hull `WALLED` reads off its
- *  model, and what hitting them sounds like — keyed by landmark shape, like
- *  `DECKS`. One landmark has any: a house's kerbs are many walls, not one. */
-export const FIXTURES: Record<string, { walls: Poly[]; knock: Hit['kind'] } | undefined> = {
-  tablo: { walls: PLAN_WALLS, knock: 'wood' },
-}
-
-/** A socket's footprint: its back against the nearest wall. */
+/** A socket's footprint on the plan: its back against the nearest wall. */
 export function socketBox(p: Point): [number, number, number, number] {
   const alongX = Math.abs(Math.abs(p.z) - 3.5) < 0.3 || Math.abs(p.z - 3.0) < 0.3
   const w = SOCKET.w / 2
   const d = SOCKET.d / 2
   return alongX ? [p.x - w, p.x + w, p.z - d, p.z + d] : [p.x - d, p.x + d, p.z - w, p.z + w]
+}
+
+// ------------------------------------------------------------- the words
+
+/** Room names, for the diagram's labels on the plate and the stage. */
+export const ROOM_NAMES: Record<'en' | 'fr' | 'nl', Record<RoomKey, string>> = {
+  en: { living: 'Living room', kitchen: 'Kitchen', bedroom: 'Bedroom', bathroom: 'Bathroom' },
+  fr: { living: 'Séjour', kitchen: 'Cuisine', bedroom: 'Chambre', bathroom: 'Salle de bain' },
+  nl: { living: 'Woonkamer', kitchen: 'Keuken', bedroom: 'Slaapkamer', bathroom: 'Badkamer' },
+}
+
+// ================================================================ the island's rail
+
+/**
+ * The rail's shape: every corner rounded to this radius, so a grind turns
+ * round it at speed rather than snapping, and where two paths meet they meet
+ * on the same tangent — a fork is a Y and a join is a Y.
+ */
+export const FILLET = 0.9
+/** Heights over the plateau: every node and the outer paths at `low`, the
+ *  inner paths at `high`, eased between over `ramp` at each end — so the two
+ *  read apart from the water and jumping from one to the other is a thing to
+ *  learn. `r` is the conductor's own radius. */
+export const RAIL = { low: 0.6, high: 1.05, ramp: 1.6, r: 0.05 }
+
+/** A node: where it is and the one direction everything through it runs. */
+export type Node = { name: string; x: number; z: number; tx: number; tz: number }
+/** The board, the first fork, a fork and a join each side, and the join the
+ *  return runs back up from. The board's node is where the feed leaves it. */
+export const NODES: Node[] = [
+  { name: 'board', x: 0, z: -1.4, tx: 0, tz: -1 },
+  { name: 'split', x: 0, z: -4.6, tx: 0, tz: -1 },
+  { name: 'west fork', x: -7.4, z: -1.3, tx: 0, tz: 1 },
+  { name: 'west join', x: -5.4, z: 3.2, tx: 0, tz: 1 },
+  { name: 'east fork', x: 7.4, z: -1.3, tx: 0, tz: 1 },
+  { name: 'east join', x: 5.4, z: 3.2, tx: 0, tz: 1 },
+  { name: 'return', x: 0, z: 4.7, tx: 0, tz: -1 },
+]
+
+type EdgeDef = { from: number; to: number; high: boolean; pts: [number, number][] }
+const mirror = (e: EdgeDef, from: number, to: number): EdgeDef =>
+  ({ ...e, from, to, pts: e.pts.map(([x, z]) => [-x, z] as [number, number]) })
+/** The west half, laid out by hand; the east is its mirror. Every edge leaves
+ *  its node along the node's direction and arrives along the next one's. */
+const WEST: EdgeDef[] = [
+  { from: 1, to: 2, high: false, pts: [[0, -4.6], [0, -5.8], [-5.4, -5.8], [-5.4, -4], [-7.4, -4], [-7.4, -1.3]] },
+  { from: 2, to: 3, high: false, pts: [[-7.4, -1.3], [-7.4, -0.4], [-9.2, -0.4], [-9.2, 2.3], [-5.4, 2.3], [-5.4, 3.2]] },
+  { from: 2, to: 3, high: true, pts: [[-7.4, -1.3], [-7.4, -0.4], [-3.6, -0.4], [-3.6, 1.4], [-5.4, 1.4], [-5.4, 3.2]] },
+  { from: 3, to: 6, high: false, pts: [[-5.4, 3.2], [-5.4, 5.6], [0, 5.6], [0, 4.7]] },
+]
+const DEFS: EdgeDef[] = [
+  { from: 0, to: 1, high: false, pts: [[0, -1.4], [0, -4.6]] },
+  ...WEST,
+  mirror(WEST[0]!, 1, 4), mirror(WEST[1]!, 4, 5), mirror(WEST[2]!, 4, 5), mirror(WEST[3]!, 5, 6),
+  // The return, straight up the middle and through the board.
+  { from: 6, to: 0, high: false, pts: [[0, 4.7], [0, -1.4]] },
+]
+
+/** An edge, sampled: the filleted centre line, its running length, and which
+ *  way the second leg of its definition turns — what a fork reads. */
+export type Edge = {
+  from: number; to: number; high: boolean
+  xs: number[]; zs: number[]; cum: number[]; len: number
+  /** The direction it bends away from its node: the second leg of the
+   *  definition, as a unit vector. */
+  bend: [number, number]
+}
+
+/** Round every interior corner with a quadratic between the two tangent
+ *  points — tangent-continuous, near enough circular at a right angle — and
+ *  sample it. A leg shared by two corners lends each of them half. */
+function fillet(pts: [number, number][]): [number, number][] {
+  const out: [number, number][] = [pts[0]!]
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, pz] = pts[i - 1]!
+    const [cx, cz] = pts[i]!
+    const [nx, nz] = pts[i + 1]!
+    const la = Math.hypot(cx - px, cz - pz)
+    const lb = Math.hypot(nx - cx, nz - cz)
+    const t = Math.min(FILLET, i === 1 ? la : la / 2, i === pts.length - 2 ? lb : lb / 2)
+    const ax = cx - ((cx - px) / la) * t
+    const az = cz - ((cz - pz) / la) * t
+    const bx = cx + ((nx - cx) / lb) * t
+    const bz = cz + ((nz - cz) / lb) * t
+    const N = 14
+    for (let k = 0; k <= N; k++) {
+      const u = k / N
+      out.push([
+        (1 - u) * (1 - u) * ax + 2 * u * (1 - u) * cx + u * u * bx,
+        (1 - u) * (1 - u) * az + 2 * u * (1 - u) * cz + u * u * bz,
+      ])
+    }
+  }
+  out.push(pts[pts.length - 1]!)
+  // Drop the zero-length steps a corner that takes a whole leg leaves behind.
+  return out.filter((p, i) => i === 0 || Math.hypot(p[0] - out[i - 1]![0], p[1] - out[i - 1]![1]) > 1e-6)
+}
+
+export const EDGES: Edge[] = DEFS.map((d) => {
+  const p = fillet(d.pts)
+  const cum = [0]
+  for (let i = 1; i < p.length; i++) cum.push(cum[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]))
+  const [a, b] = [d.pts[1]!, d.pts[Math.min(2, d.pts.length - 1)]!]
+  const bl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+  return {
+    from: d.from, to: d.to, high: d.high,
+    xs: p.map((q) => q[0]), zs: p.map((q) => q[1]), cum, len: cum[cum.length - 1]!,
+    bend: [(b[0] - a[0]) / bl, (b[1] - a[1]) / bl],
+  }
+})
+
+/** Out of each node, in order of preference: the first is where a grind goes
+ *  when nobody steers — the west side at the split, the outer path at a fork. */
+export const OUTS: number[][] = NODES.map((_, n) => EDGES.flatMap((e, i) => (e.from === n ? [i] : [])))
+
+const S = (a: number, b: number, x: number) => {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1)
+  return t * t * (3 - 2 * t)
+}
+
+/** The rail's top over the plateau, `s` along edge `e`. */
+export function heightAt(e: Edge, s: number): number {
+  if (!e.high) return RAIL.low
+  const k = Math.min(S(0, RAIL.ramp, s), S(0, RAIL.ramp, e.len - s))
+  return RAIL.low + (RAIL.high - RAIL.low) * k
+}
+
+/** Where `s` along edge `e` is, and which way the rail runs there — the
+ *  direction blended across each sample so a corner turns smoothly. */
+export function pointAt(e: Edge, s: number): { x: number; z: number; tx: number; tz: number } {
+  const c = Math.min(Math.max(s, 0), e.len)
+  let i = 1
+  while (i < e.cum.length - 1 && e.cum[i]! < c) i++
+  const u = (c - e.cum[i - 1]!) / Math.max(e.cum[i]! - e.cum[i - 1]!, 1e-9)
+  const x = e.xs[i - 1]! + (e.xs[i]! - e.xs[i - 1]!) * u
+  const z = e.zs[i - 1]! + (e.zs[i]! - e.zs[i - 1]!) * u
+  const dir = (j: number) => {
+    const j0 = Math.max(1, Math.min(j, e.cum.length - 1))
+    const dx = e.xs[j0]! - e.xs[j0 - 1]!
+    const dz = e.zs[j0]! - e.zs[j0 - 1]!
+    const l = Math.hypot(dx, dz) || 1
+    return [dx / l, dz / l] as const
+  }
+  const [ax, az] = dir(i)
+  const [bx, bz] = u < 0.5 ? dir(i - 1) : dir(i + 1)
+  const w = u < 0.5 ? 0.5 - u : u - 0.5
+  let tx = ax + (bx - ax) * w
+  let tz = az + (bz - az) * w
+  const l = Math.hypot(tx, tz) || 1
+  tx /= l
+  tz /= l
+  return { x, z, tx, tz }
+}
+
+// ---------------------------------------------------------------- the grind
+
+/**
+ * Catching it: a board coming *down* through the rail's top, from above, with
+ * its centre within `reach` of the rail in plan. `above` is how far over the
+ * top still counts, so a landing a frame early is still a landing; a board
+ * coming up through it from below — riding into it, or a jump started under
+ * it — never is. The board's own capsule is two metres long, and `reach`
+ * is half a board-width: you land on it, not near it.
+ */
+export const CATCH = { reach: 0.5, above: 0.3 }
+
+/** The nearest rail under a board at landmark-local `x, z`, crossed from
+ *  `yPrev` to `yNow` (the board's underside over the plateau) this frame. */
+export function catchRail(x: number, z: number, yPrev: number, yNow: number): { edge: number; s: number } | null {
+  let best: { edge: number; s: number } | null = null
+  let bestD = CATCH.reach
+  EDGES.forEach((e, ei) => {
+    for (let i = 1; i < e.xs.length; i++) {
+      const ax = e.xs[i - 1]!, az = e.zs[i - 1]!
+      const dx = e.xs[i]! - ax, dz = e.zs[i]! - az
+      const l2 = dx * dx + dz * dz
+      const u = l2 > 0 ? Math.min(Math.max(((x - ax) * dx + (z - az) * dz) / l2, 0), 1) : 0
+      const d = Math.hypot(x - ax - dx * u, z - az - dz * u)
+      if (d >= bestD) continue
+      const s = e.cum[i - 1]! + (e.cum[i]! - e.cum[i - 1]!) * u
+      const top = heightAt(e, s)
+      if (yNow > top + CATCH.above || yPrev < top - 0.05) continue
+      bestD = d
+      best = { edge: ei, s }
+    }
+  })
+  return best
+}
+
+/** On the rail: which edge, how far along, and how fast. */
+export type Grind = { edge: number; s: number; v: number }
+
+/** The grind's speed: whatever he landed with along the rail, held between
+ *  these, drifting to `cruise` — the current pushing him. */
+export const GRIND = { min: 4, max: 8, cruise: 5, drift: 0.6, steer: 0.25, pop: 4.2 }
+
+export function startGrind(c: { edge: number; s: number }, vx: number, vz: number): Grind {
+  const p = pointAt(EDGES[c.edge]!, c.s)
+  const along = Math.abs(vx * p.tx + vz * p.tz)
+  return { edge: c.edge, s: c.s, v: Math.min(Math.max(along, GRIND.min), GRIND.max) }
+}
+
+/**
+ * Which way out of a node: the edge that bends the way he is steering, or the
+ * first out of it if he is not. `steer` is his input across the rail, right
+ * positive; `tx, tz` the way he arrived.
+ */
+export function chooseOut(node: number, steer: number, tx: number, tz: number): number {
+  const outs = OUTS[node]!
+  if (outs.length === 1 || Math.abs(steer) < GRIND.steer) return outs[0]!
+  // His right, heading along (tx, tz), in a frame where +x is left of +z.
+  const rx = -tz
+  const rz = tx
+  for (const o of outs) {
+    const [bx, bz] = EDGES[o]!.bend
+    if (Math.sign(bx * rx + bz * rz) === Math.sign(steer)) return o
+  }
+  return outs[0]!
+}
+
+/**
+ * One frame on the rail: along it at its speed, through any node into the
+ * edge the steering picks, every appliance passed pushed to `passed`. Returns
+ * where he is, which way he faces, his height and how fast it is changing.
+ */
+export function stepGrind(g: Grind, dt: number, steer: number, passed: number[]) {
+  g.v += (GRIND.cruise - g.v) * Math.min(1, GRIND.drift * dt)
+  let rest = g.v * dt
+  for (let guard = 0; guard < 8 && rest > 0; guard++) {
+    const e = EDGES[g.edge]!
+    const to = Math.min(g.s + rest, e.len)
+    for (const a of ON_EDGE[g.edge]!) {
+      const s = APPLIANCES[a]!.s
+      if (s > g.s && s <= to) passed.push(a)
+    }
+    rest -= to - g.s
+    g.s = to
+    if (g.s >= e.len - 1e-9) {
+      const p = pointAt(e, e.len)
+      g.edge = chooseOut(e.to, steer, p.tx, p.tz)
+      g.s = 0
+    }
+  }
+  const e = EDGES[g.edge]!
+  const p = pointAt(e, g.s)
+  const y = heightAt(e, g.s)
+  const ahead = heightAt(e, Math.min(g.s + 0.05, e.len))
+  return { ...p, y, vy: ((ahead - y) / 0.05) * g.v }
+}
+
+// ------------------------------------------------------------ the appliances
+
+/**
+ * What the circuit feeds, and what lights as he passes: the board itself,
+ * which the rail runs through, and Tablo's own example installations — lamps,
+ * sockets, a washing machine, a heat pump, an EV charger, solar panels and
+ * their inverter, a roller shutter — one on every stretch, so every way round
+ * lights a different set and the whole island takes a few laps.
+ */
+export type ApplianceKind = 'board' | 'lamp' | 'socket' | 'washer' | 'heatpump' | 'charger' | 'solar' | 'shutter'
+type ApplianceDef = { kind: ApplianceKind; edge: number; at: [number, number]; inside?: boolean }
+const DEF_APPLIANCES: ApplianceDef[] = [
+  { kind: 'board', edge: 9, at: [0, 1.6] },
+  { kind: 'lamp', edge: 1, at: [-2.7, -5.8] },
+  { kind: 'socket', edge: 1, at: [-6.4, -4] },
+  { kind: 'washer', edge: 2, at: [-9.2, 0.95], inside: true },
+  { kind: 'lamp', edge: 3, at: [-3.6, 0.5] },
+  { kind: 'heatpump', edge: 4, at: [-2.7, 5.6] },
+  { kind: 'charger', edge: 5, at: [2.7, -5.8] },
+  { kind: 'socket', edge: 5, at: [6.4, -4] },
+  { kind: 'solar', edge: 6, at: [9.2, 0.95], inside: true },
+  { kind: 'lamp', edge: 7, at: [3.6, 0.5] },
+  { kind: 'shutter', edge: 8, at: [2.7, 5.6] },
+]
+
+/** Footprints, metres — how wide each is along the rail it faces, and how
+ *  deep toward it: what a board hits on the ground, and the space
+ *  `tools/tablo.py` builds each one in. */
+export const FOOT: Record<ApplianceKind, [number, number]> = {
+  board: [0.32, 0.6], lamp: [0.3, 0.3], socket: [0.42, 0.5], washer: [0.75, 0.8],
+  heatpump: [1.15, 0.8], charger: [0.4, 0.5], solar: [1.5, 1.1], shutter: [1.7, 0.35],
+}
+/** How far from the rail's centre line each stands — clear of a grinding
+ *  board, which is two metres long and a third of a metre wide. */
+export const STANDOFF = 1.25
+
+export type Appliance = {
+  kind: ApplianceKind; edge: number; s: number
+  /** Where it stands, and the way it faces — toward the rail. */
+  x: number; z: number; yaw: number
+}
+
+export const APPLIANCES: Appliance[] = DEF_APPLIANCES.map((d) => {
+  const e = EDGES[d.edge]!
+  // Project the hand-placed point onto its edge.
+  let s = 0
+  let best = Infinity
+  for (let i = 1; i < e.xs.length; i++) {
+    const ax = e.xs[i - 1]!, az = e.zs[i - 1]!
+    const dx = e.xs[i]! - ax, dz = e.zs[i]! - az
+    const l2 = dx * dx + dz * dz
+    const u = l2 > 0 ? Math.min(Math.max(((d.at[0] - ax) * dx + (d.at[1] - az) * dz) / l2, 0), 1) : 0
+    const dd = Math.hypot(d.at[0] - ax - dx * u, d.at[1] - az - dz * u)
+    if (dd < best) { best = dd; s = e.cum[i - 1]! + (e.cum[i]! - e.cum[i - 1]!) * u }
+  }
+  const p = pointAt(e, s)
+  if (d.kind === 'board') return { kind: d.kind, edge: d.edge, s, x: p.x, z: p.z, yaw: 0 }
+  // Beside the rail, on the side away from the island's middle — or toward
+  // it, for the two on the outermost stretches — facing it.
+  let nx = -p.tz
+  let nz = p.tx
+  if ((nx * p.x + nz * p.z < 0) !== !!d.inside) { nx = -nx; nz = -nz }
+  return { kind: d.kind, edge: d.edge, s, x: p.x + nx * STANDOFF, z: p.z + nz * STANDOFF, yaw: Math.atan2(-nx, -nz) }
+})
+
+/** The appliances on each edge, for the grind to check as it goes. */
+const ON_EDGE: number[][] = EDGES.map((_, i) => APPLIANCES.flatMap((a, k) => (a.edge === i ? [k] : [])))
+
+/** When each appliance was last passed, in the world clock's seconds — written
+ *  by `Ship` as it grinds, read by `Landmarks` into their light. */
+export const LIT = new Float64Array(APPLIANCES.length).fill(-1e9)
+/** Whether he is on the rail this frame — written by `Ship`, read by the
+ *  rail's glow and the grind's sound. */
+export const RIDING = { on: false }
+/** Seconds an appliance stays on after he passes it, and how long it takes to
+ *  go out. */
+export const HOLD = { on: 45, fade: 3 }
+/** How lit an appliance is, `age` seconds after it was passed: a flash on
+ *  the pass, on for `HOLD.on`, out over `HOLD.fade`. */
+export const litAt = (age: number) => (age < 0 ? 0 : age < HOLD.on ? 1 : Math.max(0, 1 - (age - HOLD.on) / HOLD.fade))
+
+/** The board straddles the rail on two legs, its cabinet over his head:
+ *  the legs' half-spread, the top of the beam, and the cabinet's foot. */
+export const GANTRY = { half: 1.25, top: 3.3, cabinet: 2.35 }
+
+/** The parts that move, over each appliance's own ground, metres: the heat
+ *  pump's fan (its height and radius, turning about the appliance's own
+ *  vertical), the charger's five bars (the span they fill), and the
+ *  shutter (the span it rolls up from). `tools/tablo.py` builds to these and
+ *  `Landmarks.tsx` moves them by them. */
+export const PARTS = {
+  fan: { y: 0.93, r: 0.34 },
+  bars: { y0: 0.62, y1: 1.22 },
+  shutter: { y0: 0.2, y1: 1.62 },
+}
+
+/** Everything on the island a board hits on the ground — every appliance's
+ *  footprint and the gantry's two feet — as convex polygons. Not the rail and
+ *  not its posts: he rides under it, and catches it from the air. */
+export const ISLAND_WALLS: Poly[] = APPLIANCES.flatMap((a) => {
+  if (a.kind === 'board') {
+    const [w, d] = FOOT.board
+    return [-1, 1].map((k) => box(a.x + k * GANTRY.half, a.z, 0, w, d))
+  }
+  const [w, d] = FOOT[a.kind]
+  return [box(a.x, a.z, a.yaw, w, d)]
+})
+
+/** An oriented box: `w` across its facing and `d` along it. */
+function box(cx: number, cz: number, yaw: number, w: number, d: number): Poly {
+  const fx = Math.sin(yaw), fz = Math.cos(yaw) // facing
+  const rx = fz, rz = -fx // across
+  const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({
+    x: cx + rx * (a! * w) / 2 + fx * (b! * d) / 2,
+    z: cz + rz * (a! * w) / 2 + fz * (b! * d) / 2,
+  }))
+  return ccw(pts)
 }
 
 /** Wound the way `hull2d` winds and `inside()` in `plateau.ts` reads:
@@ -253,97 +515,40 @@ function ccw(poly: Poly): Poly {
   return a > 0 ? poly : [...poly].reverse()
 }
 
-// ------------------------------------------------------------ the behaviour
-
-/**
- * The installation's state, frame to frame. `live` is how lit each circuit
- * is, 0 to 1 — its conductors, its lamp, its LED. A circuit goes live when
- * somebody is in its room and stays live for `HOLD` seconds after they leave,
- * so riding the house through draws the whole diagram and it stays drawn for
- * a while. `armed` is whether each RCD is in, `down` how long a tripped one
- * has left before it re-arms, and `lever` where its lever is, 0 down and 1 up
- * — eased, because the shader draws it.
- */
-export type Wiring = { live: number[]; seen: number[]; armed: boolean[]; down: number[]; lever: number[] }
-
-export const WIRING = {
-  /** Seconds a circuit stays live after its room was last visited. */
-  hold: 45,
-  /** How quickly a circuit lights, and goes out — per second. */
-  on: 2.5,
-  off: 1.2,
-  /** Seconds a tripped RCD stays out. */
-  reset: 3.5,
-  /** And its lever's throw, per second. */
-  throw: 6,
-  /** A knock at least this hard (0 to 1, `Hit.force`) trips the room's RCD. */
-  trip: 0.5,
+/** What a landmark carries as walls besides any hull `WALLED` reads off its
+ *  model, and what hitting them sounds like, keyed by landmark shape. */
+export const FIXTURES: Record<string, { walls: Poly[]; knock: Hit['kind'] } | undefined> = {
+  tablo: { walls: ISLAND_WALLS, knock: 'metal' },
 }
 
-export function wiring(): Wiring {
+/** Posts under the rail: one at most `POST_GAP` apart along every edge, not
+ *  within a metre of a node (the node has its own), and one at every node. */
+export const POST_GAP = 2.4
+
+/**
+ * Everything `tools/tablo.py` builds, from the numbers above: each edge's
+ * centre line with its height, every post with the ground under it (the
+ * island's real profile, for an island revolved out to `R`), and every
+ * appliance. The script runs this in node and builds what it says.
+ */
+export function layout(R: number) {
+  const seed = seedOf('tablo')
+  const ground = (x: number, z: number) => profileAt(R, seed, x, z, profileOf('tablo'))
+  const rails = EDGES.map((e) => e.xs.map((x, i) => [x, heightAt(e, e.cum[i]!), e.zs[i]!]))
+  const posts: [number, number, number, number][] = []
+  for (const n of NODES) posts.push([n.x, n.z, ground(n.x, n.z), RAIL.low])
+  for (const e of EDGES) {
+    const n = Math.max(1, Math.ceil((e.len - 2) / POST_GAP))
+    for (let k = 1; k < n; k++) {
+      const s = 1 + ((e.len - 2) * k) / n
+      const p = pointAt(e, s)
+      posts.push([p.x, p.z, ground(p.x, p.z), heightAt(e, s)])
+    }
+  }
   return {
-    live: CIRCUITS.map(() => 0),
-    seen: CIRCUITS.map(() => Infinity),
-    armed: RCDS.map(() => true),
-    down: RCDS.map(() => 0),
-    lever: RCDS.map(() => 1),
+    rails, posts, rail: RAIL, gantry: GANTRY, foot: FOOT, parts: PARTS,
+    appliances: APPLIANCES.map((a) => ({ ...a, ground: ground(a.x, a.z) })),
   }
-}
-
-/**
- * One frame. `room` is where the rider is (`roomAt`, or -1), `knock` the
- * hardest hit on the island this frame (0 for none). Returns what happened
- * that has a sound: an RCD tripping, or one coming back in. Under reduced
- * motion everything is where it is going at once.
- *
- * Which RCD a knock trips is the one upstream of the room it happened in —
- * the bathroom's own 30 mA in the bathroom, the house's 300 mA anywhere else,
- * the cabinet included. That is what a fault does.
- */
-export function stepWiring(w: Wiring, dt: number, room: number, knock: number, reduced: boolean): 'trip' | 'rearm' | null {
-  let event: 'trip' | 'rearm' | null = null
-  for (let k = 0; k < CIRCUITS.length; k++) w.seen[k] = CIRCUITS[k]!.room === room ? 0 : w.seen[k]! + dt
-  if (knock >= WIRING.trip) {
-    const r = room >= 0 ? CIRCUITS[room]!.rcd : 0
-    if (w.armed[r]) {
-      w.armed[r] = false
-      w.down[r] = WIRING.reset
-      event = 'trip'
-    }
-  }
-  for (let r = 0; r < RCDS.length; r++) {
-    if (!w.armed[r]) {
-      w.down[r] = w.down[r]! - dt
-      if (w.down[r]! <= 0) {
-        w.armed[r] = true
-        w.down[r] = 0
-        event ??= 'rearm'
-      }
-    }
-    const want = w.armed[r] ? 1 : 0
-    const l = w.lever[r]!
-    w.lever[r] = reduced ? want : l + Math.sign(want - l) * Math.min(Math.abs(want - l), WIRING.throw * dt)
-  }
-  for (let k = 0; k < CIRCUITS.length; k++) {
-    const c = CIRCUITS[k]!
-    const fed = w.armed[0]! && w.armed[c.rcd]!
-    const want = fed && w.seen[k]! < WIRING.hold ? 1 : 0
-    const l = w.live[k]!
-    // Out at once when an RCD goes — a trip is not a fade — and back up at
-    // the usual rate when it comes back.
-    if (reduced || !fed) w.live[k] = want
-    else w.live[k] = l + Math.sign(want - l) * Math.min(Math.abs(want - l), (want > l ? WIRING.on : WIRING.off) * dt)
-  }
-  return event
-}
-
-// ------------------------------------------------------------- the words
-
-/** Room names, for the diagram's labels on the plate and the stage. */
-export const ROOM_NAMES: Record<'en' | 'fr' | 'nl', Record<RoomKey, string>> = {
-  en: { living: 'Living room', kitchen: 'Kitchen', bedroom: 'Bedroom', bathroom: 'Bathroom' },
-  fr: { living: 'Séjour', kitchen: 'Cuisine', bedroom: 'Chambre', bathroom: 'Salle de bain' },
-  nl: { living: 'Woonkamer', kitchen: 'Keuken', bedroom: 'Slaapkamer', bathroom: 'Badkamer' },
 }
 
 // --------------------------------------------------------------- the sheet
