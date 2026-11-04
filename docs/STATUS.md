@@ -8711,3 +8711,44 @@ materials that took `color:` (lip, slot, roller) take `colorNode` instead.
 - The approach on real hardware, both backends.
 - Tablo's `makeTablo(hi)` set is built the same way as Memojo's was and is also
   its own; if its first approach hitches, the same uniform treatment applies.
+
+## The front page — `/{lang}` is a name, `/{lang}/shore` is the beach
+
+The landing page was the beach: palms, a lounger, a sunset and one button into
+the world. It is a good door into the world and a poor first page for someone
+who came to hire or read, so it moved one door in and kept everything it had.
+
+- [x] **`/{lang}/shore`** is the old landing page, unchanged — `routes/home.tsx`
+      renamed `routes/shore.tsx`, the same shore, the same dolly, the same
+      button into `/{lang}/world`. Its `<title>` is "3D world — name" now, so
+      the two pages do not share one. `.landing` on `<html>` moved with it
+      (`root.tsx`). Prerendered in all three locales; `deploy.sh` probes it.
+- [x] **`/{lang}`** is the front page (`routes/home.tsx`, direction C of three
+      Seb was shown): the mark, the name, the role as a small cyan label over
+      one line, four links — Work, GitHub, Email, 3D world → the shore — and the
+      work by title, each opening its case study with `?read`. Under it, full
+      bleed, a horizon drawn in hairlines: the sea as one line, the sun on it in
+      gold, its glint, three lines of swell in the mark's cyan. The shore's
+      picture with everything else taken away. `.home` on `<html>`; the footer
+      is hidden there because the page is its contents.
+- [x] **Motion, invariant 6**: the column comes up once, the sun rises once,
+      the glint breathes and the swell drifts — all CSS, all inside
+      `prefers-reduced-motion: no-preference`. With reduced motion it is the
+      same picture standing still. With JS off it is the whole page.
+- [x] **The titles are read at build time.** Importing `content.ts` from the
+      front page put the whole MDX chunk (62 kB gz) on the first route, which
+      the old landing never loaded. A `loader` on a prerendered route runs at
+      build time and is stripped from the client, so the page carries six
+      titles: the route chunk is 1.5 kB gz. It is the first `loader` on the
+      site, and it writes `build/client/{en,fr,nl}.data`, which a client-side
+      navigation to `/{lang}` fetches. nginx serves them as plain files by the
+      existing `try_files`; tested against a static server that sends them as
+      `application/octet-stream`, as nginx will — navigation from `/work` to
+      the front page loads all six titles, no console errors.
+- [x] Screenshotted at 1440 × 900, 1280 × 760 (FR) and iPhone 13 (NL), with
+      and without JS.
+- [ ] **Seb's**: the tagline is drafted, not his — "Offline-first apps and
+      on-device tools, built to keep working without a server." — and its FR
+      and NL, with `exploreWorld`, join the unreviewed strings. Whether the
+      front page should be dark like every other page (as built) or light like
+      the mockup it was chosen from: a palette swap, not a layout change.

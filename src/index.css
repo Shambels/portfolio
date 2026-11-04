@@ -3961,3 +3961,255 @@ main {
   pointer-events: none;
   white-space: pre;
 }
+
+/* --- the front page ----------------------------------------------------- */
+
+/*
+  `/{lang}`: one screen, a name in the middle of it and a horizon drawn in
+  hairlines along the bottom — the shore's sun and sea with everything else
+  taken away (`routes/home.tsx`). `.home` is on `<html>`, written by `root.tsx`
+  like `.landing`, so it is in the prerendered document.
+
+  The footer is not shown: its name, email and GitHub are the page itself.
+*/
+
+.home body {
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+.home .foot {
+  display: none;
+}
+
+.home main {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  min-height: 100dvh;
+  max-width: none;
+  padding-block: calc(var(--lh) * 2.5) 0;
+  text-align: center;
+  view-transition-name: none;
+}
+
+.intro {
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  max-width: 36rem;
+  padding-block-end: var(--lh);
+}
+
+.intro .mark {
+  width: auto;
+  height: 3.25rem;
+  margin-block-end: var(--lh);
+}
+
+.intro h1 {
+  font-size: clamp(2.25rem, 1.4rem + 3.6vw, 4.25rem);
+  font-weight: 560;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  margin-block-end: calc(var(--lh) * 0.75);
+}
+
+.tagline {
+  max-width: 30rem;
+  color: var(--paper-dim);
+  font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.1875rem);
+  line-height: 1.6;
+  margin-block-end: calc(var(--lh) * 1.5);
+}
+
+/* The role, as a small label over the line rather than a second sentence. */
+.tagline .role {
+  display: block;
+  margin-block-end: 0.35rem;
+  color: #5ee0ee; /* the mark's own cyan */
+  font-size: 0.75rem;
+  font-weight: 560;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.reach {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  padding: 0;
+  list-style: none;
+  font-weight: 540;
+  margin-block-end: calc(var(--lh) * 1.75);
+}
+
+/* An underline that draws itself across on hover, in the sun's gold. */
+.reach a {
+  padding-block: 0.15rem;
+  text-decoration: none;
+  background: linear-gradient(var(--gold), var(--gold)) 0 100% / 0 1px no-repeat;
+  transition: background-size 260ms cubic-bezier(0.2, 0.7, 0.2, 1), color 140ms ease;
+}
+
+.reach a:hover,
+.reach a:focus-visible {
+  background-size: 100% 1px;
+}
+
+.reach .to-shore {
+  color: var(--gold);
+}
+
+.reach .to-shore span {
+  display: inline-block;
+  transition: translate 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reach .to-shore:hover span {
+  translate: 0.2rem 0;
+}
+
+.intro .label {
+  margin: 0 0 0.6rem;
+  color: var(--paper-faint);
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.shelf {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 1.6rem;
+  max-width: 32rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+  line-height: 1.9;
+}
+
+
+.shelf a {
+  color: var(--paper-dim);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.shelf a:hover,
+.shelf a:focus-visible {
+  color: var(--paper);
+}
+
+/* The horizon: full bleed under the column, one hairline of sea, the sun on
+   it, its glint and three lines of swell. `slice` keeps the sun round and in
+   the middle at every width; a phone sees less sea either side, not a squashed
+   sun. */
+.horizon {
+  display: block;
+  justify-self: start;
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  height: clamp(7rem, 20dvh, 11rem);
+  overflow: hidden;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.horizon * {
+  vector-effect: non-scaling-stroke;
+}
+
+.horizon .sea-line {
+  stroke: #ffffff2a;
+  stroke-width: 1;
+}
+
+.horizon .sun {
+  fill: #e9a8510a;
+  stroke: var(--gold);
+  stroke-width: 1.5;
+}
+
+.horizon .glint line {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  opacity: 0.8;
+}
+
+.horizon .swell {
+  stroke: #5ee0ee;
+  stroke-width: 1;
+}
+
+.horizon .s1 {
+  opacity: 0.32;
+}
+
+.horizon .s2 {
+  opacity: 0.2;
+}
+
+.horizon .s3 {
+  opacity: 0.11;
+}
+
+/* Invariant 6: everything that moves on this page is inside this block, and
+   with reduced motion the page is the same picture, standing still. */
+@media (prefers-reduced-motion: no-preference) {
+  .intro > * {
+    animation: front-in 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .intro > :nth-child(2) { animation-delay: 70ms; }
+  .intro > :nth-child(3) { animation-delay: 140ms; }
+  .intro > :nth-child(4) { animation-delay: 210ms; }
+  .intro > :nth-child(5),
+  .intro > :nth-child(6) { animation-delay: 300ms; }
+
+  .horizon .sun {
+    animation: sunrise 2400ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both;
+  }
+
+  .horizon .glint line {
+    animation: glint 3.2s ease-in-out infinite alternate;
+  }
+
+  .horizon .swell {
+    animation: drift linear infinite;
+  }
+
+  .horizon .s1 { animation-duration: 14s; --period: -140px; }
+  .horizon .s2 { animation-duration: 22s; --period: -190px; }
+  .horizon .s3 { animation-duration: 34s; --period: -250px; }
+}
+
+@keyframes front-in {
+  from {
+    opacity: 0;
+    translate: 0 0.6rem;
+  }
+}
+
+@keyframes sunrise {
+  from {
+    translate: 0 28px;
+  }
+}
+
+@keyframes glint {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@keyframes drift {
+  to {
+    translate: var(--period) 0;
+  }
+}

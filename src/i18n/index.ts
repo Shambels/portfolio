@@ -12,6 +12,10 @@ const en = {
   name: 'Sebastien Pinchetti',
   role: 'Software developer',
   bio: 'Software developer. ',
+  // The front page's one line under the name, and its description.
+  tagline: 'Offline-first apps and on-device tools, built to keep working without a server.',
+  // The front page's link to the shore, the way into the world.
+  exploreWorld: '3D world',
 
   skipToContent: 'Skip to the case studies',
   navHome: 'Home',
@@ -110,6 +114,8 @@ const fr: Strings = {
   name: 'Sebastien Pinchetti',
   role: 'Développeur web',
   bio: "Développeur web",
+  tagline: 'Des applications hors ligne et des outils embarqués, conçus pour fonctionner sans serveur.',
+  exploreWorld: 'Monde 3D',
 
   skipToContent: 'Aller aux études de cas',
   navHome: 'Accueil',
@@ -166,6 +172,8 @@ const nl: Strings = {
   name: 'Sebastien Pinchetti',
   role: 'Web developer',
   bio: 'Web developer.',
+  tagline: 'Offline-first apps en on-device tools, gebouwd om zonder server te blijven werken.',
+  exploreWorld: '3D-wereld',
 
   skipToContent: 'Ga naar de casestudy’s',
   navHome: 'Home',

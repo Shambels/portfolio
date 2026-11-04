@@ -6,8 +6,13 @@ export default [
   // the landing page has taken `/{lang}`, so the world needs an address again —
   // one that is shareable, survives a reload, and is a complete flat page for a
   // visitor with no renderer.
+  //
+  // `/shore` is that landing page, moved one door in: `/{lang}` is the front
+  // page now — a name, a line and the links — and the beach is the way from it
+  // into the world. `docs/STATUS.md`, "The front page".
   route(':lang', './routes/locale.tsx', [
     index('./routes/home.tsx'),
+    route('shore', './routes/shore.tsx'),
     route('world', './routes/world.tsx'),
     route('work', './routes/work.tsx'),
     route('work/:slug', './routes/case-study.tsx'),

@@ -19,6 +19,7 @@ export default {
   ssr: false,
   prerender: LOCALES.flatMap((l) => [
     `/${l}`,
+    `/${l}/shore`,
     `/${l}/world`,
     `/${l}/work`,
     `/${l}/404`,
