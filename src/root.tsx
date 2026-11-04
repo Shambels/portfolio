@@ -12,15 +12,16 @@ export const links = () => [
 export function Layout({ children }: { children: ReactNode }) {
   const pathname = canonicalPath(useLocation().pathname)
   const locale = localeOf(pathname) ?? 'en'
-  // The landing page borrows the world's layout — full viewport, pinned chrome,
+  // The shore borrows the world's layout — full viewport, pinned chrome,
   // no scroll — and paints the ocean the world renders. The class is written
   // here rather than toggled in an effect the way `.world` is, because it has
-  // to be in the prerendered document: `/{lang}` is the ocean with JavaScript
-  // off (invariant 4), and a class that arrives after hydration would flash the
-  // flat page's background first.
-  const landing = pathname === `/${locale}`
+  // to be in the prerendered document: `/{lang}/shore` is the ocean with
+  // JavaScript off (invariant 4), and a class that arrives after hydration would
+  // flash the flat page's background first. `.home` is the front page, for the
+  // same reason: it is one screen, and has to be one before anything hydrates.
+  const page = pathname === `/${locale}` ? 'home' : pathname === `/${locale}/shore` ? 'landing' : undefined
   return (
-    <html lang={locale} className={landing ? 'landing' : undefined}>
+    <html lang={locale} className={page}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

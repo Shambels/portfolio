@@ -309,10 +309,14 @@ src/Menu.tsx            the top chrome — a <details> in the top right of the
                         stands in that row is the cross that closes a case study
                         the world opened — `locale.tsx` renders it, and the
                         matching arrow in the other corner
-src/routes/home.tsx     /{lang} — the landing page: the ocean as CSS, the shore
-                        over it (palms, cloud, sand — one SVG path and gradients),
-                        one button, and the dolly that flies all of it past the
-                        camera on the way into the world
+src/routes/home.tsx     /{lang} — the front page: the mark, the name, one line,
+                        four links and the work by title (a build-time `loader`,
+                        so no MDX on the first route), over a horizon drawn in
+                        hairlines
+src/routes/shore.tsx    /{lang}/shore — the old landing page: the ocean as CSS,
+                        the shore over it (palms, cloud, sand — one SVG path and
+                        gradients), one button, and the dolly that flies all of
+                        it past the camera on the way into the world
 src/routes/world.tsx    /{lang}/world — the world's address, and its flat fallback
 src/routes/work.tsx     /{lang}/work — the flat index, never has a world behind it:
                         a stage down the left third (a strip on a phone) that
@@ -519,7 +523,8 @@ src/device.ts           `PHONE` — a finger and no hover, or `?tier=` — and
                         and a computer is what a frame costs, never what is in it
 docs/STATUS.md          what is built and what is not — update it with the work
 src/index.css           global styles — and `.world` / `.landing`, the two
-                        classes on <html> that pin the chrome over the sea
+                        classes on <html> that pin the chrome over the sea, and
+                        `.home`, the front page's one screen
 src/content/projects/   {slug}.{lang}.mdx, and {slug}.svg — the index's signature —
                         and {slug}.{base,light,…}.avif, its plate's layers
 src/i18n/               UI strings per locale
@@ -869,7 +874,8 @@ control hints, the three craft labels, the reading view's `closeStudy` and
 strings, PolarSense's new FR and NL summaries, the whole of Memojo's FR and NL prose and now the whole of the Sudoku
 Solver's, which is the longest translation on the site, Sqrubs' four
 new paragraphs on the board reader, and the whole of Tablo's page in all
-three languages — written French first — with its stage's cards), and judging
+three languages — written French first — with its stage's cards, and the
+front page's `tagline` and `exploreWorld`, drafted by Claude in all three), and judging
 the lighting, the post-processing chain, the sound mix, the stick's feel and now
 the isle's frame rate, its turquoise on the older islands and the saucer over
 its ridge, on real hardware — swiftshader has no opinion about frame rate, a null audio sink
